@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.DS_Store
+.env
+goal_cases/runs/
+goal_cases/runtime/
+control/latest-program.json
+sources/latest-capability.json
+experience/latest-health.json
+20*-daily-*.md
+daily-20*.md

@@ -1,0 +1,164 @@
+{
+  "aspects": {
+    "search": {
+      "providers": {
+        "exa": {
+          "attempts": 156,
+          "error_rate": 0.5833,
+          "errors": 91,
+          "new_url_rate": 1.9808,
+          "new_urls": 309,
+          "reason": "mixed recent signal with both errors and useful output",
+          "results": 325,
+          "status": "active"
+        },
+        "exa_unavailable": {
+          "attempts": 91,
+          "error_rate": 1.0,
+          "errors": 91,
+          "new_url_rate": 0.0,
+          "new_urls": 0,
+          "reason": "high recent error rate with no new urls",
+          "results": 0,
+          "status": "cooldown"
+        },
+        "github_issues": {
+          "attempts": 160,
+          "error_rate": 0.0,
+          "errors": 0,
+          "new_url_rate": 2.1812,
+          "new_urls": 349,
+          "reason": "enough recent attempts with strong new-url rate",
+          "results": 517,
+          "status": "preferred"
+        },
+        "github_repos": {
+          "attempts": 160,
+          "error_rate": 0.0,
+          "errors": 0,
+          "new_url_rate": 0.45,
+          "new_urls": 72,
+          "reason": "enough recent attempts with strong new-url rate",
+          "results": 108,
+          "status": "preferred"
+        },
+        "hn_exa": {
+          "attempts": 156,
+          "error_rate": 0.5705,
+          "errors": 89,
+          "new_url_rate": 1.9615,
+          "new_urls": 306,
+          "reason": "mixed recent signal with both errors and useful output",
+          "results": 335,
+          "status": "active"
+        },
+        "hn_exa_error": {
+          "attempts": 89,
+          "error_rate": 1.0,
+          "errors": 89,
+          "new_url_rate": 0.0,
+          "new_urls": 0,
+          "reason": "high recent error rate with no new urls",
+          "results": 0,
+          "status": "cooldown"
+        },
+        "reddit_exa": {
+          "attempts": 156,
+          "error_rate": 0.5833,
+          "errors": 91,
+          "new_url_rate": 1.9103,
+          "new_urls": 298,
+          "reason": "mixed recent signal with both errors and useful output",
+          "results": 325,
+          "status": "active"
+        },
+        "reddit_exa_error": {
+          "attempts": 91,
+          "error_rate": 1.0,
+          "errors": 91,
+          "new_url_rate": 0.0,
+          "new_urls": 0,
+          "reason": "high recent error rate with no new urls",
+          "results": 0,
+          "status": "cooldown"
+        },
+        "twitter_xreach": {
+          "attempts": 160,
+          "error_rate": 0.0,
+          "errors": 0,
+          "new_url_rate": 3.9188,
+          "new_urls": 627,
+          "reason": "enough recent attempts with strong new-url rate",
+          "results": 835,
+          "status": "preferred"
+        }
+      },
+      "query_families": {
+        "agent-framework": {
+          "cooldown_providers": [],
+          "preferred_providers": []
+        },
+        "autonomous-loop": {
+          "cooldown_providers": [],
+          "preferred_providers": []
+        },
+        "browser-automation": {
+          "cooldown_providers": [],
+          "preferred_providers": []
+        },
+        "coding-agent": {
+          "cooldown_providers": [],
+          "preferred_providers": []
+        },
+        "context-engineering": {
+          "cooldown_providers": [],
+          "preferred_providers": []
+        },
+        "eval": {
+          "cooldown_providers": [],
+          "preferred_providers": []
+        },
+        "harness-engineering": {
+          "cooldown_providers": [],
+          "preferred_providers": []
+        },
+        "memory": {
+          "cooldown_providers": [],
+          "preferred_providers": []
+        },
+        "prompt-engineering": {
+          "cooldown_providers": [],
+          "preferred_providers": []
+        },
+        "rules-config": {
+          "cooldown_providers": [],
+          "preferred_providers": [
+            "twitter_xreach",
+            "github_issues"
+          ]
+        },
+        "skill-plugin": {
+          "cooldown_providers": [],
+          "preferred_providers": []
+        },
+        "structured-output": {
+          "cooldown_providers": [],
+          "preferred_providers": []
+        },
+        "tool-use": {
+          "cooldown_providers": [],
+          "preferred_providers": []
+        },
+        "unknown": {
+          "cooldown_providers": [],
+          "preferred_providers": [
+            "twitter_xreach",
+            "github_issues",
+            "github_repos"
+          ]
+        }
+      }
+    }
+  },
+  "generated_at": "2026-03-24T13:28:39.494723+08:00"
+}

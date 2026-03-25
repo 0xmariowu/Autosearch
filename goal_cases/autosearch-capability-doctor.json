@@ -1,0 +1,51 @@
+{
+  "id": "autosearch-capability-doctor",
+  "project": "autosearch",
+  "problem": "Find concrete patterns for a source capability doctor that can determine provider availability, auth status, configuration health, and safe runtime skipping before a search run.",
+  "target_score": 75,
+  "providers": [
+    "exa",
+    "github_repos",
+    "github_issues"
+  ],
+  "seed_queries": [
+    "provider health check auth runtime skip github",
+    "preflight provider config check exa github",
+    "Claude Code",
+    "MCP server",
+    "skip unavailable provider cli auth status"
+  ],
+  "mutation_terms": [
+    "health check",
+    "auth status",
+    "preflight",
+    "skip unavailable"
+  ],
+  "rubric": [
+    {
+      "id": "availability",
+      "weight": 20,
+      "keywords": ["available", "availability", "health", "doctor", "status"]
+    },
+    {
+      "id": "auth_and_config",
+      "weight": 20,
+      "keywords": ["auth", "authenticated", "login", "config", "configured"]
+    },
+    {
+      "id": "runtime_skip",
+      "weight": 20,
+      "keywords": ["skip", "runtime", "preflight", "before", "unavailable"]
+    },
+    {
+      "id": "provider_specific",
+      "weight": 20,
+      "keywords": ["provider", "github", "exa", "twitter", "search"]
+    },
+    {
+      "id": "implementation_signal",
+      "weight": 20,
+      "keywords": ["cli", "command", "tool", "script", "implementation"]
+    }
+  ]
+}
