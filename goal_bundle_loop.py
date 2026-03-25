@@ -259,6 +259,44 @@ def _retired_families(program: dict[str, Any]) -> set[str]:
         if str(item).strip()
     }
 
+
+def _dimension_profile(dimension_scores: dict[str, Any] | None) -> tuple[int, ...]:
+    scores = dict(dimension_scores or {})
+    return tuple(sorted(int(value or 0) for value in scores.values()))
+
+
+def _archive_promotion_decision(
+    *,
+    current_state: dict[str, Any],
+    candidate_score: int,
+    candidate_dimensions: dict[str, Any],
+    current_program: dict[str, Any] | None,
+    candidate_program: dict[str, Any] | None,
+) -> dict[str, Any]:
+    current_score = int(current_state.get("score", 0) or 0)
+    current_profile = _dimension_profile(current_state.get("dimension_scores") or {})
+    candidate_profile = _dimension_profile(candidate_dimensions)
+    program_changed = bool(dict(current_program or {}) != dict(candidate_program or {}))
+    accepted = False
+    reason = "archive_rejected"
+    if candidate_score > current_score:
+        accepted = True
+        reason = "archive_score_improved"
+    elif candidate_score == current_score and (candidate_profile > current_profile or program_changed):
+        accepted = True
+        reason = "archive_tie_broken_by_profile_or_program"
+    return {
+        "accepted": accepted,
+        "reason": reason,
+        "current_score": current_score,
+        "candidate_score": candidate_score,
+        "current_profile": current_profile,
+        "candidate_profile": candidate_profile,
+        "program_changed": program_changed,
+        "anti_cheat_failures": [],
+        "anti_cheat_warnings": [],
+    }
+
 def _promote_compatible_archive_candidate(
     *,
     goal_case: dict[str, Any],
@@ -290,13 +328,10 @@ def _promote_compatible_archive_candidate(
             continue
         if int(selection.get("current_score", -1) or -1) != int(bundle_state.get("score", 0) or 0):
             continue
-        reevaluated = evaluate_acceptance(
+        reevaluated = _archive_promotion_decision(
             current_state=bundle_state,
             candidate_score=int(result.get("score", 0) or 0),
             candidate_dimensions=dict(result.get("dimension_scores") or {}),
-            candidate_metrics=dict(result.get("harness_metrics") or {}),
-            harness=harness,
-            candidate_finding_count=int((result.get("harness_metrics") or {}).get("total_findings", 0) or 0),
             current_program=accepted_program,
             candidate_program=candidate_program,
         )

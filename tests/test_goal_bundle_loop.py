@@ -245,6 +245,71 @@ class GoalBundleLoopTests(unittest.TestCase):
         self.assertEqual(promoted["program_id"], "goal-x-r3-c2")
         save_mock.assert_called_once()
 
+    def test_promote_compatible_archive_candidate_can_promote_tied_historical_program_without_new_urls(self):
+        goal_case = {"id": "goal-x"}
+        accepted_program = {"program_id": "seed-program", "queries": [{"text": "seed", "platforms": []}]}
+        bundle_state = {
+            "accepted_findings": [{"url": "https://a", "title": "a", "source": "github_repos", "query": "seed"}],
+            "accepted_queries": [{"text": "seed", "platforms": []}],
+            "score": 78,
+            "judge": "heuristic-bundle",
+            "dimension_scores": {"a": 16, "b": 14, "c": 18, "d": 12, "e": 18},
+            "missing_dimensions": [],
+            "matched_dimensions": ["a"],
+            "rationale": "current",
+        }
+        archive_payload = {
+            "candidate_program": {
+                "program_id": "goal-x-r4-c1",
+                "parent_program_id": "seed-program",
+                "queries": [{"text": "historical query", "platforms": []}],
+                "provider_mix": ["searxng", "ddgs"],
+            },
+            "result": {
+                "score": 78,
+                "dimension_scores": {"a": 18, "b": 15, "c": 18, "d": 14, "e": 18},
+                "harness_metrics": {
+                    "total_findings": 36,
+                    "new_unique_urls": 0,
+                    "novelty_ratio": 0.0,
+                    "source_diversity": 0.1,
+                    "source_concentration": 0.5,
+                    "query_concentration": 0.13,
+                },
+                "selection": {"current_score": 78},
+            },
+        }
+        promoted_judge = {
+            "score": 79,
+            "dimension_scores": {"a": 18, "b": 15, "c": 18, "d": 15, "e": 18},
+            "missing_dimensions": [],
+            "matched_dimensions": ["a", "b", "d"],
+            "rationale": "promoted",
+            "judge": "heuristic-bundle",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            archive_dir = Path(tmp) / "program-archive"
+            archive_dir.mkdir(parents=True)
+            archive_path = archive_dir / "goal-x-r4-c1.json"
+            archive_path.write_text(__import__("json").dumps(archive_payload), encoding="utf-8")
+            with patch.object(gbl, "runtime_paths", return_value={"program_archive": archive_dir}), \
+                 patch.object(gbl, "_replay_queries", return_value=([{"query": "seed"}, {"query": "historical query"}], bundle_state["accepted_findings"])), \
+                 patch.object(gbl, "build_bundle", return_value=bundle_state["accepted_findings"]), \
+                 patch.object(gbl, "evaluate_goal_bundle", return_value=promoted_judge), \
+                 patch.object(gbl, "save_accepted_program") as save_mock:
+                program, new_state, judge_result, promoted = gbl._promote_compatible_archive_candidate(
+                    goal_case=goal_case,
+                    accepted_program=accepted_program,
+                    bundle_state=bundle_state,
+                    harness={"anti_cheat": {}},
+                    platforms=[],
+                )
+        self.assertEqual(program["program_id"], "goal-x-r4-c1")
+        self.assertEqual(new_state["score"], 79)
+        self.assertEqual(judge_result["score"], 79)
+        self.assertEqual(promoted["selection"]["reason"], "archive_tie_broken_by_profile_or_program")
+        save_mock.assert_called_once()
+
     def test_run_goal_bundle_loop_first_round_uses_candidate_plans_when_seed_queries_missing(self):
         goal_case = {
             "id": "goal-rubric-only",
