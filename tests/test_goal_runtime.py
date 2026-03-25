@@ -15,11 +15,53 @@ import goal_runtime as gr
 class GoalRuntimeTests(unittest.TestCase):
     def test_default_program_uses_seed_queries(self):
         program = gr.default_program(
-            {"id": "g1", "seed_queries": ["a", {"text": "b", "platforms": []}]},
+            {
+                "id": "g1",
+                "seed_queries": ["a", {"text": "b", "platforms": []}],
+                "topic_frontier": [{"id": "topic-a", "queries": ["frontier query"]}],
+                "dimension_queries": {"gap_a": ["query a1"]},
+                "explore_budget": 0.25,
+                "exploit_budget": 0.75,
+                "sampling_policy": {"bundle_per_query_cap": 4, "anchor_followups": False},
+            },
             ["github_repos"],
         )
         self.assertEqual(program["program_id"], "seed-program")
         self.assertEqual([item["text"] for item in program["queries"]], ["a", "b"])
+        self.assertEqual(program["topic_frontier"][0]["id"], "topic-a")
+        self.assertEqual(program["query_templates"]["gap_a"], ["query a1"])
+        self.assertEqual(program["explore_budget"], 0.25)
+        self.assertEqual(program["exploit_budget"], 0.75)
+        self.assertEqual(program["sampling_policy"]["bundle_per_query_cap"], 4)
+
+    def test_build_candidate_program_applies_program_overrides(self):
+        parent = gr.default_program(
+            {
+                "id": "g1",
+                "seed_queries": ["seed"],
+                "topic_frontier": [{"id": "topic-a", "queries": ["frontier query"]}],
+            },
+            ["github_repos"],
+        )
+        candidate = gr.build_candidate_program(
+            goal_id="g1",
+            parent_program=parent,
+            label="frontier-topic-a",
+            queries=[{"text": "next query", "platforms": []}],
+            provider_mix=["github_repos"],
+            round_index=1,
+            candidate_index=1,
+            program_overrides={
+                "topic_frontier": [{"id": "topic-b", "queries": ["other frontier query"]}],
+                "explore_budget": 0.7,
+                "exploit_budget": 0.3,
+                "sampling_policy": {"anchor_followups": False},
+            },
+        )
+        self.assertEqual(candidate["topic_frontier"][0]["id"], "topic-b")
+        self.assertEqual(candidate["explore_budget"], 0.7)
+        self.assertEqual(candidate["exploit_budget"], 0.3)
+        self.assertFalse(candidate["sampling_policy"]["anchor_followups"])
 
     def test_ensure_harness_persists_default_payload(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -29,6 +71,21 @@ class GoalRuntimeTests(unittest.TestCase):
                 self.assertEqual(harness["goal_id"], "goal-x")
                 saved = gr.runtime_paths("goal-x")["harness"]
                 self.assertTrue(saved.exists())
+
+    def test_save_population_snapshot_writes_latest_and_history(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime_root = Path(tmp)
+            with patch.object(gr, "GOAL_RUNTIME_ROOT", runtime_root):
+                paths = gr.save_population_snapshot(
+                    "goal-x",
+                    2,
+                    [{"program_id": "p1", "score": 88}],
+                )
+                self.assertTrue(paths["latest"].exists())
+                self.assertTrue(paths["history"].exists())
+                payload = __import__("json").loads(paths["latest"].read_text(encoding="utf-8"))
+                self.assertEqual(payload["round"], 2)
+                self.assertEqual(payload["population"][0]["program_id"], "p1")
 
 
 if __name__ == "__main__":

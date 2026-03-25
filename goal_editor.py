@@ -70,7 +70,7 @@ def _sanitize_platforms(query_text: str, platforms: list[Any]) -> list[dict[str,
 
 def _normalize_plan(plan: Any) -> dict[str, Any]:
     if not isinstance(plan, dict):
-        return {"label": "candidate", "queries": []}
+        return {"label": "candidate", "queries": [], "program_overrides": {}}
     queries = [
         _normalize_query_spec(query)
         for query in list(plan.get("queries") or [])
@@ -79,7 +79,18 @@ def _normalize_plan(plan: Any) -> dict[str, Any]:
     return {
         "label": str(plan.get("label") or "candidate").strip() or "candidate",
         "queries": queries,
+        "program_overrides": dict(plan.get("program_overrides") or {}),
     }
+
+
+def _provider_mix_for_queries(queries: list[dict[str, Any]], available_providers: list[str]) -> list[str]:
+    inferred: list[str] = []
+    for query in list(queries or []):
+        for platform in list((query or {}).get("platforms") or []):
+            name = str((platform or {}).get("name") or "").strip()
+            if name and name in available_providers and name not in inferred:
+                inferred.append(name)
+    return inferred or list(available_providers)
 
 
 def _provider_capability_notes(available_providers: list[str]) -> dict[str, str]:
@@ -175,6 +186,19 @@ def _topic_frontier_queries(goal_case: dict[str, Any], limit: int = 2) -> list[d
     return queries
 
 
+def _rotate_frontier(frontier: list[dict[str, Any]], focus_topic_id: str) -> list[dict[str, Any]]:
+    if not focus_topic_id:
+        return list(frontier or [])
+    prioritized: list[dict[str, Any]] = []
+    remainder: list[dict[str, Any]] = []
+    for topic in list(frontier or []):
+        if str((topic or {}).get("id") or "") == focus_topic_id:
+            prioritized.append(dict(topic))
+        else:
+            remainder.append(dict(topic))
+    return prioritized + remainder
+
+
 def _extract_json_object(text: str) -> dict[str, Any]:
     start = text.find("{")
     end = text.rfind("}") + 1
@@ -266,11 +290,16 @@ class HeuristicGoalSearcher:
         judge_result: dict[str, Any],
         tried_queries: set[str],
         available_providers: list[str],
+        active_program: dict[str, Any] | None = None,
         round_history: list[dict[str, Any]] | None = None,
         plan_count: int = 3,
         max_queries: int = 5,
     ) -> list[dict[str, Any]]:
         round_history = list(round_history or [])
+        active_program = dict(active_program or {})
+        current_frontier = list(active_program.get("topic_frontier") or self.topic_frontier)
+        explore_budget = float(active_program.get("explore_budget", 0.4) or 0.4)
+        exploit_budget = float(active_program.get("exploit_budget", 0.6) or 0.6)
         recent_failed_queries = {
             str(query.get("text") or "").strip().lower()
             for item in round_history[-3:]
@@ -316,16 +345,36 @@ class HeuristicGoalSearcher:
                 return []
         plans: list[dict[str, Any]] = []
         if anchor_queries:
-            plans.append({"label": "heuristic-anchored", "queries": anchor_queries[:max_queries]})
+            plans.append({
+                "label": "heuristic-anchored",
+                "queries": anchor_queries[:max_queries],
+                "program_overrides": {
+                    "provider_mix": _provider_mix_for_queries(anchor_queries[:max_queries], available_providers),
+                    "exploit_budget": max(exploit_budget, 0.75),
+                    "explore_budget": min(explore_budget, 0.25),
+                    "sampling_policy": {
+                        **dict(active_program.get("sampling_policy") or {}),
+                        "anchor_followups": True,
+                    },
+                },
+            })
         if focus:
-            plans.append({"label": "heuristic-primary", "queries": focus})
+            plans.append({
+                "label": "heuristic-primary",
+                "queries": focus,
+                "program_overrides": {
+                    "provider_mix": _provider_mix_for_queries(focus, available_providers),
+                    "exploit_budget": max(exploit_budget, 0.65),
+                    "explore_budget": min(explore_budget, 0.35),
+                },
+            })
 
         recent_topics = {
             str(item.get("selected_plan_label") or "").strip().lower()
             for item in round_history[-4:]
             if str(item.get("selected_plan_label") or "").strip()
         }
-        for topic in self.topic_frontier:
+        for topic in current_frontier:
             topic_id = str(topic.get("id") or "frontier").strip()
             topic_queries = [
                 _normalize_query_spec(query)
@@ -339,7 +388,20 @@ class HeuristicGoalSearcher:
             label = f"frontier-{topic_id}"
             if label.lower() in recent_topics:
                 continue
-            plans.append({"label": label, "queries": topic_queries})
+            plans.append({
+                "label": label,
+                "queries": topic_queries,
+                "program_overrides": {
+                    "provider_mix": _provider_mix_for_queries(topic_queries, available_providers),
+                    "topic_frontier": _rotate_frontier(current_frontier, topic_id),
+                    "explore_budget": max(explore_budget, 0.7),
+                    "exploit_budget": min(exploit_budget, 0.3),
+                    "sampling_policy": {
+                        **dict(active_program.get("sampling_policy") or {}),
+                        "anchor_followups": False,
+                    },
+                },
+            })
             if len(plans) >= plan_count:
                 return plans[:plan_count]
 
@@ -353,7 +415,15 @@ class HeuristicGoalSearcher:
                 and _normalize_query_spec(query)["text"].lower() not in recent_failed_queries
             ][:max_queries]
             if dim_queries:
-                plans.append({"label": f"heuristic-{dim}", "queries": dim_queries})
+                plans.append({
+                    "label": f"heuristic-{dim}",
+                    "queries": dim_queries,
+                    "program_overrides": {
+                        "provider_mix": _provider_mix_for_queries(dim_queries, available_providers),
+                        "exploit_budget": max(exploit_budget, 0.7),
+                        "explore_budget": min(explore_budget, 0.3),
+                    },
+                })
         return plans[:plan_count]
 
 
@@ -375,6 +445,7 @@ class OpenRouterGoalSearcher:
         judge_result: dict[str, Any],
         tried_queries: set[str],
         available_providers: list[str],
+        active_program: dict[str, Any] | None = None,
         round_history: list[dict[str, Any]] | None = None,
         plan_count: int = 3,
         max_queries: int = 5,
@@ -428,6 +499,7 @@ class OpenRouterGoalSearcher:
             f"Dimensions: {json.dumps(self.goal_case.get('dimensions', []), ensure_ascii=False)}\n"
             f"Current score: {bundle_state.get('score', 0)}\n"
             f"Current dimension scores: {json.dumps(judge_result.get('dimension_scores', {}), ensure_ascii=False)}\n"
+            f"Active program: {json.dumps({k: active_program.get(k) for k in ['explore_budget', 'exploit_budget', 'sampling_policy', 'topic_frontier']}, ensure_ascii=False)}\n"
             f"Weakest dimensions: {json.dumps(weak_dimensions, ensure_ascii=False)}\n"
             f"Missing dimensions: {json.dumps(judge_result.get('missing_dimensions', []), ensure_ascii=False)}\n"
             f"Judge rationale: {judge_result.get('rationale', '')}\n"
@@ -439,7 +511,7 @@ class OpenRouterGoalSearcher:
             f"Anchor repos: {json.dumps(anchors['repos'], ensure_ascii=False)}\n"
             f"Anchor datasets: {json.dumps(anchors['datasets'], ensure_ascii=False)}\n"
             f"Current evidence sample: {json.dumps(sample_findings, ensure_ascii=False)}\n\n"
-            f"Return only JSON: {{\"plans\": [{{\"label\": \"...\", \"queries\": [{{\"text\": \"...\", \"platforms\": [{{\"name\": \"provider\", \"query\": \"...\", \"repo\": \"owner/repo\", \"limit\": 5, \"min_stars\": 0}}]}}]}}]}}\n"
+            f"Return only JSON: {{\"plans\": [{{\"label\": \"...\", \"program_overrides\": {{\"topic_frontier\": [], \"explore_budget\": 0.4, \"exploit_budget\": 0.6, \"sampling_policy\": {{}}}}, \"queries\": [{{\"text\": \"...\", \"platforms\": [{{\"name\": \"provider\", \"query\": \"...\", \"repo\": \"owner/repo\", \"limit\": 5, \"min_stars\": 0}}]}}]}}]}}\n"
             f"Propose {plan_count} distinct plans. Each plan must have 2-{max_queries} queries.\n"
             "Use only the available providers.\n"
             "The goal and the judge standard are fixed. Only the search strategy can change.\n"
@@ -480,7 +552,14 @@ class OpenRouterGoalSearcher:
                 if _query_key(query) not in tried_queries
             ]
             if queries:
-                filtered_plans.append({"label": plan["label"], "queries": queries[:max_queries]})
+                normalized_queries = queries[:max_queries]
+                overrides = dict(plan.get("program_overrides") or {})
+                overrides.setdefault("provider_mix", _provider_mix_for_queries(normalized_queries, available_providers))
+                filtered_plans.append({
+                    "label": plan["label"],
+                    "queries": normalized_queries,
+                    "program_overrides": overrides,
+                })
         return filtered_plans[:plan_count]
 
 
@@ -499,6 +578,7 @@ class GoalSearcher:
         judge_result: dict[str, Any],
         tried_queries: set[str],
         available_providers: list[str],
+        active_program: dict[str, Any] | None = None,
         round_history: list[dict[str, Any]] | None = None,
         plan_count: int = 3,
         max_queries: int = 5,
@@ -510,6 +590,7 @@ class GoalSearcher:
                     judge_result=judge_result,
                     tried_queries=tried_queries,
                     available_providers=available_providers,
+                    active_program=active_program,
                     round_history=round_history,
                     plan_count=plan_count,
                     max_queries=max_queries,
@@ -523,6 +604,7 @@ class GoalSearcher:
             judge_result=judge_result,
             tried_queries=tried_queries,
             available_providers=available_providers,
+            active_program=active_program,
             round_history=round_history,
             plan_count=plan_count,
             max_queries=max_queries,

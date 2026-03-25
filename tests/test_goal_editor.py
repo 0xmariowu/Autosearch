@@ -62,6 +62,7 @@ class GoalEditorTests(unittest.TestCase):
         )
         self.assertGreaterEqual(len(plans), 1)
         self.assertEqual(plans[0]["queries"][0]["text"], "query a1")
+        self.assertIn("program_overrides", plans[0])
 
     def test_heuristic_editor_avoids_recent_failed_queries(self):
         goal_case = {
@@ -149,6 +150,10 @@ class GoalEditorTests(unittest.TestCase):
         anchored = plans[0]["queries"][0]
         self.assertIn("great-expectations/great_expectations", anchored["text"])
         self.assertEqual(anchored["platforms"][0]["repo"], "great-expectations/great_expectations")
+        self.assertEqual(
+            plans[0]["program_overrides"]["provider_mix"],
+            ["github_code", "github_issues"],
+        )
 
     def test_heuristic_searcher_rotates_into_topic_frontier(self):
         goal_case = {
@@ -176,6 +181,10 @@ class GoalEditorTests(unittest.TestCase):
         )
         labels = [plan["label"] for plan in plans]
         self.assertIn("frontier-trajectory_subsets", labels)
+        frontier_plan = next(plan for plan in plans if plan["label"] == "frontier-trajectory_subsets")
+        self.assertEqual(frontier_plan["program_overrides"]["topic_frontier"][0]["id"], "trajectory_subsets")
+        self.assertGreaterEqual(frontier_plan["program_overrides"]["explore_budget"], 0.7)
+        self.assertEqual(frontier_plan["program_overrides"]["provider_mix"], ["huggingface_datasets"])
 
 
 if __name__ == "__main__":

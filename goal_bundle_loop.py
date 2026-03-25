@@ -17,6 +17,7 @@ from goal_runtime import (
     build_candidate_program,
     ensure_harness,
     load_accepted_program,
+    save_population_snapshot,
     runtime_paths,
     save_accepted_program,
 )
@@ -84,6 +85,29 @@ def _accepted_queries_from_run(payload: dict[str, Any]) -> list[dict[str, Any]]:
             if spec["text"] and spec not in accepted_queries:
                 accepted_queries.append(spec)
     return accepted_queries
+
+
+def _platforms_for_provider_mix(
+    platforms: list[dict[str, Any]],
+    provider_mix: list[str] | None,
+) -> list[dict[str, Any]]:
+    allowed = [str(name or "").strip() for name in list(provider_mix or []) if str(name or "").strip()]
+    if not allowed:
+        return [dict(platform) for platform in platforms]
+    return [dict(platform) for platform in platforms if str(platform.get("name") or "") in allowed]
+
+
+def _restrict_query_to_provider_mix(query: dict[str, Any], provider_mix: list[str] | None) -> dict[str, Any]:
+    spec = _normalize_query_spec(query)
+    allowed = {str(name or "").strip() for name in list(provider_mix or []) if str(name or "").strip()}
+    if not allowed or not spec.get("platforms"):
+        return spec
+    spec["platforms"] = [
+        dict(platform)
+        for platform in list(spec.get("platforms") or [])
+        if str((platform or {}).get("name") or "") in allowed
+    ]
+    return spec
 
 def _promote_compatible_archive_candidate(
     *,
@@ -271,6 +295,7 @@ def run_goal_bundle_loop(goal_case: dict[str, Any], max_rounds: int = 8) -> dict
                 judge_result=judge_result,
                 tried_queries=tried_queries,
                 available_providers=available_provider_names,
+                active_program=accepted_program,
                 round_history=rounds,
                 plan_count=int(accepted_program.get("plan_count", 3) or 3),
                 max_queries=int(accepted_program.get("max_queries", 5) or 5),
@@ -280,6 +305,7 @@ def run_goal_bundle_loop(goal_case: dict[str, Any], max_rounds: int = 8) -> dict
 
         strategy_summaries: list[dict[str, Any]] = []
         best_candidate: dict[str, Any] | None = None
+        population: list[dict[str, Any]] = []
         for plan_index, plan in enumerate(candidate_plans, start=1):
             candidate_program = build_candidate_program(
                 goal_id=str(goal_case.get("id") or "goal"),
@@ -289,16 +315,19 @@ def run_goal_bundle_loop(goal_case: dict[str, Any], max_rounds: int = 8) -> dict
                 provider_mix=available_provider_names,
                 round_index=round_index,
                 candidate_index=plan_index,
+                program_overrides=dict(plan.get("program_overrides") or {}),
             )
+            candidate_platforms = _platforms_for_provider_mix(platforms, candidate_program.get("provider_mix"))
             query_runs: list[dict[str, Any]] = []
             round_findings: list[dict[str, Any]] = []
             plan_query_keys: list[str] = []
             for query in plan.get("queries", []):
-                query_key = _query_key(query)
+                effective_query = _restrict_query_to_provider_mix(query, candidate_program.get("provider_mix"))
+                query_key = _query_key(effective_query)
                 if query_key in tried_queries:
                     continue
                 plan_query_keys.append(query_key)
-                run = _search_query(query, platforms)
+                run = _search_query(effective_query, candidate_platforms)
                 query_runs.append({
                     "query": run["query"],
                     "query_spec": run["query_spec"],
@@ -312,6 +341,7 @@ def run_goal_bundle_loop(goal_case: dict[str, Any], max_rounds: int = 8) -> dict
                     "label": plan.get("label", f"plan-{plan_index}"),
                     "program_id": candidate_program["program_id"],
                     "queries": plan.get("queries", []),
+                    "provider_mix": list(candidate_program.get("provider_mix") or []),
                     "query_runs": [],
                     "candidate_score": bundle_state["score"],
                     "matched_dimensions": list(bundle_state.get("matched_dimensions", [])),
@@ -368,6 +398,7 @@ def run_goal_bundle_loop(goal_case: dict[str, Any], max_rounds: int = 8) -> dict
                 "program_id": candidate_program["program_id"],
                 "program_archive": str(archive_path),
                 "queries": candidate["queries"],
+                "provider_mix": list(candidate_program.get("provider_mix") or []),
                 "query_runs": query_runs,
                 "candidate_score": candidate["score"],
                 "matched_dimensions": plan_judge.get("matched_dimensions", []),
@@ -376,6 +407,15 @@ def run_goal_bundle_loop(goal_case: dict[str, Any], max_rounds: int = 8) -> dict
                 "selection": selection,
                 "sample_bundle": _sample_findings(candidate_bundle, limit=6),
                 "rationale": plan_judge.get("rationale", ""),
+            })
+            population.append({
+                "program_id": candidate_program["program_id"],
+                "label": candidate["label"],
+                "provider_mix": list(candidate_program.get("provider_mix") or []),
+                "score": candidate["score"],
+                "dimension_scores": dict(candidate["dimension_scores"]),
+                "selection": selection,
+                "harness_metrics": harness_state,
             })
             if (
                 best_candidate is None
@@ -393,6 +433,12 @@ def run_goal_bundle_loop(goal_case: dict[str, Any], max_rounds: int = 8) -> dict
 
         if best_candidate is None:
             break
+
+        population_paths = save_population_snapshot(
+            str(goal_case.get("id") or "goal"),
+            round_index,
+            sorted(population, key=candidate_rank, reverse=True),
+        )
 
         for query_key in best_candidate["query_keys"]:
             tried_queries.add(query_key)
@@ -431,6 +477,8 @@ def run_goal_bundle_loop(goal_case: dict[str, Any], max_rounds: int = 8) -> dict
             "accepted_program_id": accepted_program.get("program_id"),
             "selected_program_id": best_candidate["program"]["program_id"],
             "strategy_candidates": strategy_summaries,
+            "candidate_population": sorted(population, key=candidate_rank, reverse=True),
+            "population_snapshot": {key: str(value) for key, value in population_paths.items()},
             "editor_plans": strategy_summaries,
             "selected_plan_label": best_candidate["label"],
             "query_runs": best_candidate["query_runs"],

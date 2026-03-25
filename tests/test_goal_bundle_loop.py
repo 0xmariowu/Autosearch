@@ -13,6 +13,26 @@ import goal_bundle_loop as gbl
 
 
 class GoalBundleLoopTests(unittest.TestCase):
+    def test_platforms_for_provider_mix_filters_defaults(self):
+        platforms = [
+            {"name": "github_repos", "limit": 5},
+            {"name": "github_issues", "limit": 5},
+            {"name": "huggingface_datasets", "limit": 5},
+        ]
+        filtered = gbl._platforms_for_provider_mix(platforms, ["github_issues", "huggingface_datasets"])
+        self.assertEqual([item["name"] for item in filtered], ["github_issues", "huggingface_datasets"])
+
+    def test_restrict_query_to_provider_mix_drops_disallowed_structured_platforms(self):
+        query = {
+            "text": "validation release gate",
+            "platforms": [
+                {"name": "github_code", "repo": "foo/bar", "query": "release gate"},
+                {"name": "github_issues", "repo": "foo/bar", "query": "release gate"},
+            ],
+        }
+        restricted = gbl._restrict_query_to_provider_mix(query, ["github_issues"])
+        self.assertEqual([item["name"] for item in restricted["platforms"]], ["github_issues"])
+
     def test_accepted_queries_from_run_only_keeps_accepted_rounds(self):
         payload = {
             "warm_start": {
