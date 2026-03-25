@@ -32,6 +32,9 @@ class WatchRuntimeTests(unittest.TestCase):
         self.assertEqual(result["mode"], "deep")
         self.assertEqual(result["final_score"], 88)
         self.assertFalse(result["goal_reached"])
+        self.assertEqual(result["score_gap"], 12)
+        self.assertIn("scheduler_summary", result)
+        self.assertTrue(result["scheduler_summary"]["should_run_again"])
 
     def test_run_watches_aggregates_results(self):
         payload = run_watches(
@@ -40,6 +43,7 @@ class WatchRuntimeTests(unittest.TestCase):
             optimize_goal=lambda goal_case, **kwargs: {"bundle_final": {"score": 100}},
         )
         self.assertEqual(payload["watch_count"], 2)
+        self.assertEqual(payload["reached_count"], 2)
 
 
 if __name__ == "__main__":

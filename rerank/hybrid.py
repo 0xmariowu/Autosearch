@@ -6,7 +6,7 @@ from typing import Any
 
 from search_mesh.models import SearchHit
 
-from .lexical import dedup_hits, lexical_score
+from .lexical import dedup_hits, harmonic_position_bonus, lexical_score
 
 
 PROVIDER_HINTS = {
@@ -25,15 +25,17 @@ def rerank_hits(
     *,
     preferred_content_types: list[str] | None = None,
     rerank_profile: str = "hybrid",
+    max_per_domain: int | None = None,
 ) -> list[SearchHit]:
-    unique_hits = dedup_hits(list(hits or []))
+    unique_hits = dedup_hits(list(hits or []), max_per_domain=max_per_domain)
     if rerank_profile == "none":
         return unique_hits
     def sort_key(hit: SearchHit) -> tuple[int, int, int]:
         lexical = lexical_score(query, hit, preferred_content_types=preferred_content_types)
         provider_hint = PROVIDER_HINTS.get(str(hit.provider or "").strip(), 0)
-        hybrid = lexical + provider_hint + int(hit.score_hint or 0)
+        position_bonus = harmonic_position_bonus(int(hit.rank or 1))
+        hybrid = lexical + provider_hint + int(hit.score_hint or 0) + position_bonus
         if rerank_profile == "lexical":
             hybrid = lexical
-        return (hybrid, lexical, int(hit.score_hint or 0))
+        return (hybrid, lexical, position_bonus)
     return sorted(unique_hits, key=sort_key, reverse=True)

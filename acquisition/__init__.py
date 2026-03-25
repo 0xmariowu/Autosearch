@@ -10,6 +10,7 @@ Stable local boundary for:
 
 from .document_models import AcquiredDocument
 from .crawl4ai_adapter import crawl4ai_available, fetch_with_crawl4ai
+from .content_filter import select_relevant_content
 from .fetch_pipeline import fetch_document, fetch_page
 from .markdown_cleaner import clean_markdown, fit_markdown
 from .reference_extractor import extract_references
@@ -27,6 +28,7 @@ __all__ = [
     "fetch_page",
     "fit_markdown",
     "render_document",
+    "select_relevant_content",
 ]
 
 
@@ -44,6 +46,7 @@ def enrich_evidence_record(
     timeout: int = 10,
     use_render_fallback: bool = False,
     use_crawl4ai_adapter: bool = False,
+    query: str = "",
 ) -> dict:
     enriched = dict(record)
     url = str(record.get("url") or "").strip()
@@ -64,7 +67,7 @@ def enrich_evidence_record(
                     final_url=page.get("final_url", page["url"]),
                 )
                 document.clean_markdown = clean_markdown(document.text)
-                document.fit_markdown = fit_markdown(document.clean_markdown)
+                document.fit_markdown = fit_markdown(document.clean_markdown, query=query or str(record.get("query") or ""))
                 document.references = extract_references(document.final_url, document.raw_html)
             else:
                 document = AcquiredDocument(
@@ -76,7 +79,7 @@ def enrich_evidence_record(
                     raw_html=str(page.get("raw_html") or ""),
                 )
                 document.clean_markdown = clean_markdown(document.text)
-                document.fit_markdown = fit_markdown(document.clean_markdown)
+                document.fit_markdown = fit_markdown(document.clean_markdown, query=query or str(record.get("query") or ""))
                 document.references = list(page.get("references") or [])
     except Exception as exc:
         if not use_render_fallback:
@@ -86,7 +89,7 @@ def enrich_evidence_record(
         try:
             document = render_document(url, timeout=timeout)
             document.clean_markdown = clean_markdown(document.text)
-            document.fit_markdown = fit_markdown(document.clean_markdown)
+            document.fit_markdown = fit_markdown(document.clean_markdown, query=query or str(record.get("query") or ""))
             document.references = extract_references(document.final_url, document.raw_html)
         except Exception as render_exc:
             enriched["acquired"] = False

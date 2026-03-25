@@ -261,6 +261,7 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertIn("gap_queue", result)
         self.assertIn("gap_queue", result["routeable_output"])
         self.assertIn("regression", [item["dimension"] for item in result["gap_queue"]])
+        self.assertIn("planning_ops_summary", result["routeable_output"])
 
 
 if __name__ == "__main__":

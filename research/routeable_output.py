@@ -87,6 +87,7 @@ def build_routeable_output(
             "prune_candidates": list(repair_hints.get("prune_candidates") or []),
             "next_branch_mode": str(repair_hints.get("next_branch_mode") or ""),
         },
+        "planning_ops_summary": dict(repair_hints.get("planning_ops_summary") or {}),
         "gap_queue": list(repair_hints.get("gap_queue") or []),
         "cross_verification": {
             "enabled": bool(cross_verification.get("enabled")),

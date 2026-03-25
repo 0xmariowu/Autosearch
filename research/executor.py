@@ -12,6 +12,7 @@ from goal_services import (
     sample_findings,
     search_query,
 )
+from query_dedup import dedup_query_specs
 
 
 def _query_role_terms(text: str) -> set[str]:
@@ -114,6 +115,7 @@ def execute_research_plan(
     tried = set(tried_queries or set())
     intents = list(plan.get("intents") or [])
     intents.extend(_cross_verification_intents(decision, tried=tried))
+    intents = dedup_query_specs(intents, threshold=0.88)
     local_records = coerce_evidence_records(local_evidence_records or plan.get("local_evidence_records") or [])
     effective_sampling_policy = {
         **dict(sampling_policy or {}),

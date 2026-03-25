@@ -33,6 +33,7 @@ def fetch_page(url: str, *, timeout: int = 10) -> dict:
 def fetch_document(
     url: str,
     *,
+    query: str = "",
     timeout: int = 10,
     use_render_fallback: bool = False,
     use_crawl4ai: bool = False,
@@ -55,6 +56,6 @@ def fetch_document(
             raise
         document = render_document(url, timeout=timeout)
     document.clean_markdown = clean_markdown(document.text)
-    document.fit_markdown = fit_markdown(document.clean_markdown)
+    document.fit_markdown = fit_markdown(document.clean_markdown, query=query)
     document.references = extract_references(document.final_url, document.raw_html)
     return document

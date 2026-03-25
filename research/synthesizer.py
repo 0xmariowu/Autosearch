@@ -153,6 +153,7 @@ def synthesize_research_round(
     harness: dict[str, Any],
     graph_plan: dict[str, Any] | None = None,
     gap_queue: list[dict[str, Any]] | None = None,
+    planning_ops: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     bundle = build_bundle(
         coerce_evidence_records(existing_findings),
@@ -184,6 +185,13 @@ def synthesize_research_round(
         graph_plan=graph_plan,
     )
     updated_gap_queue = _gap_queue_update(gap_queue=gap_queue, judge_result=judge_result)
+    planning_ops_summary = {
+        "count": len(list(planning_ops or [])),
+        "ops": [
+            {"op": str(item.get("op") or ""), "target": str(item.get("target") or "")}
+            for item in list(planning_ops or [])[:6]
+        ],
+    }
     return {
         "bundle": bundle,
         "research_bundle": research_bundle.to_dict(),
@@ -217,6 +225,7 @@ def synthesize_research_round(
             "next_branch_mode": str(graph_scheduler.get("next_branch_mode") or ""),
             "cross_verification": cross_verification,
             "gap_queue": updated_gap_queue,
+            "planning_ops_summary": planning_ops_summary,
         },
         "gap_queue": updated_gap_queue,
         "routeable_output": build_routeable_output(
@@ -232,6 +241,7 @@ def synthesize_research_round(
                 "next_branch_mode": str(graph_scheduler.get("next_branch_mode") or ""),
                 "cross_verification": cross_verification,
                 "gap_queue": updated_gap_queue,
+                "planning_ops_summary": planning_ops_summary,
             },
         ),
     }

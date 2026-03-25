@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor, wait
 from typing import Any
 
 from acquisition import enrich_evidence_record
 from evidence import build_evidence_record, evidence_content_type
 from engine import PlatformConnector
+from query_dedup import dedup_query_specs
 from rerank import rerank_hits
 from search_mesh.provider_policy import (
     FREE_BREADTH_PROVIDERS,
@@ -154,13 +156,61 @@ def _sampling_config(sampling_policy: dict[str, Any] | None) -> dict[str, Any]:
         "page_fetch_limit": int(policy.get("page_fetch_limit", 2) or 2),
         "use_render_fallback": bool(policy.get("use_render_fallback", False)),
         "use_crawl4ai_adapter": bool(policy.get("use_crawl4ai_adapter", False)),
+        "rerank_profile": str(policy.get("rerank_profile") or ("hybrid" if bool(policy.get("rank_by_relevance", True)) else "none")),
+        "domain_cap": int(policy.get("domain_cap", 0) or 0),
+        "provider_timeout_seconds": int(policy.get("provider_timeout_seconds", 10) or 10),
+        "parallel_provider_limit": int(policy.get("parallel_provider_limit", 6) or 6),
         "preferred_content_types": [
             str(item or "").strip()
             for item in list(policy.get("preferred_content_types") or [])
             if str(item or "").strip()
         ],
         "prefer_acquired_text": bool(policy.get("prefer_acquired_text", False)),
+        "semantic_query_dedup": bool(policy.get("semantic_query_dedup", False)),
     }
+
+
+def _platform_batch(platform: dict[str, Any], platform_query: str, preferred_content_types: list[str]) -> SearchHitBatch:
+    platform_config = dict(platform)
+    platform_config.pop("query", None)
+    if "limit" not in platform_config and platform_config.get("name"):
+        platform_config = {
+            **default_platform_config(str(platform_config.get("name") or "")),
+            **platform_config,
+        }
+    platform_search = getattr(PlatformConnector, "search")
+    if "unittest.mock" in str(type(platform_search)):
+        outcome = platform_search(platform_config, platform_query)
+        return SearchHitBatch.from_hit_dicts(
+            provider=str(getattr(outcome, "provider", "") or platform_config.get("name") or ""),
+            query=platform_query,
+            items=[
+                {
+                    "title": str(getattr(result, "title", "") or ""),
+                    "url": str(getattr(result, "url", "") or ""),
+                    "body": str(getattr(result, "body", "") or ""),
+                    "source": str(getattr(result, "source", "") or platform_config.get("name") or ""),
+                    "eng": int(getattr(result, "eng", 0) or 0),
+                }
+                for result in list(getattr(outcome, "results", []) or [])
+            ],
+            backend=str(platform_config.get("name") or ""),
+            error_alias=str(getattr(outcome, "error_alias", "") or ""),
+        )
+    return search_platform(
+        platform_config,
+        platform_query,
+        context={"preferred_content_types": preferred_content_types},
+    )
+
+
+def _enrich_record(record: dict[str, Any], *, query: str, **kwargs: Any) -> dict[str, Any]:
+    try:
+        return enrich_evidence_record(record, query=query, **kwargs)
+    except TypeError as exc:
+        if "unexpected keyword argument 'query'" not in str(exc):
+            raise
+        return enrich_evidence_record(record, **kwargs)
 
 
 def search_query(
@@ -173,49 +223,38 @@ def search_query(
     sampling = _sampling_config(sampling_policy)
     all_hits: list[SearchHit] = []
     findings: list[dict[str, Any]] = []
-    for platform in platforms:
-        platform_query = str(platform.get("query") or query_str)
-        platform_config = dict(platform)
-        platform_config.pop("query", None)
-        if "limit" not in platform_config and platform_config.get("name"):
-            platform_config = {
-                **default_platform_config(str(platform_config.get("name") or "")),
-                **platform_config,
-            }
-        platform_search = getattr(PlatformConnector, "search")
-        # Keep legacy monkeypatch hooks working while routing normal execution
-        # through the formal search mesh layer.
-        if "unittest.mock" in str(type(platform_search)):
-            outcome = platform_search(platform_config, platform_query)
-            batch = SearchHitBatch.from_hit_dicts(
-                provider=str(getattr(outcome, "provider", "") or platform_config.get("name") or ""),
-                query=platform_query,
-                items=[
-                    {
-                        "title": str(getattr(result, "title", "") or ""),
-                        "url": str(getattr(result, "url", "") or ""),
-                        "body": str(getattr(result, "body", "") or ""),
-                        "source": str(getattr(result, "source", "") or platform_config.get("name") or ""),
-                        "eng": int(getattr(result, "eng", 0) or 0),
-                    }
-                    for result in list(getattr(outcome, "results", []) or [])
-                ],
-                backend=str(platform_config.get("name") or ""),
-                error_alias=str(getattr(outcome, "error_alias", "") or ""),
-            )
-        else:
-            batch = search_platform(
-                platform_config,
-                platform_query,
-                context={"preferred_content_types": sampling["preferred_content_types"]},
-            )
-        all_hits.extend(list(batch.hits))
-    rerank_profile = str(sampling.get("rerank_profile") or ("hybrid" if sampling["rank_by_relevance"] else "none"))
+    timed_out_providers: list[str] = []
+    max_workers = max(1, min(len(platforms), int(sampling["parallel_provider_limit"] or 1)))
+    executor = ThreadPoolExecutor(max_workers=max_workers)
+    try:
+        futures = {
+            executor.submit(
+                _platform_batch,
+                dict(platform),
+                str(platform.get("query") or query_str),
+                list(sampling["preferred_content_types"]),
+            ): str(platform.get("name") or "")
+            for platform in platforms
+        }
+        done, pending = wait(futures.keys(), timeout=float(sampling["provider_timeout_seconds"]))
+        for future in done:
+            try:
+                batch = future.result()
+            except Exception:
+                continue
+            all_hits.extend(list(batch.hits))
+        for future in pending:
+            timed_out_providers.append(futures.get(future, ""))
+            future.cancel()
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+    rerank_profile = str(sampling["rerank_profile"])
     ranked_hits = rerank_hits(
         query_str,
         all_hits,
         preferred_content_types=sampling["preferred_content_types"],
         rerank_profile=rerank_profile,
+        max_per_domain=int(sampling["domain_cap"] or 0) or None,
     )
     positive_ranked = [
         hit
@@ -231,14 +270,16 @@ def search_query(
             if sampling["use_crawl4ai_adapter"]:
                 enrich_kwargs["use_crawl4ai_adapter"] = True
             if sampling["use_render_fallback"]:
-                record = enrich_evidence_record(
+                record = _enrich_record(
                     record,
                     use_render_fallback=True,
+                    query=query_str,
                     **enrich_kwargs,
                 )
             else:
-                record = enrich_evidence_record(
+                record = _enrich_record(
                     record,
+                    query=query_str,
                     **enrich_kwargs,
                 )
             if sampling["prefer_acquired_text"] and record.get("acquired_text"):
@@ -260,6 +301,8 @@ def search_query(
         "query_spec": normalize_query_spec(query),
         "baseline_score": raw_score,
         "findings": findings,
+        "partial_results": bool(timed_out_providers),
+        "timed_out_providers": [item for item in timed_out_providers if item],
     }
 
 
@@ -296,7 +339,11 @@ def replay_queries(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     query_runs: list[dict[str, Any]] = []
     findings: list[dict[str, Any]] = []
-    for query in queries:
+    deduped_queries = dedup_query_specs(
+        [normalize_query_spec(query) for query in queries],
+        threshold=0.9,
+    )
+    for query in deduped_queries:
         run = search_query(query, platforms, sampling_policy=sampling_policy)
         query_runs.append({
             "query": run["query"],

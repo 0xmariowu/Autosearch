@@ -46,6 +46,7 @@ from research import (
     synthesize_research_round,
     update_gap_queue,
 )
+from research.budget import budget_policy, budget_state, should_stop_on_budget
 from research.mode_policy import get_mode_policy
 from selector import candidate_rank, evaluate_acceptance
 from source_capability import refresh_source_capability
@@ -526,6 +527,7 @@ def run_goal_bundle_loop(
     stop_reason = "max_rounds_reached"
 
     for round_index in range(1, max_rounds + 1):
+        current_budget = budget_state(program=accepted_program, round_index=round_index, max_rounds=max_rounds)
         action_policy = build_action_policy(
             mode=str(accepted_program.get("mode") or "balanced"),
             bundle_state=bundle_state,
@@ -695,6 +697,7 @@ def run_goal_bundle_loop(
                 harness=effective_harness,
                 graph_plan=execution,
                 gap_queue=gap_queue,
+                planning_ops=list(execution.get("planning_ops") or []),
             )
             candidate_bundle = list(synthesized["bundle"])
             plan_judge = dict(synthesized["judge_result"])
@@ -774,6 +777,7 @@ def run_goal_bundle_loop(
                 "gap_queue": gap_queue_summary(synthesized.get("gap_queue") or []),
                 "decision": execution.get("decision", {}),
                 "planning_ops": execution.get("planning_ops", []),
+                "budget_state": current_budget,
             })
             population.append({
                 "program_id": candidate_program["program_id"],
@@ -796,6 +800,7 @@ def run_goal_bundle_loop(
                 "dimension_scores": dict(candidate["dimension_scores"]),
                 "selection": selection,
                 "harness_metrics": harness_state,
+                "planning_ops": list(execution.get("planning_ops") or []),
             })
             if (
                 best_candidate is None
@@ -915,6 +920,7 @@ def run_goal_bundle_loop(
             "round_role": str((best_candidate["program"] or {}).get("current_role") or ""),
             "selection": best_candidate["selection"],
             "harness_metrics": best_candidate["harness_metrics"],
+            "budget_state": current_budget,
             "bundle_score_after_round": bundle_state["score"],
             "dimension_scores": judge_result.get("dimension_scores", {}),
             "missing_dimensions": judge_result.get("missing_dimensions", []),
@@ -962,6 +968,15 @@ def run_goal_bundle_loop(
         if bundle_state["score"] >= target_score:
             stop_reason = "target_score_reached"
             break
+        if should_stop_on_budget(
+            program=accepted_program,
+            round_index=round_index,
+            max_rounds=max_rounds,
+            current_score=int(bundle_state["score"] or 0),
+            target_score=target_score,
+        ):
+            stop_reason = "budget_exhausted"
+            break
         if no_improvement_rounds >= plateau_rounds_limit:
             stop_reason = "plateau_detected"
             break
@@ -987,6 +1002,7 @@ def run_goal_bundle_loop(
         "practical_ceiling": (accepted_program.get("plateau_state") or {}).get("practical_ceiling"),
         "goal_reached": bool(bundle_state["score"] >= target_score),
         "score_gap": max(0, int(target_score) - int(bundle_state["score"])),
+        "budget_policy": budget_policy(accepted_program),
         "gap_queue": gap_queue_summary(gap_queue),
         "diary_summary": summarize_diary(diary_entries),
         "warm_start": warm_start,
