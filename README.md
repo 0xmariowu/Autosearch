@@ -28,6 +28,7 @@ Self-improving search system. Finds repos, articles, and tools for Armory intake
 | `project_experience.py` | Runtime experience layer: ledger → index → policy → health |
 | `source_capability.py` | Static source capability layer: catalog → doctor → latest-capability |
 | `evidence_records.py` | Normalizes raw search hits into stable evidence records with domain/content metadata |
+| `acquisition.py` | Minimal local page acquisition and visible-text extraction for optional page enrichment |
 | `control_plane.py` | Current operating program: objective + capability + experience |
 | `goal_judge.py` | Goal-specific evaluator with heuristic / OpenRouter modes |
 | `goal_loop.py` | Goal-driven search loop with keep/discard by score delta |
@@ -106,6 +107,7 @@ Current runtime default:
 - The main bundle loop now supports rubric-only goals even when they have no `seed_queries`; round 1 falls back to synthesized candidate plans instead of terminating early.
 - Session mode now follows the same provider restrictions as the main loop; `provider_mix` limits both default platforms and structured per-query platform overrides.
 - Search results are normalized into evidence records before bundle scoring. Legacy fields (`title`, `url`, `body`, `source`, `query`) remain stable; new fields such as `domain`, `content_type`, `snippet`, and `canonical_text` are additive.
+- Optional local acquisition is available through sampling policy flags such as `acquire_pages` and `page_fetch_limit`, which enrich top findings with `acquired_text` without changing the default lightweight path.
 
 Cross-goal benchmark example:
 
