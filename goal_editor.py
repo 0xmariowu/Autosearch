@@ -384,10 +384,13 @@ class HeuristicGoalSearcher:
         round_index = 0
         while len(candidate_queries) < max_queries:
             added = False
+            has_more_candidates = False
             for dim in focus_dimensions:
                 queries = dim_candidates.get(dim) or []
                 if round_index >= len(queries):
                     continue
+                if round_index + 1 < len(queries):
+                    has_more_candidates = True
                 spec = queries[round_index]
                 if (
                     spec["text"]
@@ -399,7 +402,7 @@ class HeuristicGoalSearcher:
                     added = True
                     if len(candidate_queries) >= max_queries:
                         break
-            if not added:
+            if not added and not has_more_candidates:
                 break
             round_index += 1
 

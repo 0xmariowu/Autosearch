@@ -30,6 +30,24 @@ class GoalEditorTests(unittest.TestCase):
         self.assertEqual(next_queries[0]["text"], "query a1")
         self.assertEqual(next_queries[1]["text"], "query a2")
 
+    def test_editor_keeps_scanning_later_templates_when_first_slot_is_exhausted(self):
+        goal_case = {
+            "seed_queries": ["seed a"],
+            "dimension_queries": {
+                "gap_a": ["query a1", "query a2"],
+                "gap_b": ["query b1", "query b2"],
+            },
+        }
+        editor = HeuristicGoalSearcher(goal_case)
+        next_queries = editor.next_queries(
+            bundle_state={"accepted_findings": []},
+            judge_result={"missing_dimensions": ["gap_a", "gap_b"]},
+            tried_queries={"query a1::[]", "query b1::[]"},
+            round_history=[{"accepted": False, "queries": [{"text": "query a1"}, {"text": "query b1"}]}],
+            max_queries=2,
+        )
+        self.assertEqual([query["text"] for query in next_queries], ["query a2", "query b2"])
+
     def test_editor_preserves_structured_query_specs(self):
         goal_case = {
             "seed_queries": [
