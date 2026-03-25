@@ -36,6 +36,7 @@ from goal_services import (
     search_query as _search_query,
 )
 from research import build_research_plan, execute_research_plan, synthesize_research_round
+from research.mode_policy import get_mode_policy
 from selector import candidate_rank, evaluate_acceptance
 from source_capability import refresh_source_capability
 
@@ -494,8 +495,12 @@ def run_goal_bundle_loop(
                 }
 
     population_policy = dict(accepted_program.get("population_policy") or {})
-    effective_plan_count = int(plan_count_override or population_policy.get("plan_count", accepted_program.get("plan_count", 3)) or 3)
-    effective_max_queries = int(max_queries_override or population_policy.get("max_queries", accepted_program.get("max_queries", 5)) or 5)
+    mode_policy = get_mode_policy(
+        str(accepted_program.get("mode") or "balanced"),
+        dict(accepted_program.get("mode_policy_overrides") or {}),
+    )
+    effective_plan_count = int(plan_count_override or population_policy.get("plan_count", accepted_program.get("plan_count", mode_policy.max_plan_count)) or mode_policy.max_plan_count)
+    effective_max_queries = int(max_queries_override or population_policy.get("max_queries", accepted_program.get("max_queries", mode_policy.max_queries)) or mode_policy.max_queries)
     plateau_rounds_limit = int(
         plateau_rounds_override
         or (accepted_program.get("stop_rules") or {}).get("plateau_rounds", 3)

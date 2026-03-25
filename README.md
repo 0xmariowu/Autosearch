@@ -99,6 +99,11 @@ round_result = session.run_searcher_round()
 Current runtime default:
 
 - Search is free-first by default: when a goal asks for broad premium web search (`exa` / `tavily`), the runtime injects local free web providers (`searxng`, `ddgs`) ahead of them when available.
+- Search now supports explicit research modes:
+  - `speed`: lightweight search, minimal planning, no heavy acquisition by default
+  - `balanced`: default mixed mode
+  - `deep`: planning + cross-verification + acquisition-friendly repair path
+- Search mesh providers are registered behind a stable provider interface. Runtime code uses provider roles/capabilities, and per-provider query transforms now adapt broad queries for GitHub, Reddit, HN, and free web backends before execution.
 - Searcher uses the local AutoSearch runtime and heuristic goal searcher.
 - Judge can use OpenRouter when `OPENROUTER_API_KEY` is configured.
 - Current default judge model is `google/gemini-3-flash-preview`.
@@ -107,9 +112,11 @@ Current runtime default:
 - The main bundle loop now supports rubric-only goals even when they have no `seed_queries`; round 1 falls back to synthesized candidate plans instead of terminating early.
 - Session mode now follows the same provider restrictions as the main loop; `provider_mix` limits both default platforms and structured per-query platform overrides.
 - Search results are normalized into evidence records before bundle scoring. Legacy fields (`title`, `url`, `body`, `source`, `query`) remain stable; new fields such as `domain`, `content_type`, `snippet`, and `canonical_text` are additive.
+- Cheap rerank now happens before bundle scoring: URL dedup and lexical/hybrid relevance ranking trim the candidate set before expensive judge evaluation.
 - Optional local acquisition is available through sampling policy flags such as `acquire_pages` and `page_fetch_limit`, which enrich top findings with `acquired_text` without changing the default lightweight path.
 - Accepted evidence is also persisted into a local goal-scoped evidence index so later repair rounds can reuse local evidence before hitting the open web again.
 - Research synthesis now produces a `routeable_output` summary with route groups, citations, missing dimensions, and score gap metadata.
+- Goal watches are supported as a first-class scheduling abstraction. A watch can pin its own goal, mode, budget, threshold, and cadence without sharing a single global daily profile.
 
 Cross-goal benchmark example:
 
@@ -198,6 +205,7 @@ summary = client.optimize_goals(
   - `rounds`
   - optional `run_path` when `persist_run=True`
 - Stable tuning arguments:
+  - optional `mode`
   - `max_rounds`
   - optional `plan_count`
   - optional `max_queries`
@@ -209,6 +217,7 @@ summary = client.optimize_goals(
 - Convenience wrapper around `run_goal_case(...)` for the common case:
   “keep pushing this goal toward a target score until success or plateau”.
 - Stable arguments:
+  - optional `mode`
   - `target_score`
   - `max_rounds`
   - `plateau_rounds`
@@ -220,6 +229,7 @@ summary = client.optimize_goals(
 
 - Convenience wrapper around `run_goal_benchmark(...)` for batch optimization.
 - Stable arguments:
+  - optional `mode`
   - `target_score`
   - `max_rounds`
   - `plateau_rounds`
@@ -229,6 +239,7 @@ summary = client.optimize_goals(
 `run_goal_benchmark(...)`
 
 - Returns a benchmark summary payload for multiple goal cases.
+- When `mode` is supplied, the interface applies it through temporary goal payloads and cleans them up after the benchmark run.
 - Stable keys to rely on:
   - `generated_at`
   - `max_rounds`
@@ -248,6 +259,34 @@ summary = client.optimize_goals(
   - optional `practical_ceiling`
   - `accepted_rounds`
   - `rounds_run`
+
+`run_watch(...)`
+
+- Runs one independent goal watch using its own mode/budget/threshold profile.
+- Stable watch input fields:
+  - `watch_id`
+  - `goal_id`
+  - optional `mode`
+  - optional `budget`
+  - optional `target_score`
+  - optional `plateau_rounds`
+  - optional `provider_preferences`
+- Stable result fields:
+  - `watch_id`
+  - `goal_id`
+  - `mode`
+  - `target_score`
+  - `goal_reached`
+  - `final_score`
+  - `score_gap`
+  - `stop_reason`
+
+`run_watches(...)`
+
+- Runs multiple independent watches and returns an aggregate payload.
+- Stable top-level fields:
+  - `watch_count`
+  - `results`
   - `providers_used`
   - `accepted_program_id`
 

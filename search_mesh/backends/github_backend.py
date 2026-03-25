@@ -3,11 +3,26 @@
 from __future__ import annotations
 
 from engine import PlatformConnector
-from .base import legacy_results_to_batch
+from .base import SearchProvider, extract_entities, legacy_results_to_batch, quote_entities
 
 
-class GitHubBackend:
+class GitHubBackend(SearchProvider):
     provider_names = ("github_repos", "github_issues", "github_code")
+    roles = {"code", "discussion", "verification"}
+    capabilities = {"supports_query_qualifiers": True, "supports_code_search": True}
+    supports_cross_verification = True
+    supports_acquisition_hints = False
+
+    def transform_query(self, provider_name: str, query: str, context: dict | None = None) -> str:
+        q = str(query or "").strip()
+        entities = list((context or {}).get("entities") or extract_entities(q))
+        if provider_name == "github_repos" and "stars:" not in q:
+            q = f"{q} stars:>20".strip()
+        elif provider_name == "github_issues":
+            q = quote_entities(q, entities)
+        elif provider_name == "github_code":
+            q = quote_entities(q, entities)
+        return q
 
     def search(self, platform: dict[str, Any], query: str, *, query_family: str = "unknown"):
         name = str(platform.get("name") or "")

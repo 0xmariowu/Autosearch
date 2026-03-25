@@ -9,6 +9,7 @@ from typing import Any
 from acquisition import enrich_evidence_record
 from evidence import build_evidence_record, evidence_content_type
 from engine import PlatformConnector
+from rerank import rerank_hits
 from search_mesh.provider_policy import (
     FREE_BREADTH_PROVIDERS,
     PREMIUM_BREADTH_PROVIDERS,
@@ -203,24 +204,19 @@ def search_query(
                 error_alias=str(getattr(outcome, "error_alias", "") or ""),
             )
         else:
-            batch = search_platform(platform_config, platform_query)
+            batch = search_platform(
+                platform_config,
+                platform_query,
+                context={"preferred_content_types": sampling["preferred_content_types"]},
+            )
         all_hits.extend(list(batch.hits))
-    deduped_hits: list[SearchHit] = []
-    seen: set[str] = set()
-    for hit in all_hits:
-        key = str(hit.url or "").strip() or str(hit.title or "").strip()
-        if not key or key in seen:
-            continue
-        seen.add(key)
-        deduped_hits.append(hit)
-    if sampling["rank_by_relevance"]:
-        ranked_hits = sorted(
-            deduped_hits,
-            key=lambda hit: _hit_relevance(query_str, hit, sampling["preferred_content_types"]),
-            reverse=True,
-        )
-    else:
-        ranked_hits = list(deduped_hits)
+    rerank_profile = str(sampling.get("rerank_profile") or ("hybrid" if sampling["rank_by_relevance"] else "none"))
+    ranked_hits = rerank_hits(
+        query_str,
+        all_hits,
+        preferred_content_types=sampling["preferred_content_types"],
+        rerank_profile=rerank_profile,
+    )
     positive_ranked = [
         hit
         for hit in ranked_hits

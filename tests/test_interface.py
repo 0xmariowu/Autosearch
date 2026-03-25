@@ -33,6 +33,7 @@ class InterfaceTests(unittest.TestCase):
             with patch.object(api, "run_goal_bundle_loop", return_value={"goal_id": "demo", "bundle_final": {"score": 82}}) as mocked_loop:
                 result = client.run_goal_case(
                     {"id": "demo"},
+                    mode="deep",
                     max_rounds=1,
                     plan_count=1,
                     max_queries=1,
@@ -45,6 +46,7 @@ class InterfaceTests(unittest.TestCase):
             self.assertTrue(Path(result["run_path"]).exists())
             self.assertEqual(mocked_loop.call_args.kwargs["target_score_override"], 95)
             self.assertEqual(mocked_loop.call_args.kwargs["plateau_rounds_override"], 2)
+            self.assertEqual(mocked_loop.call_args.args[0]["mode"], "deep")
 
     def test_run_goal_benchmark_returns_payload(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -83,6 +85,7 @@ class InterfaceTests(unittest.TestCase):
             with patch.object(api.AutoSearchInterface, "run_goal_case", return_value={"goal_id": "demo"}) as mocked_run:
                 result = client.optimize_goal(
                     {"id": "demo"},
+                    mode="deep",
                     target_score=100,
                     max_rounds=6,
                     plateau_rounds=2,
@@ -92,6 +95,7 @@ class InterfaceTests(unittest.TestCase):
                 )
             self.assertEqual(result["goal_id"], "demo")
             self.assertEqual(mocked_run.call_args.args[0]["id"], "demo")
+            self.assertEqual(mocked_run.call_args.kwargs["mode"], "deep")
             self.assertEqual(mocked_run.call_args.kwargs["target_score"], 100)
             self.assertEqual(mocked_run.call_args.kwargs["plateau_rounds"], 2)
 
@@ -101,6 +105,7 @@ class InterfaceTests(unittest.TestCase):
             with patch.object(api.AutoSearchInterface, "run_goal_benchmark", return_value={"goals": []}) as mocked_run:
                 result = client.optimize_goals(
                     ["goal-a", "goal-b"],
+                    mode="speed",
                     target_score=95,
                     max_rounds=4,
                     plateau_rounds=2,
@@ -109,8 +114,17 @@ class InterfaceTests(unittest.TestCase):
                 )
             self.assertEqual(result["goals"], [])
             self.assertEqual(mocked_run.call_args.args[0], ["goal-a", "goal-b"])
+            self.assertEqual(mocked_run.call_args.kwargs["mode"], "speed")
             self.assertEqual(mocked_run.call_args.kwargs["target_score"], 95)
             self.assertEqual(mocked_run.call_args.kwargs["plateau_rounds"], 2)
+
+    def test_run_watch_uses_watch_runtime(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            client = api.AutoSearchInterface(tmp)
+            with patch.object(api, "_run_watch", return_value={"watch_id": "w1"}) as mocked_run:
+                result = client.run_watch({"watch_id": "w1", "goal_id": "goal-a"})
+        self.assertEqual(result["watch_id"], "w1")
+        self.assertEqual(mocked_run.call_args.kwargs["resolve_goal_case"], client.resolve_goal_case)
 
     def test_build_searcher_judge_session_exposes_both_roles(self):
         goal_case = {
