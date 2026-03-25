@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 
+from .content_filter import select_relevant_content
+
 
 def clean_markdown(text: str) -> str:
     cleaned = str(text or "")
@@ -13,10 +15,12 @@ def clean_markdown(text: str) -> str:
     return cleaned.strip()
 
 
-def fit_markdown(text: str, *, max_chars: int = 2400) -> str:
+def fit_markdown(text: str, *, query: str = "", max_chars: int = 2400) -> str:
     cleaned = clean_markdown(text)
     if len(cleaned) <= max_chars:
         return cleaned
+    if query:
+        return select_relevant_content(cleaned, query=query, max_chars=max_chars)
     paragraphs = [paragraph.strip() for paragraph in cleaned.split("\n\n") if paragraph.strip()]
     if len(paragraphs) <= 5:
         truncated = cleaned[:max_chars].rsplit(" ", 1)[0].strip()

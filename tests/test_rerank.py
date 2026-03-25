@@ -8,7 +8,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from rerank.hybrid import rerank_hits
-from rerank.lexical import dedup_hits, normalize_url
+from rerank.lexical import dedup_hits, harmonic_position_bonus, normalize_url
 from search_mesh.models import SearchHit
 
 
@@ -47,6 +47,18 @@ class RerankTests(unittest.TestCase):
         ]
         ranked = rerank_hits("agent runtime", hits, rerank_profile="hybrid")
         self.assertEqual(ranked[0].title, "Agent runtime guide")
+
+    def test_dedup_hits_can_cap_per_domain(self):
+        hits = [
+            self._hit(title="A", url="https://example.com/a", snippet="agent runtime"),
+            self._hit(title="B", url="https://example.com/b", snippet="agent runtime"),
+            self._hit(title="C", url="https://other.com/c", snippet="agent runtime"),
+        ]
+        deduped = dedup_hits(hits, max_per_domain=1)
+        self.assertEqual([item.url for item in deduped], ["https://example.com/a", "https://other.com/c"])
+
+    def test_harmonic_position_bonus_prefers_earlier_rank(self):
+        self.assertGreater(harmonic_position_bonus(1), harmonic_position_bonus(5))
 
 
 if __name__ == "__main__":

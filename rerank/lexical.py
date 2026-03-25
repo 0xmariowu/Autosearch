@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections import Counter
 from urllib.parse import urlsplit, urlunsplit
 
 from search_mesh.models import SearchHit
@@ -21,6 +22,11 @@ def normalize_url(url: str) -> str:
     parts = urlsplit(raw)
     path = parts.path.rstrip("/")
     return urlunsplit((parts.scheme.lower(), parts.netloc.lower(), path, "", ""))
+
+
+def hit_domain(hit: SearchHit) -> str:
+    parts = urlsplit(str(hit.url or "").strip())
+    return str(parts.netloc or "").lower()
 
 
 def _query_terms(query: str) -> list[str]:
@@ -53,13 +59,24 @@ def lexical_score(query: str, hit: SearchHit, *, preferred_content_types: list[s
     return score
 
 
-def dedup_hits(hits: list[SearchHit]) -> list[SearchHit]:
+def harmonic_position_bonus(rank: int) -> int:
+    safe_rank = max(int(rank or 1), 1)
+    return max(1, int(round(10 / safe_rank)))
+
+
+def dedup_hits(hits: list[SearchHit], *, max_per_domain: int | None = None) -> list[SearchHit]:
     deduped: list[SearchHit] = []
     seen: set[str] = set()
+    domain_counts: Counter[str] = Counter()
     for hit in list(hits or []):
         key = normalize_url(hit.url) or str(hit.title or "").strip().lower()
         if not key or key in seen:
             continue
+        domain = hit_domain(hit)
+        if max_per_domain is not None and domain and domain_counts[domain] >= int(max_per_domain):
+            continue
         seen.add(key)
+        if domain:
+            domain_counts[domain] += 1
         deduped.append(hit)
     return deduped

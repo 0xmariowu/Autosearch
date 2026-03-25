@@ -202,6 +202,12 @@ def default_program(goal_case: dict[str, Any], available_providers: list[str]) -
             "rank_by_relevance": True,
             "anchor_followups": True,
         }),
+        "budget_policy": dict(goal_case.get("budget_policy") or {
+            "explore_budget_pct": 0.85,
+            "answer_budget_pct": 0.15,
+            "provider_timeout_seconds": 10,
+            "parallel_provider_limit": 6,
+        }),
         "stop_rules": {
             "plateau_rounds": int(goal_case.get("plateau_rounds", 3) or 3),
             "target_score": int(goal_case.get("target_score", 100) or 100),
@@ -429,6 +435,20 @@ def _population_lineage_summary(population: list[dict[str, Any]]) -> dict[str, A
                 str(item.get("mutation_kind") or "")
                 for item in population
                 if str(item.get("mutation_kind") or "")
+            })
+        },
+        "planning_op_counts": {
+            op_name: sum(
+                1
+                for item in population
+                for op in list(item.get("planning_ops") or [])
+                if str((op or {}).get("op") or "") == op_name
+            )
+            for op_name in sorted({
+                str((op or {}).get("op") or "")
+                for item in population
+                for op in list(item.get("planning_ops") or [])
+                if str((op or {}).get("op") or "")
             })
         },
         "deepest_branch_depth": max((int(item.get("branch_depth", 0) or 0) for item in population), default=0),

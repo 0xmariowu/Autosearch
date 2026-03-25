@@ -36,7 +36,18 @@ def run_watch(
         "mode": model.mode,
         "frequency": model.frequency,
         "run_at": datetime.now().astimezone().isoformat(),
+        "target_score": int(model.target_score or 100),
+        "success_threshold": int(model.success_threshold or model.target_score),
         "goal_reached": final_score >= int(model.success_threshold or model.target_score),
+        "score_gap": max(int(model.success_threshold or model.target_score) - final_score, 0),
+        "stop_policy": dict(model.stop_rules or {}),
+        "provider_preferences": list(model.provider_preferences or []),
+        "budget": budget,
+        "scheduler_summary": {
+            "frequency": model.frequency,
+            "plateau_rounds": int(model.plateau_rounds or 3),
+            "should_run_again": not (final_score >= int(model.success_threshold or model.target_score)),
+        },
         "final_score": final_score,
         "result": result,
     }
@@ -58,5 +69,6 @@ def run_watches(
     ]
     return {
         "watch_count": len(results),
+        "reached_count": sum(1 for item in results if bool(item.get("goal_reached"))),
         "results": results,
     }

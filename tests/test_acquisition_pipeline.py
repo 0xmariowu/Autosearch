@@ -9,6 +9,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from acquisition import AcquiredDocument
+from acquisition.content_filter import select_relevant_content
 from acquisition.crawl4ai_adapter import fetch_with_crawl4ai
 from acquisition.fetch_pipeline import fetch_document
 from acquisition.render_pipeline import render_document
@@ -102,6 +103,19 @@ class AcquisitionPipelineTests(unittest.TestCase):
         self.assertEqual(document.title, "Crawl4AI")
         self.assertTrue(document.fit_markdown)
         self.assertEqual(document.references[0]["url"], "https://example.com/ref")
+
+    def test_query_aware_content_filter_keeps_relevant_middle_paragraph(self):
+        text = "\n\n".join([
+            "Intro paragraph about agent systems.",
+            "Unrelated filler about gardening and hobbies.",
+            "Planner executor synthesizer pipeline with runtime skip and release gate.",
+            "More unrelated filler content.",
+            "Conclusion paragraph on evaluation harness design.",
+        ])
+        selected = select_relevant_content(text, query="runtime skip release gate", max_chars=500)
+        self.assertIn("Intro paragraph", selected)
+        self.assertIn("runtime skip and release gate", selected)
+        self.assertIn("Conclusion paragraph", selected)
 
 
 if __name__ == "__main__":
