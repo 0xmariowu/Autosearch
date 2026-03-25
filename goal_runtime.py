@@ -243,9 +243,16 @@ def load_accepted_program(goal_case: dict[str, Any], available_providers: list[s
     paths = runtime_paths(goal_id)
     payload = _read_json(paths["accepted_program"])
     if payload:
-        if "mode" not in payload:
-            payload["mode"] = str(goal_case.get("mode") or "balanced")
-        payload.setdefault("mode_policy_overrides", dict(goal_case.get("mode_policy_overrides") or {}))
+        goal_mode = str(goal_case.get("mode") or "").strip()
+        if goal_mode:
+            payload["mode"] = goal_mode
+        elif "mode" not in payload:
+            payload["mode"] = "balanced"
+        goal_mode_overrides = dict(goal_case.get("mode_policy_overrides") or {})
+        if goal_mode_overrides:
+            payload["mode_policy_overrides"] = goal_mode_overrides
+        else:
+            payload.setdefault("mode_policy_overrides", {})
         return apply_mode_policy(payload)
     return default_program(goal_case, available_providers)
 

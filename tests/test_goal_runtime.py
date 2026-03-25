@@ -1,6 +1,7 @@
 import sys
 import tempfile
 import unittest
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -152,6 +153,21 @@ class GoalRuntimeTests(unittest.TestCase):
                 history = lineage["summary"]["planning_op_history"]
                 self.assertEqual(history[0]["program_id"], "p1")
                 self.assertEqual(history[0]["ops"][0]["op"], "request_cross_check")
+
+    def test_load_accepted_program_applies_goal_mode_override(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime_root = Path(tmp)
+            accepted_path = runtime_root / "g1" / "accepted-program.json"
+            accepted_path.parent.mkdir(parents=True, exist_ok=True)
+            accepted_path.write_text(json.dumps({
+                "program_id": "p1",
+                "mode": "balanced",
+                "queries": [{"text": "seed", "platforms": []}],
+            }) + "\n", encoding="utf-8")
+            with patch.object(gr, "GOAL_RUNTIME_ROOT", runtime_root):
+                program = gr.load_accepted_program({"id": "g1", "mode": "deep"}, ["searxng"])
+        self.assertEqual(program["mode"], "deep")
+        self.assertTrue(program["acquisition_policy"]["acquire_pages"])
 
 
 if __name__ == "__main__":
