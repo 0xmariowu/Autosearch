@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from evaluation_harness import build_bundle, bundle_metrics
+from evidence.legacy_adapter import normalize_legacy_finding
 from goal_editor import GoalSearcher
 from goal_judge import evaluate_goal_bundle
 from goal_runtime import (
@@ -33,6 +34,7 @@ from goal_services import (
     sample_findings as _sample_findings,
     search_query as _search_query,
 )
+from research import build_research_plan, execute_research_plan, synthesize_research_round
 from selector import candidate_rank, evaluate_acceptance
 from source_capability import refresh_source_capability
 
@@ -87,6 +89,10 @@ def _accepted_queries_from_run(payload: dict[str, Any]) -> list[dict[str, Any]]:
             if spec["text"] and spec not in accepted_queries:
                 accepted_queries.append(spec)
     return accepted_queries
+
+
+def _normalized_findings(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [normalize_legacy_finding(item) for item in list(items or [])]
 
 
 def _harness_for_program(harness: dict[str, Any], program: dict[str, Any]) -> dict[str, Any]:
@@ -294,7 +300,7 @@ def run_goal_bundle_loop(
             replay_bundle = build_bundle([], replay_findings, effective_harness)
             replay_judge = evaluate_goal_bundle(goal_case, replay_bundle)
             bundle_state = {
-                "accepted_findings": replay_bundle,
+                "accepted_findings": _normalized_findings(replay_bundle),
                 "accepted_queries": list(prior_queries),
                 "score": int(replay_judge.get("score", 0) or 0),
                 "judge": replay_judge.get("judge", ""),
@@ -345,7 +351,8 @@ def run_goal_bundle_loop(
             if initial_queries:
                 candidate_plans = [{"label": "seed", "queries": initial_queries}]
             else:
-                candidate_plans = searcher.candidate_plans(
+                candidate_plans = build_research_plan(
+                    searcher=searcher,
                     bundle_state=bundle_state,
                     judge_result=judge_result,
                     tried_queries=tried_queries,
@@ -356,7 +363,8 @@ def run_goal_bundle_loop(
                     max_queries=effective_max_queries,
                 )
         else:
-            candidate_plans = searcher.candidate_plans(
+            candidate_plans = build_research_plan(
+                searcher=searcher,
                 bundle_state=bundle_state,
                 judge_result=judge_result,
                 tried_queries=tried_queries,
@@ -384,28 +392,20 @@ def run_goal_bundle_loop(
                 program_overrides=dict(plan.get("program_overrides") or {}),
             )
             candidate_platforms = _platforms_for_provider_mix(platforms, candidate_program.get("provider_mix"))
-            query_runs: list[dict[str, Any]] = []
-            round_findings: list[dict[str, Any]] = []
-            plan_query_keys: list[str] = []
-            for query in plan.get("queries", []):
-                effective_query = _restrict_query_to_provider_mix(query, candidate_program.get("provider_mix"))
-                query_key = _query_key(effective_query)
-                if query_key in tried_queries:
-                    continue
-                plan_query_keys.append(query_key)
-                run = _search_query(
-                    effective_query,
-                    candidate_platforms,
-                    sampling_policy=dict(candidate_program.get("sampling_policy") or {}),
-                )
-                query_runs.append({
-                    "query": run["query"],
-                    "query_spec": run["query_spec"],
-                    "baseline_score": run["baseline_score"],
-                    "finding_count": len(run["findings"]),
-                    "sample_findings": _sample_findings(run["findings"], limit=5),
-                })
-                round_findings.extend(run["findings"])
+            execution = execute_research_plan(
+                {
+                    "label": plan.get("label", f"plan-{plan_index}"),
+                    "intents": list(plan.get("queries") or []),
+                },
+                default_platforms=candidate_platforms,
+                provider_mix=list(candidate_program.get("provider_mix") or []),
+                sampling_policy=dict(candidate_program.get("sampling_policy") or {}),
+                tried_queries=tried_queries,
+                query_key_fn=_query_key,
+            )
+            query_runs = list(execution["query_runs"])
+            round_findings = _normalized_findings(list(execution["findings"]))
+            plan_query_keys = list(execution["query_keys"])
             if not query_runs:
                 strategy_summaries.append({
                     "label": plan.get("label", f"plan-{plan_index}"),
@@ -422,12 +422,15 @@ def run_goal_bundle_loop(
                 continue
 
             effective_harness = _harness_for_program(harness, candidate_program)
-            candidate_bundle = build_bundle(bundle_state["accepted_findings"], round_findings, effective_harness)
-            plan_judge = evaluate_goal_bundle(goal_case, candidate_bundle)
-            harness_state = bundle_metrics(
-                candidate_bundle,
-                previous_bundle=bundle_state.get("accepted_findings", []),
+            synthesized = synthesize_research_round(
+                goal_case,
+                existing_findings=_normalized_findings(bundle_state["accepted_findings"]),
+                round_findings=round_findings,
+                harness=effective_harness,
             )
+            candidate_bundle = list(synthesized["bundle"])
+            plan_judge = dict(synthesized["judge_result"])
+            harness_state = dict(synthesized["harness_metrics"])
             selection = evaluate_acceptance(
                 current_state=bundle_state,
                 candidate_score=int(plan_judge.get("score", 0) or 0),
@@ -488,6 +491,10 @@ def run_goal_bundle_loop(
                 "provider_mix": list(candidate_program.get("provider_mix") or []),
                 "mutation_history": list(candidate_program.get("mutation_history") or []),
                 "score": candidate["score"],
+                "result": {
+                    "score": candidate["score"],
+                    "dimension_scores": dict(candidate["dimension_scores"]),
+                },
                 "dimension_scores": dict(candidate["dimension_scores"]),
                 "selection": selection,
                 "harness_metrics": harness_state,
