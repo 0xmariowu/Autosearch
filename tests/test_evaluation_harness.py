@@ -31,6 +31,24 @@ class EvaluationHarnessTests(unittest.TestCase):
         self.assertEqual(len(bundle), 2)
         self.assertEqual([item["title"] for item in bundle], ["a1", "b1"])
 
+    def test_build_bundle_normalizes_legacy_records(self):
+        harness = {
+            "bundle_policy": {
+                "per_query_cap": 5,
+                "per_source_cap": 5,
+                "per_domain_cap": 5,
+            }
+        }
+        bundle = build_bundle(
+            [],
+            [
+                {"title": "legacy", "url": "https://a.com/1", "body": "legacy body", "source": "searxng", "query": "q1"},
+            ],
+            harness,
+        )
+        self.assertEqual(bundle[0]["record_type"], "evidence")
+        self.assertEqual(bundle[0]["content_type"], "web")
+
     def test_bundle_metrics_tracks_novelty_and_diversity(self):
         previous = [
             {"title": "old", "url": "https://x.com/1", "source": "github_repos", "query": "q1"},

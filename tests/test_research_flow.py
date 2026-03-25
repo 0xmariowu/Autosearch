@@ -41,6 +41,7 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertEqual(plans[0]["intents"][0]["text"], "eval harness regression gate")
         self.assertEqual(plans[0]["stage"], "breadth")
         self.assertTrue(plans[0]["graph_node"].startswith("broad_recall-"))
+        self.assertEqual(plans[0]["graph_edges"], [])
 
     def test_executor_returns_query_runs_and_findings(self):
         with patch("research.executor.search_query", return_value={
@@ -66,6 +67,7 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertEqual(len(result["query_runs"]), 1)
         self.assertEqual(result["findings"][0]["record_type"], "evidence")
         self.assertEqual(result["query_runs"][0]["local_evidence_count"], 1)
+        self.assertIn("graph_node", result)
 
     def test_executor_uses_backend_roles_to_narrow_platforms(self):
         observed = {}
@@ -114,6 +116,7 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertIn("weakest_dimension", result["repair_hints"])
         self.assertIn("routes", result["routeable_output"])
         self.assertIn("score_gap", result["routeable_output"])
+        self.assertIn("next_actions", result["routeable_output"])
 
 
 if __name__ == "__main__":

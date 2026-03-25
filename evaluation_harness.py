@@ -6,6 +6,8 @@ from collections import Counter, defaultdict
 from urllib.parse import urlparse
 from typing import Any
 
+from evidence.legacy_adapter import normalize_legacy_finding
+
 
 def _domain(url: str) -> str:
     try:
@@ -35,7 +37,8 @@ def build_bundle(
     source_counts: Counter[str] = Counter()
     domain_counts: Counter[str] = Counter()
     bundle: list[dict[str, Any]] = []
-    for item in list(existing) + list(incoming):
+    for raw_item in list(existing) + list(incoming):
+        item = normalize_legacy_finding(raw_item)
         url = str(item.get("url") or "").strip()
         title = str(item.get("title") or "").strip()
         key = url or title
