@@ -1,0 +1,54 @@
+{
+  "id": "autosearch-goal-judge",
+  "project": "autosearch",
+  "problem": "Find concrete patterns for a goal-scored self-improving search loop: explicit target score, independent judge, keep-discard selection, and iterative improvement.",
+  "target_score": 70,
+  "providers": [
+    "exa",
+    "github_repos",
+    "github_issues",
+    "twitter_xreach"
+  ],
+  "seed_queries": [
+    "Claude Code",
+    "MCP server",
+    "AI coding agent benchmark",
+    "karpathy autoresearch evaluation harness",
+    "self improving search loop external judge",
+    "goal driven research agent benchmark",
+    "keep discard loop independent evaluator"
+  ],
+  "mutation_terms": [
+    "score rubric",
+    "accept reject",
+    "benchmark",
+    "iteration"
+  ],
+  "rubric": [
+    {
+      "id": "explicit_metric",
+      "weight": 20,
+      "keywords": ["score", "metric", "rubric", "benchmark", "objective"]
+    },
+    {
+      "id": "independent_judge",
+      "weight": 20,
+      "keywords": ["judge", "evaluator", "critic", "reviewer", "eval"]
+    },
+    {
+      "id": "selection_rule",
+      "weight": 20,
+      "keywords": ["keep", "discard", "select", "accept", "reject"]
+    },
+    {
+      "id": "iterative_improvement",
+      "weight": 20,
+      "keywords": ["iterate", "loop", "self-improving", "optimize", "evolve"]
+    },
+    {
+      "id": "implementation_signal",
+      "weight": 20,
+      "keywords": ["github", "repo", "implementation", "framework", "code"]
+    }
+  ]
+}

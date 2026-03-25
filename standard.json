@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "date_floor": "2025-10-01",
+  "query_quality": {
+    "volume_min": 10,
+    "pain_ratio_min": 0.4,
+    "findings_with_eng_50_min": 3
+  },
+  "platform_settings": {
+    "reddit": {"sort": "relevance", "restrict_sr": true, "t": "all"},
+    "hn": {"api": "algolia"},
+    "github": {"via": "exa"},
+    "hf": {"via": "exa+api_2words"}
+  },
+  "finding_types": ["rule_violation", "failure_pattern", "rule_demand"],
+  "finding_engagement_min": 10
+}

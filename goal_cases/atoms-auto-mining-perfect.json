@@ -1,0 +1,777 @@
+{
+  "id": "atoms-auto-mining-perfect",
+  "project": "atoms",
+  "judge_model": "google/gemini-3-flash-preview",
+  "problem": "How can the atoms automatic mining system become much closer to perfect: extract rows as directly and completely as possible, keep validation and labeling separate from extraction, pair success and failure trajectories on the same benchmark instance, enforce post-run validation and fail-closed release gates, and reduce near-duplicate or fake-Gold errors?",
+  "target_score": 100,
+  "providers": [
+    "huggingface_datasets",
+    "github_code",
+    "github_repos",
+    "github_issues"
+  ],
+  "context_notes": "The local atoms standards say extraction should preserve raw information first, validation should run after extraction rather than inside it, success/failure trajectory pairing matters for SWE-bench-style data, base release must be fail-closed, and semantic dedup plus fake-Gold checks are required. Search should find public implementations or discussions that strengthen those exact dimensions, even when the external projects use different vocabulary.",
+  "seed_queries": [
+    {
+      "text": "code review dataset original revised code direct conversion",
+      "platforms": [
+        {
+          "name": "github_repos",
+          "limit": 5,
+          "min_stars": 0,
+          "query": "code review dataset"
+        },
+        {
+          "name": "github_issues",
+          "limit": 5,
+          "query": "review comment dataset"
+        },
+        {
+          "name": "github_issues",
+          "repo": "SentimentAnalysisInSE/code_review_analysis",
+          "limit": 5,
+          "query": "dataset"
+        },
+        {
+          "name": "huggingface_datasets",
+          "limit": 5,
+          "query": "code review"
+        },
+        {
+          "name": "github_code",
+          "limit": 5,
+          "query": "\"original code\" \"revised code\" review"
+        }
+      ]
+    },
+    {
+      "text": "separate extraction from validation and labeling in data pipelines",
+      "platforms": [
+        {
+          "name": "github_repos",
+          "limit": 5,
+          "min_stars": 50,
+          "query": "great expectations"
+        },
+        {
+          "name": "github_repos",
+          "limit": 5,
+          "min_stars": 10,
+          "query": "pandera"
+        },
+        {
+          "name": "github_issues",
+          "repo": "great-expectations/great_expectations",
+          "limit": 5,
+          "query": "validation"
+        },
+        {
+          "name": "github_issues",
+          "repo": "unionai-oss/pandera",
+          "limit": 5,
+          "query": "validation"
+        },
+        {
+          "name": "github_code",
+          "limit": 5,
+          "query": "\"fail-closed\" validation"
+        }
+      ]
+    },
+    {
+      "text": "pair success and failure trajectories on the same swe-bench instance",
+      "platforms": [
+        {
+          "name": "github_repos",
+          "limit": 5,
+          "min_stars": 100,
+          "query": "SWE-agent"
+        },
+        {
+          "name": "github_repos",
+          "limit": 5,
+          "min_stars": 100,
+          "query": "OpenHands"
+        },
+        {
+          "name": "github_issues",
+          "repo": "SWE-agent/SWE-agent",
+          "limit": 5,
+          "query": "trajectory"
+        },
+        {
+          "name": "github_issues",
+          "repo": "OpenHands/OpenHands",
+          "limit": 5,
+          "query": "swe-bench"
+        },
+        {
+          "name": "huggingface_datasets",
+          "limit": 5,
+          "query": "swe bench"
+        },
+        {
+          "name": "github_code",
+          "limit": 5,
+          "query": "\"SWE-bench\" trajectory"
+        }
+      ]
+    },
+    {
+      "text": "post-run validation report and fail-closed release gate",
+      "platforms": [
+        {
+          "name": "github_issues",
+          "repo": "great-expectations/great_expectations",
+          "limit": 5,
+          "query": "validation report"
+        },
+        {
+          "name": "github_issues",
+          "repo": "unionai-oss/pandera",
+          "limit": 5,
+          "query": "schema validation"
+        },
+        {
+          "name": "github_issues",
+          "repo": "anthropics/claude-code",
+          "limit": 5,
+          "query": "doctor"
+        },
+        {
+          "name": "github_code",
+          "limit": 5,
+          "query": "\"release gate\" validation"
+        }
+      ]
+    },
+    {
+      "text": "semantic deduplication and fake-Gold detection for near-duplicate code pairs",
+      "platforms": [
+        {
+          "name": "github_repos",
+          "limit": 5,
+          "min_stars": 1,
+          "query": "semhash"
+        },
+        {
+          "name": "github_repos",
+          "limit": 5,
+          "min_stars": 1,
+          "query": "near duplicate detection"
+        },
+        {
+          "name": "github_issues",
+          "repo": "MinishLab/semhash",
+          "limit": 5,
+          "query": "dedup"
+        },
+        {
+          "name": "github_issues",
+          "limit": 5,
+          "query": "near duplicate detection"
+        },
+        {
+          "name": "huggingface_datasets",
+          "limit": 5,
+          "query": "dedup"
+        },
+        {
+          "name": "github_code",
+          "limit": 5,
+          "query": "semhash"
+        }
+      ]
+    }
+  ],
+  "topic_frontier": [
+    {
+      "id": "raw_diff_lineage",
+      "queries": [
+        {
+          "text": "raw PR diff dataset with review comment lineage",
+          "platforms": [
+            {
+              "name": "huggingface_datasets",
+              "limit": 5,
+              "query": "pull request diff review dataset"
+            },
+            {
+              "name": "github_code",
+              "limit": 5,
+              "query": "\"pull request\" diff dataset review"
+            }
+          ]
+        },
+        {
+          "text": "review dataset preserving original patch and final patch",
+          "platforms": [
+            {
+              "name": "github_code",
+              "limit": 5,
+              "query": "\"original patch\" \"final patch\" review"
+            },
+            {
+              "name": "huggingface_datasets",
+              "limit": 5,
+              "query": "review patch dataset"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "validation_gate_ops",
+      "queries": [
+        {
+          "text": "fail-closed validation gate and release report",
+          "platforms": [
+            {
+              "name": "github_code",
+              "limit": 5,
+              "query": "\"fail-closed\" \"validation report\""
+            },
+            {
+              "name": "github_issues",
+              "limit": 5,
+              "query": "\"release gate\" validation"
+            }
+          ]
+        },
+        {
+          "text": "data contract validation before publish",
+          "platforms": [
+            {
+              "name": "github_repos",
+              "limit": 5,
+              "query": "data contract enforcement"
+            },
+            {
+              "name": "github_code",
+              "limit": 5,
+              "query": "\"data contract\" validate publish"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "trajectory_subsets",
+      "queries": [
+        {
+          "text": "resolved unresolved trajectory subset same benchmark instance",
+          "platforms": [
+            {
+              "name": "huggingface_datasets",
+              "limit": 5,
+              "query": "resolved unresolved trajectory dataset"
+            },
+            {
+              "name": "github_code",
+              "limit": 5,
+              "query": "\"resolved\" unresolved instance trajectory"
+            }
+          ]
+        },
+        {
+          "text": "success failure benchmark trajectory pairing dataset",
+          "platforms": [
+            {
+              "name": "huggingface_datasets",
+              "limit": 5,
+              "query": "success failure trajectory pairing"
+            },
+            {
+              "name": "github_issues",
+              "limit": 5,
+              "query": "\"success\" \"failure\" trajectory benchmark"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fake_gold_and_dedup",
+      "queries": [
+        {
+          "text": "noisy label detection and semantic dedup for code pairs",
+          "platforms": [
+            {
+              "name": "github_code",
+              "limit": 5,
+              "query": "\"semantic dedup\" noisy labels"
+            },
+            {
+              "name": "github_repos",
+              "limit": 5,
+              "query": "semantic deduplication code"
+            }
+          ]
+        },
+        {
+          "text": "fake gold example detection near duplicate dataset",
+          "platforms": [
+            {
+              "name": "github_issues",
+              "limit": 5,
+              "query": "\"fake gold\" duplicate dataset"
+            },
+            {
+              "name": "huggingface_datasets",
+              "limit": 5,
+              "query": "duplicate detection dataset"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "refinement_terms": [
+    "implementation",
+    "dataset",
+    "validation",
+    "pipeline",
+    "issue"
+  ],
+  "dimensions": [
+    {
+      "id": "extraction_completeness",
+      "weight": 20,
+      "keywords": [
+        "code review dataset",
+        "review comment dataset",
+        "ReviewComments",
+        "actionability",
+        "original code",
+        "revised code",
+        "before after",
+        "direct conversion"
+      ]
+    },
+    {
+      "id": "label_separation",
+      "weight": 20,
+      "keywords": [
+        "data validation",
+        "schema validation",
+        "quality gate",
+        "validation after extraction",
+        "separate extraction and validation",
+        "filter later",
+        "great expectations",
+        "pandera"
+      ]
+    },
+    {
+      "id": "pair_extract",
+      "weight": 20,
+      "keywords": [
+        "SWE-bench",
+        "trajectory",
+        "SWE-agent",
+        "SWE-Gym",
+        "resolved",
+        "unresolved",
+        "success failure",
+        "instance matching"
+      ]
+    },
+    {
+      "id": "validation_release",
+      "weight": 20,
+      "keywords": [
+        "validation report",
+        "release gate",
+        "fail-closed",
+        "fail closed",
+        "data contract",
+        "doctor",
+        "smoke test"
+      ]
+    },
+    {
+      "id": "dedupe_quality",
+      "weight": 20,
+      "keywords": [
+        "semantic deduplication",
+        "semantic hashing",
+        "semhash",
+        "near duplicate",
+        "sequence matcher",
+        "duplicate detection",
+        "fake gold",
+        "dedup"
+      ]
+    }
+  ],
+  "dimension_queries": {
+    "extraction_completeness": [
+      {
+        "text": "code review dataset original revised code direct conversion",
+        "platforms": [
+          {
+            "name": "github_repos",
+            "limit": 5,
+            "min_stars": 0,
+            "query": "code review dataset"
+          },
+          {
+            "name": "github_issues",
+            "limit": 5,
+            "query": "review comment dataset"
+          },
+          {
+            "name": "github_code",
+            "limit": 5,
+            "query": "\"before after\" review"
+          }
+        ]
+      },
+      {
+        "text": "review comment dataset with original and revised code pairs",
+        "platforms": [
+          {
+            "name": "github_issues",
+            "repo": "SentimentAnalysisInSE/code_review_analysis",
+            "limit": 5,
+            "query": "dataset"
+          },
+          {
+            "name": "github_repos",
+            "limit": 5,
+            "min_stars": 0,
+            "query": "code review dataset"
+          },
+          {
+            "name": "huggingface_datasets",
+            "limit": 5,
+            "query": "code review"
+          },
+          {
+            "name": "github_code",
+            "limit": 5,
+            "query": "\"original code\" \"revised code\" review"
+          }
+        ]
+      },
+      {
+        "text": "review comments dataset actionability taxonomy with original revised pairs",
+        "platforms": [
+          {
+            "name": "github_repos",
+            "limit": 5,
+            "min_stars": 0,
+            "query": "review comments dataset"
+          },
+          {
+            "name": "github_repos",
+            "limit": 5,
+            "min_stars": 0,
+            "query": "ReAct review comment dataset"
+          },
+          {
+            "name": "github_issues",
+            "repo": "src-d/datasets",
+            "limit": 5,
+            "query": "ReviewComments"
+          },
+          {
+            "name": "huggingface_datasets",
+            "limit": 5,
+            "query": "review comments"
+          },
+          {
+            "name": "github_code",
+            "limit": 5,
+            "query": "ReviewComments dataset"
+          }
+        ]
+      }
+    ],
+    "label_separation": [
+      {
+        "text": "separate extraction from validation and labeling in data pipelines",
+        "platforms": [
+          {
+            "name": "github_issues",
+            "repo": "great-expectations/great_expectations",
+            "limit": 5,
+            "query": "validation"
+          },
+          {
+            "name": "github_issues",
+            "repo": "unionai-oss/pandera",
+            "limit": 5,
+            "query": "validation"
+          },
+          {
+            "name": "github_code",
+            "limit": 5,
+            "query": "\"separate extraction\" validation"
+          }
+        ]
+      },
+      {
+        "text": "schema validation as a post-extraction quality layer",
+        "platforms": [
+          {
+            "name": "github_repos",
+            "limit": 5,
+            "min_stars": 50,
+            "query": "great expectations"
+          },
+          {
+            "name": "github_repos",
+            "limit": 5,
+            "min_stars": 10,
+            "query": "pandera"
+          },
+          {
+            "name": "github_code",
+            "limit": 5,
+            "query": "\"schema validation\" pipeline"
+          }
+        ]
+      }
+    ],
+    "pair_extract": [
+      {
+        "text": "pair success and failure trajectories on the same swe-bench instance",
+        "platforms": [
+          {
+            "name": "github_issues",
+            "repo": "SWE-agent/SWE-agent",
+            "limit": 5,
+            "query": "trajectory"
+          },
+          {
+            "name": "github_issues",
+            "repo": "OpenHands/OpenHands",
+            "limit": 5,
+            "query": "swe-bench"
+          },
+          {
+            "name": "huggingface_datasets",
+            "limit": 5,
+            "query": "swe bench"
+          },
+          {
+            "name": "github_code",
+            "limit": 5,
+            "query": "\"SWE-bench\" trajectory"
+          }
+        ]
+      },
+      {
+        "text": "swe-bench trajectories with resolved and unresolved runs",
+        "platforms": [
+          {
+            "name": "github_repos",
+            "limit": 5,
+            "min_stars": 100,
+            "query": "SWE-agent"
+          },
+          {
+            "name": "github_repos",
+            "limit": 5,
+            "min_stars": 100,
+            "query": "OpenHands"
+            }
+          ,
+          {
+            "name": "github_code",
+            "limit": 5,
+            "query": "\"resolved\" unresolved trajectory"
+            }
+          ]
+      },
+      {
+        "text": "SWE-Gym and SWE-bench verified agent trajectories",
+        "platforms": [
+          {
+            "name": "github_repos",
+            "limit": 5,
+            "min_stars": 50,
+            "query": "SWE-Gym"
+          },
+          {
+            "name": "github_repos",
+            "limit": 5,
+            "min_stars": 50,
+            "query": "SWE-bench verified"
+          },
+          {
+            "name": "github_issues",
+            "repo": "SWE-agent/SWE-agent",
+            "limit": 5,
+            "query": "resolved"
+          },
+          {
+            "name": "huggingface_datasets",
+            "limit": 5,
+            "query": "trajectory"
+          },
+          {
+            "name": "github_code",
+            "limit": 5,
+            "query": "\"SWE-Gym\" trajectory"
+          }
+        ]
+      }
+    ],
+    "validation_release": [
+      {
+        "text": "post-run validation report and fail-closed release gate",
+        "platforms": [
+          {
+            "name": "github_issues",
+            "repo": "great-expectations/great_expectations",
+            "limit": 5,
+            "query": "validation report"
+          },
+          {
+            "name": "github_issues",
+            "repo": "unionai-oss/pandera",
+            "limit": 5,
+            "query": "schema validation"
+          },
+          {
+            "name": "github_code",
+            "limit": 5,
+            "query": "\"validation report\" \"release gate\""
+          }
+        ]
+      },
+      {
+        "text": "doctor checks and smoke tests before release",
+        "platforms": [
+          {
+            "name": "github_issues",
+            "repo": "anthropics/claude-code",
+            "limit": 5,
+            "query": "doctor"
+            },
+          {
+            "name": "github_code",
+            "limit": 5,
+            "query": "\"smoke test\" release"
+            }
+          ]
+      },
+      {
+        "text": "data contracts and fail closed validation gates",
+        "platforms": [
+          {
+            "name": "github_repos",
+            "limit": 5,
+            "min_stars": 50,
+            "query": "data contracts"
+          },
+          {
+            "name": "github_issues",
+            "limit": 5,
+            "query": "data contract"
+          },
+          {
+            "name": "github_issues",
+            "limit": 5,
+            "query": "fail closed"
+          },
+          {
+            "name": "github_code",
+            "limit": 5,
+            "query": "\"data contract\" validation"
+          }
+        ]
+      }
+    ],
+    "dedupe_quality": [
+      {
+        "text": "semantic deduplication and fake-Gold detection for near-duplicate code pairs",
+        "platforms": [
+          {
+            "name": "github_repos",
+            "limit": 5,
+            "min_stars": 1,
+            "query": "semhash"
+          },
+          {
+            "name": "github_issues",
+            "repo": "MinishLab/semhash",
+            "limit": 5,
+            "query": "dedup"
+          },
+          {
+            "name": "huggingface_datasets",
+            "limit": 5,
+            "query": "semantic dedup"
+          },
+          {
+            "name": "github_code",
+            "limit": 5,
+            "query": "semhash"
+          }
+        ]
+      },
+      {
+        "text": "near duplicate detection and identical pair filtering",
+        "platforms": [
+          {
+            "name": "github_repos",
+            "limit": 5,
+            "min_stars": 1,
+            "query": "near duplicate detection"
+          },
+          {
+            "name": "github_issues",
+            "limit": 5,
+            "query": "near duplicate detection"
+          },
+          {
+            "name": "huggingface_datasets",
+            "limit": 5,
+            "query": "semantic dedup"
+            },
+          {
+            "name": "github_code",
+            "limit": 5,
+            "query": "\"near duplicate\" dedup"
+            }
+          ]
+      },
+      {
+        "text": "text dedup and semantic hashing for near duplicate datasets",
+        "platforms": [
+          {
+            "name": "github_repos",
+            "limit": 5,
+            "min_stars": 10,
+            "query": "text dedup"
+          },
+          {
+            "name": "github_repos",
+            "limit": 5,
+            "min_stars": 10,
+            "query": "dedup"
+          },
+          {
+            "name": "github_repos",
+            "limit": 5,
+            "min_stars": 1,
+            "query": "semhash"
+          },
+          {
+            "name": "huggingface_datasets",
+            "limit": 5,
+            "query": "dedup"
+          },
+          {
+            "name": "github_code",
+            "limit": 5,
+            "query": "\"semantic hashing\" dedup"
+          }
+        ]
+      }
+    ]
+  }
+}

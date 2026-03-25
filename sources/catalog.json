@@ -1,0 +1,103 @@
+{
+  "sources": [
+    {
+      "name": "github_repos",
+      "kind": "provider",
+      "family": "github",
+      "tier": 0,
+      "runtime_enabled": true,
+      "backend": "gh CLI",
+      "check": "github_cli"
+    },
+    {
+      "name": "github_issues",
+      "kind": "provider",
+      "family": "github",
+      "tier": 0,
+      "runtime_enabled": true,
+      "backend": "gh CLI",
+      "check": "github_cli"
+    },
+    {
+      "name": "github_code",
+      "kind": "provider",
+      "family": "github",
+      "tier": 0,
+      "runtime_enabled": true,
+      "backend": "gh CLI",
+      "check": "github_cli"
+    },
+    {
+      "name": "twitter_xreach",
+      "kind": "provider",
+      "family": "twitter",
+      "tier": 1,
+      "runtime_enabled": true,
+      "backend": "xreach CLI",
+      "check": "xreach_cli"
+    },
+    {
+      "name": "exa",
+      "kind": "provider",
+      "family": "exa",
+      "tier": 0,
+      "runtime_enabled": true,
+      "backend": "mcporter + Exa MCP",
+      "check": "exa_mcporter"
+    },
+    {
+      "name": "reddit_exa",
+      "kind": "provider",
+      "family": "reddit",
+      "tier": 0,
+      "runtime_enabled": true,
+      "backend": "mcporter + Exa MCP",
+      "check": "exa_mcporter"
+    },
+    {
+      "name": "hn_exa",
+      "kind": "provider",
+      "family": "hackernews",
+      "tier": 0,
+      "runtime_enabled": true,
+      "backend": "mcporter + Exa MCP",
+      "check": "exa_mcporter"
+    },
+    {
+      "name": "alphaxiv_mcp",
+      "kind": "research_source",
+      "family": "papers",
+      "tier": 1,
+      "runtime_enabled": false,
+      "backend": "Claude MCP SSE",
+      "check": "alphaxiv_mcp"
+    },
+    {
+      "name": "huggingface_datasets",
+      "kind": "provider",
+      "family": "huggingface",
+      "tier": 0,
+      "runtime_enabled": true,
+      "backend": "agent-reach HF public API",
+      "check": "huggingface_public"
+    },
+    {
+      "name": "huggingface",
+      "kind": "research_source",
+      "family": "datasets",
+      "tier": 0,
+      "runtime_enabled": false,
+      "backend": "Hugging Face public API",
+      "check": "huggingface_public"
+    },
+    {
+      "name": "web_reader",
+      "kind": "reader",
+      "family": "web",
+      "tier": 0,
+      "runtime_enabled": false,
+      "backend": "Jina Reader",
+      "check": "web_reader"
+    }
+  ]
+}
