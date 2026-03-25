@@ -76,6 +76,8 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertTrue(any(plan["label"] == "graph-decomposition-followup" for plan in plans))
         graph_followup = next(plan for plan in plans if plan["label"] == "graph-followup")
         self.assertTrue(any("runtime skip" in query["text"] or "implementation signal" in query["text"] for query in graph_followup["queries"]))
+        self.assertTrue(graph_followup["program_overrides"]["acquisition_policy"]["acquire_pages"])
+        self.assertTrue(graph_followup["program_overrides"]["evidence_policy"]["prefer_acquired_text"])
 
     def test_planner_respects_retired_mutation_kinds_and_budget(self):
         plans = build_research_plan(
