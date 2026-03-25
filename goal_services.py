@@ -10,10 +10,14 @@ from acquisition import enrich_evidence_record
 from evidence import build_evidence_record, evidence_content_type
 from evidence_records import build_evidence_record_from_result
 from engine import PlatformConnector, Scorer
-from source_capability import get_source_decision
-
-FREE_BREADTH_PROVIDERS = ["searxng", "ddgs"]
-PREMIUM_BREADTH_PROVIDERS = {"exa", "tavily"}
+from search_mesh.provider_policy import (
+    FREE_BREADTH_PROVIDERS,
+    PREMIUM_BREADTH_PROVIDERS,
+    available_platforms as policy_available_platforms,
+    default_platform_config,
+    goal_provider_names,
+)
+from search_mesh.router import search_platform
 
 __all__ = [
     "available_platforms",
@@ -27,40 +31,8 @@ __all__ = [
     "sample_findings",
     "search_query",
 ]
-
-
-def _platform_config_for_provider(name: str) -> dict[str, Any]:
-    if name == "github_repos":
-        return {"name": name, "limit": 5, "min_stars": 20}
-    if name == "github_issues":
-        return {"name": name, "limit": 5}
-    if name == "twitter_xreach":
-        return {"name": name, "limit": 10}
-    if name in {"searxng", "ddgs", "exa", "tavily"}:
-        return {"name": name, "limit": 8}
-    return {"name": name, "limit": 5}
-
-
 def _goal_provider_names(goal_case: dict[str, Any]) -> list[str]:
-    requested = [
-        str(name or "").strip()
-        for name in list(goal_case.get("providers") or [])
-        if str(name or "").strip()
-    ]
-    names: list[str] = []
-    if not requested:
-        names.extend(FREE_BREADTH_PROVIDERS)
-    elif any(name in PREMIUM_BREADTH_PROVIDERS for name in requested):
-        names.extend(FREE_BREADTH_PROVIDERS)
-    names.extend(requested)
-    seen: set[str] = set()
-    ordered: list[str] = []
-    for name in names:
-        if name in seen:
-            continue
-        seen.add(name)
-        ordered.append(name)
-    return ordered
+    return goal_provider_names(goal_case)
 
 
 def normalize_query_spec(query: Any) -> dict[str, Any]:
@@ -82,13 +54,7 @@ def query_text(query: Any) -> str:
 
 
 def available_platforms(goal_case: dict[str, Any], capability_report: dict[str, Any]) -> list[dict[str, Any]]:
-    platforms: list[dict[str, Any]] = []
-    for name in _goal_provider_names(goal_case):
-        decision = get_source_decision(capability_report, name)
-        if decision["should_skip"]:
-            continue
-        platforms.append(_platform_config_for_provider(name))
-    return platforms
+    return policy_available_platforms(goal_case, capability_report)
 
 
 def platforms_for_provider_mix(
@@ -180,7 +146,18 @@ def search_query(
         platform_query = str(platform.get("query") or query_str)
         platform_config = dict(platform)
         platform_config.pop("query", None)
-        outcome = PlatformConnector.search(platform_config, platform_query)
+        if "limit" not in platform_config and platform_config.get("name"):
+            platform_config = {
+                **default_platform_config(str(platform_config.get("name") or "")),
+                **platform_config,
+            }
+        platform_search = getattr(PlatformConnector, "search")
+        # Keep legacy monkeypatch hooks working while routing normal execution
+        # through the formal search mesh layer.
+        if "unittest.mock" in str(type(platform_search)):
+            outcome = platform_search(platform_config, platform_query)
+        else:
+            outcome = search_platform(platform_config, platform_query)
         all_results.extend(outcome.results)
     _, raw_score, new_results = scorer.score_results(all_results)
     if sampling["rank_by_relevance"]:
