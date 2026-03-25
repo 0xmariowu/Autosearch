@@ -5,6 +5,25 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any
 
+GENERIC_ANCHOR_TOKENS = {
+    "https",
+    "http",
+    "github",
+    "issue",
+    "issues",
+    "about",
+    "using",
+    "validation",
+    "report",
+    "implementation",
+    "details",
+    "failure",
+    "modes",
+    "dataset",
+    "public",
+    "release",
+}
+
 
 def _current_round_role(active_program: dict[str, Any], round_history: list[dict[str, Any]]) -> str:
     roles = [str(item or "").strip() for item in list(active_program.get("round_roles") or []) if str(item or "").strip()]
@@ -52,10 +71,40 @@ def _anchor_tokens(local_evidence_records: list[dict[str, Any]] | None, *, limit
             token = token.strip(".,:;()[]{}")
             if len(token) < 5:
                 continue
-            if token in {"https", "http", "github", "issue", "issues", "about", "using"}:
+            if token in GENERIC_ANCHOR_TOKENS:
                 continue
             counts[token] += 1
     return [token for token, _ in counts.most_common(limit)]
+
+
+def _goal_case_from_searcher(searcher: Any) -> dict[str, Any]:
+    return dict(getattr(searcher, "goal_case", {}) or {})
+
+
+def _dimension_phrases(goal_case: dict[str, Any], judge_result: dict[str, Any], *, limit: int = 6) -> list[str]:
+    phrases: list[str] = []
+    seen: set[str] = set()
+    prioritized = list(judge_result.get("missing_dimensions") or [])
+    scores = dict(judge_result.get("dimension_scores") or {})
+    if scores:
+        prioritized.extend([
+            dim_id
+            for dim_id, _ in sorted(scores.items(), key=lambda item: int(item[1] or 0))
+        ])
+    for dim_id in prioritized:
+        for dim in list(goal_case.get("dimensions") or []):
+            if str(dim.get("id") or "") != str(dim_id):
+                continue
+            for keyword in list(dim.get("keywords") or []):
+                phrase = str(keyword or "").strip()
+                lowered = phrase.lower()
+                if not phrase or lowered in seen:
+                    continue
+                seen.add(lowered)
+                phrases.append(phrase)
+                if len(phrases) >= limit:
+                    return phrases
+    return phrases
 
 
 def _repair_terms(judge_result: dict[str, Any]) -> list[str]:
@@ -137,6 +186,7 @@ def _augment_queries(
 
 def _follow_up_queries(
     *,
+    goal_case: dict[str, Any],
     local_evidence_records: list[dict[str, Any]] | None,
     judge_result: dict[str, Any],
     max_queries: int,
@@ -144,7 +194,22 @@ def _follow_up_queries(
 ) -> list[dict[str, Any]]:
     anchors = _anchor_tokens(local_evidence_records, limit=6)
     repairs = _repair_terms(judge_result)
+    phrases = _dimension_phrases(goal_case, judge_result, limit=6)
     follow_ups: list[dict[str, Any]] = []
+    templates = [
+        "{phrase} implementation",
+        "{anchor} {phrase}",
+        "{phrase} examples",
+    ]
+    for phrase in phrases or repairs:
+        for template in templates:
+            anchor = anchors[0] if anchors else ""
+            spec = {"text": template.format(anchor=anchor, phrase=phrase).strip(), "platforms": []}
+            if str(spec) in tried_queries or spec in follow_ups:
+                continue
+            follow_ups.append(spec)
+            if len(follow_ups) >= max_queries:
+                return follow_ups
     for repair in repairs:
         for anchor in anchors:
             spec = {"text": f"{anchor} {repair} implementation".strip(), "platforms": []}
@@ -158,6 +223,7 @@ def _follow_up_queries(
 
 def _decomposition_followups(
     *,
+    goal_case: dict[str, Any],
     local_evidence_records: list[dict[str, Any]] | None,
     judge_result: dict[str, Any],
     max_queries: int,
@@ -165,16 +231,18 @@ def _decomposition_followups(
 ) -> list[dict[str, Any]]:
     anchors = _anchor_tokens(local_evidence_records, limit=8)
     repairs = _repair_terms(judge_result)
+    phrases = _dimension_phrases(goal_case, judge_result, limit=8)
     queries: list[dict[str, Any]] = []
     patterns = [
-        "{anchor} {repair} implementation details",
-        "{anchor} {repair} failure modes",
-        "{anchor} {repair} benchmark dataset",
+        "{phrase} implementation details",
+        "{phrase} failure modes",
+        "{phrase} benchmark dataset",
+        "{anchor} {phrase}",
     ]
-    for repair in repairs:
-        for anchor in anchors:
+    for phrase in phrases or repairs:
+        for anchor in anchors or [""]:
             for pattern in patterns:
-                spec = {"text": pattern.format(anchor=anchor, repair=repair).strip(), "platforms": []}
+                spec = {"text": pattern.format(anchor=anchor, phrase=phrase).strip(), "platforms": []}
                 if str(spec) in tried_queries or spec in queries:
                     continue
                 queries.append(spec)
@@ -201,6 +269,7 @@ def build_research_plan(
     if _mutation_kind_for_role(current_role) in retired_mutations:
         current_role = "orthogonal_probe" if "orthogonal_probe" in list(active_program.get("round_roles") or []) else "broad_recall"
     local_evidence_records = list(local_evidence_records or [])
+    goal_case = _goal_case_from_searcher(searcher)
     plans = searcher.candidate_plans(
         bundle_state=bundle_state,
         judge_result=judge_result,
@@ -216,17 +285,28 @@ def build_research_plan(
     branch_depth = int((round_history[-1] or {}).get("branch_depth", 0) or 0) if round_history else 0
     recursive_depth_limit = _recursive_depth_limit(active_program)
     branch_budget = _branch_budget(active_program)
-    follow_up_candidates = _follow_up_queries(
-        local_evidence_records=local_evidence_records,
-        judge_result=judge_result,
-        max_queries=max_queries,
-        tried_queries=tried_queries,
+    allow_recursive_followups = bool(local_evidence_records) or bool(round_history)
+    follow_up_candidates = (
+        _follow_up_queries(
+            goal_case=goal_case,
+            local_evidence_records=local_evidence_records,
+            judge_result=judge_result,
+            max_queries=max_queries,
+            tried_queries=tried_queries,
+        )
+        if allow_recursive_followups
+        else []
     )
-    decomposition_candidates = _decomposition_followups(
-        local_evidence_records=local_evidence_records,
-        judge_result=judge_result,
-        max_queries=max_queries,
-        tried_queries=tried_queries,
+    decomposition_candidates = (
+        _decomposition_followups(
+            goal_case=goal_case,
+            local_evidence_records=local_evidence_records,
+            judge_result=judge_result,
+            max_queries=max_queries,
+            tried_queries=tried_queries,
+        )
+        if allow_recursive_followups
+        else []
     )
     for index, plan in enumerate(list(plans or []), start=1):
         queries = _augment_queries(
@@ -242,6 +322,7 @@ def build_research_plan(
             continue
         graph_node = _node_id(role, index, branch_depth + 1)
         branch_targets = _repair_terms(judge_result)
+        plan_priority = int(plan.get("branch_priority", 0) or 0)
         normalized.append({
             "label": str(plan.get("label") or "plan"),
             "queries": queries,
@@ -262,7 +343,7 @@ def build_research_plan(
             "program_overrides": dict(plan.get("program_overrides") or {}),
             "local_evidence_records": local_evidence_records,
             "branch_depth": branch_depth + 1,
-            "branch_priority": 3 if branch_type == "repair" else 2 if branch_type == "followup" else 1,
+            "branch_priority": plan_priority or (3 if branch_type == "repair" else 2 if branch_type == "followup" else 1),
         })
     if follow_up_candidates and len(normalized) < max(plan_count, 1) and branch_depth + 1 <= recursive_depth_limit and "anchor_followup" not in retired_mutations:
         graph_node = _node_id("graph_followup", len(normalized) + 1, branch_depth + 1)
@@ -310,12 +391,17 @@ def build_research_plan(
     )
     counts: Counter[str] = Counter()
     filtered: list[dict[str, Any]] = []
+    max_slots = max(plan_count, 1)
+    if follow_up_candidates:
+        max_slots += 1
+    if decomposition_candidates:
+        max_slots += 1
     for item in ranked:
         branch_type = str(item.get("branch_type") or "research")
         if counts[branch_type] >= int(branch_budget.get(branch_type, plan_count) or plan_count):
             continue
         filtered.append(item)
         counts[branch_type] += 1
-        if len(filtered) >= max(plan_count, 1):
+        if len(filtered) >= max_slots:
             break
     return filtered

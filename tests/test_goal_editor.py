@@ -252,6 +252,38 @@ class GoalEditorTests(unittest.TestCase):
         self.assertGreaterEqual(len(plans), 1)
         self.assertIn("judge", plans[0]["queries"][0]["text"])
 
+    def test_goal_director_can_emit_context_followup_queries(self):
+        goal_case = {
+            "seed_queries": [],
+            "providers": ["searxng", "ddgs", "github_code"],
+            "context_notes": "validation should run after extraction, base release must be fail-closed, success failure trajectory pairing matters.",
+            "dimensions": [
+                {
+                    "id": "validation_release",
+                    "weight": 20,
+                    "keywords": ["validation report", "fail-closed", "release gate"],
+                }
+            ],
+            "dimension_queries": {
+                "validation_release": []
+            },
+        }
+        searcher = GoalSearcher(goal_case)
+        plans = searcher.candidate_plans(
+            bundle_state={"accepted_findings": [], "score": 0},
+            judge_result={"missing_dimensions": ["validation_release"], "dimension_scores": {"validation_release": 5}},
+            tried_queries=set(),
+            available_providers=["searxng", "ddgs", "github_code"],
+            plan_count=3,
+            max_queries=3,
+        )
+        self.assertTrue(any("context-followup" in plan["label"] for plan in plans))
+        context_plan = next(plan for plan in plans if "context-followup" in plan["label"])
+        self.assertEqual(context_plan["role"], "graph_followup")
+        self.assertEqual(context_plan["branch_priority"], 5)
+        self.assertTrue(all("validation should run after extraction" not in query["text"] for query in context_plan["queries"]))
+        self.assertTrue(any("implementation" in query["text"] for query in context_plan["queries"]))
+
     def test_goal_director_synthesized_rubric_queries_can_add_structured_platforms(self):
         goal_case = {
             "seed_queries": ["provider doctor cli auth config runtime skip implementation"],
