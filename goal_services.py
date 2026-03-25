@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from acquisition import enrich_evidence_record
 from evidence_records import build_evidence_record_from_result
 from engine import PlatformConnector, Scorer
 from source_capability import get_source_decision
@@ -142,6 +143,8 @@ def _sampling_config(sampling_policy: dict[str, Any] | None) -> dict[str, Any]:
         "rank_by_relevance": bool(policy.get("rank_by_relevance", True)),
         "per_query_findings_cap": int(policy.get("per_query_findings_cap", max(bundle_cap * 3, 5)) or max(bundle_cap * 3, 5)),
         "bundle_per_query_cap": bundle_cap,
+        "acquire_pages": bool(policy.get("acquire_pages", False)),
+        "page_fetch_limit": int(policy.get("page_fetch_limit", 2) or 2),
     }
 
 
@@ -173,8 +176,11 @@ def search_query(
         ranked_results = list(new_results)
     positive_ranked = [result for result in ranked_results if _result_relevance(query_str, result)[0] > 0]
     selected_results = positive_ranked or ranked_results
-    for result in selected_results[: sampling["per_query_findings_cap"]]:
-        findings.append(build_evidence_record_from_result(result, query_str))
+    for index, result in enumerate(selected_results[: sampling["per_query_findings_cap"]]):
+        record = build_evidence_record_from_result(result, query_str)
+        if sampling["acquire_pages"] and index < sampling["page_fetch_limit"]:
+            record = enrich_evidence_record(record)
+        findings.append(record)
     return {
         "query": query_str,
         "query_spec": normalize_query_spec(query),
