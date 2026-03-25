@@ -7,6 +7,7 @@ import json
 from typing import Any
 
 from acquisition import enrich_evidence_record
+from evidence import build_evidence_record, evidence_content_type
 from evidence_records import build_evidence_record_from_result
 from engine import PlatformConnector, Scorer
 from source_capability import get_source_decision
@@ -124,7 +125,7 @@ def _query_terms(text: str) -> set[str]:
     return {term for term in text.lower().split() if len(term) >= 4}
 
 
-def _result_relevance(query: str, result: Any) -> tuple[int, int]:
+def _result_relevance(query: str, result: Any, preferred_content_types: list[str] | None = None) -> tuple[int, int]:
     terms = _query_terms(query)
     haystack = " ".join([
         str(getattr(result, "title", "") or ""),
@@ -133,7 +134,16 @@ def _result_relevance(query: str, result: Any) -> tuple[int, int]:
         str(getattr(result, "source", "") or ""),
     ]).lower()
     overlap = sum(1 for term in terms if term in haystack)
-    return overlap, int(getattr(result, "eng", 0) or 0)
+    bonus = 0
+    preferred = {str(item or "").strip() for item in list(preferred_content_types or []) if str(item or "").strip()}
+    if preferred:
+        content_type = evidence_content_type(
+            str(getattr(result, "source", "") or ""),
+            str(getattr(result, "url", "") or ""),
+        )
+        if content_type in preferred:
+            bonus = 2
+    return overlap + bonus, int(getattr(result, "eng", 0) or 0)
 
 
 def _sampling_config(sampling_policy: dict[str, Any] | None) -> dict[str, Any]:
@@ -145,6 +155,13 @@ def _sampling_config(sampling_policy: dict[str, Any] | None) -> dict[str, Any]:
         "bundle_per_query_cap": bundle_cap,
         "acquire_pages": bool(policy.get("acquire_pages", False)),
         "page_fetch_limit": int(policy.get("page_fetch_limit", 2) or 2),
+        "use_render_fallback": bool(policy.get("use_render_fallback", False)),
+        "preferred_content_types": [
+            str(item or "").strip()
+            for item in list(policy.get("preferred_content_types") or [])
+            if str(item or "").strip()
+        ],
+        "prefer_acquired_text": bool(policy.get("prefer_acquired_text", False)),
     }
 
 
@@ -169,17 +186,40 @@ def search_query(
     if sampling["rank_by_relevance"]:
         ranked_results = sorted(
             new_results,
-            key=lambda result: _result_relevance(query_str, result),
+            key=lambda result: _result_relevance(query_str, result, sampling["preferred_content_types"]),
             reverse=True,
         )
     else:
         ranked_results = list(new_results)
-    positive_ranked = [result for result in ranked_results if _result_relevance(query_str, result)[0] > 0]
+    positive_ranked = [
+        result
+        for result in ranked_results
+        if _result_relevance(query_str, result, sampling["preferred_content_types"])[0] > 0
+    ]
     selected_results = positive_ranked or ranked_results
     for index, result in enumerate(selected_results[: sampling["per_query_findings_cap"]]):
         record = build_evidence_record_from_result(result, query_str)
         if sampling["acquire_pages"] and index < sampling["page_fetch_limit"]:
-            record = enrich_evidence_record(record)
+            if sampling["use_render_fallback"]:
+                record = enrich_evidence_record(
+                    record,
+                    use_render_fallback=True,
+                )
+            else:
+                record = enrich_evidence_record(record)
+            if sampling["prefer_acquired_text"] and record.get("acquired_text"):
+                record = build_evidence_record(
+                    title=str(record.get("acquired_title") or record.get("title") or ""),
+                    url=str(record.get("url") or ""),
+                    body=str(record.get("acquired_text") or ""),
+                    source=str(record.get("source") or ""),
+                    query=query_str,
+                    clean_markdown=str(record.get("clean_markdown") or ""),
+                    fit_markdown=str(record.get("fit_markdown") or ""),
+                    references=list(record.get("references") or []),
+                )
+                record["acquired"] = True
+                record["acquired_text"] = str(record.get("canonical_text") or "")
         findings.append(record)
     return {
         "query": query_str,

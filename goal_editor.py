@@ -102,6 +102,50 @@ def _provider_mix_for_queries(queries: list[dict[str, Any]], available_providers
     return inferred or list(available_providers)
 
 
+def _search_backends(active_program: dict[str, Any], available_providers: list[str], provider_mix: list[str] | None = None) -> list[str]:
+    preferred = [str(name).strip() for name in list(active_program.get("search_backends") or []) if str(name).strip()]
+    candidates = list(provider_mix or preferred or available_providers)
+    broad_priority = ["searxng", "ddgs", "exa", "tavily"]
+    selected = [name for name in broad_priority if name in candidates and name in available_providers]
+    return selected or [name for name in candidates if name in available_providers]
+
+
+def _backend_roles(
+    active_program: dict[str, Any],
+    available_providers: list[str],
+    *,
+    breadth_backends: list[str],
+) -> dict[str, list[str]]:
+    roles = dict(active_program.get("backend_roles") or {})
+    normalized: dict[str, list[str]] = {}
+    for key, value in roles.items():
+        normalized[str(key)] = [
+            str(provider).strip()
+            for provider in list(value or [])
+            if str(provider).strip() in available_providers
+        ]
+    normalized["breadth"] = list(breadth_backends)
+    return normalized
+
+
+def _preferred_content_types_for_queries(queries: list[dict[str, Any]]) -> list[str]:
+    preferred: list[str] = []
+    for query in list(queries or []):
+        for platform in list((query or {}).get("platforms") or []):
+            name = str((platform or {}).get("name") or "").strip()
+            if name == "github_code" and "code" not in preferred:
+                preferred.append("code")
+            elif name == "github_issues" and "issue" not in preferred:
+                preferred.append("issue")
+            elif name == "github_repos" and "repository" not in preferred:
+                preferred.append("repository")
+            elif name == "huggingface_datasets" and "dataset" not in preferred:
+                preferred.append("dataset")
+    if not preferred:
+        preferred.append("web")
+    return preferred
+
+
 def _active_query_templates(
     active_program: dict[str, Any],
     fallback_templates: dict[str, Any],
@@ -647,9 +691,18 @@ class HeuristicGoalSearcher:
         current_templates = _active_query_templates(active_program, self.dimension_queries)
         current_strategies = _active_dimension_strategies(active_program, current_templates)
         current_role = _current_round_role(active_program, bundle_state, judge_result, round_history)
+        current_acquisition_policy = dict(active_program.get("acquisition_policy") or {})
+        current_evidence_policy = dict(active_program.get("evidence_policy") or {})
+        current_repair_policy = dict(active_program.get("repair_policy") or {})
+        current_population_policy = dict(active_program.get("population_policy") or {})
         explore_budget = float(active_program.get("explore_budget", 0.4) or 0.4)
         exploit_budget = float(active_program.get("exploit_budget", 0.6) or 0.6)
-        repair_dimensions = _repair_focus_dimensions(self.goal_case, active_program, judge_result, max_count=2)
+        repair_dimensions = _repair_focus_dimensions(
+            self.goal_case,
+            active_program,
+            judge_result,
+            max_count=int(current_repair_policy.get("target_weak_dimensions", 2) or 2),
+        )
         recent_failed_queries = {
             str(query.get("text") or "").strip().lower()
             for item in round_history[-3:]
@@ -709,11 +762,15 @@ class HeuristicGoalSearcher:
         plans: list[dict[str, Any]] = []
         if anchor_queries:
             anchor_dim = weak_dimensions[:1] or list(judge_result.get("missing_dimensions", []))[:1]
+            anchor_provider_mix = _provider_mix_for_queries(anchor_queries[:max_queries], available_providers)
+            anchor_search_backends = _search_backends(active_program, available_providers, anchor_provider_mix)
             plans.append({
                 "label": f"{current_role}-anchored",
                 "queries": anchor_queries[:max_queries],
                 "program_overrides": {
-                    "provider_mix": _provider_mix_for_queries(anchor_queries[:max_queries], available_providers),
+                    "provider_mix": anchor_provider_mix,
+                    "search_backends": anchor_search_backends,
+                    "backend_roles": _backend_roles(active_program, available_providers, breadth_backends=anchor_search_backends),
                     "query_templates": _updated_query_templates(
                         current_templates,
                         anchor_dim[0] if anchor_dim else "",
@@ -728,6 +785,25 @@ class HeuristicGoalSearcher:
                     "current_role": "dimension_repair",
                     "exploit_budget": max(exploit_budget, 0.75),
                     "explore_budget": min(explore_budget, 0.25),
+                    "acquisition_policy": {
+                        **current_acquisition_policy,
+                        "acquire_pages": True,
+                        "page_fetch_limit": max(int(current_acquisition_policy.get("page_fetch_limit", 1) or 1), 1),
+                    },
+                    "evidence_policy": {
+                        **current_evidence_policy,
+                        "preferred_content_types": _preferred_content_types_for_queries(anchor_queries[:max_queries]),
+                        "prefer_acquired_text": True,
+                    },
+                    "repair_policy": {
+                        **current_repair_policy,
+                        "target_weak_dimensions": max(int(current_repair_policy.get("target_weak_dimensions", 2) or 2), len(anchor_dim) or 1),
+                    },
+                    "population_policy": {
+                        **current_population_policy,
+                        "plan_count": max(int(current_population_policy.get("plan_count", plan_count) or plan_count), plan_count),
+                        "max_queries": max(int(current_population_policy.get("max_queries", max_queries) or max_queries), max_queries),
+                    },
                     "sampling_policy": {
                         **dict(active_program.get("sampling_policy") or {}),
                         "anchor_followups": True,
@@ -741,11 +817,14 @@ class HeuristicGoalSearcher:
             for provider in preferred_providers:
                 if provider in available_providers and provider not in provider_mix:
                     provider_mix.append(provider)
+            primary_search_backends = _search_backends(active_program, available_providers, provider_mix)
             plans.append({
                 "label": f"{current_role}-primary",
                 "queries": focus,
                 "program_overrides": {
                     "provider_mix": provider_mix,
+                    "search_backends": primary_search_backends,
+                    "backend_roles": _backend_roles(active_program, available_providers, breadth_backends=primary_search_backends),
                     "query_templates": _updated_query_templates(
                         current_templates,
                         primary_dim[0] if primary_dim else "",
@@ -760,6 +839,24 @@ class HeuristicGoalSearcher:
                     "current_role": current_role,
                     "exploit_budget": max(exploit_budget, 0.65),
                     "explore_budget": min(explore_budget, 0.35),
+                    "acquisition_policy": {
+                        **current_acquisition_policy,
+                        "acquire_pages": True,
+                        "page_fetch_limit": max(int(current_acquisition_policy.get("page_fetch_limit", 1) or 1), 1),
+                    },
+                    "evidence_policy": {
+                        **current_evidence_policy,
+                        "preferred_content_types": _preferred_content_types_for_queries(focus),
+                    },
+                    "repair_policy": {
+                        **current_repair_policy,
+                        "target_weak_dimensions": max(int(current_repair_policy.get("target_weak_dimensions", 2) or 2), len(primary_dim) or 1),
+                    },
+                    "population_policy": {
+                        **current_population_policy,
+                        "plan_count": max(int(current_population_policy.get("plan_count", plan_count) or plan_count), plan_count),
+                        "max_queries": max(int(current_population_policy.get("max_queries", max_queries) or max_queries), max_queries),
+                    },
                 },
             })
 
@@ -787,10 +884,29 @@ class HeuristicGoalSearcher:
                 "queries": topic_queries,
                 "program_overrides": {
                     "provider_mix": _provider_mix_for_queries(topic_queries, available_providers),
+                    "search_backends": _search_backends(active_program, available_providers, _provider_mix_for_queries(topic_queries, available_providers)),
+                    "backend_roles": _backend_roles(active_program, available_providers, breadth_backends=_search_backends(active_program, available_providers, _provider_mix_for_queries(topic_queries, available_providers))),
                     "topic_frontier": _rotate_frontier(current_frontier, topic_id),
                     "current_role": "orthogonal_probe",
                     "explore_budget": max(explore_budget, 0.7),
                     "exploit_budget": min(exploit_budget, 0.3),
+                    "acquisition_policy": {
+                        **current_acquisition_policy,
+                        "acquire_pages": False,
+                    },
+                    "evidence_policy": {
+                        **current_evidence_policy,
+                        "preferred_content_types": _preferred_content_types_for_queries(topic_queries),
+                    },
+                    "repair_policy": {
+                        **current_repair_policy,
+                        "prefer_backend_rotation": True,
+                    },
+                    "population_policy": {
+                        **current_population_policy,
+                        "plan_count": max(int(current_population_policy.get("plan_count", plan_count) or plan_count), plan_count),
+                        "max_queries": max(int(current_population_policy.get("max_queries", max_queries) or max_queries), max_queries),
+                    },
                     "sampling_policy": {
                         **dict(active_program.get("sampling_policy") or {}),
                         "anchor_followups": False,
@@ -815,6 +931,8 @@ class HeuristicGoalSearcher:
                     "queries": dim_queries,
                     "program_overrides": {
                         "provider_mix": _provider_mix_for_queries(dim_queries, available_providers),
+                        "search_backends": _search_backends(active_program, available_providers, _provider_mix_for_queries(dim_queries, available_providers)),
+                        "backend_roles": _backend_roles(active_program, available_providers, breadth_backends=_search_backends(active_program, available_providers, _provider_mix_for_queries(dim_queries, available_providers))),
                         "query_templates": _updated_query_templates(current_templates, dim, dim_queries),
                         "dimension_strategies": _updated_dimension_strategies(
                             current_strategies,
@@ -825,6 +943,24 @@ class HeuristicGoalSearcher:
                         "current_role": "dimension_repair",
                         "exploit_budget": max(exploit_budget, 0.7),
                         "explore_budget": min(explore_budget, 0.3),
+                        "acquisition_policy": {
+                            **current_acquisition_policy,
+                            "acquire_pages": True,
+                            "page_fetch_limit": max(int(current_acquisition_policy.get("page_fetch_limit", 1) or 1), 1),
+                        },
+                        "evidence_policy": {
+                            **current_evidence_policy,
+                            "preferred_content_types": _preferred_content_types_for_queries(dim_queries),
+                        },
+                        "repair_policy": {
+                            **current_repair_policy,
+                            "target_weak_dimensions": max(int(current_repair_policy.get("target_weak_dimensions", 2) or 2), 1),
+                        },
+                        "population_policy": {
+                            **current_population_policy,
+                            "plan_count": max(int(current_population_policy.get("plan_count", plan_count) or plan_count), plan_count),
+                            "max_queries": max(int(current_population_policy.get("max_queries", max_queries) or max_queries), max_queries),
+                        },
                     },
                 })
         return plans[:plan_count]
@@ -902,7 +1038,7 @@ class OpenRouterGoalSearcher:
             f"Dimensions: {json.dumps(self.goal_case.get('dimensions', []), ensure_ascii=False)}\n"
             f"Current score: {bundle_state.get('score', 0)}\n"
             f"Current dimension scores: {json.dumps(judge_result.get('dimension_scores', {}), ensure_ascii=False)}\n"
-            f"Active program: {json.dumps({k: active_program.get(k) for k in ['explore_budget', 'exploit_budget', 'sampling_policy', 'topic_frontier']}, ensure_ascii=False)}\n"
+            f"Active program: {json.dumps({k: active_program.get(k) for k in ['explore_budget', 'exploit_budget', 'sampling_policy', 'topic_frontier', 'search_backends', 'acquisition_policy', 'evidence_policy', 'repair_policy', 'population_policy']}, ensure_ascii=False)}\n"
             f"Weakest dimensions: {json.dumps(weak_dimensions, ensure_ascii=False)}\n"
             f"Missing dimensions: {json.dumps(judge_result.get('missing_dimensions', []), ensure_ascii=False)}\n"
             f"Judge rationale: {judge_result.get('rationale', '')}\n"
@@ -914,7 +1050,7 @@ class OpenRouterGoalSearcher:
             f"Anchor repos: {json.dumps(anchors['repos'], ensure_ascii=False)}\n"
             f"Anchor datasets: {json.dumps(anchors['datasets'], ensure_ascii=False)}\n"
             f"Current evidence sample: {json.dumps(sample_findings, ensure_ascii=False)}\n\n"
-            f"Return only JSON: {{\"plans\": [{{\"label\": \"...\", \"program_overrides\": {{\"topic_frontier\": [], \"explore_budget\": 0.4, \"exploit_budget\": 0.6, \"sampling_policy\": {{}}}}, \"queries\": [{{\"text\": \"...\", \"platforms\": [{{\"name\": \"provider\", \"query\": \"...\", \"repo\": \"owner/repo\", \"limit\": 5, \"min_stars\": 0}}]}}]}}]}}\n"
+            f"Return only JSON: {{\"plans\": [{{\"label\": \"...\", \"program_overrides\": {{\"topic_frontier\": [], \"explore_budget\": 0.4, \"exploit_budget\": 0.6, \"sampling_policy\": {{}}, \"search_backends\": [], \"acquisition_policy\": {{}}, \"evidence_policy\": {{}}, \"repair_policy\": {{}}, \"population_policy\": {{}}}}, \"queries\": [{{\"text\": \"...\", \"platforms\": [{{\"name\": \"provider\", \"query\": \"...\", \"repo\": \"owner/repo\", \"limit\": 5, \"min_stars\": 0}}]}}]}}]}}\n"
             f"Propose {plan_count} distinct plans. Each plan must have 2-{max_queries} queries.\n"
             "Use only the available providers.\n"
             "The goal and the judge standard are fixed. Only the search strategy can change.\n"

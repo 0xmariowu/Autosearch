@@ -108,6 +108,8 @@ Current runtime default:
 - Session mode now follows the same provider restrictions as the main loop; `provider_mix` limits both default platforms and structured per-query platform overrides.
 - Search results are normalized into evidence records before bundle scoring. Legacy fields (`title`, `url`, `body`, `source`, `query`) remain stable; new fields such as `domain`, `content_type`, `snippet`, and `canonical_text` are additive.
 - Optional local acquisition is available through sampling policy flags such as `acquire_pages` and `page_fetch_limit`, which enrich top findings with `acquired_text` without changing the default lightweight path.
+- Accepted evidence is also persisted into a local goal-scoped evidence index so later repair rounds can reuse local evidence before hitting the open web again.
+- Research synthesis now produces a `routeable_output` summary with route groups, citations, missing dimensions, and score gap metadata.
 
 Cross-goal benchmark example:
 
@@ -192,6 +194,7 @@ summary = client.optimize_goals(
   - `goal_reached`
   - `score_gap`
   - `bundle_final`
+  - optional `routeable_output`
   - `rounds`
   - optional `run_path` when `persist_run=True`
 - Stable tuning arguments:
@@ -270,6 +273,7 @@ summary = client.optimize_goals(
   - `finding_count`
   - `judge_result`
   - optional `program_overrides`
+  - optional `routeable_output`
 - Execution notes:
   - `program_overrides.provider_mix` is applied during search execution
   - `program_overrides.sampling_policy` is applied during per-query sampling and bundle construction

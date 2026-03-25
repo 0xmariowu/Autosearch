@@ -51,6 +51,7 @@ def runtime_paths(goal_id: str) -> dict[str, Path]:
         "runtime_root": runtime_root,
         "accepted_program": runtime_root / "accepted-program.json",
         "harness": runtime_root / "evaluation-harness.json",
+        "evidence_index": runtime_root / "evidence-index.jsonl",
         "program_archive": runtime_root / "program-archive",
         "latest_population": runtime_root / "latest-population.json",
         "population_history": runtime_root / "population-history",
@@ -80,6 +81,24 @@ def _normalize_query_spec(query: Any) -> dict[str, Any]:
             "platforms": list(query.get("platforms") or []),
         }
     return {"text": str(query or "").strip(), "platforms": []}
+
+
+def _default_search_backends(available_providers: list[str]) -> list[str]:
+    preferred = ["searxng", "ddgs", "exa", "tavily"]
+    selected = [provider for provider in preferred if provider in available_providers]
+    return selected or list(available_providers)
+
+
+def _default_backend_roles(available_providers: list[str]) -> dict[str, list[str]]:
+    roles = {
+        "breadth": _default_search_backends(available_providers),
+        "repos": [provider for provider in ["github_repos"] if provider in available_providers],
+        "discussion": [provider for provider in ["github_issues"] if provider in available_providers],
+        "code": [provider for provider in ["github_code"] if provider in available_providers],
+        "datasets": [provider for provider in ["huggingface_datasets"] if provider in available_providers],
+        "social": [provider for provider in ["twitter_xreach"] if provider in available_providers],
+    }
+    return roles
 
 
 def default_program(goal_case: dict[str, Any], available_providers: list[str]) -> dict[str, Any]:
@@ -121,6 +140,26 @@ def default_program(goal_case: dict[str, Any], available_providers: list[str]) -
         "dimension_strategies": dimension_strategies,
         "round_roles": list(goal_case.get("round_roles") or ["broad_recall", "dimension_repair", "orthogonal_probe"]),
         "current_role": "broad_recall",
+        "search_backends": list(goal_case.get("search_backends") or _default_search_backends(available_providers)),
+        "backend_roles": dict(goal_case.get("backend_roles") or _default_backend_roles(available_providers)),
+        "acquisition_policy": dict(goal_case.get("acquisition_policy") or {
+            "acquire_pages": False,
+            "page_fetch_limit": 2,
+            "use_render_fallback": False,
+        }),
+        "evidence_policy": dict(goal_case.get("evidence_policy") or {
+            "preferred_content_types": [],
+            "prefer_acquired_text": False,
+        }),
+        "repair_policy": dict(goal_case.get("repair_policy") or {
+            "target_weak_dimensions": 2,
+            "anchor_followups": True,
+            "prefer_backend_rotation": True,
+        }),
+        "population_policy": dict(goal_case.get("population_policy") or {
+            "plan_count": 3,
+            "max_queries": 5,
+        }),
         "explore_budget": float(goal_case.get("explore_budget", 0.4) or 0.4),
         "exploit_budget": float(goal_case.get("exploit_budget", 0.6) or 0.6),
         "sampling_policy": dict(goal_case.get("sampling_policy") or {
@@ -187,6 +226,12 @@ def build_candidate_program(
         "dimension_strategies": dict(parent_program.get("dimension_strategies") or {}),
         "round_roles": list(parent_program.get("round_roles") or ["broad_recall", "dimension_repair", "orthogonal_probe"]),
         "current_role": str(parent_program.get("current_role") or "dimension_repair"),
+        "search_backends": list(parent_program.get("search_backends") or []),
+        "backend_roles": dict(parent_program.get("backend_roles") or {}),
+        "acquisition_policy": dict(parent_program.get("acquisition_policy") or {}),
+        "evidence_policy": dict(parent_program.get("evidence_policy") or {}),
+        "repair_policy": dict(parent_program.get("repair_policy") or {}),
+        "population_policy": dict(parent_program.get("population_policy") or {}),
         "explore_budget": float(parent_program.get("explore_budget", 0.4) or 0.4),
         "exploit_budget": float(parent_program.get("exploit_budget", 0.6) or 0.6),
         "sampling_policy": dict(parent_program.get("sampling_policy") or {}),
@@ -199,9 +244,20 @@ def build_candidate_program(
         "dimension_scores": dict(parent_program.get("dimension_scores") or {}),
     }
     for key, value in dict(program_overrides or {}).items():
-        if key in {"topic_frontier"} and isinstance(value, list):
+        if key in {"topic_frontier", "search_backends"} and isinstance(value, list):
             candidate[key] = list(value)
-        elif key in {"query_templates", "sampling_policy", "dimension_strategies", "stop_rules", "plateau_state"} and isinstance(value, dict):
+        elif key in {
+            "query_templates",
+            "sampling_policy",
+            "dimension_strategies",
+            "stop_rules",
+            "plateau_state",
+            "backend_roles",
+            "acquisition_policy",
+            "evidence_policy",
+            "repair_policy",
+            "population_policy",
+        } and isinstance(value, dict):
             candidate[key] = dict(value)
         elif key in {"round_roles"} and isinstance(value, list):
             candidate[key] = list(value)

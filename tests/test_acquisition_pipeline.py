@@ -10,6 +10,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from acquisition import AcquiredDocument
 from acquisition.fetch_pipeline import fetch_document
+from acquisition.render_pipeline import render_document
 
 
 class AcquisitionPipelineTests(unittest.TestCase):
@@ -50,6 +51,18 @@ class AcquisitionPipelineTests(unittest.TestCase):
             document = fetch_document("https://example.com", use_render_fallback=True)
         self.assertTrue(document.used_render_fallback)
         self.assertEqual(document.title, "Rendered")
+
+    def test_render_document_uses_local_playwright_renderer(self):
+        with patch("acquisition.render_pipeline._render_with_playwright", return_value={
+            "url": "https://example.com",
+            "final_url": "https://example.com/docs",
+            "title": "Rendered Title",
+            "raw_html": "<html><head><title>Rendered Title</title></head><body><p>Rendered body</p></body></html>",
+        }):
+            document = render_document("https://example.com")
+        self.assertTrue(document.used_render_fallback)
+        self.assertEqual(document.final_url, "https://example.com/docs")
+        self.assertIn("Rendered body", document.text)
 
 
 if __name__ == "__main__":

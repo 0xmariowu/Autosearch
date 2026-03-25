@@ -39,6 +39,8 @@ class ResearchFlowTests(unittest.TestCase):
         )
         self.assertEqual(plans[0]["label"], "repair")
         self.assertEqual(plans[0]["intents"][0]["text"], "eval harness regression gate")
+        self.assertEqual(plans[0]["stage"], "breadth")
+        self.assertTrue(plans[0]["graph_node"].startswith("broad_recall-"))
 
     def test_executor_returns_query_runs_and_findings(self):
         with patch("research.executor.search_query", return_value={
@@ -52,9 +54,40 @@ class ResearchFlowTests(unittest.TestCase):
                 default_platforms=[{"name": "searxng", "limit": 5}],
                 provider_mix=["searxng"],
                 query_key_fn=lambda q: str(q),
+                local_evidence_records=[{
+                    "record_type": "evidence",
+                    "title": "Local Eval Harness",
+                    "url": "https://local.example/harness",
+                    "canonical_text": "eval harness planner executor",
+                    "source": "local",
+                    "query": "eval harness",
+                }],
             )
         self.assertEqual(len(result["query_runs"]), 1)
         self.assertEqual(result["findings"][0]["record_type"], "evidence")
+        self.assertEqual(result["query_runs"][0]["local_evidence_count"], 1)
+
+    def test_executor_uses_backend_roles_to_narrow_platforms(self):
+        observed = {}
+
+        def _fake_search(query, platforms, sampling_policy=None):
+            observed["platforms"] = [platform["name"] for platform in platforms]
+            return {
+                "query": query["text"],
+                "query_spec": query,
+                "baseline_score": 5,
+                "findings": [],
+            }
+
+        with patch("research.executor.search_query", side_effect=_fake_search):
+            execute_research_plan(
+                {"label": "repair", "role": "dimension_repair", "intents": [{"text": "repository implementation guide", "platforms": []}]},
+                default_platforms=[{"name": "searxng", "limit": 5}, {"name": "github_repos", "limit": 5}],
+                provider_mix=["searxng", "github_repos"],
+                backend_roles={"breadth": ["searxng"], "repos": ["github_repos"]},
+                query_key_fn=lambda q: str(q),
+            )
+        self.assertEqual(observed["platforms"], ["github_repos"])
 
     def test_synthesizer_builds_bundle_and_repair_hints(self):
         goal_case = {
@@ -79,6 +112,8 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertIn("bundle", result)
         self.assertIn("judge_result", result)
         self.assertIn("weakest_dimension", result["repair_hints"])
+        self.assertIn("routes", result["routeable_output"])
+        self.assertIn("score_gap", result["routeable_output"])
 
 
 if __name__ == "__main__":
