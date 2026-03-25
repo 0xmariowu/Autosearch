@@ -52,6 +52,8 @@ def runtime_paths(goal_id: str) -> dict[str, Path]:
         "accepted_program": runtime_root / "accepted-program.json",
         "harness": runtime_root / "evaluation-harness.json",
         "program_archive": runtime_root / "program-archive",
+        "latest_population": runtime_root / "latest-population.json",
+        "population_history": runtime_root / "population-history",
     }
 
 
@@ -92,6 +94,15 @@ def default_program(goal_case: dict[str, Any], available_providers: list[str]) -
         "created_at": datetime.now().astimezone().isoformat(),
         "queries": queries,
         "provider_mix": list(available_providers),
+        "topic_frontier": list(goal_case.get("topic_frontier") or []),
+        "query_templates": dict(goal_case.get("dimension_queries") or {}),
+        "explore_budget": float(goal_case.get("explore_budget", 0.4) or 0.4),
+        "exploit_budget": float(goal_case.get("exploit_budget", 0.6) or 0.6),
+        "sampling_policy": dict(goal_case.get("sampling_policy") or {
+            "bundle_per_query_cap": 5,
+            "rank_by_relevance": True,
+            "anchor_followups": True,
+        }),
         "plan_count": 3,
         "max_queries": 5,
         "mutation_history": [],
@@ -124,10 +135,11 @@ def build_candidate_program(
     provider_mix: list[str],
     round_index: int,
     candidate_index: int,
+    program_overrides: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     created_at = datetime.now().astimezone().isoformat()
     run_token = datetime.now().strftime("%H%M%S%f")
-    return {
+    candidate = {
         "program_id": f"{goal_id}-r{round_index}-c{candidate_index}-{run_token}",
         "goal_id": goal_id,
         "parent_program_id": parent_program.get("program_id"),
@@ -135,13 +147,25 @@ def build_candidate_program(
         "created_at": created_at,
         "queries": list(queries),
         "provider_mix": list(provider_mix),
+        "topic_frontier": list(parent_program.get("topic_frontier") or []),
+        "query_templates": dict(parent_program.get("query_templates") or {}),
+        "explore_budget": float(parent_program.get("explore_budget", 0.4) or 0.4),
+        "exploit_budget": float(parent_program.get("exploit_budget", 0.6) or 0.6),
+        "sampling_policy": dict(parent_program.get("sampling_policy") or {}),
         "plan_count": int(parent_program.get("plan_count", 3) or 3),
         "max_queries": int(parent_program.get("max_queries", 5) or 5),
         "mutation_history": list(parent_program.get("mutation_history") or []) + [label],
         "score": int(parent_program.get("score", 0) or 0),
         "dimension_scores": dict(parent_program.get("dimension_scores") or {}),
     }
-
+    for key, value in dict(program_overrides or {}).items():
+        if key in {"topic_frontier"} and isinstance(value, list):
+            candidate[key] = list(value)
+        elif key in {"query_templates", "sampling_policy"} and isinstance(value, dict):
+            candidate[key] = dict(value)
+        else:
+            candidate[key] = value
+    return candidate
 
 def archive_candidate_program(
     goal_id: str,
@@ -159,3 +183,23 @@ def archive_candidate_program(
     }
     _write_json(archive_path, payload)
     return archive_path
+
+
+def save_population_snapshot(goal_id: str, round_index: int, population: list[dict[str, Any]]) -> dict[str, Path]:
+    paths = runtime_paths(goal_id)
+    payload = {
+        "goal_id": goal_id,
+        "round": int(round_index),
+        "generated_at": datetime.now().astimezone().isoformat(),
+        "population": list(population),
+    }
+    latest_path = paths["latest_population"]
+    history_dir = paths["population_history"]
+    history_dir.mkdir(parents=True, exist_ok=True)
+    history_path = history_dir / f"round-{int(round_index):03d}.json"
+    _write_json(latest_path, payload)
+    _write_json(history_path, payload)
+    return {
+        "latest": latest_path,
+        "history": history_path,
+    }
