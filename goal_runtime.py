@@ -54,6 +54,8 @@ def runtime_paths(goal_id: str) -> dict[str, Path]:
         "program_archive": runtime_root / "program-archive",
         "latest_population": runtime_root / "latest-population.json",
         "population_history": runtime_root / "population-history",
+        "latest_lineage": runtime_root / "latest-lineage.json",
+        "lineage_history": runtime_root / "lineage-history",
     }
 
 
@@ -185,6 +187,31 @@ def archive_candidate_program(
     return archive_path
 
 
+def _population_lineage_summary(population: list[dict[str, Any]]) -> dict[str, Any]:
+    summary: dict[str, Any] = {
+        "population_size": len(population),
+        "program_ids": [str(item.get("program_id") or "") for item in population],
+        "parent_program_ids": sorted({
+            str(item.get("parent_program_id") or "")
+            for item in population
+            if str(item.get("parent_program_id") or "")
+        }),
+        "accepted_candidates": [
+            str(item.get("program_id") or "")
+            for item in population
+            if bool((item.get("selection") or {}).get("accepted"))
+        ],
+        "top_score": max((int(item.get("score", 0) or 0) for item in population), default=0),
+        "labels": [str(item.get("label") or "") for item in population],
+        "mutation_fields": sorted({
+            field
+            for item in population
+            for field in list((item.get("selection") or {}).get("program_change_fields") or [])
+        }),
+    }
+    return summary
+
+
 def save_population_snapshot(goal_id: str, round_index: int, population: list[dict[str, Any]]) -> dict[str, Path]:
     paths = runtime_paths(goal_id)
     payload = {
@@ -193,13 +220,27 @@ def save_population_snapshot(goal_id: str, round_index: int, population: list[di
         "generated_at": datetime.now().astimezone().isoformat(),
         "population": list(population),
     }
+    lineage_payload = {
+        "goal_id": goal_id,
+        "round": int(round_index),
+        "generated_at": payload["generated_at"],
+        "summary": _population_lineage_summary(population),
+    }
     latest_path = paths["latest_population"]
     history_dir = paths["population_history"]
     history_dir.mkdir(parents=True, exist_ok=True)
     history_path = history_dir / f"round-{int(round_index):03d}.json"
+    latest_lineage = paths["latest_lineage"]
+    lineage_history_dir = paths["lineage_history"]
+    lineage_history_dir.mkdir(parents=True, exist_ok=True)
+    lineage_history_path = lineage_history_dir / f"round-{int(round_index):03d}.json"
     _write_json(latest_path, payload)
     _write_json(history_path, payload)
+    _write_json(latest_lineage, lineage_payload)
+    _write_json(lineage_history_path, lineage_payload)
     return {
         "latest": latest_path,
         "history": history_path,
+        "latest_lineage": latest_lineage,
+        "lineage_history": lineage_history_path,
     }

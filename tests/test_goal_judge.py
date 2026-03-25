@@ -12,6 +12,22 @@ import goal_judge as gj
 
 
 class GoalJudgeTests(unittest.TestCase):
+    def test_heuristic_bundle_eval_uses_rubric_when_dimensions_missing(self):
+        goal_case = {
+            "rubric": [
+                {"id": "provider_skip", "weight": 35, "keywords": ["skip unavailable provider", "provider cooldown"]},
+                {"id": "doctor", "weight": 35, "keywords": ["doctor report", "capability check"]},
+            ]
+        }
+        findings = [
+            {"title": "Provider cooldown and skip unavailable provider", "url": "u1", "source": "github_issues"},
+            {"title": "Doctor report for capability check", "url": "u2", "source": "github_repos"},
+        ]
+        result = gj.evaluate_goal_bundle(goal_case, findings)
+        self.assertGreaterEqual(result["score"], 35)
+        self.assertIn("provider_skip", result["dimension_scores"])
+        self.assertIn("doctor", result["dimension_scores"])
+
     def test_heuristic_goal_judge_scores_matching_rubric(self):
         goal_case = {
             "rubric": [

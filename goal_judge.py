@@ -153,6 +153,32 @@ def _heuristic_bundle_dimension_score(dimension: dict[str, Any], text: str) -> t
 
 
 def _heuristic_bundle_eval(goal_case: dict[str, Any], findings: list[dict[str, Any]]) -> dict[str, Any]:
+    if not list(goal_case.get("dimensions") or []):
+        text = _normalize_text(findings)
+        total = 0
+        dimension_scores: dict[str, int] = {}
+        missing_dimensions: list[str] = []
+        matched_dimensions: list[str] = []
+        for index, criterion in enumerate(goal_case.get("rubric", []), start=1):
+            criterion_id = str(criterion.get("id") or f"criterion_{index}")
+            weight = int(criterion.get("weight", 0) or 0)
+            keywords = [str(keyword) for keyword in criterion.get("keywords", []) if str(keyword).strip()]
+            score, hits = _criterion_score(weight, keywords, text)
+            dimension_scores[criterion_id] = score
+            total += score
+            if hits:
+                matched_dimensions.append(criterion_id)
+            else:
+                missing_dimensions.append(criterion_id)
+        return {
+            "score": min(100, total),
+            "dimension_scores": dimension_scores,
+            "missing_dimensions": missing_dimensions,
+            "matched_dimensions": matched_dimensions,
+            "rationale": "heuristic rubric-backed bundle evaluation",
+            "judge": "heuristic-bundle",
+        }
+
     text = _normalize_text(findings)
     total = 0
     dimension_scores: dict[str, int] = {}
