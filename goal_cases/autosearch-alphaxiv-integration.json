@@ -1,10 +1,12 @@
 {
   "id": "autosearch-alphaxiv-integration",
   "project": "autosearch",
+  "judge_model": "google/gemini-3-flash-preview",
   "problem": "Find concrete evidence for how to integrate a paper-native research source into autosearch with clear runtime boundaries, especially around AlphaXiv MCP, SSE, OAuth, paper retrieval, and paper-to-code workflows.",
   "target_score": 75,
   "providers": [
     "exa",
+    "tavily",
     "github_repos",
     "github_issues",
     "twitter_xreach"

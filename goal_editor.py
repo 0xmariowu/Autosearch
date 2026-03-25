@@ -24,6 +24,7 @@ from typing import Any
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_EDITOR_MODEL = "google/gemini-3-flash-preview"
 OPENROUTER_EDITOR_TIMEOUT = float(os.environ.get("OPENROUTER_EDITOR_TIMEOUT", "20"))
+ENABLE_OPENROUTER_EDITOR = os.environ.get("OPENROUTER_ENABLE_EDITOR", "0").strip().lower() in {"1", "true", "yes"}
 
 
 def _normalize_query_spec(query: Any) -> dict[str, Any]:
@@ -487,7 +488,7 @@ class OpenRouterGoalSearcher:
         )
 
     def enabled(self) -> bool:
-        return bool(self.api_key)
+        return bool(self.api_key) and ENABLE_OPENROUTER_EDITOR
 
     def candidate_plans(
         self,

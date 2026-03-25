@@ -230,6 +230,7 @@ class PlatformConnector:
             "hn": PlatformConnector._hn_algolia,
             "hn_exa": PlatformConnector._hn_exa,
             "exa": PlatformConnector._exa,
+            "tavily": PlatformConnector._tavily,
             "huggingface_datasets": PlatformConnector._huggingface_datasets,
             "github_code": PlatformConnector._github_code,
             "github_issues": PlatformConnector._github_issues,
@@ -360,6 +361,55 @@ class PlatformConnector:
             )
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return PlatformConnector._outcome("exa", error_alias="exa_unavailable")
+
+    @staticmethod
+    def _tavily(platform: dict, query: str) -> PlatformSearchOutcome:
+        api_key = os.environ.get("TAVILY_API_KEY", "").strip()
+        if not api_key:
+            return PlatformConnector._outcome("tavily", error_alias="tavily_unavailable")
+
+        limit = int(platform.get("limit", 10) or 10)
+        payload = {
+            "query": str(platform.get("query") or query or "").strip(),
+            "search_depth": str(platform.get("search_depth") or "basic"),
+            "topic": str(platform.get("topic") or "general"),
+            "max_results": limit,
+            "include_answer": False,
+            "include_raw_content": False,
+        }
+        if platform.get("include_domains"):
+            payload["include_domains"] = list(platform.get("include_domains") or [])
+        request = urllib.request.Request(
+            "https://api.tavily.com/search",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "User-Agent": "autosearch/1.0",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=15) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            results = []
+            for item in data.get("results", []) or []:
+                url = str(item.get("url") or "").strip()
+                title = str(item.get("title") or "").strip()
+                if not url and not title:
+                    continue
+                score = item.get("score", 0) or 0
+                body = str(item.get("content") or item.get("raw_content") or "")[:500]
+                results.append(SearchResult(
+                    title=title,
+                    url=url,
+                    eng=int(float(score) * 100),
+                    body=body,
+                    source="tavily",
+                ))
+            return PlatformConnector._outcome("tavily", results)
+        except Exception:
+            return PlatformConnector._outcome("tavily", error_alias="tavily_unavailable")
 
     @staticmethod
     def _huggingface_query_terms(query: str, max_terms: int = 2) -> str:

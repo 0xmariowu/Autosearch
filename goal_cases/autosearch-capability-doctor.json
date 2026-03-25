@@ -1,10 +1,12 @@
 {
   "id": "autosearch-capability-doctor",
   "project": "autosearch",
+  "judge_model": "google/gemini-3-flash-preview",
   "problem": "Find concrete patterns for a source capability doctor that can determine provider availability, auth status, configuration health, and safe runtime skipping before a search run.",
   "target_score": 75,
   "providers": [
     "exa",
+    "tavily",
     "github_repos",
     "github_issues"
   ],

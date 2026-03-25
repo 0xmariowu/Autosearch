@@ -1,10 +1,12 @@
 {
   "id": "autosearch-goal-judge",
   "project": "autosearch",
+  "judge_model": "google/gemini-3-flash-preview",
   "problem": "Find concrete patterns for a goal-scored self-improving search loop: explicit target score, independent judge, keep-discard selection, and iterative improvement.",
   "target_score": 70,
   "providers": [
     "exa",
+    "tavily",
     "github_repos",
     "github_issues",
     "twitter_xreach"

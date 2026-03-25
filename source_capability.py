@@ -171,6 +171,13 @@ def _check_exa_mcporter(source: dict[str, Any]) -> dict[str, Any]:
     return _status(source, status="off", message="mcporter installed but Exa connector missing", available=False)
 
 
+def _check_tavily_api(source: dict[str, Any]) -> dict[str, Any]:
+    api_key = str(__import__("os").environ.get("TAVILY_API_KEY", "")).strip()
+    if api_key.startswith("tvly-") and len(api_key) > 20:
+        return _status(source, status="ok", message="Tavily API key configured", available=True)
+    return _status(source, status="off", message="Tavily API key missing", available=False)
+
+
 def _check_alphaxiv_mcp(source: dict[str, Any]) -> dict[str, Any]:
     servers = _read_global_mcp_servers()
     server = servers.get("alphaxiv")
@@ -214,6 +221,7 @@ CHECKERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "github_cli": _check_github_cli,
     "xreach_cli": _check_xreach_cli,
     "exa_mcporter": _check_exa_mcporter,
+    "tavily_api": _check_tavily_api,
     "alphaxiv_mcp": _check_alphaxiv_mcp,
     "huggingface_public": _check_huggingface_public,
     "web_reader": _check_web_reader,
