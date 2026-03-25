@@ -11,6 +11,35 @@ from goal_judge import evaluate_goal_bundle
 from .bundle import ResearchBundle
 from .routeable_output import build_routeable_output
 
+POSITIVE_CLAIM_TERMS = {
+    "works",
+    "working",
+    "passes",
+    "passed",
+    "verified",
+    "reliable",
+    "success",
+    "successful",
+    "stable",
+}
+
+NEGATIVE_CLAIM_TERMS = {
+    "fails",
+    "failed",
+    "failing",
+    "broken",
+    "issue",
+    "issues",
+    "bug",
+    "bugs",
+    "limitation",
+    "limitations",
+    "criticism",
+    "tradeoff",
+    "tradeoffs",
+    "regression",
+}
+
 
 def _query_cluster(bundle: list[dict[str, Any]]) -> list[dict[str, Any]]:
     counts: Counter[str] = Counter()
@@ -99,19 +128,57 @@ def _cross_verification_summary(
         for item in list(bundle or [])
         if str(item.get("domain") or "").strip()
     })
-    contradiction_terms = {"vs", "versus", "limitation", "limitations", "criticism", "tradeoff", "tradeoffs"}
+    contradiction_terms = {"vs", "versus", "limitation", "limitations", "criticism", "tradeoff", "tradeoffs", "regression"}
     contradiction_signals = [
         str(item.get("title") or "")
         for item in list(bundle or [])
         if contradiction_terms.intersection(set(str(item.get("title") or "").lower().split()))
     ][:6]
+    contradiction_pairs: list[dict[str, Any]] = []
+    stance_counts = {"positive": 0, "negative": 0, "neutral": 0}
+    for item in list(bundle or []):
+        text = " ".join([
+            str(item.get("title") or ""),
+            str(item.get("extract") or ""),
+            str(item.get("body") or ""),
+        ]).lower()
+        positive = any(term in text for term in POSITIVE_CLAIM_TERMS)
+        negative = any(term in text for term in NEGATIVE_CLAIM_TERMS)
+        if positive and not negative:
+            stance = "positive"
+        elif negative and not positive:
+            stance = "negative"
+        else:
+            stance = "neutral"
+        stance_counts[stance] += 1
+        if stance != "neutral":
+            contradiction_pairs.append(
+                {
+                    "title": str(item.get("title") or ""),
+                    "url": str(item.get("url") or ""),
+                    "source": str(item.get("source") or ""),
+                    "stance": stance,
+                }
+            )
+    contradiction_detected = bool(stance_counts["positive"] and stance_counts["negative"])
+    if contradiction_detected:
+        consensus_strength = "contested"
+    elif provider_count >= 3 and domain_count >= 2:
+        consensus_strength = "high"
+    elif provider_count >= 2:
+        consensus_strength = "medium"
+    else:
+        consensus_strength = "low"
     return {
         "enabled": bool(decision.get("cross_verify")),
         "verification_queries": int(((graph_plan.get("cross_verification") or {}).get("verification_query_count", 0) or 0)),
         "provider_count": provider_count,
         "domain_count": domain_count,
-        "consensus_strength": "high" if provider_count >= 2 and domain_count >= 2 else "low",
+        "consensus_strength": consensus_strength,
+        "contradiction_detected": contradiction_detected,
+        "stance_counts": stance_counts,
         "contradiction_signals": contradiction_signals,
+        "contradiction_pairs": contradiction_pairs[:8],
         "query_run_count": len(query_runs),
     }
 

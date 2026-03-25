@@ -263,6 +263,47 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertIn("regression", [item["dimension"] for item in result["gap_queue"]])
         self.assertIn("planning_ops_summary", result["routeable_output"])
 
+    def test_synthesizer_reports_contradictions_and_consensus(self):
+        goal_case = {
+            "dimensions": [
+                {"id": "implementation", "weight": 20, "keywords": ["implementation", "verified"]},
+            ]
+        }
+        result = synthesize_research_round(
+            goal_case,
+            existing_findings=[],
+            round_findings=[
+                {
+                    "record_type": "evidence",
+                    "title": "Implementation works in production",
+                    "url": "https://a.example.com",
+                    "body": "verified stable success",
+                    "source": "searxng",
+                    "query": "implementation verified",
+                },
+                {
+                    "record_type": "evidence",
+                    "title": "Implementation has regression issue",
+                    "url": "https://b.example.com",
+                    "body": "failing bug limitation",
+                    "source": "ddgs",
+                    "query": "implementation verified",
+                },
+            ],
+            harness={"bundle_policy": {"per_query_cap": 5, "per_source_cap": 10, "per_domain_cap": 10}},
+            graph_plan={
+                "decision": {"cross_verify": True},
+                "cross_verification": {"verification_query_count": 2},
+                "query_runs": [{"query": "implementation verified"}, {"query": "implementation criticism"}],
+            },
+        )
+        verification = result["routeable_output"]["cross_verification"]
+        self.assertTrue(verification["contradiction_detected"])
+        self.assertEqual(verification["consensus_strength"], "contested")
+        self.assertEqual(verification["stance_counts"]["positive"], 1)
+        self.assertEqual(verification["stance_counts"]["negative"], 1)
+        self.assertTrue(verification["contradiction_pairs"])
+
 
 if __name__ == "__main__":
     unittest.main()
