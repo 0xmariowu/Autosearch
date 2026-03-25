@@ -51,6 +51,11 @@ python goal_loop.py                     # goal-driven loop for one concrete proj
 
 ## Python Interface
 
+**Stable boundary**
+
+- External projects should depend only on `interface.py`.
+- All other modules should be treated as internal implementation by default, including `goal_*`, `pipeline.py`, `daily.py`, and `engine.py`.
+
 Other projects can import a stable interface instead of wiring internal modules:
 
 ```python
@@ -60,6 +65,17 @@ client = AutoSearchInterface("/path/to/autosearch")
 health = client.doctor()
 result = client.run_goal_case("atoms-auto-mining-perfect", max_rounds=1)
 ```
+
+### Integration Guide
+
+Use the smallest entry point that matches your need:
+
+- If you just want to call search:
+  `AutoSearchInterface.run_search_task(...)`
+- If you have a fixed goal plus fixed judge and want explicit `搜索员 + 打分员` roles:
+  `AutoSearchInterface.build_searcher_judge_session(...)`
+- If you want to run the full goal loop directly:
+  `AutoSearchInterface.run_goal_case(...)`
 
 If another project wants the explicit `搜索员 + 打分员` split, use a session:
 
@@ -71,6 +87,70 @@ session = client.build_searcher_judge_session("atoms-auto-mining-perfect")
 plans = session.searcher_propose()
 round_result = session.run_searcher_round()
 ```
+
+### Stable Return Shapes
+
+`doctor()`
+
+- Returns the capability report produced by `source_capability.py`.
+- Stable fields to rely on:
+  - top-level provider/source availability state
+  - per-provider decision data used for skip / priority
+
+`run_search_task(...)`
+
+- This is the stable facade for plain engine search.
+- Minimal return keys:
+  - `run_id`
+  - `experiments`
+  - `unique_urls`
+  - `harvested`
+  - `patterns_written`
+  - `confidence`
+  - `session_doc`
+- Contract note:
+  - callers should treat the method signature in `interface.py` as the stable API
+  - callers should not depend on raw `EngineConfig` internals beyond the exposed arguments
+
+`run_goal_case(...)`
+
+- Returns the full goal-loop result payload.
+- Stable keys to rely on:
+  - `goal_id`
+  - `target_score`
+  - `providers_used`
+  - `judge_model`
+  - `bundle_final`
+  - `rounds`
+  - optional `run_path` when `persist_run=True`
+
+`build_searcher_judge_session(...)`
+
+- Returns a `SearcherJudgeSession` object with stable methods:
+  - `initial_queries()`
+  - `searcher_propose()`
+  - `searcher_execute()`
+  - `judge_bundle()`
+  - `run_searcher_round()`
+
+`run_searcher_round(...)`
+
+- Stable top-level keys:
+  - `goal_id`
+  - `plans`
+  - `capability_report`
+- Each `plans[*]` item guarantees:
+  - `label`
+  - `queries`
+  - `query_runs`
+  - `finding_count`
+  - `judge_result`
+
+### Maintenance Note
+
+- `interface.py` currently wraps some internal helpers from the goal runtime.
+- That is acceptable for now, but those helpers are not part of the public contract.
+- If the internal implementation changes later, the compatibility target remains the exported surface of `interface.py`, not the helper functions it uses underneath.
 
 ## Dependencies
 
