@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from evidence.legacy_adapter import normalize_legacy_finding
+from evidence.normalize import coerce_evidence_record, coerce_evidence_records
 from evidence_index import search_evidence
 from goal_services import (
     platforms_for_provider_mix,
@@ -57,6 +57,21 @@ def _platforms_for_intent(
     return narrowed or effective_platforms
 
 
+def _intent_query_spec(query: dict[str, Any], provider_mix: list[str]) -> dict[str, Any]:
+    if str(query.get("record_type") or "") == "evidence":
+        text = " ".join(
+            part
+            for part in (
+                str(query.get("query") or "").strip(),
+                str(query.get("summary") or "").strip(),
+                str(query.get("title") or "").strip(),
+            )
+            if part
+        ).strip()
+        return restrict_query_to_provider_mix({"text": text, "platforms": []}, provider_mix)
+    return restrict_query_to_provider_mix(query, provider_mix)
+
+
 def execute_research_plan(
     plan: dict[str, Any],
     *,
@@ -75,18 +90,27 @@ def execute_research_plan(
     query_keys: list[str] = []
     tried = set(tried_queries or set())
     intents = list(plan.get("intents") or [])
-    local_records = [normalize_legacy_finding(item) for item in list(local_evidence_records or plan.get("local_evidence_records") or [])]
+    local_records = coerce_evidence_records(local_evidence_records or plan.get("local_evidence_records") or [])
     local_limit = int((sampling_policy or {}).get("local_evidence_limit", 3) or 3)
     plan_role = str(plan.get("role") or "")
     for query in intents:
+        raw_query = (
+            coerce_evidence_record(query)
+            if isinstance(query, dict) and str(query.get("record_type") or "") == "evidence"
+            else query
+        )
+        effective_query = _intent_query_spec(raw_query, effective_provider_mix)
         intent_platforms = _platforms_for_intent(
-            normalize_legacy_finding(query) if isinstance(query, dict) and query.get("record_type") == "evidence" else restrict_query_to_provider_mix(query, effective_provider_mix),
+            effective_query,
             effective_platforms,
             provider_mix=effective_provider_mix,
             backend_roles=backend_roles,
             plan_role=plan_role,
         )
-        effective_query = restrict_query_to_provider_mix(query, [str(item.get("name") or "") for item in intent_platforms])
+        effective_query = _intent_query_spec(
+            effective_query,
+            [str(item.get("name") or "") for item in intent_platforms],
+        )
         if query_key_fn is not None:
             key = str(query_key_fn(effective_query))
             if key in tried:
@@ -112,10 +136,13 @@ def execute_research_plan(
         "label": str(plan.get("label") or "plan"),
         "queries": intents,
         "role": str(plan.get("role") or ""),
+        "branch_type": str(plan.get("branch_type") or ""),
+        "branch_subgoal": str(plan.get("branch_subgoal") or ""),
         "stage": str(plan.get("stage") or ""),
         "graph_node": str(plan.get("graph_node") or ""),
         "graph_edges": list(plan.get("graph_edges") or []),
         "branch_targets": list(plan.get("branch_targets") or []),
+        "branch_depth": int(plan.get("branch_depth", 0) or 0),
         "local_evidence_hits": len(local_records),
         "query_keys": query_keys,
         "query_runs": query_runs,

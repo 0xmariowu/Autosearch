@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from evaluation_harness import build_bundle, bundle_metrics
-from evidence.legacy_adapter import normalize_legacy_finding
+from evidence.normalize import coerce_evidence_records
 from evidence_index import LocalEvidenceIndex
 from goal_editor import GoalSearcher
 from goal_judge import evaluate_goal_bundle
@@ -93,7 +93,7 @@ def _accepted_queries_from_run(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _normalized_findings(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [normalize_legacy_finding(item) for item in list(items or [])]
+    return coerce_evidence_records(items)
 
 
 def _harness_for_program(harness: dict[str, Any], program: dict[str, Any]) -> dict[str, Any]:
@@ -522,10 +522,13 @@ def run_goal_bundle_loop(
                     "label": plan.get("label", f"plan-{plan_index}"),
                     "intents": list(plan.get("queries") or []),
                     "role": plan.get("role", ""),
+                    "branch_type": plan.get("branch_type", ""),
+                    "branch_subgoal": plan.get("branch_subgoal", ""),
                     "stage": plan.get("stage", ""),
                     "graph_node": plan.get("graph_node", ""),
                     "graph_edges": list(plan.get("graph_edges") or []),
                     "branch_targets": list(plan.get("branch_targets") or []),
+                    "branch_depth": int(plan.get("branch_depth", 0) or 0),
                     "local_evidence_records": list(plan.get("local_evidence_records") or []),
                 },
                 default_platforms=candidate_platforms,
@@ -587,6 +590,8 @@ def run_goal_bundle_loop(
                 "judge_result": plan_judge,
                 "graph_node": str(execution.get("graph_node") or ""),
                 "graph_edges": list(execution.get("graph_edges") or []),
+                "branch_type": str(execution.get("branch_type") or ""),
+                "branch_subgoal": str(execution.get("branch_subgoal") or ""),
                 "branch_targets": list(execution.get("branch_targets") or []),
                 "score": int(plan_judge.get("score", 0) or 0),
                 "dimension_scores": plan_judge.get("dimension_scores", {}),
@@ -595,6 +600,8 @@ def run_goal_bundle_loop(
                 "harness_metrics": harness_state,
                 "selection": selection,
                 "plan_index": plan_index,
+                "research_bundle": synthesized.get("research_bundle", {}),
+                "search_graph": synthesized.get("search_graph", {}),
             }
             archive_path = archive_candidate_program(
                 str(goal_case.get("id") or "goal"),
@@ -614,6 +621,8 @@ def run_goal_bundle_loop(
                 "queries": candidate["queries"],
                 "graph_node": candidate.get("graph_node", ""),
                 "graph_edges": candidate.get("graph_edges", []),
+                "branch_type": candidate.get("branch_type", ""),
+                "branch_subgoal": candidate.get("branch_subgoal", ""),
                 "branch_targets": candidate.get("branch_targets", []),
                 "provider_mix": list(candidate_program.get("provider_mix") or []),
                 "query_runs": query_runs,
@@ -625,6 +634,8 @@ def run_goal_bundle_loop(
                 "sample_bundle": _sample_findings(candidate_bundle, limit=6),
                 "rationale": plan_judge.get("rationale", ""),
                 "routeable_output": synthesized.get("routeable_output", {}),
+                "research_bundle": synthesized.get("research_bundle", {}),
+                "search_graph": synthesized.get("search_graph", {}),
             })
             population.append({
                 "program_id": candidate_program["program_id"],
@@ -752,6 +763,8 @@ def run_goal_bundle_loop(
             "selected_plan_label": best_candidate["label"],
             "graph_node": str(best_candidate.get("graph_node") or ""),
             "graph_edges": list(best_candidate.get("graph_edges") or []),
+            "branch_type": str(best_candidate.get("branch_type") or ""),
+            "branch_subgoal": str(best_candidate.get("branch_subgoal") or ""),
             "branch_targets": list(best_candidate.get("branch_targets") or []),
             "query_runs": best_candidate["query_runs"],
             "added_finding_count": len(best_candidate["round_findings"]),
@@ -768,6 +781,22 @@ def run_goal_bundle_loop(
             "routeable_output": next(
                 (
                     summary.get("routeable_output", {})
+                    for summary in strategy_summaries
+                    if str(summary.get("program_id") or "") == str(best_candidate["program"]["program_id"] or "")
+                ),
+                {},
+            ),
+            "research_bundle": next(
+                (
+                    summary.get("research_bundle", {})
+                    for summary in strategy_summaries
+                    if str(summary.get("program_id") or "") == str(best_candidate["program"]["program_id"] or "")
+                ),
+                {},
+            ),
+            "search_graph": next(
+                (
+                    summary.get("search_graph", {})
                     for summary in strategy_summaries
                     if str(summary.get("program_id") or "") == str(best_candidate["program"]["program_id"] or "")
                 ),
@@ -816,6 +845,8 @@ def run_goal_bundle_loop(
             "rationale": bundle_state.get("rationale", ""),
         },
         "routeable_output": rounds[-1].get("routeable_output", {}) if rounds else {},
+        "research_bundle": rounds[-1].get("research_bundle", {}) if rounds else {},
+        "search_graph": rounds[-1].get("search_graph", {}) if rounds else {},
         "improvement_vs_baseline": None,
         "rounds": rounds,
     }

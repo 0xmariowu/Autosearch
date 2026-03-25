@@ -39,9 +39,17 @@ def synthesize_research_round(
         "judge_result": judge_result,
         "harness_metrics": metrics,
         "search_graph": {
+            "goal_id": str(goal_case.get("id") or "goal"),
+            "bundle_id": str(research_bundle.bundle_id),
             "bundle_size": len(bundle),
             "missing_dimensions": list(judge_result.get("missing_dimensions") or []),
             "weakest_dimension": weakest_dimension,
+            "matched_dimensions": list(judge_result.get("matched_dimensions") or []),
+            "citation_urls": [
+                str(item.get("url") or "").strip()
+                for item in bundle[:12]
+                if str(item.get("url") or "").strip()
+            ],
         },
         "repair_hints": {
             "weakest_dimension": weakest_dimension,
