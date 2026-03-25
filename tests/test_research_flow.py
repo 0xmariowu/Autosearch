@@ -83,6 +83,44 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertTrue(graph_followup["decision"]["cross_verify"])
         self.assertTrue(any(op["op"] == "request_cross_check" for op in graph_followup["planning_ops"]))
 
+    def test_planner_prefers_gap_queue_dimensions_over_missing_dimensions(self):
+        plans = build_research_plan(
+            searcher=_FakeSearcher(),
+            bundle_state={"accepted_findings": []},
+            judge_result={"missing_dimensions": ["implementation_signal"], "dimension_scores": {"implementation_signal": 5}},
+            tried_queries=set(),
+            available_providers=["searxng"],
+            active_program={"round_roles": ["dimension_repair"]},
+            round_history=[],
+            plan_count=1,
+            max_queries=1,
+            gap_queue=[{"dimension": "validation_release", "status": "open", "priority": 1}],
+        )
+        self.assertEqual(plans[0]["branch_targets"], ["validation_release"])
+
+    def test_planner_disables_cross_verification_when_action_policy_blocks_it(self):
+        plans = build_research_plan(
+            searcher=_FakeSearcher(),
+            bundle_state={"accepted_findings": []},
+            judge_result={"missing_dimensions": ["implementation_signal"], "dimension_scores": {"implementation_signal": 5}},
+            tried_queries=set(),
+            available_providers=["searxng"],
+            active_program={"round_roles": ["dimension_repair"]},
+            round_history=[{"role": "graph_followup"}],
+            plan_count=2,
+            max_queries=2,
+            local_evidence_records=[{
+                "record_type": "evidence",
+                "title": "Harness implementation patterns",
+                "url": "https://example.com",
+                "source": "local",
+                "query": "harness",
+            }],
+            action_policy={"allowed_actions": ["search", "repair"], "disabled_reasons": {"cross_verify": "recent_cross_verification"}},
+        )
+        self.assertFalse(any(plan["label"] == "graph-followup" for plan in plans))
+        self.assertFalse(any(plan["label"] == "graph-decomposition-followup" for plan in plans))
+
     def test_planner_respects_retired_mutation_kinds_and_budget(self):
         plans = build_research_plan(
             searcher=_FakeSearcher(),
@@ -203,6 +241,7 @@ class ResearchFlowTests(unittest.TestCase):
                 "branch_subgoal": "implementation",
                 "branch_targets": ["implementation"],
             },
+            gap_queue=[{"gap_id": "gap:implementation", "dimension": "implementation", "status": "open", "priority": 1}],
         )
         self.assertIn("bundle", result)
         self.assertIn("judge_result", result)
@@ -219,6 +258,9 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertIn("next_branch_mode", result["routeable_output"]["graph_handoff"])
         self.assertIn("cross_verification", result["search_graph"])
         self.assertIn("cross_verification", result["routeable_output"])
+        self.assertIn("gap_queue", result)
+        self.assertIn("gap_queue", result["routeable_output"])
+        self.assertIn("regression", [item["dimension"] for item in result["gap_queue"]])
 
 
 if __name__ == "__main__":

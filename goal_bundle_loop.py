@@ -35,7 +35,17 @@ from goal_services import (
     sample_findings as _sample_findings,
     search_query as _search_query,
 )
-from research import apply_planning_ops, build_research_plan, execute_research_plan, synthesize_research_round
+from research import (
+    apply_planning_ops,
+    build_action_policy,
+    build_diary_entry,
+    build_research_plan,
+    execute_research_plan,
+    gap_queue_summary,
+    summarize_diary,
+    synthesize_research_round,
+    update_gap_queue,
+)
 from research.mode_policy import get_mode_policy
 from selector import candidate_rank, evaluate_acceptance
 from source_capability import refresh_source_capability
@@ -434,6 +444,13 @@ def run_goal_bundle_loop(
         "matched_dimensions": [],
         "rationale": "empty bundle",
     }
+    gap_queue = update_gap_queue(
+        goal_case=goal_case,
+        previous_queue=[],
+        judge_result=judge_result,
+        round_index=0,
+    )
+    diary_entries: list[dict[str, Any]] = []
     target_score = int(target_score_override or goal_case.get("target_score", 100) or 100)
 
     prior_path, prior_payload = _best_prior_run(str(goal_case.get("id") or ""))
@@ -509,6 +526,14 @@ def run_goal_bundle_loop(
     stop_reason = "max_rounds_reached"
 
     for round_index in range(1, max_rounds + 1):
+        action_policy = build_action_policy(
+            mode=str(accepted_program.get("mode") or "balanced"),
+            bundle_state=bundle_state,
+            judge_result=judge_result,
+            round_history=rounds,
+            gap_queue=gap_queue,
+        )
+        diary_summary = summarize_diary(diary_entries)
         if round_index == 1 and not bundle_state["accepted_queries"]:
             initial_queries = searcher.initial_queries()[:effective_max_queries]
             if initial_queries:
@@ -525,6 +550,9 @@ def run_goal_bundle_loop(
                     plan_count=effective_plan_count,
                     max_queries=effective_max_queries,
                     local_evidence_records=index.load_all(),
+                    gap_queue=gap_queue,
+                    diary_summary=diary_summary,
+                    action_policy=action_policy,
                 )
         else:
             candidate_plans = build_research_plan(
@@ -538,6 +566,9 @@ def run_goal_bundle_loop(
                 plan_count=effective_plan_count,
                 max_queries=effective_max_queries,
                 local_evidence_records=index.load_all(),
+                gap_queue=gap_queue,
+                diary_summary=diary_summary,
+                action_policy=action_policy,
             )
         if not candidate_plans:
             break
@@ -663,6 +694,7 @@ def run_goal_bundle_loop(
                 round_findings=round_findings,
                 harness=effective_harness,
                 graph_plan=execution,
+                gap_queue=gap_queue,
             )
             candidate_bundle = list(synthesized["bundle"])
             plan_judge = dict(synthesized["judge_result"])
@@ -700,6 +732,7 @@ def run_goal_bundle_loop(
                 "plan_index": plan_index,
                 "research_bundle": synthesized.get("research_bundle", {}),
                 "search_graph": synthesized.get("search_graph", {}),
+                "gap_queue": list(synthesized.get("gap_queue") or []),
                 "decision": execution.get("decision", {}),
                 "planning_ops": execution.get("planning_ops", []),
             }
@@ -738,6 +771,7 @@ def run_goal_bundle_loop(
                 "routeable_output": synthesized.get("routeable_output", {}),
                 "research_bundle": synthesized.get("research_bundle", {}),
                 "search_graph": synthesized.get("search_graph", {}),
+                "gap_queue": gap_queue_summary(synthesized.get("gap_queue") or []),
                 "decision": execution.get("decision", {}),
                 "planning_ops": execution.get("planning_ops", []),
             })
@@ -794,6 +828,7 @@ def run_goal_bundle_loop(
             tried_queries.add(query_key)
 
         judge_result = best_candidate["judge_result"]
+        gap_queue = list(best_candidate.get("gap_queue") or gap_queue)
         candidate_score = best_candidate["score"]
         accepted = bool(best_candidate["selection"]["accepted"])
         previous_score = int(bundle_state.get("score", 0) or 0)
@@ -876,12 +911,14 @@ def run_goal_bundle_loop(
             "added_finding_count": len(best_candidate["round_findings"]),
             "candidate_score": candidate_score,
             "accepted": accepted,
+            "role": str((best_candidate["program"] or {}).get("current_role") or ""),
             "round_role": str((best_candidate["program"] or {}).get("current_role") or ""),
             "selection": best_candidate["selection"],
             "harness_metrics": best_candidate["harness_metrics"],
             "bundle_score_after_round": bundle_state["score"],
             "dimension_scores": judge_result.get("dimension_scores", {}),
             "missing_dimensions": judge_result.get("missing_dimensions", []),
+            "gap_queue": gap_queue_summary(gap_queue),
             "sample_bundle": _sample_findings(best_candidate["bundle"], limit=8),
             "rationale": judge_result.get("rationale", ""),
             "routeable_output": next(
@@ -909,6 +946,18 @@ def run_goal_bundle_loop(
                 {},
             ),
         })
+        diary_entries.append(
+            build_diary_entry(
+                round_index=round_index,
+                label=str(best_candidate.get("label") or ""),
+                role=str((best_candidate["program"] or {}).get("current_role") or ""),
+                decision=dict(best_candidate.get("decision") or {}),
+                planning_ops=list(best_candidate.get("planning_ops") or []),
+                judge_result=judge_result,
+                harness_metrics=dict(best_candidate.get("harness_metrics") or {}),
+            )
+        )
+        rounds[-1]["diary_summary"] = summarize_diary(diary_entries)
 
         if bundle_state["score"] >= target_score:
             stop_reason = "target_score_reached"
@@ -938,6 +987,8 @@ def run_goal_bundle_loop(
         "practical_ceiling": (accepted_program.get("plateau_state") or {}).get("practical_ceiling"),
         "goal_reached": bool(bundle_state["score"] >= target_score),
         "score_gap": max(0, int(target_score) - int(bundle_state["score"])),
+        "gap_queue": gap_queue_summary(gap_queue),
+        "diary_summary": summarize_diary(diary_entries),
         "warm_start": warm_start,
         "baseline_best": baseline_best,
         "bundle_final": {

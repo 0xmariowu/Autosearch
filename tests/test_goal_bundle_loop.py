@@ -351,6 +351,10 @@ class GoalBundleLoopTests(unittest.TestCase):
             result = gbl.run_goal_bundle_loop(goal_case, max_rounds=1, plan_count_override=1, max_queries_override=1)
         self.assertEqual(result["rounds"][0]["selected_plan_label"], "heuristic-primary")
         self.assertEqual(result["rounds"][0]["queries"][0]["text"], "judge evaluator loop")
+        self.assertIn("gap_queue", result)
+        self.assertIn("diary_summary", result)
+        self.assertIn("gap_queue", result["rounds"][0])
+        self.assertIn("diary_summary", result["rounds"][0])
 
     def test_run_goal_bundle_loop_reports_plateau_state(self):
         goal_case = {
