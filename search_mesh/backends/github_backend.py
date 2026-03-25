@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 from engine import PlatformConnector
-from .base import SearchProvider, extract_entities, legacy_results_to_batch, quote_entities
+from .base import SearchProvider, extract_entities, quote_entities
+from ..compat import batch_from_legacy_results
 
 
 class GitHubBackend(SearchProvider):
     provider_names = ("github_repos", "github_issues", "github_code")
+    provider_family = "code_host"
+    provider_families = {
+        "github_repos": "code_host",
+        "github_issues": "discussion",
+        "github_code": "source_code",
+    }
     roles = {"code", "discussion", "verification"}
     capabilities = {"supports_query_qualifiers": True, "supports_code_search": True}
     supports_cross_verification = True
@@ -32,7 +39,7 @@ class GitHubBackend(SearchProvider):
             outcome = PlatformConnector._github_code(platform, query)
         else:
             outcome = PlatformConnector._github_issues(platform, query)
-        return legacy_results_to_batch(
+        return batch_from_legacy_results(
             name or "github_issues",
             query,
             list(outcome.results or []),

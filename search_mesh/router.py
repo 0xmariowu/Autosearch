@@ -6,9 +6,10 @@ from typing import Any
 
 from engine import PlatformConnector
 from .models import SearchHitBatch
-from .backends.base import BackendRoute, legacy_results_to_batch
+from .backends.base import BackendRoute
 from .backends import register_builtin_providers
 from .backends.base import extract_entities
+from .compat import batch_from_legacy_results
 from .registry import get_provider, registered_provider_names
 
 
@@ -36,7 +37,7 @@ def search_platform(
     route = route_for_provider(name)
     if route is None:
         outcome = PlatformConnector.search(platform, query)
-        return legacy_results_to_batch(
+        return batch_from_legacy_results(
             str(getattr(outcome, "provider", "") or name or "platform_connector"),
             query,
             list(outcome.results or []),

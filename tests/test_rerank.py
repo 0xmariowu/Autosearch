@@ -7,6 +7,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from query_dedup import semantic_query_similarity
 from rerank.hybrid import rerank_hits
 from rerank.lexical import dedup_hits, harmonic_position_bonus, normalize_url
 from search_mesh.models import SearchHit
@@ -59,6 +60,11 @@ class RerankTests(unittest.TestCase):
 
     def test_harmonic_position_bonus_prefers_earlier_rank(self):
         self.assertGreater(harmonic_position_bonus(1), harmonic_position_bonus(5))
+
+    def test_semantic_query_similarity_handles_rephrased_queries(self):
+        left = "github issue release gate failure mode"
+        right = "release gate issue failure modes on github"
+        self.assertGreaterEqual(semantic_query_similarity(left, right), 0.7)
 
 
 if __name__ == "__main__":

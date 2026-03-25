@@ -451,6 +451,25 @@ def _population_lineage_summary(population: list[dict[str, Any]]) -> dict[str, A
                 if str((op or {}).get("op") or "")
             })
         },
+        "planning_op_history": [
+            {
+                "program_id": str(item.get("program_id") or ""),
+                "label": str(item.get("label") or ""),
+                "branch_id": str(item.get("branch_id") or ""),
+                "family_id": str(item.get("family_id") or ""),
+                "ops": [
+                    {
+                        "op": str((op or {}).get("op") or ""),
+                        "target": str((op or {}).get("target") or ""),
+                        "mode": str((op or {}).get("mode") or ""),
+                    }
+                    for op in list(item.get("planning_ops") or [])
+                    if str((op or {}).get("op") or "")
+                ],
+            }
+            for item in population
+            if list(item.get("planning_ops") or [])
+        ],
         "deepest_branch_depth": max((int(item.get("branch_depth", 0) or 0) for item in population), default=0),
         "max_repair_depth": max((int(item.get("repair_depth", 0) or 0) for item in population), default=0),
     }

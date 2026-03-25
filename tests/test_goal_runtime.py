@@ -130,6 +130,28 @@ class GoalRuntimeTests(unittest.TestCase):
                 self.assertIn("branch_best_scores", lineage["summary"])
                 self.assertIn("mutation_kind_counts", lineage["summary"])
                 self.assertIn("family_best_scores", lineage["summary"])
+                self.assertIn("planning_op_history", lineage["summary"])
+
+    def test_save_population_snapshot_records_planning_op_history(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime_root = Path(tmp)
+            with patch.object(gr, "GOAL_RUNTIME_ROOT", runtime_root):
+                paths = gr.save_population_snapshot(
+                    "goal-x",
+                    1,
+                    [{
+                        "program_id": "p1",
+                        "label": "repair",
+                        "branch_id": "repair-1",
+                        "family_id": "repair-family",
+                        "score": 42,
+                        "planning_ops": [{"op": "request_cross_check", "target": "implementation", "mode": "cross_check"}],
+                    }],
+                )
+                lineage = __import__("json").loads(paths["latest_lineage"].read_text(encoding="utf-8"))
+                history = lineage["summary"]["planning_op_history"]
+                self.assertEqual(history[0]["program_id"], "p1")
+                self.assertEqual(history[0]["ops"][0]["op"], "request_cross_check")
 
 
 if __name__ == "__main__":

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from engine import PlatformConnector
-from .base import SearchProvider, legacy_results_to_batch
+from .base import SearchProvider
+from ..compat import batch_from_legacy_results
 
 
 class DDGSBackend(SearchProvider):
     provider_names = ("ddgs",)
+    provider_family = "web_search"
     roles = {"breadth", "web"}
     capabilities = {"free_first": True, "query_transform": "generic_web"}
     supports_cross_verification = True
@@ -18,7 +20,7 @@ class DDGSBackend(SearchProvider):
 
     def search(self, platform: dict[str, Any], query: str, *, query_family: str = "unknown"):
         outcome = PlatformConnector._ddgs(platform, query)
-        return legacy_results_to_batch(
+        return batch_from_legacy_results(
             str(platform.get("name") or "ddgs"),
             query,
             list(outcome.results or []),

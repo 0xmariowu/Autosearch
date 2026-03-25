@@ -7,7 +7,14 @@ from .provider_policy import (
     default_platform_config,
     goal_provider_names,
 )
-from .registry import get_provider, providers_for_role, register_provider, registered_provider_names
+from .registry import (
+    classify_query,
+    get_provider,
+    provider_names_for_classification,
+    providers_for_role,
+    register_provider,
+    registered_provider_names,
+)
 from .router import search_platform
 from .models import SearchHit, SearchHitBatch
 
@@ -17,9 +24,11 @@ __all__ = [
     "SearchHit",
     "SearchHitBatch",
     "available_platforms",
+    "classify_query",
     "default_platform_config",
     "get_provider",
     "goal_provider_names",
+    "provider_names_for_classification",
     "providers_for_role",
     "register_provider",
     "registered_provider_names",
