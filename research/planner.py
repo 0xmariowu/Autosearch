@@ -45,6 +45,30 @@ def _repair_terms(judge_result: dict[str, Any]) -> list[str]:
     return terms[:3]
 
 
+def _branch_type(role: str) -> str:
+    lowered = str(role or "").strip().lower()
+    if lowered in {"broad_recall", "breadth"}:
+        return "breadth"
+    if lowered in {"graph_followup", "followup"}:
+        return "followup"
+    if "repair" in lowered:
+        return "repair"
+    if "probe" in lowered:
+        return "probe"
+    return "research"
+
+
+def _branch_subgoal(role: str, judge_result: dict[str, Any]) -> str:
+    repairs = _repair_terms(judge_result)
+    if repairs:
+        return repairs[0]
+    return str(role or "research").replace("_", " ")
+
+
+def _node_id(role: str, index: int, depth: int) -> str:
+    return f"{_branch_type(role)}-d{depth}-n{index}"
+
+
 def _augment_queries(
     queries: list[dict[str, Any]],
     *,
@@ -90,6 +114,33 @@ def _follow_up_queries(
     return follow_ups
 
 
+def _decomposition_followups(
+    *,
+    local_evidence_records: list[dict[str, Any]] | None,
+    judge_result: dict[str, Any],
+    max_queries: int,
+    tried_queries: set[str],
+) -> list[dict[str, Any]]:
+    anchors = _anchor_tokens(local_evidence_records, limit=8)
+    repairs = _repair_terms(judge_result)
+    queries: list[dict[str, Any]] = []
+    patterns = [
+        "{anchor} {repair} implementation details",
+        "{anchor} {repair} failure modes",
+        "{anchor} {repair} benchmark dataset",
+    ]
+    for repair in repairs:
+        for anchor in anchors:
+            for pattern in patterns:
+                spec = {"text": pattern.format(anchor=anchor, repair=repair).strip(), "platforms": []}
+                if str(spec) in tried_queries or spec in queries:
+                    continue
+                queries.append(spec)
+                if len(queries) >= max_queries:
+                    return queries
+    return queries
+
+
 def build_research_plan(
     *,
     searcher: Any,
@@ -117,7 +168,14 @@ def build_research_plan(
     )
     normalized: list[dict[str, Any]] = []
     previous_node = str((round_history[-1] or {}).get("graph_node") or "") if round_history else ""
+    branch_depth = int((round_history[-1] or {}).get("branch_depth", 0) or 0) if round_history else 0
     follow_up_candidates = _follow_up_queries(
+        local_evidence_records=local_evidence_records,
+        judge_result=judge_result,
+        max_queries=max_queries,
+        tried_queries=tried_queries,
+    )
+    decomposition_candidates = _decomposition_followups(
         local_evidence_records=local_evidence_records,
         judge_result=judge_result,
         max_queries=max_queries,
@@ -132,32 +190,61 @@ def build_research_plan(
             max_queries=max_queries,
         )
         role = str(plan.get("role") or current_role or "broad_recall")
-        graph_node = f"{role}-{index}"
+        graph_node = _node_id(role, index, branch_depth + 1)
         branch_targets = _repair_terms(judge_result)
         normalized.append({
             "label": str(plan.get("label") or "plan"),
             "queries": queries,
             "intents": queries,
             "role": role,
+            "branch_type": _branch_type(role),
+            "branch_subgoal": _branch_subgoal(role, judge_result),
             "stage": "repair" if role != "broad_recall" else "breadth",
             "graph_node": graph_node,
-            "graph_edges": [{"from": previous_node, "to": graph_node}] if previous_node else [],
+            "graph_edges": [
+                {
+                    "from": previous_node,
+                    "to": graph_node,
+                    "kind": "branch",
+                }
+            ] if previous_node else [],
             "branch_targets": branch_targets,
             "program_overrides": dict(plan.get("program_overrides") or {}),
             "local_evidence_records": local_evidence_records,
+            "branch_depth": branch_depth + 1,
         })
     if follow_up_candidates and len(normalized) < max(plan_count, 1):
-        graph_node = f"followup-{len(normalized) + 1}"
+        graph_node = _node_id("graph_followup", len(normalized) + 1, branch_depth + 1)
         normalized.append({
             "label": "graph-followup",
             "queries": follow_up_candidates[:max_queries],
             "intents": follow_up_candidates[:max_queries],
             "role": "graph_followup",
+            "branch_type": "followup",
+            "branch_subgoal": _branch_subgoal("graph_followup", judge_result),
             "stage": "followup",
             "graph_node": graph_node,
             "graph_edges": [{"from": previous_node, "to": graph_node, "kind": "follow_up"}] if previous_node else [],
             "branch_targets": _repair_terms(judge_result),
             "program_overrides": {"current_role": "dimension_repair"},
             "local_evidence_records": local_evidence_records,
+            "branch_depth": branch_depth + 1,
+        })
+    if decomposition_candidates and len(normalized) < max(plan_count + 1, 2):
+        graph_node = _node_id("decomposition_followup", len(normalized) + 1, branch_depth + 2)
+        normalized.append({
+            "label": "graph-decomposition-followup",
+            "queries": decomposition_candidates[:max_queries],
+            "intents": decomposition_candidates[:max_queries],
+            "role": "decomposition_followup",
+            "branch_type": "followup",
+            "branch_subgoal": _branch_subgoal("decomposition_followup", judge_result),
+            "stage": "followup",
+            "graph_node": graph_node,
+            "graph_edges": [{"from": previous_node, "to": graph_node, "kind": "recursive_follow_up"}] if previous_node else [],
+            "branch_targets": _repair_terms(judge_result),
+            "program_overrides": {"current_role": "dimension_repair"},
+            "local_evidence_records": local_evidence_records,
+            "branch_depth": branch_depth + 2,
         })
     return normalized

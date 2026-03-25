@@ -9,7 +9,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from acquisition import AcquiredDocument
 from evidence.legacy_adapter import normalize_legacy_finding
-from evidence.normalize import normalize_acquired_document, normalize_result_record
+from evidence.normalize import coerce_evidence_records, normalize_acquired_document, normalize_result_record
 from engine import SearchResult
 
 
@@ -58,6 +58,27 @@ class EvidenceNormalizeTests(unittest.TestCase):
         self.assertEqual(record["record_type"], "evidence")
         self.assertEqual(record["query"], "legacy query")
         self.assertTrue(record["evidence_id"])
+
+    def test_coerce_evidence_records_normalizes_mixed_shapes(self):
+        records = coerce_evidence_records([
+            {
+                "record_type": "evidence",
+                "title": "Native",
+                "url": "https://example.com/native",
+                "source": "searxng",
+                "query": "native",
+            },
+            {
+                "title": "Legacy",
+                "url": "https://example.com/legacy",
+                "body": "legacy body",
+                "source": "ddgs",
+                "query": "legacy",
+            },
+        ])
+        self.assertEqual(len(records), 2)
+        self.assertTrue(all(record["record_type"] == "evidence" for record in records))
+        self.assertEqual(records[1]["backend"], "ddgs")
 
 
 if __name__ == "__main__":

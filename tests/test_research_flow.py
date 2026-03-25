@@ -40,7 +40,9 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertEqual(plans[0]["label"], "repair")
         self.assertEqual(plans[0]["intents"][0]["text"], "eval harness regression gate")
         self.assertEqual(plans[0]["stage"], "breadth")
-        self.assertTrue(plans[0]["graph_node"].startswith("broad_recall-"))
+        self.assertEqual(plans[0]["branch_type"], "breadth")
+        self.assertTrue(plans[0]["graph_node"].startswith("breadth-d1-"))
+        self.assertEqual(plans[0]["branch_subgoal"], "implementation")
         self.assertEqual(plans[0]["graph_edges"], [])
 
     def test_planner_adds_follow_up_branch_from_local_evidence(self):
@@ -63,6 +65,7 @@ class ResearchFlowTests(unittest.TestCase):
             }],
         )
         self.assertTrue(any(plan["label"] == "graph-followup" for plan in plans))
+        self.assertTrue(any(plan["label"] == "graph-decomposition-followup" for plan in plans))
 
     def test_executor_returns_query_runs_and_findings(self):
         with patch("research.executor.search_query", return_value={

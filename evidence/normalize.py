@@ -52,3 +52,40 @@ def normalize_evidence_record(record: dict[str, Any]) -> dict[str, Any]:
         fit_markdown=str(record.get("fit_markdown") or ""),
         references=list(record.get("references") or []),
     )
+
+
+def coerce_evidence_record(item: Any) -> dict[str, Any]:
+    if isinstance(item, dict):
+        if str(item.get("record_type") or "") == "evidence":
+            return normalize_evidence_record(item)
+        if any(
+            item.get(key)
+            for key in (
+                "title",
+                "url",
+                "body",
+                "snippet",
+                "canonical_text",
+                "source",
+                "provider",
+                "clean_markdown",
+                "fit_markdown",
+            )
+        ):
+            return normalize_evidence_record(item)
+    return build_evidence_record(
+        title=str(getattr(item, "title", "") or ""),
+        url=str(getattr(item, "url", "") or ""),
+        body=str(getattr(item, "body", "") or getattr(item, "snippet", "") or ""),
+        source=str(getattr(item, "source", "") or getattr(item, "provider", "") or "unknown"),
+        query=str(getattr(item, "query", "") or ""),
+        query_family=str(getattr(item, "query_family", "") or "unknown"),
+        backend=str(getattr(item, "backend", "") or getattr(item, "source", "") or ""),
+        clean_markdown=str(getattr(item, "clean_markdown", "") or ""),
+        fit_markdown=str(getattr(item, "fit_markdown", "") or ""),
+        references=list(getattr(item, "references", []) or []),
+    )
+
+
+def coerce_evidence_records(items: list[Any] | None) -> list[dict[str, Any]]:
+    return [coerce_evidence_record(item) for item in list(items or [])]
