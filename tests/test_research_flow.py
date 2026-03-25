@@ -303,6 +303,11 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertEqual(verification["stance_counts"]["positive"], 1)
         self.assertEqual(verification["stance_counts"]["negative"], 1)
         self.assertTrue(verification["contradiction_pairs"])
+        self.assertTrue(verification["claim_alignment"])
+        self.assertTrue(verification["contradiction_clusters"])
+        self.assertIn("searxng", verification["source_dispute_map"])
+        self.assertIn("ddgs", verification["source_dispute_map"])
+        self.assertTrue(verification["source_dispute_map"]["searxng"]["claims"])
 
 
 if __name__ == "__main__":

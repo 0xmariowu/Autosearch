@@ -99,5 +99,8 @@ def build_routeable_output(
             "stance_counts": dict(cross_verification.get("stance_counts") or {}),
             "contradiction_signals": list(cross_verification.get("contradiction_signals") or []),
             "contradiction_pairs": list(cross_verification.get("contradiction_pairs") or []),
+            "claim_alignment": list(cross_verification.get("claim_alignment") or []),
+            "contradiction_clusters": list(cross_verification.get("contradiction_clusters") or []),
+            "source_dispute_map": dict(cross_verification.get("source_dispute_map") or {}),
         },
     }

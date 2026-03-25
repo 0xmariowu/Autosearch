@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from collections import Counter
+import re
 from typing import Any
 
 from evaluation_harness import build_bundle, bundle_metrics
+from embeddings import semantic_similarity
 from evidence.normalize import coerce_evidence_records
 from goal_judge import evaluate_goal_bundle
 from .bundle import ResearchBundle
@@ -38,6 +40,26 @@ NEGATIVE_CLAIM_TERMS = {
     "tradeoff",
     "tradeoffs",
     "regression",
+}
+
+CLAIM_STOP_WORDS = {
+    "the",
+    "and",
+    "with",
+    "that",
+    "this",
+    "from",
+    "into",
+    "using",
+    "implementation",
+    "system",
+    "approach",
+    "method",
+    "results",
+    "result",
+    "page",
+    "report",
+    "study",
 }
 
 
@@ -134,36 +156,13 @@ def _cross_verification_summary(
         for item in list(bundle or [])
         if contradiction_terms.intersection(set(str(item.get("title") or "").lower().split()))
     ][:6]
-    contradiction_pairs: list[dict[str, Any]] = []
-    stance_counts = {"positive": 0, "negative": 0, "neutral": 0}
-    for item in list(bundle or []):
-        text = " ".join([
-            str(item.get("title") or ""),
-            str(item.get("extract") or ""),
-            str(item.get("body") or ""),
-        ]).lower()
-        positive = any(term in text for term in POSITIVE_CLAIM_TERMS)
-        negative = any(term in text for term in NEGATIVE_CLAIM_TERMS)
-        if positive and not negative:
-            stance = "positive"
-        elif negative and not positive:
-            stance = "negative"
-        else:
-            stance = "neutral"
-        stance_counts[stance] += 1
-        if stance != "neutral":
-            contradiction_pairs.append(
-                {
-                    "title": str(item.get("title") or ""),
-                    "url": str(item.get("url") or ""),
-                    "source": str(item.get("source") or ""),
-                    "stance": stance,
-                }
-            )
-    contradiction_detected = bool(stance_counts["positive"] and stance_counts["negative"])
+    claim_alignment = _align_claims(bundle)
+    contradiction_pairs = list(claim_alignment.get("contradiction_pairs") or [])
+    stance_counts = dict(claim_alignment.get("stance_counts") or {"positive": 0, "negative": 0, "neutral": 0})
+    contradiction_detected = bool(claim_alignment.get("contradiction_detected"))
     if contradiction_detected:
         consensus_strength = "contested"
-    elif provider_count >= 3 and domain_count >= 2:
+    elif int(claim_alignment.get("multi_source_claims", 0) or 0) >= 2 and provider_count >= 3 and domain_count >= 2:
         consensus_strength = "high"
     elif provider_count >= 2:
         consensus_strength = "medium"
@@ -179,7 +178,216 @@ def _cross_verification_summary(
         "stance_counts": stance_counts,
         "contradiction_signals": contradiction_signals,
         "contradiction_pairs": contradiction_pairs[:8],
+        "claim_alignment": list(claim_alignment.get("aligned_claims") or [])[:8],
+        "contradiction_clusters": list(claim_alignment.get("contradiction_clusters") or [])[:6],
+        "source_dispute_map": dict(claim_alignment.get("source_dispute_map") or {}),
         "query_run_count": len(query_runs),
+    }
+
+
+def _claim_sentences(item: dict[str, Any]) -> list[str]:
+    text = " ".join(
+        part
+        for part in (
+            str(item.get("title") or "").strip(),
+            str(item.get("extract") or "").strip(),
+            str(item.get("body") or "").strip(),
+        )
+        if part
+    )
+    if not text:
+        return []
+    return [
+        sentence.strip()
+        for sentence in re.split(r"(?<=[.!?])\s+", text)
+        if len(sentence.strip()) >= 24
+    ][:5]
+
+
+def _claim_terms(text: str) -> list[str]:
+    return [
+        token
+        for token in re.findall(r"[A-Za-z0-9_\-]{4,}", str(text or "").lower())
+        if token not in CLAIM_STOP_WORDS
+    ]
+
+
+def _claim_signature(text: str) -> str:
+    terms = _claim_terms(text)
+    if not terms:
+        return ""
+    counts = Counter(terms)
+    top_terms = [term for term, _ in counts.most_common(5)]
+    return " ".join(sorted(top_terms))
+
+
+def _query_signature(item: dict[str, Any]) -> str:
+    query = str(item.get("query") or "").strip().lower()
+    if not query:
+        return ""
+    terms = re.findall(r"[A-Za-z0-9_\-]{4,}", query)
+    if not terms:
+        return ""
+    counts = Counter(terms)
+    return " ".join(sorted(term for term, _ in counts.most_common(4)))
+
+
+def _topic_signature(item: dict[str, Any], sentence: str) -> str:
+    query_signature = _query_signature(item)
+    if query_signature:
+        return query_signature
+    raw = " ".join(
+        part
+        for part in (
+            str(item.get("title") or "").strip(),
+            sentence,
+        )
+        if part
+    ).lower()
+    terms = [
+        token
+        for token in re.findall(r"[A-Za-z0-9_\-]{4,}", raw)
+        if token not in {"works", "working", "passes", "passed", "verified", "fails", "failed", "failing", "issue", "issues", "stable"}
+    ]
+    if not terms:
+        return ""
+    counts = Counter(terms)
+    return " ".join(sorted(term for term, _ in counts.most_common(4)))
+
+
+def _claim_stance(text: str) -> str:
+    lowered = str(text or "").lower()
+    positive = any(term in lowered for term in POSITIVE_CLAIM_TERMS)
+    negative = any(term in lowered for term in NEGATIVE_CLAIM_TERMS)
+    if positive and not negative:
+        return "positive"
+    if negative and not positive:
+        return "negative"
+    return "neutral"
+
+
+def _claim_overlap(left: str, right: str) -> float:
+    left_terms = set(_claim_terms(left))
+    right_terms = set(_claim_terms(right))
+    if not left_terms or not right_terms:
+        return 0.0
+    return len(left_terms & right_terms) / max(len(left_terms | right_terms), 1)
+
+
+def _find_claim_cluster(clusters: list[dict[str, Any]], sentence: str, topic_signature: str) -> dict[str, Any] | None:
+    signature = _claim_signature(sentence)
+    for cluster in clusters:
+        representative = str(cluster.get("representative_claim") or "")
+        if topic_signature and topic_signature == str(cluster.get("topic_signature") or ""):
+            return cluster
+        if signature and signature == str(cluster.get("signature") or ""):
+            return cluster
+        similarity = semantic_similarity(sentence, representative)
+        overlap = _claim_overlap(sentence, representative)
+        if similarity >= 0.72 or overlap >= 0.45:
+            return cluster
+    return None
+
+
+def _align_claims(bundle: list[dict[str, Any]]) -> dict[str, Any]:
+    clusters: list[dict[str, Any]] = []
+    stance_counts = {"positive": 0, "negative": 0, "neutral": 0}
+    source_dispute_map: dict[str, dict[str, Any]] = {}
+    for item in list(bundle or []):
+        item_source = str(item.get("source") or "").strip()
+        item_url = str(item.get("url") or "").strip()
+        item_title = str(item.get("title") or "").strip()
+        for sentence in _claim_sentences(item):
+            stance = _claim_stance(sentence)
+            stance_counts[stance] += 1
+            topic_signature = _topic_signature(item, sentence)
+            cluster = _find_claim_cluster(clusters, sentence, topic_signature)
+            if cluster is None:
+                cluster = {
+                    "cluster_id": f"claim-{len(clusters) + 1}",
+                    "signature": _claim_signature(sentence),
+                    "topic_signature": topic_signature,
+                    "representative_claim": sentence,
+                    "stances": Counter(),
+                    "sources": [],
+                    "urls": [],
+                }
+                clusters.append(cluster)
+            cluster["stances"][stance] += 1
+            cluster["sources"].append({
+                "source": item_source,
+                "url": item_url,
+                "title": item_title,
+                "stance": stance,
+                "claim": sentence,
+            })
+            if item_url and item_url not in cluster["urls"]:
+                cluster["urls"].append(item_url)
+            if item_source:
+                summary = source_dispute_map.setdefault(
+                    item_source,
+                    {
+                        "positive": 0,
+                        "negative": 0,
+                        "neutral": 0,
+                        "claims": [],
+                    },
+                )
+                summary[stance] += 1
+                if sentence not in summary["claims"]:
+                    summary["claims"].append(sentence)
+
+    aligned_claims: list[dict[str, Any]] = []
+    contradiction_clusters: list[dict[str, Any]] = []
+    contradiction_pairs: list[dict[str, Any]] = []
+    multi_source_claims = 0
+    for cluster in clusters:
+        sources = list(cluster.get("sources") or [])
+        stances = dict(cluster.get("stances") or {})
+        unique_sources = sorted({
+            str(item.get("source") or "").strip()
+            for item in sources
+            if str(item.get("source") or "").strip()
+        })
+        if len(unique_sources) >= 2:
+            multi_source_claims += 1
+        payload = {
+            "cluster_id": str(cluster.get("cluster_id") or ""),
+            "claim": str(cluster.get("representative_claim") or ""),
+            "support_count": int(stances.get("positive", 0) or 0),
+            "oppose_count": int(stances.get("negative", 0) or 0),
+            "neutral_count": int(stances.get("neutral", 0) or 0),
+            "sources": unique_sources,
+            "source_count": len(unique_sources),
+            "urls": list(cluster.get("urls") or [])[:4],
+        }
+        aligned_claims.append(payload)
+        if payload["support_count"] and payload["oppose_count"]:
+            contradiction_clusters.append(payload)
+            positive_sources = [item for item in sources if str(item.get("stance") or "") == "positive"]
+            negative_sources = [item for item in sources if str(item.get("stance") or "") == "negative"]
+            for left in positive_sources[:2]:
+                for right in negative_sources[:2]:
+                    contradiction_pairs.append({
+                        "claim": payload["claim"],
+                        "left_source": str(left.get("source") or ""),
+                        "left_url": str(left.get("url") or ""),
+                        "right_source": str(right.get("source") or ""),
+                        "right_url": str(right.get("url") or ""),
+                    })
+    contradiction_detected = bool(contradiction_clusters)
+    return {
+        "aligned_claims": sorted(
+            aligned_claims,
+            key=lambda item: (int(item.get("support_count", 0) or 0) + int(item.get("oppose_count", 0) or 0), int(item.get("source_count", 0) or 0)),
+            reverse=True,
+        ),
+        "contradiction_clusters": contradiction_clusters,
+        "contradiction_pairs": contradiction_pairs,
+        "source_dispute_map": source_dispute_map,
+        "stance_counts": stance_counts,
+        "contradiction_detected": contradiction_detected,
+        "multi_source_claims": multi_source_claims,
     }
 
 
