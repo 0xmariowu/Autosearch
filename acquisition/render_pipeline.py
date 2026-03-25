@@ -51,6 +51,9 @@ def render_document(
         rendered["raw_html"],
         content_type="text/html",
         final_url=rendered.get("final_url"),
+        status_code=200,
+        fetch_method="render_fallback",
+        metadata={"pipeline": "render_fallback"},
         used_render_fallback=True,
     )
     if rendered.get("title") and not document.title:

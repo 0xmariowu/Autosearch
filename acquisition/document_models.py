@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass, field
 from html import unescape
@@ -12,6 +13,11 @@ def _clean_text(text: str, *, limit: int = 12000) -> str:
     cleaned = unescape(str(text or ""))
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned[:limit]
+
+
+def _document_id(url: str, final_url: str, title: str) -> str:
+    raw = f"{url}\n{final_url}\n{title}".encode("utf-8", errors="ignore")
+    return hashlib.sha1(raw).hexdigest()[:16]
 
 
 class _VisibleTextExtractor(HTMLParser):
@@ -57,15 +63,20 @@ class _VisibleTextExtractor(HTMLParser):
 
 @dataclass
 class AcquiredDocument:
-    url: str
-    final_url: str
-    content_type: str
-    title: str
-    text: str
+    document_id: str = ""
+    url: str = ""
+    final_url: str = ""
+    status_code: int = 0
+    content_type: str = ""
+    fetch_method: str = "http_fetch"
+    title: str = ""
+    text: str = ""
     raw_html: str = ""
+    raw_html_path: str = ""
     clean_markdown: str = ""
     fit_markdown: str = ""
     references: list[dict[str, str]] = field(default_factory=list)
+    metadata: dict[str, str] = field(default_factory=dict)
     used_render_fallback: bool = False
 
     @classmethod
@@ -76,17 +87,29 @@ class AcquiredDocument:
         *,
         content_type: str = "text/html",
         final_url: str | None = None,
+        status_code: int = 200,
+        fetch_method: str = "http_fetch",
+        raw_html_path: str = "",
+        metadata: dict[str, str] | None = None,
         used_render_fallback: bool = False,
     ) -> "AcquiredDocument":
         parser = _VisibleTextExtractor()
         parser.feed(str(html or ""))
         parser.close()
+        clean_url = str(url or "").strip()
+        clean_final_url = str(final_url or url or "").strip()
+        clean_title = parser.title
         return cls(
-            url=str(url or "").strip(),
-            final_url=str(final_url or url or "").strip(),
+            document_id=_document_id(clean_url, clean_final_url, clean_title),
+            url=clean_url,
+            final_url=clean_final_url,
+            status_code=int(status_code or 0),
             content_type=str(content_type or ""),
-            title=parser.title,
+            fetch_method=str(fetch_method or "http_fetch"),
+            title=clean_title,
             text=parser.text,
             raw_html=str(html or ""),
+            raw_html_path=str(raw_html_path or ""),
+            metadata=dict(metadata or {}),
             used_render_fallback=used_render_fallback,
         )

@@ -27,8 +27,12 @@ class EvidenceRecordTests(unittest.TestCase):
         self.assertEqual(record["record_type"], "evidence")
         self.assertEqual(record["domain"], "github.com")
         self.assertEqual(record["content_type"], "issue")
+        self.assertEqual(record["evidence_type"], "issue")
         self.assertEqual(record["snippet"], "Fail closed release validation report")
         self.assertIn("Great Expectations", record["canonical_text"])
+        self.assertTrue(record["evidence_id"])
+        self.assertEqual(record["repo"], "great-expectations/great_expectations")
+        self.assertIn("release", record["keywords"])
 
     def test_build_evidence_record_from_result_preserves_legacy_fields(self):
         result = SearchResult(
@@ -42,6 +46,8 @@ class EvidenceRecordTests(unittest.TestCase):
         self.assertEqual(record["url"], "https://example.com/harness")
         self.assertEqual(record["source"], "searxng")
         self.assertEqual(record["query"], "agent eval harness")
+        self.assertIn("summary", record)
+        self.assertIn("extract", record)
 
     def test_evidence_content_type_detects_dataset_urls(self):
         self.assertEqual(

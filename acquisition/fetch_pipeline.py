@@ -19,10 +19,12 @@ def fetch_page(url: str, *, timeout: int = 10) -> dict:
     with urllib.request.urlopen(request, timeout=timeout) as response:
         content_type = str(response.headers.get("Content-Type") or "")
         final_url = str(getattr(response, "url", url) or url)
+        status_code = int(getattr(response, "status", 200) or 200)
         payload = response.read().decode("utf-8", errors="replace")
     return {
         "url": str(url or "").strip(),
         "final_url": final_url,
+        "status_code": status_code,
         "content_type": content_type,
         "raw_html": payload,
     }
@@ -44,6 +46,9 @@ def fetch_document(
             page["raw_html"],
             content_type=page["content_type"],
             final_url=page["final_url"],
+            status_code=int(page.get("status_code", 200) or 200),
+            fetch_method="http_fetch",
+            metadata={"pipeline": "native"},
         )
     except Exception:
         if not use_render_fallback:

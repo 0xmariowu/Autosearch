@@ -179,6 +179,46 @@ def _updated_evolution_stats(
     }
     return stats
 
+
+def _selected_branch_id(round_item: dict[str, Any]) -> str:
+    selected_program_id = str(round_item.get("selected_program_id") or "")
+    for candidate in list(round_item.get("candidate_population") or []):
+        if str(candidate.get("program_id") or "") == selected_program_id:
+            return str(candidate.get("branch_id") or "")
+    return ""
+
+
+def _branch_stale_rounds(rounds: list[dict[str, Any]], branch_id: str) -> int:
+    if not branch_id:
+        return 0
+    stale = 0
+    for round_item in reversed(list(rounds or [])):
+        if _selected_branch_id(round_item) != branch_id:
+            continue
+        if bool(round_item.get("accepted")):
+            break
+        stale += 1
+    return stale
+
+
+def _population_candidates(
+    population: list[dict[str, Any]],
+    *,
+    prefer_diverse_branches: bool,
+) -> list[dict[str, Any]]:
+    ranked = sorted(population, key=candidate_rank, reverse=True)
+    if not prefer_diverse_branches:
+        return ranked
+    best_by_branch: dict[str, dict[str, Any]] = {}
+    fallback: list[dict[str, Any]] = []
+    for item in ranked:
+        branch_id = str(item.get("branch_id") or "")
+        if not branch_id:
+            fallback.append(item)
+            continue
+        best_by_branch.setdefault(branch_id, item)
+    return list(best_by_branch.values()) + fallback
+
 def _promote_compatible_archive_candidate(
     *,
     goal_case: dict[str, Any],
@@ -436,6 +476,40 @@ def run_goal_bundle_loop(
                 candidate_index=plan_index,
                 program_overrides=dict(plan.get("program_overrides") or {}),
             )
+            max_branch_depth = int(population_policy.get("max_branch_depth", 0) or 0)
+            if max_branch_depth and int(candidate_program.get("branch_depth", 0) or 0) > max_branch_depth:
+                strategy_summaries.append({
+                    "label": plan.get("label", f"plan-{plan_index}"),
+                    "program_id": candidate_program["program_id"],
+                    "queries": plan.get("queries", []),
+                    "graph_node": str(plan.get("graph_node") or ""),
+                    "graph_edges": list(plan.get("graph_edges") or []),
+                    "provider_mix": list(candidate_program.get("provider_mix") or []),
+                    "query_runs": [],
+                    "candidate_score": bundle_state["score"],
+                    "matched_dimensions": list(bundle_state.get("matched_dimensions", [])),
+                    "missing_dimensions": list(bundle_state.get("missing_dimensions", [])),
+                    "sample_bundle": _sample_findings(bundle_state.get("accepted_findings", []), limit=6),
+                    "rationale": "branch depth exceeds population policy",
+                })
+                continue
+            stale_rounds_limit = int(population_policy.get("stale_branch_rounds", 0) or 0)
+            if stale_rounds_limit and _branch_stale_rounds(rounds, str(candidate_program.get("branch_id") or "")) >= stale_rounds_limit:
+                strategy_summaries.append({
+                    "label": plan.get("label", f"plan-{plan_index}"),
+                    "program_id": candidate_program["program_id"],
+                    "queries": plan.get("queries", []),
+                    "graph_node": str(plan.get("graph_node") or ""),
+                    "graph_edges": list(plan.get("graph_edges") or []),
+                    "provider_mix": list(candidate_program.get("provider_mix") or []),
+                    "query_runs": [],
+                    "candidate_score": bundle_state["score"],
+                    "matched_dimensions": list(bundle_state.get("matched_dimensions", [])),
+                    "missing_dimensions": list(bundle_state.get("missing_dimensions", [])),
+                    "sample_bundle": _sample_findings(bundle_state.get("accepted_findings", []), limit=6),
+                    "rationale": "branch retired by stale branch policy",
+                })
+                continue
             search_backends = list(candidate_program.get("search_backends") or candidate_program.get("provider_mix") or [])
             candidate_platforms = _platforms_for_provider_mix(platforms, search_backends)
             candidate_sampling_policy = {
@@ -591,10 +665,14 @@ def run_goal_bundle_loop(
         if best_candidate is None:
             break
 
+        effective_population = _population_candidates(
+            population,
+            prefer_diverse_branches=bool(population_policy.get("prefer_diverse_branches", False)),
+        )
         population_paths = save_population_snapshot(
             str(goal_case.get("id") or "goal"),
             round_index,
-            sorted(population, key=candidate_rank, reverse=True),
+            effective_population,
         )
 
         for query_key in best_candidate["query_keys"]:
@@ -668,7 +746,7 @@ def run_goal_bundle_loop(
             "accepted_program_id": accepted_program.get("program_id"),
             "selected_program_id": best_candidate["program"]["program_id"],
             "strategy_candidates": strategy_summaries,
-            "candidate_population": sorted(population, key=candidate_rank, reverse=True),
+            "candidate_population": effective_population,
             "population_snapshot": {key: str(value) for key, value in population_paths.items()},
             "editor_plans": strategy_summaries,
             "selected_plan_label": best_candidate["label"],

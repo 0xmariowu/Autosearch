@@ -6,8 +6,6 @@ import hashlib
 from dataclasses import dataclass, field
 from typing import Any
 
-from engine import PlatformSearchOutcome, SearchResult
-
 
 def _hit_id(provider: str, title: str, url: str, query: str) -> str:
     raw = f"{provider}\n{title}\n{url}\n{query}".encode("utf-8", errors="ignore")
@@ -29,9 +27,42 @@ class SearchHit:
     score_hint: int = 0
 
     @classmethod
-    def from_search_result(
+    def from_fields(
         cls,
-        result: SearchResult,
+        *,
+        url: str,
+        title: str,
+        snippet: str,
+        source: str,
+        provider: str,
+        query: str,
+        rank: int,
+        backend: str = "",
+        query_family: str = "unknown",
+        score_hint: int = 0,
+    ) -> "SearchHit":
+        clean_title = str(title or "").strip()
+        clean_url = str(url or "").strip()
+        clean_snippet = str(snippet or "")[:500]
+        clean_provider = str(provider or "").strip()
+        return cls(
+            hit_id=_hit_id(clean_provider, clean_title, clean_url, query),
+            url=clean_url,
+            title=clean_title,
+            snippet=clean_snippet,
+            source=str(source or clean_provider).strip(),
+            provider=clean_provider,
+            query=str(query or "").strip(),
+            query_family=str(query_family or "unknown").strip() or "unknown",
+            backend=str(backend or clean_provider).strip(),
+            rank=int(rank),
+            score_hint=int(score_hint or 0),
+        )
+
+    @classmethod
+    def from_mapping(
+        cls,
+        payload: dict[str, Any],
         *,
         provider: str,
         query: str,
@@ -39,24 +70,22 @@ class SearchHit:
         backend: str = "",
         query_family: str = "unknown",
     ) -> "SearchHit":
-        title = str(result.title or "").strip()
-        url = str(result.url or "").strip()
-        snippet = str(result.body or "")[:500]
-        return cls(
-            hit_id=_hit_id(provider, title, url, query),
-            url=url,
-            title=title,
-            snippet=snippet,
-            source=str(result.source or provider).strip(),
-            provider=str(provider or "").strip(),
-            query=str(query or "").strip(),
-            query_family=str(query_family or "unknown").strip() or "unknown",
-            backend=str(backend or provider).strip(),
-            rank=int(rank),
-            score_hint=int(result.eng or 0),
+        return cls.from_fields(
+            url=str(payload.get("url") or "").strip(),
+            title=str(payload.get("title") or "").strip(),
+            snippet=str(payload.get("snippet") or payload.get("body") or "").strip(),
+            source=str(payload.get("source") or provider).strip(),
+            provider=provider,
+            query=query,
+            rank=rank,
+            backend=backend,
+            query_family=query_family,
+            score_hint=int(payload.get("score_hint", payload.get("eng", 0)) or 0),
         )
 
-    def to_search_result(self) -> SearchResult:
+    def to_legacy_search_result(self):
+        from engine import SearchResult
+
         return SearchResult(
             title=self.title,
             url=self.url,
@@ -74,35 +103,36 @@ class SearchHitBatch:
     backend: str = ""
 
     @classmethod
-    def from_platform_outcome(
+    def from_hit_dicts(
         cls,
-        outcome: PlatformSearchOutcome,
         *,
+        provider: str,
         query: str,
+        items: list[dict[str, Any]] | None = None,
         backend: str = "",
         query_family: str = "unknown",
+        error_alias: str = "",
     ) -> "SearchHitBatch":
-        provider = str(outcome.provider or "").strip()
         hits = [
-            SearchHit.from_search_result(
-                result,
+            SearchHit.from_mapping(
+                item,
                 provider=provider,
                 query=query,
                 rank=index,
                 backend=backend or provider,
                 query_family=query_family,
             )
-            for index, result in enumerate(list(outcome.results or []), start=1)
+            for index, item in enumerate(list(items or []), start=1)
         ]
         return cls(
-            provider=provider,
+            provider=str(provider or "").strip(),
             hits=hits,
-            error_alias=str(outcome.error_alias or "").strip(),
+            error_alias=str(error_alias or "").strip(),
             backend=str(backend or provider).strip(),
         )
 
-    def to_search_results(self) -> list[SearchResult]:
-        return [hit.to_search_result() for hit in self.hits]
+    def to_legacy_search_results(self):
+        return [hit.to_legacy_search_result() for hit in self.hits]
 
     def to_hit_dicts(self) -> list[dict[str, Any]]:
         return [

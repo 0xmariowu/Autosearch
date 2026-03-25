@@ -28,10 +28,15 @@ class AcquisitionPipelineTests(unittest.TestCase):
         with patch("acquisition.fetch_pipeline.fetch_page", return_value={
             "url": "https://example.com",
             "final_url": "https://example.com",
+            "status_code": 200,
             "content_type": "text/html",
             "raw_html": html,
         }):
             document = fetch_document("https://example.com")
+        self.assertTrue(document.document_id)
+        self.assertEqual(document.status_code, 200)
+        self.assertEqual(document.fetch_method, "http_fetch")
+        self.assertEqual(document.metadata["pipeline"], "native")
         self.assertEqual(document.title, "Eval Harness")
         self.assertIn("Planner executor synthesizer", document.clean_markdown)
         self.assertTrue(document.fit_markdown)
@@ -91,6 +96,9 @@ class AcquisitionPipelineTests(unittest.TestCase):
         with patch("acquisition.crawl4ai_adapter.importlib.util.find_spec", return_value=object()), \
              patch.dict(sys.modules, {"crawl4ai": fake_module}):
             document = fetch_with_crawl4ai("https://example.com")
+        self.assertTrue(document.document_id)
+        self.assertEqual(document.fetch_method, "crawl4ai")
+        self.assertEqual(document.metadata["pipeline"], "crawl4ai")
         self.assertEqual(document.title, "Crawl4AI")
         self.assertTrue(document.fit_markdown)
         self.assertEqual(document.references[0]["url"], "https://example.com/ref")

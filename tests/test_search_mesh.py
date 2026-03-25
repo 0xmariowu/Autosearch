@@ -15,6 +15,47 @@ from search_mesh.router import route_for_provider, search_platform
 
 
 class SearchMeshTests(unittest.TestCase):
+    def test_search_hit_batch_builds_from_native_hit_dicts(self):
+        batch = SearchHitBatch.from_hit_dicts(
+            provider="searxng",
+            query="agent eval harness",
+            items=[
+                {
+                    "title": "Agent Eval Harness",
+                    "url": "https://example.com/harness",
+                    "body": "A practical agent evaluation harness",
+                    "source": "searxng",
+                    "eng": 7,
+                }
+            ],
+            backend="searxng",
+            query_family="evaluation",
+        )
+        self.assertEqual(batch.provider, "searxng")
+        self.assertEqual(batch.backend, "searxng")
+        self.assertEqual(batch.hits[0].query_family, "evaluation")
+        self.assertEqual(batch.hits[0].score_hint, 7)
+
+    def test_search_hit_batch_converts_to_legacy_results_at_compat_boundary(self):
+        batch = SearchHitBatch.from_hit_dicts(
+            provider="ddgs",
+            query="research graph",
+            items=[
+                {
+                    "title": "Research Graph",
+                    "url": "https://example.com/graph",
+                    "snippet": "recursive planning and execution",
+                    "source": "ddgs",
+                    "score_hint": 3,
+                }
+            ],
+            backend="ddgs",
+        )
+        legacy = batch.to_legacy_search_results()
+        self.assertEqual(len(legacy), 1)
+        self.assertEqual(legacy[0].title, "Research Graph")
+        self.assertEqual(legacy[0].eng, 3)
+
     def test_goal_provider_names_injects_free_first_for_premium_breadth(self):
         names = goal_provider_names({"providers": ["exa", "github_repos"]})
         self.assertEqual(names, ["searxng", "ddgs", "exa", "github_repos"])

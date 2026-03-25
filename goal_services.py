@@ -158,10 +158,25 @@ def search_query(
         # through the formal search mesh layer.
         if "unittest.mock" in str(type(platform_search)):
             outcome = platform_search(platform_config, platform_query)
-            batch = SearchHitBatch.from_platform_outcome(outcome, query=platform_query, backend=str(platform_config.get("name") or ""))
+            batch = SearchHitBatch.from_hit_dicts(
+                provider=str(getattr(outcome, "provider", "") or platform_config.get("name") or ""),
+                query=platform_query,
+                items=[
+                    {
+                        "title": str(getattr(result, "title", "") or ""),
+                        "url": str(getattr(result, "url", "") or ""),
+                        "body": str(getattr(result, "body", "") or ""),
+                        "source": str(getattr(result, "source", "") or platform_config.get("name") or ""),
+                        "eng": int(getattr(result, "eng", 0) or 0),
+                    }
+                    for result in list(getattr(outcome, "results", []) or [])
+                ],
+                backend=str(platform_config.get("name") or ""),
+                error_alias=str(getattr(outcome, "error_alias", "") or ""),
+            )
         else:
             batch = search_platform(platform_config, platform_query)
-        all_results.extend(batch.to_search_results())
+        all_results.extend(batch.to_legacy_search_results())
     _, raw_score, new_results = scorer.score_results(all_results)
     if sampling["rank_by_relevance"]:
         ranked_results = sorted(

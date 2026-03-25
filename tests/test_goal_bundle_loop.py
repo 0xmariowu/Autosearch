@@ -84,6 +84,60 @@ class GoalBundleLoopTests(unittest.TestCase):
         restricted = gbl._restrict_query_to_provider_mix(query, ["github_issues"])
         self.assertEqual([item["name"] for item in restricted["platforms"]], ["github_issues"])
 
+    def test_branch_stale_rounds_counts_recent_rejected_selected_branch(self):
+        rounds = [
+            {
+                "accepted": False,
+                "selected_program_id": "p1",
+                "candidate_population": [{"program_id": "p1", "branch_id": "repair-a"}],
+            },
+            {
+                "accepted": False,
+                "selected_program_id": "p2",
+                "candidate_population": [{"program_id": "p2", "branch_id": "repair-a"}],
+            },
+        ]
+        self.assertEqual(gbl._branch_stale_rounds(rounds, "repair-a"), 2)
+
+    def test_population_candidates_can_prefer_diverse_branches(self):
+        population = [
+            {
+                "program_id": "p1",
+                "branch_id": "repair-a",
+                "score": 80,
+                "dimension_scores": {"a": 10},
+                "selection": {"weakest_dimension_delta": 1, "repair_alignment": 1, "improved_dimensions": [], "branch_novelty": 1, "family_novelty": 0, "provider_specialization": 0, "repair_depth": 1, "anti_cheat_warnings": []},
+                "harness_metrics": {"new_unique_urls": 1},
+                "matched_count": 1,
+                "finding_count": 5,
+                "plan_index": 1,
+            },
+            {
+                "program_id": "p2",
+                "branch_id": "repair-a",
+                "score": 85,
+                "dimension_scores": {"a": 12},
+                "selection": {"weakest_dimension_delta": 2, "repair_alignment": 2, "improved_dimensions": ["a"], "branch_novelty": 0, "family_novelty": 0, "provider_specialization": 0, "repair_depth": 1, "anti_cheat_warnings": []},
+                "harness_metrics": {"new_unique_urls": 2},
+                "matched_count": 1,
+                "finding_count": 6,
+                "plan_index": 2,
+            },
+            {
+                "program_id": "p3",
+                "branch_id": "repair-b",
+                "score": 83,
+                "dimension_scores": {"a": 11},
+                "selection": {"weakest_dimension_delta": 1, "repair_alignment": 1, "improved_dimensions": [], "branch_novelty": 1, "family_novelty": 0, "provider_specialization": 0, "repair_depth": 1, "anti_cheat_warnings": []},
+                "harness_metrics": {"new_unique_urls": 1},
+                "matched_count": 1,
+                "finding_count": 5,
+                "plan_index": 3,
+            },
+        ]
+        diverse = gbl._population_candidates(population, prefer_diverse_branches=True)
+        self.assertEqual([item["program_id"] for item in diverse], ["p2", "p3"])
+
     def test_accepted_queries_from_run_only_keeps_accepted_rounds(self):
         payload = {
             "warm_start": {

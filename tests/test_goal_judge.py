@@ -98,6 +98,22 @@ class GoalJudgeTests(unittest.TestCase):
         self.assertEqual(result["dimension_scores"]["doctor"], 12)
         self.assertIn("runtime_skip", result["missing_dimensions"])
 
+    def test_evaluate_goal_bundle_accepts_explicit_research_bundle_payload(self):
+        goal_case = {
+            "rubric": [
+                {"id": "doctor", "weight": 20, "keywords": ["doctor", "health"]},
+            ]
+        }
+        bundle = {
+            "goal_id": "doctor-goal",
+            "bundle_id": "bundle-1",
+            "evidence_records": [
+                {"title": "doctor health report", "url": "u", "source": "searxng"},
+            ],
+        }
+        result = gj.evaluate_goal_bundle(goal_case, bundle)
+        self.assertIn("doctor", result["dimension_scores"])
+
 
 if __name__ == "__main__":
     unittest.main()

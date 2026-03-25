@@ -6,7 +6,7 @@ from typing import Any
 
 from engine import PlatformConnector
 from .models import SearchHitBatch
-from .backends.base import BackendRoute
+from .backends.base import BackendRoute, legacy_results_to_batch
 from .backends.ddgs_backend import DDGSBackend
 from .backends.github_backend import GitHubBackend
 from .backends.searxng_backend import SearXNGBackend
@@ -46,16 +46,12 @@ def search_platform(
     route = route_for_provider(name)
     if route is None:
         outcome = PlatformConnector.search(platform, query)
-        return SearchHitBatch.from_platform_outcome(
-            outcome,
-            query=query,
+        return legacy_results_to_batch(
+            str(getattr(outcome, "provider", "") or name or "platform_connector"),
+            query,
+            list(outcome.results or []),
             backend=name or "platform_connector",
             query_family=query_family,
+            error_alias=str(outcome.error_alias or ""),
         )
-    outcome = route.backend.search(dict(platform), query)
-    return SearchHitBatch.from_platform_outcome(
-        outcome,
-        query=query,
-        backend=name,
-        query_family=query_family,
-    )
+    return route.backend.search(dict(platform), query, query_family=query_family)

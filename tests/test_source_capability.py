@@ -173,7 +173,7 @@ class SourceCapabilityTests(unittest.TestCase):
                     "name": "exa",
                     "kind": "provider",
                     "runtime_enabled": True,
-                    "tier": 0,
+                    "tier": "premium_fallback",
                     "backend": "mcporter",
                     "check": "exa_mcporter",
                 },
@@ -181,7 +181,7 @@ class SourceCapabilityTests(unittest.TestCase):
                     "name": "alphaxiv_mcp",
                     "kind": "research_source",
                     "runtime_enabled": False,
-                    "tier": 1,
+                    "tier": "specialized_free",
                     "backend": "Claude MCP SSE",
                     "check": "alphaxiv_mcp",
                 },
@@ -206,6 +206,7 @@ class SourceCapabilityTests(unittest.TestCase):
         report = sc.build_source_capability_report(catalog, checker=checker)
         self.assertEqual(report["summary"]["runtime_sources"], ["exa"])
         self.assertEqual(report["summary"]["runtime_available"], ["exa"])
+        self.assertEqual(report["summary"]["premium_available"], ["exa"])
         self.assertEqual(report["summary"]["runtime_unavailable"], [])
         self.assertTrue(sc.get_source_decision(report, "alphaxiv_mcp")["should_skip"])
 
@@ -248,13 +249,36 @@ class SourceCapabilityTests(unittest.TestCase):
     def test_source_decision_priority_prefers_lower_tier_when_available(self):
         report = {
             "sources": {
-                "searxng": {"status": "ok", "available": True, "runtime_enabled": True, "tier": 0},
-                "exa": {"status": "ok", "available": True, "runtime_enabled": True, "tier": 3},
+                "searxng": {"status": "ok", "available": True, "runtime_enabled": True, "tier": "free_default"},
+                "exa": {"status": "ok", "available": True, "runtime_enabled": True, "tier": "premium_fallback"},
             }
         }
         searxng = sc.get_source_decision(report, "searxng")
         exa = sc.get_source_decision(report, "exa")
         self.assertLess(searxng["priority"], exa["priority"])
+
+    def test_format_report_surfaces_free_path_before_premium_fallback(self):
+        report = {
+            "sources": {
+                "searxng": {"status": "ok", "available": True, "runtime_enabled": True, "tier": "free_default", "message": "ready"},
+                "github_repos": {"status": "ok", "available": True, "runtime_enabled": True, "tier": "specialized_free", "message": "ready"},
+                "exa": {"status": "ok", "available": True, "runtime_enabled": True, "tier": "premium_fallback", "message": "ready"},
+            },
+            "summary": {
+                "ok": 3,
+                "warn": 0,
+                "off": 0,
+                "error": 0,
+                "runtime_unavailable": [],
+                "free_active": ["searxng"],
+                "specialized_active": ["github_repos"],
+                "premium_available": ["exa"],
+            },
+        }
+        text = sc.format_source_capability_report(report)
+        self.assertIn("Active free-first path: searxng", text)
+        self.assertIn("Active specialized free providers: github_repos", text)
+        self.assertIn("Premium fallback available: exa", text)
 
 
 if __name__ == "__main__":

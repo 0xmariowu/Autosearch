@@ -135,6 +135,8 @@ class ResearchFlowTests(unittest.TestCase):
         )
         self.assertIn("bundle", result)
         self.assertIn("judge_result", result)
+        self.assertIn("research_bundle", result)
+        self.assertEqual(result["research_bundle"]["goal_id"], "goal")
         self.assertIn("weakest_dimension", result["repair_hints"])
         self.assertIn("routes", result["routeable_output"])
         self.assertIn("score_gap", result["routeable_output"])

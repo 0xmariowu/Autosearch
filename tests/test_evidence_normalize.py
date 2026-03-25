@@ -26,6 +26,9 @@ class EvidenceNormalizeTests(unittest.TestCase):
         )
         self.assertEqual(record["record_type"], "evidence")
         self.assertEqual(record["content_type"], "issue")
+        self.assertEqual(record["evidence_type"], "issue")
+        self.assertTrue(record["evidence_id"])
+        self.assertEqual(record["query_family"], "unknown")
 
     def test_normalize_acquired_document_includes_markdown(self):
         document = AcquiredDocument(
@@ -41,6 +44,8 @@ class EvidenceNormalizeTests(unittest.TestCase):
         record = normalize_acquired_document(document, source="searxng", query="research page")
         self.assertEqual(record["fit_markdown"], "Visible text")
         self.assertEqual(record["references"][0]["url"], "https://example.com/ref")
+        self.assertEqual(record["backend"], "http_fetch")
+        self.assertEqual(record["doc_quality"], "high")
 
     def test_normalize_legacy_finding_keeps_old_shapes_working(self):
         record = normalize_legacy_finding({
@@ -52,6 +57,7 @@ class EvidenceNormalizeTests(unittest.TestCase):
         })
         self.assertEqual(record["record_type"], "evidence")
         self.assertEqual(record["query"], "legacy query")
+        self.assertTrue(record["evidence_id"])
 
 
 if __name__ == "__main__":
