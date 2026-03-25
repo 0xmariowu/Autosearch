@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
-
-from engine import PlatformConnector, PlatformSearchOutcome
+from engine import PlatformConnector
+from .base import legacy_results_to_batch
 
 
 class WebBackend:
@@ -20,7 +19,7 @@ class WebBackend:
         "hn",
     )
 
-    def search(self, platform: dict[str, Any], query: str) -> PlatformSearchOutcome:
+    def search(self, platform: dict[str, Any], query: str, *, query_family: str = "unknown"):
         name = str(platform.get("name") or "")
         dispatch = {
             "exa": PlatformConnector._exa,
@@ -35,5 +34,14 @@ class WebBackend:
         }
         fn = dispatch.get(name)
         if not fn:
-            return PlatformConnector.search(platform, query)
-        return fn(platform, query)
+            outcome = PlatformConnector.search(platform, query)
+        else:
+            outcome = fn(platform, query)
+        return legacy_results_to_batch(
+            name or str(getattr(outcome, "provider", "") or "web"),
+            query,
+            list(outcome.results or []),
+            backend=name or "web",
+            query_family=query_family,
+            error_alias=str(outcome.error_alias or ""),
+        )

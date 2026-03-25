@@ -6,6 +6,7 @@ from typing import Any
 
 from evaluation_harness import build_bundle, bundle_metrics
 from goal_judge import evaluate_goal_bundle
+from .bundle import ResearchBundle
 from .routeable_output import build_routeable_output
 
 
@@ -18,6 +19,12 @@ def synthesize_research_round(
 ) -> dict[str, Any]:
     bundle = build_bundle(existing_findings, round_findings, harness)
     judge_result = evaluate_goal_bundle(goal_case, bundle)
+    research_bundle = ResearchBundle.from_parts(
+        goal_id=str(goal_case.get("id") or "goal"),
+        evidence_records=bundle,
+        judge_result=judge_result,
+        target_score=int(goal_case.get("target_score", 100) or 100),
+    )
     metrics = bundle_metrics(bundle, previous_bundle=existing_findings)
     weakest_dimension = ""
     dimension_scores = dict(judge_result.get("dimension_scores") or {})
@@ -28,6 +35,7 @@ def synthesize_research_round(
         )
     return {
         "bundle": bundle,
+        "research_bundle": research_bundle.to_dict(),
         "judge_result": judge_result,
         "harness_metrics": metrics,
         "search_graph": {

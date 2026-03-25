@@ -38,13 +38,23 @@ def fetch_with_crawl4ai(url: str, *, timeout: int = 10) -> AcquiredDocument:
     title = str(getattr(result, "title", "") or "").strip()
     text = str(getattr(result, "text", "") or markdown or fit or "").strip()
     document = AcquiredDocument(
+        document_id="",
         url=str(url or "").strip(),
         final_url=final_url,
+        status_code=200,
         content_type="text/html",
+        fetch_method="crawl4ai",
         title=title,
         text=text,
         raw_html=html,
+        metadata={"pipeline": "crawl4ai"},
     )
+    document.document_id = AcquiredDocument.from_html(
+        document.url,
+        html,
+        final_url=document.final_url,
+        fetch_method=document.fetch_method,
+    ).document_id
     document.clean_markdown = markdown or clean_markdown(text)
     document.fit_markdown = fit or fit_markdown(document.clean_markdown)
     references = getattr(result, "references", None)

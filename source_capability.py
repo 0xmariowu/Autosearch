@@ -32,6 +32,12 @@ STATUS_PRIORITY = {
     "error": 9,
 }
 
+TIER_PRIORITY = {
+    "free_default": 0,
+    "specialized_free": 1,
+    "premium_fallback": 3,
+}
+
 
 def _default_capability_report() -> dict[str, Any]:
     return {
@@ -121,17 +127,31 @@ def _status(
     message: str,
     available: bool,
 ) -> dict[str, Any]:
+    tier_name = _tier_name(source.get("tier"))
     return {
         "status": status,
         "available": bool(available),
         "message": message,
         "kind": source.get("kind", "source"),
         "family": source.get("family", ""),
-        "tier": int(source.get("tier", 0) or 0),
+        "tier": tier_name,
+        "tier_priority": TIER_PRIORITY.get(tier_name, 9),
         "runtime_enabled": bool(source.get("runtime_enabled")),
         "backend": source.get("backend", ""),
         "check": source.get("check", ""),
     }
+
+
+def _tier_name(value: Any) -> str:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    if value in (0, "0"):
+        return "free_default"
+    if value in (1, "1"):
+        return "specialized_free"
+    if value in (3, "3"):
+        return "premium_fallback"
+    return "premium_fallback"
 
 
 def _check_github_cli(source: dict[str, Any]) -> dict[str, Any]:
@@ -285,12 +305,22 @@ def build_source_capability_report(
         "runtime_sources": [],
         "runtime_available": [],
         "runtime_unavailable": [],
+        "free_active": [],
+        "specialized_active": [],
+        "premium_available": [],
     }
 
     active_checker = checker or check_source
     for source in selected_sources:
         name = str(source.get("name") or "")
-        result = active_checker(source)
+        result = dict(active_checker(source) or {})
+        result.setdefault("kind", source.get("kind", "source"))
+        result.setdefault("family", source.get("family", ""))
+        result.setdefault("tier", _tier_name(source.get("tier")))
+        result.setdefault("tier_priority", TIER_PRIORITY.get(_tier_name(source.get("tier")), 9))
+        result.setdefault("runtime_enabled", bool(source.get("runtime_enabled")))
+        result.setdefault("backend", source.get("backend", ""))
+        result.setdefault("check", source.get("check", ""))
         results[name] = result
         status = str(result.get("status") or "warn")
         summary[status] = int(summary.get(status, 0)) + 1
@@ -298,6 +328,13 @@ def build_source_capability_report(
             summary["runtime_sources"].append(name)
             if result.get("available"):
                 summary["runtime_available"].append(name)
+                tier_name = str(result.get("tier") or "")
+                if tier_name == "free_default":
+                    summary["free_active"].append(name)
+                elif tier_name == "specialized_free":
+                    summary["specialized_active"].append(name)
+                elif tier_name == "premium_fallback":
+                    summary["premium_available"].append(name)
             else:
                 summary["runtime_unavailable"].append(name)
 
@@ -321,8 +358,8 @@ def get_source_decision(report: dict[str, Any], source_name: str) -> dict[str, A
     available = bool(source.get("available", True))
     runtime_enabled = bool(source.get("runtime_enabled", True))
     should_skip = (not runtime_enabled) or (not available)
-    tier_value = source.get("tier", 9)
-    tier = int(9 if tier_value is None else tier_value)
+    tier_name = _tier_name(source.get("tier"))
+    tier = TIER_PRIORITY.get(tier_name, 9)
     return {
         "name": source_name,
         "status": status,
@@ -330,7 +367,8 @@ def get_source_decision(report: dict[str, Any], source_name: str) -> dict[str, A
         "runtime_enabled": runtime_enabled,
         "should_skip": should_skip,
         "priority": (STATUS_PRIORITY.get(status, 5) * 10) + tier,
-        "tier": tier,
+        "tier": tier_name,
+        "tier_priority": tier,
         "message": str(source.get("message") or ""),
     }
 
@@ -342,9 +380,19 @@ def format_source_capability_report(report: dict[str, Any]) -> str:
         entry = sources[name]
         status = str(entry.get("status") or "warn").upper()
         runtime = "runtime" if entry.get("runtime_enabled") else "optional"
-        lines.append(f"[{status}] {name} ({runtime}) — {entry.get('message', '')}")
+        tier_name = str(entry.get("tier") or "")
+        lines.append(f"[{status}] {name} ({runtime}, {tier_name}) — {entry.get('message', '')}")
     summary = report.get("summary") or {}
     lines.append("")
+    free_active = list(summary.get("free_active") or [])
+    specialized_active = list(summary.get("specialized_active") or [])
+    premium_available = list(summary.get("premium_available") or [])
+    if free_active:
+        lines.append("Active free-first path: " + ", ".join(free_active))
+    if specialized_active:
+        lines.append("Active specialized free providers: " + ", ".join(specialized_active))
+    if premium_available:
+        lines.append("Premium fallback available: " + ", ".join(premium_available))
     lines.append(
         "Summary: "
         f"ok={summary.get('ok', 0)} "

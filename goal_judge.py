@@ -301,12 +301,19 @@ def _openrouter_bundle_eval(goal_case: dict[str, Any], findings: list[dict[str, 
     return result
 
 
-def evaluate_goal_bundle(goal_case: dict[str, Any], findings: list[dict[str, Any]]) -> dict[str, Any]:
+def _bundle_findings(findings: Any) -> list[dict[str, Any]]:
+    if isinstance(findings, dict) and "evidence_records" in findings:
+        return list(findings.get("evidence_records") or [])
+    return list(findings or [])
+
+
+def evaluate_goal_bundle(goal_case: dict[str, Any], findings: Any) -> dict[str, Any]:
+    bundle_findings = _bundle_findings(findings)
     if os.environ.get("OPENROUTER_API_KEY"):
         if _strict_openrouter_judge():
-            return _openrouter_bundle_eval(goal_case, findings)
+            return _openrouter_bundle_eval(goal_case, bundle_findings)
         try:
-            return _openrouter_bundle_eval(goal_case, findings)
+            return _openrouter_bundle_eval(goal_case, bundle_findings)
         except Exception:
             pass
-    return _heuristic_bundle_eval(goal_case, findings)
+    return _heuristic_bundle_eval(goal_case, bundle_findings)

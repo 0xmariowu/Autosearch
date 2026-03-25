@@ -4,7 +4,7 @@
       "name": "searxng",
       "kind": "provider",
       "family": "web",
-      "tier": 0,
+      "tier": "free_default",
       "runtime_enabled": true,
       "backend": "Local SearXNG HTTP",
       "check": "searxng_http"
@@ -13,7 +13,7 @@
       "name": "ddgs",
       "kind": "provider",
       "family": "web",
-      "tier": 0,
+      "tier": "free_default",
       "runtime_enabled": true,
       "backend": "Local ddgs Python package",
       "check": "ddgs_local"
@@ -22,7 +22,7 @@
       "name": "github_repos",
       "kind": "provider",
       "family": "github",
-      "tier": 1,
+      "tier": "specialized_free",
       "runtime_enabled": true,
       "backend": "gh CLI",
       "check": "github_cli"
@@ -31,7 +31,7 @@
       "name": "github_issues",
       "kind": "provider",
       "family": "github",
-      "tier": 1,
+      "tier": "specialized_free",
       "runtime_enabled": true,
       "backend": "gh CLI",
       "check": "github_cli"
@@ -40,7 +40,7 @@
       "name": "github_code",
       "kind": "provider",
       "family": "github",
-      "tier": 1,
+      "tier": "specialized_free",
       "runtime_enabled": true,
       "backend": "gh CLI",
       "check": "github_cli"
@@ -49,7 +49,7 @@
       "name": "twitter_xreach",
       "kind": "provider",
       "family": "twitter",
-      "tier": 1,
+      "tier": "specialized_free",
       "runtime_enabled": true,
       "backend": "xreach CLI",
       "check": "xreach_cli"
@@ -58,7 +58,7 @@
       "name": "exa",
       "kind": "provider",
       "family": "exa",
-      "tier": 3,
+      "tier": "premium_fallback",
       "runtime_enabled": true,
       "backend": "mcporter + Exa MCP",
       "check": "exa_mcporter"
@@ -67,7 +67,7 @@
       "name": "tavily",
       "kind": "provider",
       "family": "web",
-      "tier": 3,
+      "tier": "premium_fallback",
       "runtime_enabled": true,
       "backend": "Tavily Search API",
       "check": "tavily_api"
@@ -76,7 +76,7 @@
       "name": "reddit_exa",
       "kind": "provider",
       "family": "reddit",
-      "tier": 3,
+      "tier": "premium_fallback",
       "runtime_enabled": true,
       "backend": "mcporter + Exa MCP",
       "check": "exa_mcporter"
@@ -85,7 +85,7 @@
       "name": "hn_exa",
       "kind": "provider",
       "family": "hackernews",
-      "tier": 3,
+      "tier": "premium_fallback",
       "runtime_enabled": true,
       "backend": "mcporter + Exa MCP",
       "check": "exa_mcporter"
@@ -94,7 +94,7 @@
       "name": "alphaxiv_mcp",
       "kind": "research_source",
       "family": "papers",
-      "tier": 1,
+      "tier": "specialized_free",
       "runtime_enabled": false,
       "backend": "Claude MCP SSE",
       "check": "alphaxiv_mcp"
@@ -103,7 +103,7 @@
       "name": "huggingface_datasets",
       "kind": "provider",
       "family": "huggingface",
-      "tier": 1,
+      "tier": "specialized_free",
       "runtime_enabled": true,
       "backend": "agent-reach HF public API",
       "check": "huggingface_public"
@@ -112,7 +112,7 @@
       "name": "huggingface",
       "kind": "research_source",
       "family": "datasets",
-      "tier": 0,
+      "tier": "free_default",
       "runtime_enabled": false,
       "backend": "Hugging Face public API",
       "check": "huggingface_public"
@@ -121,7 +121,7 @@
       "name": "web_reader",
       "kind": "reader",
       "family": "web",
-      "tier": 0,
+      "tier": "free_default",
       "runtime_enabled": false,
       "backend": "Jina Reader",
       "check": "web_reader"
