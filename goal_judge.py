@@ -29,7 +29,7 @@ def _strict_openrouter_judge() -> bool:
 def _normalize_text(items: list[dict[str, Any]]) -> str:
     parts: list[str] = []
     for item in items:
-        for key in ("title", "url", "body", "source"):
+        for key in ("title", "url", "body", "source", "canonical_text", "fit_markdown", "clean_markdown", "acquired_text"):
             value = str(item.get(key) or "").strip()
             if value:
                 parts.append(value.lower())
