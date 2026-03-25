@@ -30,6 +30,7 @@ Self-improving search system. Finds repos, articles, and tools for Armory intake
 | `control_plane.py` | Current operating program: objective + capability + experience |
 | `goal_judge.py` | Goal-specific evaluator with heuristic / OpenRouter modes |
 | `goal_loop.py` | Goal-driven search loop with keep/discard by score delta |
+| `interface.py` | Stable Python interface for other projects to call goal loops, doctor, and search tasks |
 | `standard.json` | Default config (early-stop thresholds, platform list) |
 | `patterns.jsonl` | Accumulated search intelligence (winning/losing words, outcome boosts) |
 | `evolution.jsonl` | Per-query experiment log across all sessions |
@@ -46,6 +47,29 @@ python daily.py                         # daily automated run
 python pipeline.py                      # full pipeline (search → score → intake → email)
 python doctor.py                        # static source/provider capability report
 python goal_loop.py                     # goal-driven loop for one concrete project problem
+```
+
+## Python Interface
+
+Other projects can import a stable interface instead of wiring internal modules:
+
+```python
+from interface import AutoSearchInterface
+
+client = AutoSearchInterface("/path/to/autosearch")
+health = client.doctor()
+result = client.run_goal_case("atoms-auto-mining-perfect", max_rounds=1)
+```
+
+If another project wants the explicit `搜索员 + 打分员` split, use a session:
+
+```python
+from interface import AutoSearchInterface
+
+client = AutoSearchInterface("/path/to/autosearch")
+session = client.build_searcher_judge_session("atoms-auto-mining-perfect")
+plans = session.searcher_propose()
+round_result = session.run_searcher_round()
 ```
 
 ## Dependencies
