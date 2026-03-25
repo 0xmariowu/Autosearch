@@ -14,12 +14,19 @@ from research.synthesizer import synthesize_research_round
 
 
 class _FakeSearcher:
+    goal_case = {
+        "dimensions": [
+            {"id": "implementation_signal", "keywords": ["runtime skip", "release gate", "validation report"]},
+        ]
+    }
+
     def candidate_plans(self, **kwargs):
         return [
             {
                 "label": "repair",
                 "queries": [{"text": "eval harness regression gate", "platforms": []}],
                 "program_overrides": {"provider_mix": ["searxng"]},
+                "branch_priority": 4,
             }
         ]
 
@@ -44,6 +51,7 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertTrue(plans[0]["graph_node"].startswith("breadth-d1-"))
         self.assertEqual(plans[0]["branch_subgoal"], "implementation")
         self.assertEqual(plans[0]["graph_edges"], [])
+        self.assertEqual(plans[0]["branch_priority"], 4)
 
     def test_planner_adds_follow_up_branch_from_local_evidence(self):
         plans = build_research_plan(
@@ -66,6 +74,8 @@ class ResearchFlowTests(unittest.TestCase):
         )
         self.assertTrue(any(plan["label"] == "graph-followup" for plan in plans))
         self.assertTrue(any(plan["label"] == "graph-decomposition-followup" for plan in plans))
+        graph_followup = next(plan for plan in plans if plan["label"] == "graph-followup")
+        self.assertTrue(any("runtime skip" in query["text"] or "implementation signal" in query["text"] for query in graph_followup["queries"]))
 
     def test_planner_respects_retired_mutation_kinds_and_budget(self):
         plans = build_research_plan(

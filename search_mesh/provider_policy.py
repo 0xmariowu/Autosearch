@@ -31,9 +31,13 @@ def goal_provider_names(goal_case: dict[str, Any]) -> list[str]:
         if str(name or "").strip()
     ]
     names: list[str] = []
+    disable_injection = bool(goal_case.get("disable_free_breadth_injection", False))
     if not requested:
         names.extend(FREE_BREADTH_PROVIDERS)
-    elif any(name in PREMIUM_BREADTH_PROVIDERS for name in requested):
+    elif not disable_injection and (
+        any(name in PREMIUM_BREADTH_PROVIDERS for name in requested)
+        or not any(name in FREE_BREADTH_PROVIDERS for name in requested)
+    ):
         names.extend(FREE_BREADTH_PROVIDERS)
     names.extend(requested)
     seen: set[str] = set()

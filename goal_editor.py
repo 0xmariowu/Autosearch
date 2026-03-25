@@ -25,6 +25,43 @@ OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_EDITOR_MODEL = "google/gemini-3-flash-preview"
 OPENROUTER_EDITOR_TIMEOUT = float(os.environ.get("OPENROUTER_EDITOR_TIMEOUT", "20"))
 ENABLE_OPENROUTER_EDITOR = os.environ.get("OPENROUTER_ENABLE_EDITOR", "0").strip().lower() in {"1", "true", "yes"}
+GENERIC_QUERY_TERMS = {
+    "the",
+    "and",
+    "for",
+    "with",
+    "that",
+    "this",
+    "from",
+    "into",
+    "after",
+    "before",
+    "inside",
+    "outside",
+    "should",
+    "must",
+    "matters",
+    "matter",
+    "style",
+    "public",
+    "open",
+    "source",
+    "required",
+    "require",
+    "required.",
+    "system",
+    "systems",
+    "project",
+    "projects",
+    "local",
+    "atoms",
+    "search",
+    "find",
+    "exact",
+    "external",
+    "different",
+    "vocabulary",
+}
 
 
 def _normalize_query_spec(query: Any) -> dict[str, Any]:
@@ -465,6 +502,68 @@ def _dimension_keywords(goal_case: dict[str, Any], dim_id: str, limit: int = 2) 
     return []
 
 
+def _context_phrases(goal_case: dict[str, Any], limit: int = 4) -> list[str]:
+    text = str(goal_case.get("context_notes") or "").strip()
+    if not text:
+        return []
+    parts = re.split(r"[.;,]\s+|\n+", text)
+    phrases: list[str] = []
+    seen: set[str] = set()
+    for part in parts:
+        phrase = str(part or "").strip()
+        lowered = phrase.lower()
+        if len(phrase) < 12 or lowered in seen:
+            continue
+        seen.add(lowered)
+        phrases.append(phrase)
+        if len(phrases) >= limit:
+            break
+    return phrases
+
+
+def _compact_terms(text: str, *, limit: int = 4) -> list[str]:
+    tokens = re.findall(r"[a-zA-Z0-9][a-zA-Z0-9/-]+", str(text or "").lower())
+    terms: list[str] = []
+    seen: set[str] = set()
+    for token in tokens:
+        if len(token) < 4 or token in GENERIC_QUERY_TERMS:
+            continue
+        if token in seen:
+            continue
+        seen.add(token)
+        terms.append(token)
+        if len(terms) >= limit:
+            break
+    return terms
+
+
+def _dimension_phrase_candidates(goal_case: dict[str, Any], dim_id: str, *, limit: int = 4) -> list[str]:
+    phrases: list[str] = []
+    seen: set[str] = set()
+    for dimension in list(goal_case.get("dimensions") or []):
+        if str(dimension.get("id") or "") != dim_id:
+            continue
+        for keyword in list(dimension.get("keywords") or []):
+            phrase = str(keyword or "").strip()
+            lowered = phrase.lower()
+            if not phrase or lowered in seen:
+                continue
+            seen.add(lowered)
+            phrases.append(phrase)
+            if len(phrases) >= limit:
+                return phrases
+    for phrase in _context_phrases(goal_case, limit=limit * 2):
+        compact = " ".join(_compact_terms(phrase, limit=4)).strip()
+        lowered = compact.lower()
+        if not compact or lowered in seen:
+            continue
+        seen.add(lowered)
+        phrases.append(compact)
+        if len(phrases) >= limit:
+            break
+    return phrases
+
+
 def _anchor_evidence(goal_case: dict[str, Any], bundle_state: dict[str, Any], judge_result: dict[str, Any]) -> dict[str, list[str]]:
     weak = set(_weak_dimensions(goal_case, judge_result, max_count=3))
     repos: list[str] = []
@@ -500,6 +599,47 @@ def _topic_frontier_queries(goal_case: dict[str, Any], limit: int = 2) -> list[d
             if spec["text"] and spec not in queries:
                 queries.append(spec)
             if len(queries) >= limit:
+                return queries
+    return queries
+
+
+def _context_followup_queries(
+    goal_case: dict[str, Any],
+    *,
+    weak_dimensions: list[str],
+    available_providers: list[str],
+    tried_queries: set[str],
+    max_queries: int,
+) -> list[dict[str, Any]]:
+    free_breadth = [provider for provider in ["searxng", "ddgs"] if provider in available_providers]
+    if not free_breadth:
+        return []
+    queries: list[dict[str, Any]] = []
+    for dim_id in list(weak_dimensions or [])[:2]:
+        keywords = _dimension_keywords(goal_case, dim_id, limit=3)
+        dim_text = dim_id.replace("_", " ")
+        phrase_candidates = _dimension_phrase_candidates(goal_case, dim_id, limit=4)
+        templates = [
+            "{phrase} implementation",
+            "{phrase} open source",
+            "{phrase} examples",
+            "{phrase} public implementation",
+        ]
+        for phrase in phrase_candidates:
+            compact_phrase = " ".join(_compact_terms(phrase, limit=5)).strip() or phrase
+            for template in templates:
+                query_text = template.format(phrase=compact_phrase).strip()
+                spec = _normalize_query_spec({"text": query_text, "platforms": []})
+                if spec["text"] and _query_key(spec) not in tried_queries and spec not in queries:
+                    queries.append(spec)
+                if len(queries) >= max_queries:
+                    return queries
+        if keywords:
+            query_text = " ".join(part for part in [dim_text, " ".join(keywords), "implementation"] if part).strip()
+            spec = _normalize_query_spec({"text": query_text, "platforms": []})
+            if spec["text"] and _query_key(spec) not in tried_queries and spec not in queries:
+                queries.append(spec)
+            if len(queries) >= max_queries:
                 return queries
     return queries
 
@@ -732,6 +872,13 @@ class HeuristicGoalSearcher:
         anchor_queries: list[dict[str, Any]] = []
         anchors = _anchor_evidence(self.goal_case, bundle_state, judge_result)
         weak_dimensions = list(repair_dimensions)
+        context_queries = _context_followup_queries(
+            self.goal_case,
+            weak_dimensions=weak_dimensions,
+            available_providers=available_providers,
+            tried_queries=tried_queries,
+            max_queries=max_queries,
+        )
         for dim_id in weak_dimensions:
             keywords = _dimension_keywords(self.goal_case, dim_id, limit=2)
             keyword_query = " ".join(keywords) or dim_id.replace("_", " ")
@@ -755,7 +902,7 @@ class HeuristicGoalSearcher:
                 if _query_key(spec) not in tried_queries and spec not in anchor_queries:
                     anchor_queries.append(spec)
 
-        if not focus and not anchor_queries:
+        if not focus and not anchor_queries and not context_queries:
             focus = _topic_frontier_queries(self.goal_case, limit=max_queries)
             if not focus:
                 return []
@@ -766,6 +913,8 @@ class HeuristicGoalSearcher:
             anchor_search_backends = _search_backends(active_program, available_providers, anchor_provider_mix)
             plans.append({
                 "label": f"{current_role}-anchored",
+                "role": "dimension_repair",
+                "branch_priority": 3,
                 "queries": anchor_queries[:max_queries],
                 "program_overrides": {
                     "provider_mix": anchor_provider_mix,
@@ -810,6 +959,37 @@ class HeuristicGoalSearcher:
                     },
                 },
             })
+        if context_queries:
+            context_provider_mix = _provider_mix_for_queries(context_queries, available_providers)
+            context_search_backends = _search_backends(active_program, available_providers, context_provider_mix)
+            plans.append({
+                "label": f"{current_role}-context-followup",
+                "role": "graph_followup",
+                "branch_priority": 5,
+                "queries": context_queries[:max_queries],
+                "program_overrides": {
+                    "provider_mix": context_provider_mix,
+                    "search_backends": context_search_backends,
+                    "backend_roles": _backend_roles(active_program, available_providers, breadth_backends=context_search_backends),
+                    "current_role": "dimension_repair",
+                    "exploit_budget": max(exploit_budget, 0.7),
+                    "explore_budget": min(explore_budget, 0.3),
+                    "acquisition_policy": {
+                        **current_acquisition_policy,
+                        "acquire_pages": True,
+                        "page_fetch_limit": max(int(current_acquisition_policy.get("page_fetch_limit", 1) or 1), 1),
+                    },
+                    "evidence_policy": {
+                        **current_evidence_policy,
+                        "preferred_content_types": ["web", "reference"],
+                        "prefer_acquired_text": True,
+                    },
+                    "repair_policy": {
+                        **current_repair_policy,
+                        "target_weak_dimensions": max(int(current_repair_policy.get("target_weak_dimensions", 2) or 2), len(weak_dimensions) or 1),
+                    },
+                },
+            })
         if focus:
             primary_dim = weak_dimensions[:1] or list(judge_result.get("missing_dimensions", []))[:1]
             preferred_providers = list((current_strategies.get(primary_dim[0]) or {}).get("preferred_providers") or []) if primary_dim else []
@@ -820,6 +1000,8 @@ class HeuristicGoalSearcher:
             primary_search_backends = _search_backends(active_program, available_providers, provider_mix)
             plans.append({
                 "label": f"{current_role}-primary",
+                "role": current_role,
+                "branch_priority": 4 if current_role == "dimension_repair" else 2,
                 "queries": focus,
                 "program_overrides": {
                     "provider_mix": provider_mix,

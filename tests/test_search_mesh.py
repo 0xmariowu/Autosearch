@@ -60,6 +60,10 @@ class SearchMeshTests(unittest.TestCase):
         names = goal_provider_names({"providers": ["exa", "github_repos"]})
         self.assertEqual(names, ["searxng", "ddgs", "exa", "github_repos"])
 
+    def test_goal_provider_names_injects_free_breadth_for_specialized_only_goals(self):
+        names = goal_provider_names({"providers": ["github_code", "github_repos"]})
+        self.assertEqual(names, ["searxng", "ddgs", "github_code", "github_repos"])
+
     def test_available_platforms_respects_capability_report(self):
         capability_report = {
             "sources": {
