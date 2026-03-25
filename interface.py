@@ -22,6 +22,12 @@ from goal_editor import GoalSearcher
 from goal_judge import evaluate_goal_bundle
 from source_capability import load_source_capability_report, refresh_source_capability
 
+__all__ = [
+    "AutoSearchInterface",
+    "SearcherJudgeSession",
+    "default_interface",
+]
+
 
 class SearcherJudgeSession:
     """Explicit searcher/judge roles for external projects."""
