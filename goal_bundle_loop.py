@@ -146,6 +146,7 @@ def _updated_evolution_stats(
     *,
     population: list[dict[str, Any]],
     accepted: bool,
+    selected_program: dict[str, Any] | None = None,
     accepted_program: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     stats = dict(current_program.get("evolution_stats") or {})
@@ -160,6 +161,36 @@ def _updated_evolution_stats(
                 int(accepted_program.get("score", 0) or 0),
             )
     stats["family_best_scores"] = family_best_scores
+    mutation_acceptance = dict(stats.get("mutation_acceptance") or {})
+    mutation_rejection_streaks = dict(stats.get("mutation_rejection_streaks") or {})
+    family_rejection_streaks = dict(stats.get("family_rejection_streaks") or {})
+    retired_families = list(stats.get("retired_families") or [])
+    retired_mutation_kinds = list(stats.get("retired_mutation_kinds") or [])
+    selected_program = dict(selected_program or {})
+    selected_mutation = str(selected_program.get("mutation_kind") or "")
+    selected_family = str(selected_program.get("family_id") or "")
+    retire_after = int(((current_program.get("population_policy") or {}).get("retire_family_after_rejections", 3)) or 3)
+    if accepted and accepted_program is not None:
+        selected_mutation = str(accepted_program.get("mutation_kind") or selected_mutation)
+        selected_family = str(accepted_program.get("family_id") or selected_family)
+    if selected_mutation:
+        mutation_acceptance[selected_mutation] = int(mutation_acceptance.get(selected_mutation, 0) or 0) + (1 if accepted else 0)
+        mutation_rejection_streaks[selected_mutation] = 0 if accepted else int(mutation_rejection_streaks.get(selected_mutation, 0) or 0) + 1
+        if accepted and selected_mutation in retired_mutation_kinds:
+            retired_mutation_kinds = [item for item in retired_mutation_kinds if item != selected_mutation]
+        if not accepted and mutation_rejection_streaks[selected_mutation] >= retire_after and selected_mutation not in retired_mutation_kinds:
+            retired_mutation_kinds.append(selected_mutation)
+    if selected_family:
+        family_rejection_streaks[selected_family] = 0 if accepted else int(family_rejection_streaks.get(selected_family, 0) or 0) + 1
+        if accepted and selected_family in retired_families:
+            retired_families = [item for item in retired_families if item != selected_family]
+        if not accepted and family_rejection_streaks[selected_family] >= retire_after and selected_family not in retired_families:
+            retired_families.append(selected_family)
+    stats["mutation_acceptance"] = mutation_acceptance
+    stats["mutation_rejection_streaks"] = mutation_rejection_streaks
+    stats["family_rejection_streaks"] = family_rejection_streaks
+    stats["retired_families"] = retired_families
+    stats["retired_mutation_kinds"] = retired_mutation_kinds
     stats["last_population_summary"] = {
         "population_size": len(population),
         "branch_counts": {
@@ -218,6 +249,15 @@ def _population_candidates(
             continue
         best_by_branch.setdefault(branch_id, item)
     return list(best_by_branch.values()) + fallback
+
+
+def _retired_families(program: dict[str, Any]) -> set[str]:
+    stats = dict(program.get("evolution_stats") or {})
+    return {
+        str(item).strip()
+        for item in list(stats.get("retired_families") or [])
+        if str(item).strip()
+    }
 
 def _promote_compatible_archive_candidate(
     *,
@@ -476,6 +516,22 @@ def run_goal_bundle_loop(
                 candidate_index=plan_index,
                 program_overrides=dict(plan.get("program_overrides") or {}),
             )
+            if str(candidate_program.get("family_id") or "") in _retired_families(accepted_program):
+                strategy_summaries.append({
+                    "label": plan.get("label", f"plan-{plan_index}"),
+                    "program_id": candidate_program["program_id"],
+                    "queries": plan.get("queries", []),
+                    "graph_node": str(plan.get("graph_node") or ""),
+                    "graph_edges": list(plan.get("graph_edges") or []),
+                    "provider_mix": list(candidate_program.get("provider_mix") or []),
+                    "query_runs": [],
+                    "candidate_score": bundle_state["score"],
+                    "matched_dimensions": list(bundle_state.get("matched_dimensions", [])),
+                    "missing_dimensions": list(bundle_state.get("missing_dimensions", [])),
+                    "sample_bundle": _sample_findings(bundle_state.get("accepted_findings", []), limit=6),
+                    "rationale": "candidate family retired by evolution policy",
+                })
+                continue
             max_branch_depth = int(population_policy.get("max_branch_depth", 0) or 0)
             if max_branch_depth and int(candidate_program.get("branch_depth", 0) or 0) > max_branch_depth:
                 strategy_summaries.append({
@@ -723,6 +779,7 @@ def run_goal_bundle_loop(
                     accepted_program,
                     population=population,
                     accepted=True,
+                    selected_program=best_candidate["program"],
                     accepted_program={
                         **best_candidate["program"],
                         "score": candidate_score,
@@ -748,6 +805,7 @@ def run_goal_bundle_loop(
                     accepted_program,
                     population=population,
                     accepted=False,
+                    selected_program=best_candidate["program"],
                 ),
             }
 

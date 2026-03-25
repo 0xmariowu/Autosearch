@@ -8,8 +8,7 @@ from typing import Any
 
 from acquisition import enrich_evidence_record
 from evidence import build_evidence_record, evidence_content_type
-from evidence_records import build_evidence_record_from_result
-from engine import PlatformConnector, Scorer
+from engine import PlatformConnector
 from search_mesh.provider_policy import (
     FREE_BREADTH_PROVIDERS,
     PREMIUM_BREADTH_PROVIDERS,
@@ -18,7 +17,7 @@ from search_mesh.provider_policy import (
     goal_provider_names,
 )
 from search_mesh.router import search_platform
-from search_mesh.models import SearchHitBatch
+from search_mesh.models import SearchHit, SearchHitBatch
 
 __all__ = [
     "available_platforms",
@@ -113,6 +112,36 @@ def _result_relevance(query: str, result: Any, preferred_content_types: list[str
     return overlap + bonus, int(getattr(result, "eng", 0) or 0)
 
 
+def _hit_relevance(query: str, hit: SearchHit, preferred_content_types: list[str] | None = None) -> tuple[int, int]:
+    terms = _query_terms(query)
+    haystack = " ".join([
+        str(hit.title or ""),
+        str(hit.snippet or ""),
+        str(hit.url or ""),
+        str(hit.source or ""),
+    ]).lower()
+    overlap = sum(1 for term in terms if term in haystack)
+    bonus = 0
+    preferred = {str(item or "").strip() for item in list(preferred_content_types or []) if str(item or "").strip()}
+    if preferred:
+        content_type = evidence_content_type(str(hit.source or ""), str(hit.url or ""))
+        if content_type in preferred:
+            bonus = 2
+    return overlap + bonus, int(hit.score_hint or 0)
+
+
+def _build_evidence_record_from_hit(hit: SearchHit) -> dict[str, Any]:
+    return build_evidence_record(
+        title=str(hit.title or ""),
+        url=str(hit.url or ""),
+        body=str(hit.snippet or ""),
+        source=str(hit.source or hit.provider or ""),
+        query=str(hit.query or ""),
+        query_family=str(hit.query_family or "unknown"),
+        backend=str(hit.backend or hit.provider or ""),
+    )
+
+
 def _sampling_config(sampling_policy: dict[str, Any] | None) -> dict[str, Any]:
     policy = dict(sampling_policy or {})
     bundle_cap = int(policy.get("bundle_per_query_cap", 5) or 5)
@@ -141,8 +170,7 @@ def search_query(
     query_str = query_text(query)
     platforms = _query_platforms(query, default_platforms)
     sampling = _sampling_config(sampling_policy)
-    scorer = Scorer()
-    all_results = []
+    all_hits: list[SearchHit] = []
     findings: list[dict[str, Any]] = []
     for platform in platforms:
         platform_query = str(platform.get("query") or query_str)
@@ -176,24 +204,32 @@ def search_query(
             )
         else:
             batch = search_platform(platform_config, platform_query)
-        all_results.extend(batch.to_legacy_search_results())
-    _, raw_score, new_results = scorer.score_results(all_results)
+        all_hits.extend(list(batch.hits))
+    deduped_hits: list[SearchHit] = []
+    seen: set[str] = set()
+    for hit in all_hits:
+        key = str(hit.url or "").strip() or str(hit.title or "").strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped_hits.append(hit)
     if sampling["rank_by_relevance"]:
-        ranked_results = sorted(
-            new_results,
-            key=lambda result: _result_relevance(query_str, result, sampling["preferred_content_types"]),
+        ranked_hits = sorted(
+            deduped_hits,
+            key=lambda hit: _hit_relevance(query_str, hit, sampling["preferred_content_types"]),
             reverse=True,
         )
     else:
-        ranked_results = list(new_results)
+        ranked_hits = list(deduped_hits)
     positive_ranked = [
-        result
-        for result in ranked_results
-        if _result_relevance(query_str, result, sampling["preferred_content_types"])[0] > 0
+        hit
+        for hit in ranked_hits
+        if _hit_relevance(query_str, hit, sampling["preferred_content_types"])[0] > 0
     ]
-    selected_results = positive_ranked or ranked_results
-    for index, result in enumerate(selected_results[: sampling["per_query_findings_cap"]]):
-        record = build_evidence_record_from_result(result, query_str)
+    selected_hits = positive_ranked or ranked_hits
+    raw_score = sum(max(int(hit.score_hint or 0), 0) + max(_hit_relevance(query_str, hit, sampling["preferred_content_types"])[0], 0) for hit in selected_hits)
+    for index, hit in enumerate(selected_hits[: sampling["per_query_findings_cap"]]):
+        record = _build_evidence_record_from_hit(hit)
         if sampling["acquire_pages"] and index < sampling["page_fetch_limit"]:
             enrich_kwargs: dict[str, Any] = {}
             if sampling["use_crawl4ai_adapter"]:

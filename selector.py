@@ -57,6 +57,32 @@ def _family_novelty(current_program: dict[str, Any] | None, candidate_program: d
     return int(bool(candidate_family and candidate_family != current_family))
 
 
+def _evolution_feedback(current_program: dict[str, Any] | None, candidate_program: dict[str, Any] | None) -> tuple[int, int]:
+    stats = dict((current_program or {}).get("evolution_stats") or {})
+    mutation_acceptance = dict(stats.get("mutation_acceptance") or {})
+    mutation_rejection_streaks = dict(stats.get("mutation_rejection_streaks") or {})
+    retired_families = {
+        str(item).strip()
+        for item in list(stats.get("retired_families") or [])
+        if str(item).strip()
+    }
+    retired_mutations = {
+        str(item).strip()
+        for item in list(stats.get("retired_mutation_kinds") or [])
+        if str(item).strip()
+    }
+    candidate_program = dict(candidate_program or {})
+    mutation_kind = str(candidate_program.get("mutation_kind") or "")
+    family_id = str(candidate_program.get("family_id") or "")
+    acceptance_score = int(mutation_acceptance.get(mutation_kind, 0) or 0) - int(mutation_rejection_streaks.get(mutation_kind, 0) or 0)
+    retirement_penalty = 0
+    if mutation_kind and mutation_kind in retired_mutations:
+        retirement_penalty += 2
+    if family_id and family_id in retired_families:
+        retirement_penalty += 2
+    return acceptance_score, retirement_penalty
+
+
 def _dimension_improvements(
     current_dimensions: dict[str, Any] | None,
     candidate_dimensions: dict[str, Any] | None,
@@ -136,6 +162,7 @@ def evaluate_acceptance(
         current_state.get("dimension_scores"),
         candidate_dimensions,
     )
+    evolution_acceptance_score, retirement_penalty = _evolution_feedback(current_program, candidate_program)
     repair_alignment = _repair_alignment_score(
         program_change_fields,
         improved_dimensions=improved_dimensions,
@@ -177,6 +204,8 @@ def evaluate_acceptance(
         "branch_novelty": branch_novelty,
         "family_novelty": family_novelty,
         "repair_depth": repair_depth,
+        "evolution_acceptance_score": evolution_acceptance_score,
+        "retirement_penalty": retirement_penalty,
         "improved_dimensions": improved_dimensions,
         "weakest_dimension_delta": weakest_dimension_delta,
     }
@@ -191,6 +220,7 @@ def candidate_rank(candidate: dict[str, Any]) -> tuple[int, int, int, int, int, 
         int(candidate.get("score", 0) or 0),
         int(selection.get("weakest_dimension_delta", 0) or 0),
         int(selection.get("repair_alignment", 0) or 0),
+        int(selection.get("evolution_acceptance_score", 0) or 0),
         int(len(selection.get("improved_dimensions", [])) or 0),
         int(selection.get("branch_novelty", 0) or 0),
         int(selection.get("family_novelty", 0) or 0),
@@ -199,6 +229,7 @@ def candidate_rank(candidate: dict[str, Any]) -> tuple[int, int, int, int, int, 
         int(selection.get("provider_specialization", 0) or 0),
         -int(selection.get("repair_depth", 0) or 0),
         int(len(selection.get("program_change_fields", [])) or 0),
+        -int(selection.get("retirement_penalty", 0) or 0),
         -int(len(selection.get("anti_cheat_warnings", [])) or 0),
         int(candidate.get("matched_count", 0) or 0),
         int(candidate.get("finding_count", 0) or 0),

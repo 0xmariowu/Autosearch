@@ -43,10 +43,15 @@ class GoalRuntimeTests(unittest.TestCase):
         self.assertIn("repair_policy", program)
         self.assertIn("population_policy", program)
         self.assertEqual(program["population_policy"]["max_branch_depth"], 4)
+        self.assertEqual(program["population_policy"]["recursive_depth_limit"], 4)
+        self.assertEqual(program["population_policy"]["retire_family_after_rejections"], 3)
+        self.assertIn("branch_budget_per_round", program["population_policy"])
         self.assertEqual(program["explore_budget"], 0.25)
         self.assertEqual(program["exploit_budget"], 0.75)
         self.assertEqual(program["sampling_policy"]["bundle_per_query_cap"], 4)
         self.assertEqual(program["stop_rules"]["target_score"], 100)
+        self.assertIn("mutation_acceptance", program["evolution_stats"])
+        self.assertIn("retired_families", program["evolution_stats"])
 
     def test_build_candidate_program_applies_program_overrides(self):
         parent = gr.default_program(

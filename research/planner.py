@@ -15,6 +15,35 @@ def _current_round_role(active_program: dict[str, Any], round_history: list[dict
     return roles[0]
 
 
+def _retired_mutation_kinds(active_program: dict[str, Any]) -> set[str]:
+    stats = dict(active_program.get("evolution_stats") or {})
+    return {
+        str(item).strip()
+        for item in list(stats.get("retired_mutation_kinds") or [])
+        if str(item).strip()
+    }
+
+
+def _branch_budget(active_program: dict[str, Any]) -> dict[str, int]:
+    policy = dict(active_program.get("population_policy") or {})
+    raw = dict(policy.get("branch_budget_per_round") or {})
+    budget = {
+        "breadth": 1,
+        "repair": 2,
+        "followup": 2,
+        "probe": 1,
+        "research": 1,
+    }
+    for key, value in raw.items():
+        budget[str(key)] = max(int(value or 0), 0)
+    return budget
+
+
+def _recursive_depth_limit(active_program: dict[str, Any]) -> int:
+    policy = dict(active_program.get("population_policy") or {})
+    return int(policy.get("recursive_depth_limit", policy.get("max_branch_depth", 4)) or 4)
+
+
 def _anchor_tokens(local_evidence_records: list[dict[str, Any]] | None, *, limit: int = 4) -> list[str]:
     counts: Counter[str] = Counter()
     for item in list(local_evidence_records or []):
@@ -56,6 +85,19 @@ def _branch_type(role: str) -> str:
     if "probe" in lowered:
         return "probe"
     return "research"
+
+
+def _mutation_kind_for_role(role: str) -> str:
+    branch_type = _branch_type(role)
+    if branch_type == "repair":
+        return "dimension_repair"
+    if branch_type == "probe":
+        return "frontier_probe"
+    if branch_type == "followup":
+        return "anchor_followup"
+    if branch_type == "breadth":
+        return "broad_recall"
+    return "mutation"
 
 
 def _branch_subgoal(role: str, judge_result: dict[str, Any]) -> str:
@@ -155,6 +197,9 @@ def build_research_plan(
     local_evidence_records: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     current_role = _current_round_role(active_program, round_history)
+    retired_mutations = _retired_mutation_kinds(active_program)
+    if _mutation_kind_for_role(current_role) in retired_mutations:
+        current_role = "orthogonal_probe" if "orthogonal_probe" in list(active_program.get("round_roles") or []) else "broad_recall"
     local_evidence_records = list(local_evidence_records or [])
     plans = searcher.candidate_plans(
         bundle_state=bundle_state,
@@ -169,6 +214,8 @@ def build_research_plan(
     normalized: list[dict[str, Any]] = []
     previous_node = str((round_history[-1] or {}).get("graph_node") or "") if round_history else ""
     branch_depth = int((round_history[-1] or {}).get("branch_depth", 0) or 0) if round_history else 0
+    recursive_depth_limit = _recursive_depth_limit(active_program)
+    branch_budget = _branch_budget(active_program)
     follow_up_candidates = _follow_up_queries(
         local_evidence_records=local_evidence_records,
         judge_result=judge_result,
@@ -190,6 +237,9 @@ def build_research_plan(
             max_queries=max_queries,
         )
         role = str(plan.get("role") or current_role or "broad_recall")
+        branch_type = _branch_type(role)
+        if _mutation_kind_for_role(role) in retired_mutations:
+            continue
         graph_node = _node_id(role, index, branch_depth + 1)
         branch_targets = _repair_terms(judge_result)
         normalized.append({
@@ -197,7 +247,7 @@ def build_research_plan(
             "queries": queries,
             "intents": queries,
             "role": role,
-            "branch_type": _branch_type(role),
+            "branch_type": branch_type,
             "branch_subgoal": _branch_subgoal(role, judge_result),
             "stage": "repair" if role != "broad_recall" else "breadth",
             "graph_node": graph_node,
@@ -212,8 +262,9 @@ def build_research_plan(
             "program_overrides": dict(plan.get("program_overrides") or {}),
             "local_evidence_records": local_evidence_records,
             "branch_depth": branch_depth + 1,
+            "branch_priority": 3 if branch_type == "repair" else 2 if branch_type == "followup" else 1,
         })
-    if follow_up_candidates and len(normalized) < max(plan_count, 1):
+    if follow_up_candidates and len(normalized) < max(plan_count, 1) and branch_depth + 1 <= recursive_depth_limit and "anchor_followup" not in retired_mutations:
         graph_node = _node_id("graph_followup", len(normalized) + 1, branch_depth + 1)
         normalized.append({
             "label": "graph-followup",
@@ -229,8 +280,9 @@ def build_research_plan(
             "program_overrides": {"current_role": "dimension_repair"},
             "local_evidence_records": local_evidence_records,
             "branch_depth": branch_depth + 1,
+            "branch_priority": 4,
         })
-    if decomposition_candidates and len(normalized) < max(plan_count + 1, 2):
+    if decomposition_candidates and len(normalized) < max(plan_count + 1, 2) and branch_depth + 2 <= recursive_depth_limit and "anchor_followup" not in retired_mutations:
         graph_node = _node_id("decomposition_followup", len(normalized) + 1, branch_depth + 2)
         normalized.append({
             "label": "graph-decomposition-followup",
@@ -246,5 +298,24 @@ def build_research_plan(
             "program_overrides": {"current_role": "dimension_repair"},
             "local_evidence_records": local_evidence_records,
             "branch_depth": branch_depth + 2,
+            "branch_priority": 5,
         })
-    return normalized
+    ranked = sorted(
+        normalized,
+        key=lambda item: (
+            int(item.get("branch_priority", 0) or 0),
+            -int(item.get("branch_depth", 0) or 0),
+        ),
+        reverse=True,
+    )
+    counts: Counter[str] = Counter()
+    filtered: list[dict[str, Any]] = []
+    for item in ranked:
+        branch_type = str(item.get("branch_type") or "research")
+        if counts[branch_type] >= int(branch_budget.get(branch_type, plan_count) or plan_count):
+            continue
+        filtered.append(item)
+        counts[branch_type] += 1
+        if len(filtered) >= max(plan_count, 1):
+            break
+    return filtered
