@@ -76,6 +76,8 @@ Use the smallest entry point that matches your need:
   `AutoSearchInterface.build_searcher_judge_session(...)`
 - If you want to run the full goal loop directly:
   `AutoSearchInterface.run_goal_case(...)`
+- If you want to run the same runtime across multiple goals:
+  `AutoSearchInterface.run_goal_benchmark(...)`
 
 If another project wants the explicit `搜索员 + 打分员` split, use a session:
 
@@ -86,6 +88,27 @@ client = AutoSearchInterface("/path/to/autosearch")
 session = client.build_searcher_judge_session("atoms-auto-mining-perfect")
 plans = session.searcher_propose()
 round_result = session.run_searcher_round()
+```
+
+Current runtime default:
+
+- Searcher uses the local AutoSearch runtime and heuristic goal searcher.
+- Judge can use OpenRouter when `OPENROUTER_API_KEY` is configured.
+- Current default judge model is `google/gemini-3-flash-preview`.
+- The OpenRouter editor/searcher is disabled by default; enable it only intentionally with `OPENROUTER_ENABLE_EDITOR=1`.
+
+Cross-goal benchmark example:
+
+```python
+from interface import AutoSearchInterface
+
+client = AutoSearchInterface("/path/to/autosearch")
+benchmark = client.run_goal_benchmark(
+    ["atoms-auto-mining-perfect", "autosearch-capability-doctor"],
+    max_rounds=1,
+    plan_count=1,
+    max_queries=1,
+)
 ```
 
 ### Stable Return Shapes
@@ -120,9 +143,33 @@ round_result = session.run_searcher_round()
   - `target_score`
   - `providers_used`
   - `judge_model`
+  - `accepted_program`
   - `bundle_final`
   - `rounds`
   - optional `run_path` when `persist_run=True`
+- Stable tuning arguments:
+  - `max_rounds`
+  - optional `plan_count`
+  - optional `max_queries`
+
+`run_goal_benchmark(...)`
+
+- Returns a benchmark summary payload for multiple goal cases.
+- Stable keys to rely on:
+  - `generated_at`
+  - `max_rounds`
+  - `plan_count`
+  - `max_queries`
+  - `goals`
+- Each `goals[*]` item guarantees:
+  - `goal_id`
+  - `problem`
+  - `target_score`
+  - `final_score`
+  - `accepted_rounds`
+  - `rounds_run`
+  - `providers_used`
+  - `accepted_program_id`
 
 `build_searcher_judge_session(...)`
 
@@ -145,6 +192,7 @@ round_result = session.run_searcher_round()
   - `query_runs`
   - `finding_count`
   - `judge_result`
+  - optional `program_overrides`
 
 ### Maintenance Note
 
@@ -202,6 +250,8 @@ The static capability layer lives under `sources/`:
 
 - `sources/catalog.json` — source/provider registry
 - `sources/latest-capability.json` — machine-readable availability and doctor output
+
+Current runtime providers include `exa`, `tavily`, GitHub providers, `twitter_xreach`, and `huggingface_datasets`.
 
 ## Control Plane Files
 

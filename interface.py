@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from engine import Engine, EngineConfig
+from goal_benchmark import run_benchmark
 from goal_bundle_loop import GOAL_RUNS_ROOT, load_goal_case, run_goal_bundle_loop
 from goal_editor import GoalSearcher
 from goal_judge import evaluate_goal_bundle
@@ -36,6 +37,19 @@ class SearcherJudgeSession:
         self.platforms = available_platforms(self.goal_case, self.capability_report)
         self.searcher = GoalSearcher(self.goal_case)
 
+    def _goal_axes(self) -> list[str]:
+        dimension_ids = [str(dim.get("id") or "") for dim in self.goal_case.get("dimensions", []) if str(dim.get("id") or "")]
+        if dimension_ids:
+            return dimension_ids
+        template_ids = [str(key) for key in dict(self.goal_case.get("dimension_queries") or {}).keys() if str(key)]
+        if template_ids:
+            return template_ids
+        rubric_ids = [
+            str(item.get("id") or f"criterion_{index}")
+            for index, item in enumerate(self.goal_case.get("rubric", []), start=1)
+        ]
+        return [item for item in rubric_ids if item]
+
     def initial_queries(self) -> list[dict[str, Any]]:
         return [normalize_query_spec(query) for query in self.searcher.initial_queries()]
 
@@ -45,20 +59,22 @@ class SearcherJudgeSession:
         bundle_state: dict[str, Any] | None = None,
         judge_result: dict[str, Any] | None = None,
         tried_queries: set[str] | None = None,
+        active_program: dict[str, Any] | None = None,
         round_history: list[dict[str, Any]] | None = None,
         plan_count: int = 3,
         max_queries: int = 5,
     ) -> list[dict[str, Any]]:
+        goal_axes = self._goal_axes()
         bundle_state = dict(bundle_state or {
             "accepted_findings": [],
             "score": 0,
             "dimension_scores": {},
-            "missing_dimensions": [str(dim.get("id") or "") for dim in self.goal_case.get("dimensions", [])],
+            "missing_dimensions": goal_axes,
         })
         judge_result = dict(judge_result or {
             "score": 0,
             "dimension_scores": {},
-            "missing_dimensions": bundle_state.get("missing_dimensions", []),
+            "missing_dimensions": list(bundle_state.get("missing_dimensions", []) or goal_axes),
             "matched_dimensions": [],
             "rationale": "empty bundle",
         })
@@ -67,16 +83,26 @@ class SearcherJudgeSession:
             judge_result=judge_result,
             tried_queries=set(tried_queries or set()),
             available_providers=[platform["name"] for platform in self.platforms],
+            active_program=dict(active_program or {}),
             round_history=list(round_history or []),
             plan_count=plan_count,
             max_queries=max_queries,
+        ) or (
+            [{"label": "seed", "queries": self.initial_queries()[:max_queries], "program_overrides": {}}]
+            if not list(bundle_state.get("accepted_findings") or [])
+            else []
         )
 
-    def searcher_execute(self, queries: list[dict[str, Any]]) -> dict[str, Any]:
+    def searcher_execute(
+        self,
+        queries: list[dict[str, Any]],
+        *,
+        sampling_policy: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         query_runs: list[dict[str, Any]] = []
         findings: list[dict[str, Any]] = []
         for query in queries:
-            run = search_query(query, self.platforms)
+            run = search_query(query, self.platforms, sampling_policy=sampling_policy)
             query_runs.append({
                 "query": run["query"],
                 "query_spec": run["query_spec"],
@@ -100,6 +126,7 @@ class SearcherJudgeSession:
         bundle_state: dict[str, Any] | None = None,
         judge_result: dict[str, Any] | None = None,
         tried_queries: set[str] | None = None,
+        active_program: dict[str, Any] | None = None,
         round_history: list[dict[str, Any]] | None = None,
         plan_count: int = 3,
         max_queries: int = 5,
@@ -108,16 +135,21 @@ class SearcherJudgeSession:
             bundle_state=bundle_state,
             judge_result=judge_result,
             tried_queries=tried_queries,
+            active_program=active_program,
             round_history=round_history,
             plan_count=plan_count,
             max_queries=max_queries,
         )
         plan_results: list[dict[str, Any]] = []
         for plan in plans:
-            execution = self.searcher_execute(list(plan.get("queries") or []))
+            execution = self.searcher_execute(
+                list(plan.get("queries") or []),
+                sampling_policy=dict((plan.get("program_overrides") or {}).get("sampling_policy") or {}),
+            )
             judged = self.judge_bundle(execution["findings"])
             plan_results.append({
                 "label": str(plan.get("label") or ""),
+                "program_overrides": dict(plan.get("program_overrides") or {}),
                 "queries": execution["queries"],
                 "query_runs": execution["query_runs"],
                 "finding_count": len(execution["findings"]),
@@ -175,10 +207,17 @@ class AutoSearchInterface:
         goal_case: str | Path | dict[str, Any],
         *,
         max_rounds: int = 8,
+        plan_count: int | None = None,
+        max_queries: int | None = None,
         persist_run: bool = True,
     ) -> dict[str, Any]:
         payload = self.resolve_goal_case(goal_case)
-        result = run_goal_bundle_loop(payload, max_rounds=max_rounds)
+        result = run_goal_bundle_loop(
+            payload,
+            max_rounds=max_rounds,
+            plan_count_override=plan_count,
+            max_queries_override=max_queries,
+        )
         if persist_run:
             self.goal_runs_root.mkdir(parents=True, exist_ok=True)
             run_path = self.goal_runs_root / (
@@ -187,6 +226,32 @@ class AutoSearchInterface:
             run_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
             result = {**result, "run_path": str(run_path)}
         return result
+
+    def run_goal_benchmark(
+        self,
+        goals: list[str | Path | dict[str, Any]],
+        *,
+        max_rounds: int = 1,
+        plan_count: int = 1,
+        max_queries: int = 1,
+    ) -> dict[str, Any]:
+        goal_paths: list[Path] = []
+        for goal in goals:
+            if isinstance(goal, dict):
+                raise TypeError("run_goal_benchmark currently accepts goal ids or paths, not inline dict goal cases")
+            path = Path(goal)
+            if path.exists():
+                goal_paths.append(path)
+            else:
+                resolved = self.resolve_goal_case(goal)
+                goal_paths.append(Path(self.goal_cases_root / f"{resolved.get('id')}.json"))
+        benchmark = run_benchmark(
+            goal_paths,
+            max_rounds=max_rounds,
+            plan_count=plan_count,
+            max_queries=max_queries,
+        )
+        return benchmark["payload"]
 
     def run_search_task(
         self,

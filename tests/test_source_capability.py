@@ -35,6 +35,46 @@ class SourceCapabilityTests(unittest.TestCase):
         self.assertEqual(result.results[0].title, "example/project:docs/release.md")
         self.assertIn("fail-closed release gate", result.results[0].body)
 
+    def test_tavily_search_parses_results(self):
+        payload = {
+            "results": [
+                {
+                    "title": "Provider doctor patterns",
+                    "url": "https://example.com/provider-doctor",
+                    "content": "doctor report and runtime skip implementation",
+                    "score": 0.82,
+                }
+            ]
+        }
+        class FakeResponse:
+            def read(self):
+                return __import__("json").dumps(payload).encode("utf-8")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        with patch.dict("os.environ", {"TAVILY_API_KEY": "tvly-demo-key-1234567890"}, clear=False), \
+             patch("engine.urllib.request.urlopen", return_value=FakeResponse()):
+            result = PlatformConnector._tavily({"name": "tavily", "limit": 5}, "provider doctor")
+        self.assertEqual(result.provider, "tavily")
+        self.assertEqual(len(result.results), 1)
+        self.assertEqual(result.results[0].url, "https://example.com/provider-doctor")
+
+    def test_tavily_capability_requires_api_key(self):
+        with patch.dict("os.environ", {}, clear=True):
+            status = sc.check_source({
+                "name": "tavily",
+                "kind": "provider",
+                "runtime_enabled": True,
+                "tier": 0,
+                "backend": "Tavily Search API",
+                "check": "tavily_api",
+            })
+        self.assertFalse(status["available"])
+
     def test_build_capability_report_tracks_runtime_availability(self):
         catalog = {
             "sources": [

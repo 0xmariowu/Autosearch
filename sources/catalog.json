@@ -46,6 +46,15 @@
       "check": "exa_mcporter"
     },
     {
+      "name": "tavily",
+      "kind": "provider",
+      "family": "web",
+      "tier": 0,
+      "runtime_enabled": true,
+      "backend": "Tavily Search API",
+      "check": "tavily_api"
+    },
+    {
       "name": "reddit_exa",
       "kind": "provider",
       "family": "reddit",
