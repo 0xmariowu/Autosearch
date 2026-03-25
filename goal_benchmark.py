@@ -107,6 +107,8 @@ def main() -> None:
     parser.add_argument("--max-rounds", type=int, default=2)
     parser.add_argument("--plan-count", type=int, default=1)
     parser.add_argument("--max-queries", type=int, default=1)
+    parser.add_argument("--target-score", type=int, default=0)
+    parser.add_argument("--plateau-rounds", type=int, default=0)
     args = parser.parse_args()
 
     goal_paths: list[Path] = []
@@ -125,6 +127,8 @@ def main() -> None:
         max_rounds=args.max_rounds,
         plan_count=args.plan_count,
         max_queries=args.max_queries,
+        target_score=args.target_score or None,
+        plateau_rounds=args.plateau_rounds or None,
     )
     outputs = _write_outputs(benchmark)
     print(json.dumps({

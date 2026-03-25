@@ -35,6 +35,26 @@ def _provider_specialization_score(current_program: dict[str, Any] | None, candi
     return max(0, len(current_mix) - len(candidate_mix))
 
 
+def _dimension_improvements(
+    current_dimensions: dict[str, Any] | None,
+    candidate_dimensions: dict[str, Any] | None,
+) -> tuple[list[str], int]:
+    current_dimensions = dict(current_dimensions or {})
+    candidate_dimensions = dict(candidate_dimensions or {})
+    improved: list[str] = []
+    weakest_delta = 0
+    if current_dimensions:
+        weakest_dim = min(
+            current_dimensions.keys(),
+            key=lambda key: int(current_dimensions.get(key, 0) or 0),
+        )
+        weakest_delta = int(candidate_dimensions.get(weakest_dim, 0) or 0) - int(current_dimensions.get(weakest_dim, 0) or 0)
+    for dim_id in set(current_dimensions) | set(candidate_dimensions):
+        if int(candidate_dimensions.get(dim_id, 0) or 0) > int(current_dimensions.get(dim_id, 0) or 0):
+            improved.append(str(dim_id))
+    return sorted(improved), int(weakest_delta)
+
+
 def evaluate_acceptance(
     *,
     current_state: dict[str, Any],
@@ -69,6 +89,10 @@ def evaluate_acceptance(
     program_change_fields = _program_change_fields(current_program, candidate_program)
     program_changed = bool(program_change_fields)
     provider_specialization = _provider_specialization_score(current_program, candidate_program)
+    improved_dimensions, weakest_dimension_delta = _dimension_improvements(
+        current_state.get("dimension_scores"),
+        candidate_dimensions,
+    )
 
     improved_score = candidate_score > current_score
     improved_profile = candidate_profile > current_profile
@@ -81,7 +105,7 @@ def evaluate_acceptance(
         accepted = True
         reason = "score_improved"
     elif candidate_score == current_score and not hard_failures and materially_new and (
-        improved_profile or improved_findings or program_changed
+        improved_profile or improved_findings or program_changed or bool(improved_dimensions)
     ):
         accepted = True
         reason = "tie_broken_by_profile_novelty_or_program"
@@ -101,16 +125,20 @@ def evaluate_acceptance(
         "program_changed": program_changed,
         "program_change_fields": program_change_fields,
         "provider_specialization": provider_specialization,
+        "improved_dimensions": improved_dimensions,
+        "weakest_dimension_delta": weakest_dimension_delta,
     }
 
 
-def candidate_rank(candidate: dict[str, Any]) -> tuple[int, int, int, int, int, int, int, int]:
+def candidate_rank(candidate: dict[str, Any]) -> tuple[int, int, int, int, int, int, int, int, int, int]:
     dimension_scores = candidate.get("dimension_scores") or {}
     balance = tuple(sorted(int(score or 0) for score in dimension_scores.values()))
     metrics = candidate.get("harness_metrics") or {}
     selection = candidate.get("selection") or {}
     return (
         int(candidate.get("score", 0) or 0),
+        int(selection.get("weakest_dimension_delta", 0) or 0),
+        int(len(selection.get("improved_dimensions", [])) or 0),
         *balance,
         int(metrics.get("new_unique_urls", 0) or 0),
         int(selection.get("provider_specialization", 0) or 0),
