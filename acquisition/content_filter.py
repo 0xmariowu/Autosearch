@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 
 
@@ -12,12 +13,49 @@ def _terms(query: str) -> set[str]:
     }
 
 
-def _paragraph_score(paragraph: str, query_terms: set[str], index: int, total: int) -> tuple[int, int, int]:
+def _split_chunks(paragraph: str) -> list[str]:
+    stripped = str(paragraph or "").strip()
+    if not stripped:
+        return []
+    sentences = [item.strip() for item in re.split(r"(?<=[.!?])\s+", stripped) if item.strip()]
+    if len(sentences) <= 3:
+        return [stripped]
+    chunks: list[str] = []
+    current: list[str] = []
+    for sentence in sentences:
+        current.append(sentence)
+        if len(current) >= 3:
+            chunks.append(" ".join(current))
+            current = []
+    if current:
+        chunks.append(" ".join(current))
+    return chunks or [stripped]
+
+
+def _bm25ish_score(text: str, query_terms: set[str]) -> float:
+    tokens = re.findall(r"[A-Za-z0-9_\-]{4,}", str(text or "").lower())
+    if not tokens or not query_terms:
+        return 0.0
+    token_count = len(tokens)
+    unique = set(tokens)
+    score = 0.0
+    for term in query_terms:
+        tf = tokens.count(term)
+        if not tf:
+            continue
+        rarity = math.log((1 + token_count) / (1 + sum(1 for token in unique if token == term))) + 1.0
+        score += (tf / (tf + 1.2)) * rarity
+    coverage = len(query_terms & unique) / max(len(query_terms), 1)
+    return score + coverage
+
+
+def _paragraph_score(paragraph: str, query_terms: set[str], index: int, total: int) -> tuple[float, int, int]:
     lowered = paragraph.lower()
     overlap = sum(1 for term in query_terms if term in lowered)
+    bm25ish = _bm25ish_score(paragraph, query_terms)
     density = len(re.findall(r"[A-Za-z0-9_\-]{4,}", paragraph))
     edge_bonus = 1 if index in {0, max(total - 1, 0)} else 0
-    return (overlap, edge_bonus, density)
+    return (bm25ish + overlap, edge_bonus, density)
 
 
 def select_relevant_content(text: str, *, query: str = "", max_chars: int = 2400) -> str:
@@ -31,8 +69,12 @@ def select_relevant_content(text: str, *, query: str = "", max_chars: int = 2400
     conclusion = paragraphs[-1:]
     middle = paragraphs[1:-1]
     terms = _terms(query)
+    expanded_middle: list[tuple[int, str]] = []
+    for index, paragraph in enumerate(middle, start=1):
+        for chunk in _split_chunks(paragraph):
+            expanded_middle.append((index, chunk))
     ranked_middle = sorted(
-        enumerate(middle, start=1),
+        expanded_middle,
         key=lambda item: _paragraph_score(item[1], terms, item[0], len(paragraphs)),
         reverse=True,
     )

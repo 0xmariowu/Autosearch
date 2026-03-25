@@ -117,6 +117,15 @@ class AcquisitionPipelineTests(unittest.TestCase):
         self.assertIn("runtime skip and release gate", selected)
         self.assertIn("Conclusion paragraph", selected)
 
+    def test_query_aware_content_filter_selects_relevant_sentence_chunk(self):
+        text = "\n\n".join([
+            "Intro paragraph about systems.",
+            "This page has many details. The release gate blocks rollout on failed validation. Extra filler follows. Another sentence about unrelated UI polish.",
+            "Final note about evaluation.",
+        ])
+        selected = select_relevant_content(text, query="release gate validation", max_chars=350)
+        self.assertIn("release gate blocks rollout", selected)
+
 
 if __name__ == "__main__":
     unittest.main()

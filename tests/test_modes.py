@@ -17,11 +17,14 @@ class ModePolicyTests(unittest.TestCase):
         policy = get_mode_policy("speed")
         self.assertFalse(policy.enable_acquisition)
         self.assertEqual(policy.max_plan_count, 1)
+        self.assertEqual(policy.branch_budget_per_round["followup"], 0)
+        self.assertIn("cross_verify", policy.disabled_actions)
 
     def test_deep_mode_policy_enables_acquisition_and_depth(self):
         policy = get_mode_policy("deep")
         self.assertTrue(policy.enable_acquisition)
         self.assertGreaterEqual(policy.max_branch_depth, 5)
+        self.assertGreaterEqual(policy.branch_budget_per_round["repair"], 3)
 
     def test_default_program_applies_mode_policy(self):
         program = default_program({"id": "goal-a", "mode": "deep"}, ["searxng", "github_repos"])
@@ -40,6 +43,8 @@ class ModePolicyTests(unittest.TestCase):
         })
         self.assertTrue(updated["acquisition_policy"]["acquire_pages"])
         self.assertGreaterEqual(updated["acquisition_policy"]["page_fetch_limit"], 4)
+        self.assertIn("branch_budget_per_round", updated["population_policy"])
+        self.assertIn("plateau_rounds", updated["stop_rules"])
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ from goal_services import (
     search_query,
 )
 from query_dedup import dedup_query_specs
+from search_mesh.registry import classify_query, provider_names_for_classification
 
 
 def _query_role_terms(text: str) -> set[str]:
@@ -42,10 +43,18 @@ def _platforms_for_intent(
     effective_platforms = platforms_for_provider_mix(default_platforms, provider_mix)
     roles = dict(backend_roles or {})
     selected: list[str] = []
+    classification = classify_query(str(query.get("text") or ""), plan_role=plan_role)
     if plan_role == "broad_recall":
         selected.extend(list(roles.get("breadth") or []))
     for role_name in sorted(_query_role_terms(query.get("text") or "")):
         selected.extend(list(roles.get(role_name) or []))
+    classified_names = provider_names_for_classification(classification)
+    if selected and classified_names:
+        gated = [name for name in selected if name in classified_names]
+        if gated:
+            selected = gated
+    elif classified_names:
+        selected.extend(classified_names)
     if not selected:
         return effective_platforms
     seen: set[str] = set()

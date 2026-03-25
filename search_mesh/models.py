@@ -83,18 +83,6 @@ class SearchHit:
             score_hint=int(payload.get("score_hint", payload.get("eng", 0)) or 0),
         )
 
-    def to_legacy_search_result(self):
-        from engine import SearchResult
-
-        return SearchResult(
-            title=self.title,
-            url=self.url,
-            eng=int(self.score_hint or 0),
-            body=self.snippet,
-            source=self.source or self.provider,
-        )
-
-
 @dataclass
 class SearchHitBatch:
     provider: str
@@ -130,9 +118,6 @@ class SearchHitBatch:
             error_alias=str(error_alias or "").strip(),
             backend=str(backend or provider).strip(),
         )
-
-    def to_legacy_search_results(self):
-        return [hit.to_legacy_search_result() for hit in self.hits]
 
     def to_hit_dicts(self) -> list[dict[str, Any]]:
         return [

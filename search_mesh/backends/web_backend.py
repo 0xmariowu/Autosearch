@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from engine import PlatformConnector
-from .base import SearchProvider, extract_entities, legacy_results_to_batch, quote_entities
+from .base import SearchProvider, extract_entities, quote_entities
+from ..compat import batch_from_legacy_results
 
 
 class WebBackend(SearchProvider):
@@ -18,6 +19,18 @@ class WebBackend(SearchProvider):
         "reddit",
         "hn",
     )
+    provider_family = "web_search"
+    provider_families = {
+        "exa": "web_search",
+        "tavily": "web_search",
+        "twitter_xreach": "social",
+        "twitter_exa": "social",
+        "reddit_exa": "discussion",
+        "hn_exa": "discussion",
+        "huggingface_datasets": "dataset",
+        "reddit": "discussion",
+        "hn": "discussion",
+    }
     roles = {"web", "discussion", "academic", "verification"}
     capabilities = {"supports_query_transform": True}
     supports_cross_verification = True
@@ -50,7 +63,7 @@ class WebBackend(SearchProvider):
             outcome = PlatformConnector.search(platform, query)
         else:
             outcome = fn(platform, query)
-        return legacy_results_to_batch(
+        return batch_from_legacy_results(
             name or str(getattr(outcome, "provider", "") or "web"),
             query,
             list(outcome.results or []),

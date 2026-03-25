@@ -22,10 +22,16 @@ class SearchProvider:
     """Registry-facing provider contract."""
 
     provider_names: tuple[str, ...] = ()
+    provider_family: str = "generic"
+    provider_families: dict[str, str] = {}
     roles: set[str] = set()
     capabilities: dict[str, Any] = {}
     supports_cross_verification: bool = False
     supports_acquisition_hints: bool = False
+
+    def family_for(self, provider_name: str) -> str:
+        name = str(provider_name or "").strip()
+        return str(self.provider_families.get(name) or self.provider_family or "generic").strip()
 
     def transform_query(self, provider_name: str, query: str, context: dict[str, Any] | None = None) -> str:
         return str(query or "").strip()
@@ -60,33 +66,3 @@ class BackendRoute:
 
     provider: str
     backend: SearchBackend
-
-
-def legacy_results_to_batch(
-    provider: str,
-    query: str,
-    results: list[Any] | None = None,
-    *,
-    backend: str = "",
-    query_family: str = "unknown",
-    error_alias: str = "",
-) -> SearchHitBatch:
-    items: list[dict[str, Any]] = []
-    for result in list(results or []):
-        items.append(
-            {
-                "title": str(getattr(result, "title", "") or ""),
-                "url": str(getattr(result, "url", "") or ""),
-                "body": str(getattr(result, "body", "") or ""),
-                "source": str(getattr(result, "source", "") or provider),
-                "eng": int(getattr(result, "eng", 0) or 0),
-            }
-        )
-    return SearchHitBatch.from_hit_dicts(
-        provider=str(provider or "").strip(),
-        query=query,
-        items=items,
-        backend=backend or provider,
-        query_family=query_family,
-        error_alias=error_alias,
-    )

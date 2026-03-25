@@ -530,6 +530,7 @@ def run_goal_bundle_loop(
         current_budget = budget_state(program=accepted_program, round_index=round_index, max_rounds=max_rounds)
         action_policy = build_action_policy(
             mode=str(accepted_program.get("mode") or "balanced"),
+            active_program=accepted_program,
             bundle_state=bundle_state,
             judge_result=judge_result,
             round_history=rounds,
@@ -574,6 +575,14 @@ def run_goal_bundle_loop(
             )
         if not candidate_plans:
             break
+
+        if bool((accepted_program.get("stop_rules") or {}).get("stop_on_saturated", False)):
+            if not judge_result.get("missing_dimensions") and not [
+                item for item in list(gap_queue or [])
+                if str(item.get("status") or "open") == "open"
+            ]:
+                stop_reason = "mode_saturated"
+                break
 
         strategy_summaries: list[dict[str, Any]] = []
         best_candidate: dict[str, Any] | None = None

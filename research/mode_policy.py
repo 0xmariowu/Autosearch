@@ -20,6 +20,10 @@ def apply_mode_policy(program: dict[str, Any]) -> dict[str, Any]:
     population_policy["plan_count"] = max(int(population_policy.get("plan_count", 0) or 0), int(policy.max_plan_count))
     population_policy["max_queries"] = max(int(population_policy.get("max_queries", 0) or 0), int(policy.max_queries))
     population_policy["max_branch_depth"] = max(int(population_policy.get("max_branch_depth", 0) or 0), int(policy.max_branch_depth))
+    branch_budget = dict(population_policy.get("branch_budget_per_round") or {})
+    for key, value in dict(policy.branch_budget_per_round or {}).items():
+        branch_budget[str(key)] = max(int(branch_budget.get(key, 0) or 0), int(value or 0))
+    population_policy["branch_budget_per_round"] = branch_budget
     updated["population_policy"] = population_policy
 
     updated["plan_count"] = int(policy.max_plan_count)
@@ -28,6 +32,8 @@ def apply_mode_policy(program: dict[str, Any]) -> dict[str, Any]:
     sampling_policy = dict(updated.get("sampling_policy") or {})
     sampling_policy.setdefault("rank_by_relevance", True)
     sampling_policy["rerank_profile"] = str(sampling_policy.get("rerank_profile") or policy.rerank_profile)
+    if policy.name == "deep":
+        sampling_policy["semantic_query_dedup"] = True
     updated["sampling_policy"] = sampling_policy
 
     acquisition_policy = dict(updated.get("acquisition_policy") or {})
@@ -46,5 +52,18 @@ def apply_mode_policy(program: dict[str, Any]) -> dict[str, Any]:
     repair_policy = dict(updated.get("repair_policy") or {})
     repair_policy["enable_recursive_repair"] = bool(repair_policy.get("enable_recursive_repair", False)) or bool(policy.enable_recursive_repair)
     updated["repair_policy"] = repair_policy
+
+    stop_rules = dict(updated.get("stop_rules") or {})
+    stop_rules["plateau_rounds"] = max(int(stop_rules.get("plateau_rounds", 0) or 0), int(policy.plateau_rounds))
+    stop_rules.setdefault("stop_on_saturated", bool(policy.stop_on_saturated))
+    updated["stop_rules"] = stop_rules
+
+    action_policy_defaults = dict(updated.get("action_policy_defaults") or {})
+    action_policy_defaults.setdefault("disabled_actions", list(policy.disabled_actions))
+    action_policy_defaults["max_findings_before_search_disable"] = max(
+        int(action_policy_defaults.get("max_findings_before_search_disable", 0) or 0),
+        int(policy.max_findings_before_search_disable),
+    )
+    updated["action_policy_defaults"] = action_policy_defaults
 
     return updated

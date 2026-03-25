@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from engine import PlatformConnector
-from .base import SearchProvider, legacy_results_to_batch
+from .base import SearchProvider
+from ..compat import batch_from_legacy_results
 
 
 class SearXNGBackend(SearchProvider):
     provider_names = ("searxng",)
+    provider_family = "web_search"
     roles = {"breadth", "web"}
     capabilities = {"free_first": True, "query_transform": "generic_web"}
     supports_cross_verification = True
@@ -18,7 +20,7 @@ class SearXNGBackend(SearchProvider):
 
     def search(self, platform: dict[str, Any], query: str, *, query_family: str = "unknown"):
         outcome = PlatformConnector._searxng(platform, query)
-        return legacy_results_to_batch(
+        return batch_from_legacy_results(
             str(platform.get("name") or "searxng"),
             query,
             list(outcome.results or []),
