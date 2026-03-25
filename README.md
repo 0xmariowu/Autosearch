@@ -96,6 +96,8 @@ Current runtime default:
 - Judge can use OpenRouter when `OPENROUTER_API_KEY` is configured.
 - Current default judge model is `google/gemini-3-flash-preview`.
 - The OpenRouter editor/searcher is disabled by default; enable it only intentionally with `OPENROUTER_ENABLE_EDITOR=1`.
+- Rubric-only goal cases are supported; if a goal does not define explicit `dimensions`, the runtime derives stable bundle dimensions from `rubric`.
+- Session mode now follows the same provider restrictions as the main loop; `provider_mix` limits both default platforms and structured per-query platform overrides.
 
 Cross-goal benchmark example:
 
@@ -193,6 +195,9 @@ benchmark = client.run_goal_benchmark(
   - `finding_count`
   - `judge_result`
   - optional `program_overrides`
+- Execution notes:
+  - `program_overrides.provider_mix` is applied during search execution
+  - `program_overrides.sampling_policy` is applied during per-query sampling and bundle construction
 
 ### Maintenance Note
 

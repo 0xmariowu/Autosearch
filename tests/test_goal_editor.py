@@ -28,6 +28,7 @@ class GoalEditorTests(unittest.TestCase):
             tried_queries={"query b1::[]"},
         )
         self.assertEqual(next_queries[0]["text"], "query a1")
+        self.assertEqual(next_queries[1]["text"], "query a2")
 
     def test_editor_preserves_structured_query_specs(self):
         goal_case = {
@@ -208,6 +209,41 @@ class GoalEditorTests(unittest.TestCase):
         self.assertEqual(frontier_plan["program_overrides"]["topic_frontier"][0]["id"], "trajectory_subsets")
         self.assertGreaterEqual(frontier_plan["program_overrides"]["explore_budget"], 0.7)
         self.assertEqual(frontier_plan["program_overrides"]["provider_mix"], ["huggingface_datasets"])
+
+    def test_goal_director_synthesizes_templates_from_rubric_when_dimension_queries_missing(self):
+        goal_case = {
+            "seed_queries": ["self improving search loop"],
+            "mutation_terms": ["accept reject", "benchmark"],
+            "rubric": [
+                {"id": "independent_judge", "weight": 20, "keywords": ["judge", "evaluator", "eval"]},
+            ],
+        }
+        searcher = GoalSearcher(goal_case)
+        plans = searcher.candidate_plans(
+            bundle_state={"accepted_findings": [], "score": 0},
+            judge_result={"missing_dimensions": ["independent_judge"], "dimension_scores": {}},
+            tried_queries=set(),
+            available_providers=["github_repos"],
+            plan_count=1,
+            max_queries=2,
+        )
+        self.assertGreaterEqual(len(plans), 1)
+        self.assertIn("judge", plans[0]["queries"][0]["text"])
+
+    def test_editor_uses_mutation_terms_as_refinement_fallback(self):
+        goal_case = {
+            "seed_queries": ["goal loop"],
+            "mutation_terms": ["accept reject"],
+            "dimension_queries": {},
+        }
+        editor = HeuristicGoalSearcher(goal_case)
+        next_queries = editor.next_queries(
+            bundle_state={"accepted_findings": [{"title": "goal loop", "url": "u", "source": "github_repos"}]},
+            judge_result={"missing_dimensions": [], "dimension_scores": {}},
+            tried_queries=set(),
+            max_queries=2,
+        )
+        self.assertTrue(any("accept reject" in query["text"] for query in next_queries))
 
 
 if __name__ == "__main__":

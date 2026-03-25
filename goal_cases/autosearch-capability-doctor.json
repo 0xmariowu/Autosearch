@@ -7,12 +7,14 @@
   "providers": [
     "exa",
     "tavily",
+    "github_code",
     "github_repos",
     "github_issues"
   ],
   "seed_queries": [
     "provider health check auth runtime skip github",
     "preflight provider config check exa github",
+    "provider doctor cli auth config runtime skip implementation",
     "Claude Code",
     "MCP server",
     "skip unavailable provider cli auth status"

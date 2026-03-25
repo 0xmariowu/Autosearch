@@ -13,9 +13,11 @@ __all__ = [
     "available_platforms",
     "merge_findings",
     "normalize_query_spec",
+    "platforms_for_provider_mix",
     "query_key",
     "query_text",
     "replay_queries",
+    "restrict_query_to_provider_mix",
     "sample_findings",
     "search_query",
 ]
@@ -54,6 +56,29 @@ def available_platforms(goal_case: dict[str, Any], capability_report: dict[str, 
         else:
             platforms.append({"name": name, "limit": 5})
     return platforms
+
+
+def platforms_for_provider_mix(
+    platforms: list[dict[str, Any]],
+    provider_mix: list[str] | None,
+) -> list[dict[str, Any]]:
+    allowed = [str(name or "").strip() for name in list(provider_mix or []) if str(name or "").strip()]
+    if not allowed:
+        return [dict(platform) for platform in platforms]
+    return [dict(platform) for platform in platforms if str(platform.get("name") or "") in allowed]
+
+
+def restrict_query_to_provider_mix(query: Any, provider_mix: list[str] | None) -> dict[str, Any]:
+    spec = normalize_query_spec(query)
+    allowed = {str(name or "").strip() for name in list(provider_mix or []) if str(name or "").strip()}
+    if not allowed or not spec.get("platforms"):
+        return spec
+    spec["platforms"] = [
+        dict(platform)
+        for platform in list(spec.get("platforms") or [])
+        if str((platform or {}).get("name") or "") in allowed
+    ]
+    return spec
 
 
 def _query_platforms(query: Any, default_platforms: list[dict[str, Any]]) -> list[dict[str, Any]]:
