@@ -18,11 +18,17 @@ BENCHMARK_ROOT = GOAL_CASES_ROOT / "benchmarks"
 def _benchmark_summary(result: dict[str, Any]) -> dict[str, Any]:
     rounds = list(result.get("rounds") or [])
     accepted_rounds = [item for item in rounds if item.get("accepted")]
+    target_score = int(result.get("target_score", 0) or 0)
+    final_score = int(((result.get("bundle_final") or {}).get("score") or 0))
     return {
         "goal_id": str(result.get("goal_id") or ""),
         "problem": str(result.get("problem") or ""),
-        "target_score": int(result.get("target_score", 0) or 0),
-        "final_score": int(((result.get("bundle_final") or {}).get("score") or 0)),
+        "target_score": target_score,
+        "final_score": final_score,
+        "goal_reached": bool(result.get("goal_reached")),
+        "score_gap": int(result.get("score_gap", max(0, target_score - final_score)) or 0),
+        "stop_reason": str(result.get("stop_reason") or ""),
+        "practical_ceiling": result.get("practical_ceiling"),
         "accepted_rounds": len(accepted_rounds),
         "rounds_run": len(rounds),
         "providers_used": list(result.get("providers_used") or []),
