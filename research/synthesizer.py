@@ -2,12 +2,83 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from typing import Any
 
 from evaluation_harness import build_bundle, bundle_metrics
+from evidence.normalize import coerce_evidence_records
 from goal_judge import evaluate_goal_bundle
 from .bundle import ResearchBundle
 from .routeable_output import build_routeable_output
+
+
+def _query_cluster(bundle: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    counts: Counter[str] = Counter()
+    for item in list(bundle or []):
+        query = str(item.get("query") or "").strip()
+        if query:
+            counts[query] += 1
+    return [
+        {"query": query, "count": count}
+        for query, count in counts.most_common(8)
+    ]
+
+
+def _domain_cluster(bundle: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    counts: Counter[str] = Counter()
+    for item in list(bundle or []):
+        domain = str(item.get("domain") or "").strip()
+        if domain:
+            counts[domain] += 1
+    return [
+        {"domain": domain, "count": count}
+        for domain, count in counts.most_common(8)
+    ]
+
+
+def _graph_scheduler_hints(
+    *,
+    bundle: list[dict[str, Any]],
+    judge_result: dict[str, Any],
+    graph_plan: dict[str, Any] | None,
+) -> dict[str, Any]:
+    graph_plan = dict(graph_plan or {})
+    weakest_dimension = ""
+    dimension_scores = dict(judge_result.get("dimension_scores") or {})
+    if dimension_scores:
+        weakest_dimension = min(
+            sorted(dimension_scores.keys()),
+            key=lambda key: int(dimension_scores.get(key, 0) or 0),
+        )
+    branch_targets = [str(item).strip() for item in list(graph_plan.get("branch_targets") or []) if str(item).strip()]
+    query_clusters = _query_cluster(bundle)
+    domain_clusters = _domain_cluster(bundle)
+    merge_candidates = [
+        item["query"]
+        for item in query_clusters
+        if int(item.get("count", 0) or 0) >= 2
+    ][:4]
+    prune_candidates = [
+        item["domain"]
+        for item in domain_clusters
+        if int(item.get("count", 0) or 0) >= 4
+    ][:4]
+    next_branch_mode = "repair"
+    if merge_candidates and weakest_dimension:
+        next_branch_mode = "merge_and_repair"
+    elif prune_candidates:
+        next_branch_mode = "prune_and_probe"
+    elif weakest_dimension:
+        next_branch_mode = "deeper_repair"
+    return {
+        "branch_targets": branch_targets,
+        "weakest_dimension": weakest_dimension,
+        "query_clusters": query_clusters,
+        "domain_clusters": domain_clusters,
+        "merge_candidates": merge_candidates,
+        "prune_candidates": prune_candidates,
+        "next_branch_mode": next_branch_mode,
+    }
 
 
 def synthesize_research_round(
@@ -16,8 +87,13 @@ def synthesize_research_round(
     existing_findings: list[dict[str, Any]],
     round_findings: list[dict[str, Any]],
     harness: dict[str, Any],
+    graph_plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    bundle = build_bundle(existing_findings, round_findings, harness)
+    bundle = build_bundle(
+        coerce_evidence_records(existing_findings),
+        coerce_evidence_records(round_findings),
+        harness,
+    )
     judge_result = evaluate_goal_bundle(goal_case, bundle)
     research_bundle = ResearchBundle.from_parts(
         goal_id=str(goal_case.get("id") or "goal"),
@@ -33,6 +109,11 @@ def synthesize_research_round(
             sorted(dimension_scores.keys()),
             key=lambda key: int(dimension_scores.get(key, 0) or 0),
         )
+    graph_scheduler = _graph_scheduler_hints(
+        bundle=bundle,
+        judge_result=judge_result,
+        graph_plan=graph_plan,
+    )
     return {
         "bundle": bundle,
         "research_bundle": research_bundle.to_dict(),
@@ -50,11 +131,19 @@ def synthesize_research_round(
                 for item in bundle[:12]
                 if str(item.get("url") or "").strip()
             ],
+            "graph_node": str((graph_plan or {}).get("graph_node") or ""),
+            "graph_edges": list((graph_plan or {}).get("graph_edges") or []),
+            "branch_type": str((graph_plan or {}).get("branch_type") or ""),
+            "branch_subgoal": str((graph_plan or {}).get("branch_subgoal") or ""),
+            "scheduler": graph_scheduler,
         },
         "repair_hints": {
             "weakest_dimension": weakest_dimension,
             "missing_dimensions": list(judge_result.get("missing_dimensions") or []),
             "follow_up_dimensions": list(judge_result.get("missing_dimensions") or [])[:2],
+            "merge_candidates": list(graph_scheduler.get("merge_candidates") or []),
+            "prune_candidates": list(graph_scheduler.get("prune_candidates") or []),
+            "next_branch_mode": str(graph_scheduler.get("next_branch_mode") or ""),
         },
         "routeable_output": build_routeable_output(
             goal_case,
@@ -64,6 +153,9 @@ def synthesize_research_round(
                 "weakest_dimension": weakest_dimension,
                 "missing_dimensions": list(judge_result.get("missing_dimensions") or []),
                 "follow_up_dimensions": list(judge_result.get("missing_dimensions") or [])[:2],
+                "merge_candidates": list(graph_scheduler.get("merge_candidates") or []),
+                "prune_candidates": list(graph_scheduler.get("prune_candidates") or []),
+                "next_branch_mode": str(graph_scheduler.get("next_branch_mode") or ""),
             },
         ),
     }

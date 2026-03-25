@@ -116,22 +116,25 @@ def execute_research_plan(
             if key in tried:
                 continue
             query_keys.append(key)
-        local_hits = search_evidence(local_records, str(effective_query.get("text") or ""), limit=local_limit)
+        local_hits = coerce_evidence_records(
+            search_evidence(local_records, str(effective_query.get("text") or ""), limit=local_limit)
+        )
         findings.extend(local_hits)
         run = search_query(
             effective_query,
             intent_platforms,
             sampling_policy=sampling_policy,
         )
+        normalized_findings = coerce_evidence_records(run["findings"])
         query_runs.append({
             "query": run["query"],
             "query_spec": run["query_spec"],
             "baseline_score": run["baseline_score"],
-            "finding_count": len(run["findings"]),
+            "finding_count": len(normalized_findings),
             "local_evidence_count": len(local_hits),
-            "sample_findings": sample_findings(run["findings"], limit=5),
+            "sample_findings": sample_findings(normalized_findings, limit=5),
         })
-        findings.extend(run["findings"])
+        findings.extend(normalized_findings)
     return {
         "label": str(plan.get("label") or "plan"),
         "queries": intents,
@@ -146,5 +149,5 @@ def execute_research_plan(
         "local_evidence_hits": len(local_records),
         "query_keys": query_keys,
         "query_runs": query_runs,
-        "findings": findings,
+        "findings": coerce_evidence_records(findings),
     }

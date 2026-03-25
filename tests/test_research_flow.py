@@ -177,6 +177,13 @@ class ResearchFlowTests(unittest.TestCase):
                 "query": "implementation",
             }],
             harness={"bundle_policy": {"per_query_cap": 5, "per_source_cap": 10, "per_domain_cap": 10}},
+            graph_plan={
+                "graph_node": "repair-d1-n1",
+                "graph_edges": [{"from": "seed-1", "to": "repair-d1-n1", "kind": "branch"}],
+                "branch_type": "repair",
+                "branch_subgoal": "implementation",
+                "branch_targets": ["implementation"],
+            },
         )
         self.assertIn("bundle", result)
         self.assertIn("judge_result", result)
@@ -188,6 +195,9 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertIn("next_actions", result["routeable_output"])
         self.assertIn("handoff_packets", result["routeable_output"])
         self.assertIn("search_graph", result)
+        self.assertIn("scheduler", result["search_graph"])
+        self.assertIn("graph_handoff", result["routeable_output"])
+        self.assertIn("next_branch_mode", result["routeable_output"]["graph_handoff"])
 
 
 if __name__ == "__main__":

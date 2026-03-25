@@ -75,9 +75,15 @@ def build_routeable_output(
             {
                 "type": "repair",
                 "dimension": weakest_dimension,
+                "mode": str(repair_hints.get("next_branch_mode") or "repair"),
             }
         ] if weakest_dimension else [],
         "citations": citations[:20],
         "keywords": [term for term, _ in keywords.most_common(12)],
         "handoff_packets": handoff_packets,
+        "graph_handoff": {
+            "merge_candidates": list(repair_hints.get("merge_candidates") or []),
+            "prune_candidates": list(repair_hints.get("prune_candidates") or []),
+            "next_branch_mode": str(repair_hints.get("next_branch_mode") or ""),
+        },
     }
