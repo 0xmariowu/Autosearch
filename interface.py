@@ -9,17 +9,15 @@ from pathlib import Path
 from typing import Any
 
 from engine import Engine, EngineConfig
-from goal_bundle_loop import (
-    GOAL_RUNS_ROOT,
-    _available_platforms,
-    _normalize_query_spec,
-    _sample_findings,
-    _search_query,
-    load_goal_case,
-    run_goal_bundle_loop,
-)
+from goal_bundle_loop import GOAL_RUNS_ROOT, load_goal_case, run_goal_bundle_loop
 from goal_editor import GoalSearcher
 from goal_judge import evaluate_goal_bundle
+from goal_services import (
+    available_platforms,
+    normalize_query_spec,
+    sample_findings,
+    search_query,
+)
 from source_capability import load_source_capability_report, refresh_source_capability
 
 __all__ = [
@@ -35,11 +33,11 @@ class SearcherJudgeSession:
     def __init__(self, goal_case: dict[str, Any]):
         self.goal_case = dict(goal_case)
         self.capability_report = refresh_source_capability(self.goal_case.get("providers"))
-        self.platforms = _available_platforms(self.goal_case, self.capability_report)
+        self.platforms = available_platforms(self.goal_case, self.capability_report)
         self.searcher = GoalSearcher(self.goal_case)
 
     def initial_queries(self) -> list[dict[str, Any]]:
-        return [_normalize_query_spec(query) for query in self.searcher.initial_queries()]
+        return [normalize_query_spec(query) for query in self.searcher.initial_queries()]
 
     def searcher_propose(
         self,
@@ -78,17 +76,17 @@ class SearcherJudgeSession:
         query_runs: list[dict[str, Any]] = []
         findings: list[dict[str, Any]] = []
         for query in queries:
-            run = _search_query(query, self.platforms)
+            run = search_query(query, self.platforms)
             query_runs.append({
                 "query": run["query"],
                 "query_spec": run["query_spec"],
                 "baseline_score": run["baseline_score"],
                 "finding_count": len(run["findings"]),
-                "sample_findings": _sample_findings(run["findings"], limit=5),
+                "sample_findings": sample_findings(run["findings"], limit=5),
             })
             findings.extend(run["findings"])
         return {
-            "queries": [_normalize_query_spec(query) for query in queries],
+            "queries": [normalize_query_spec(query) for query in queries],
             "query_runs": query_runs,
             "findings": findings,
         }

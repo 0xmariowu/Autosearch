@@ -148,9 +148,10 @@ round_result = session.run_searcher_round()
 
 ### Maintenance Note
 
-- `interface.py` currently wraps some internal helpers from the goal runtime.
-- That is acceptable for now, but those helpers are not part of the public contract.
-- If the internal implementation changes later, the compatibility target remains the exported surface of `interface.py`, not the helper functions it uses underneath.
+- `interface.py` is the public compatibility target.
+- Internal goal-loop helpers are routed through internal service modules such as `goal_services.py`.
+- Those internal modules are still implementation details and are not part of the public contract.
+- If the internal implementation changes later, compatibility is measured against the exported surface of `interface.py`, not the modules underneath it.
 
 ## Dependencies
 
