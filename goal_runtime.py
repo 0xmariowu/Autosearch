@@ -146,6 +146,7 @@ def default_program(goal_case: dict[str, Any], available_providers: list[str]) -
         "parent_program_id": None,
         "label": "seed-program",
         "branch_id": "seed",
+        "family_id": "seed-family",
         "branch_depth": 0,
         "mutation_kind": "seed",
         "created_at": datetime.now().astimezone().isoformat(),
@@ -199,6 +200,12 @@ def default_program(goal_case: dict[str, Any], available_providers: list[str]) -
         "plan_count": 3,
         "max_queries": 5,
         "mutation_history": [],
+        "evolution_stats": {
+            "accepted_rounds": 0,
+            "rejected_rounds": 0,
+            "family_best_scores": {"seed-family": 0},
+            "last_population_summary": {},
+        },
         "score": 0,
         "dimension_scores": {},
     }
@@ -238,6 +245,7 @@ def build_candidate_program(
         "parent_program_id": parent_program.get("program_id"),
         "label": label,
         "branch_id": str(parent_program.get("branch_id") or _mutation_kind(label)),
+        "family_id": str(parent_program.get("family_id") or f"{_mutation_kind(label)}-family"),
         "branch_root_program_id": str(parent_program.get("branch_root_program_id") or parent_program.get("program_id") or "seed-program"),
         "branch_depth": int(parent_program.get("branch_depth", 0) or 0) + 1,
         "repair_depth": int(parent_program.get("repair_depth", 0) or 0) + (1 if _mutation_kind(label) == "dimension_repair" else 0),
@@ -264,6 +272,7 @@ def build_candidate_program(
         "plan_count": int(parent_program.get("plan_count", 3) or 3),
         "max_queries": int(parent_program.get("max_queries", 5) or 5),
         "mutation_history": list(parent_program.get("mutation_history") or []) + [label],
+        "evolution_stats": dict(parent_program.get("evolution_stats") or {}),
         "score": int(parent_program.get("score", 0) or 0),
         "dimension_scores": dict(parent_program.get("dimension_scores") or {}),
     }
@@ -326,6 +335,11 @@ def _population_lineage_summary(population: list[dict[str, Any]]) -> dict[str, A
             for item in population
             if str(item.get("branch_root_program_id") or "")
         }),
+        "family_ids": sorted({
+            str(item.get("family_id") or "")
+            for item in population
+            if str(item.get("family_id") or "")
+        }),
         "accepted_candidates": [
             str(item.get("program_id") or "")
             for item in population
@@ -361,6 +375,26 @@ def _population_lineage_summary(population: list[dict[str, Any]]) -> dict[str, A
                 str(item.get("branch_id") or "")
                 for item in population
                 if str(item.get("branch_id") or "")
+            })
+        },
+        "family_counts": {
+            family_id: sum(1 for item in population if str(item.get("family_id") or "") == family_id)
+            for family_id in sorted({
+                str(item.get("family_id") or "")
+                for item in population
+                if str(item.get("family_id") or "")
+            })
+        },
+        "family_best_scores": {
+            family_id: max(
+                int(item.get("score", 0) or 0)
+                for item in population
+                if str(item.get("family_id") or "") == family_id
+            )
+            for family_id in sorted({
+                str(item.get("family_id") or "")
+                for item in population
+                if str(item.get("family_id") or "")
             })
         },
         "mutation_kind_counts": {

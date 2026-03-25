@@ -9,6 +9,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from engine import PlatformSearchOutcome, SearchResult
+from search_mesh.models import SearchHitBatch
 from search_mesh.provider_policy import available_platforms, default_platform_config, goal_provider_names
 from search_mesh.router import route_for_provider, search_platform
 
@@ -46,8 +47,10 @@ class SearchMeshTests(unittest.TestCase):
                 results=[SearchResult(title="hit", url="https://example.com", source="github_code")],
             )
             outcome = search_platform({"name": "github_code", "limit": 5}, "release gate")
+        self.assertIsInstance(outcome, SearchHitBatch)
         self.assertEqual(outcome.provider, "github_code")
-        self.assertEqual(len(outcome.results), 1)
+        self.assertEqual(len(outcome.hits), 1)
+        self.assertEqual(outcome.hits[0].title, "hit")
 
 
 if __name__ == "__main__":

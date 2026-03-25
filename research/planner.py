@@ -69,6 +69,27 @@ def _augment_queries(
     return augmented[:max_queries]
 
 
+def _follow_up_queries(
+    *,
+    local_evidence_records: list[dict[str, Any]] | None,
+    judge_result: dict[str, Any],
+    max_queries: int,
+    tried_queries: set[str],
+) -> list[dict[str, Any]]:
+    anchors = _anchor_tokens(local_evidence_records, limit=6)
+    repairs = _repair_terms(judge_result)
+    follow_ups: list[dict[str, Any]] = []
+    for repair in repairs:
+        for anchor in anchors:
+            spec = {"text": f"{anchor} {repair} implementation".strip(), "platforms": []}
+            if str(spec) in tried_queries or spec in follow_ups:
+                continue
+            follow_ups.append(spec)
+            if len(follow_ups) >= max_queries:
+                return follow_ups
+    return follow_ups
+
+
 def build_research_plan(
     *,
     searcher: Any,
@@ -96,6 +117,12 @@ def build_research_plan(
     )
     normalized: list[dict[str, Any]] = []
     previous_node = str((round_history[-1] or {}).get("graph_node") or "") if round_history else ""
+    follow_up_candidates = _follow_up_queries(
+        local_evidence_records=local_evidence_records,
+        judge_result=judge_result,
+        max_queries=max_queries,
+        tried_queries=tried_queries,
+    )
     for index, plan in enumerate(list(plans or []), start=1):
         queries = _augment_queries(
             list(plan.get("queries") or []),
@@ -117,6 +144,20 @@ def build_research_plan(
             "graph_edges": [{"from": previous_node, "to": graph_node}] if previous_node else [],
             "branch_targets": branch_targets,
             "program_overrides": dict(plan.get("program_overrides") or {}),
+            "local_evidence_records": local_evidence_records,
+        })
+    if follow_up_candidates and len(normalized) < max(plan_count, 1):
+        graph_node = f"followup-{len(normalized) + 1}"
+        normalized.append({
+            "label": "graph-followup",
+            "queries": follow_up_candidates[:max_queries],
+            "intents": follow_up_candidates[:max_queries],
+            "role": "graph_followup",
+            "stage": "followup",
+            "graph_node": graph_node,
+            "graph_edges": [{"from": previous_node, "to": graph_node, "kind": "follow_up"}] if previous_node else [],
+            "branch_targets": _repair_terms(judge_result),
+            "program_overrides": {"current_role": "dimension_repair"},
             "local_evidence_records": local_evidence_records,
         })
     return normalized

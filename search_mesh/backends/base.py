@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from engine import PlatformSearchOutcome
+from search_mesh.models import SearchHitBatch
 
 
 class SearchBackend(Protocol):
@@ -13,7 +13,7 @@ class SearchBackend(Protocol):
 
     provider_names: tuple[str, ...]
 
-    def search(self, platform: dict[str, Any], query: str) -> PlatformSearchOutcome:
+    def search(self, platform: dict[str, Any], query: str):
         """Execute a search for a single configured provider."""
 
 

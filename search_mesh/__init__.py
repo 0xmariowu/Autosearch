@@ -8,10 +8,13 @@ from .provider_policy import (
     goal_provider_names,
 )
 from .router import search_platform
+from .models import SearchHit, SearchHitBatch
 
 __all__ = [
     "FREE_BREADTH_PROVIDERS",
     "PREMIUM_BREADTH_PROVIDERS",
+    "SearchHit",
+    "SearchHitBatch",
     "available_platforms",
     "default_platform_config",
     "goal_provider_names",

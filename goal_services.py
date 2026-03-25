@@ -18,6 +18,7 @@ from search_mesh.provider_policy import (
     goal_provider_names,
 )
 from search_mesh.router import search_platform
+from search_mesh.models import SearchHitBatch
 
 __all__ = [
     "available_platforms",
@@ -122,6 +123,7 @@ def _sampling_config(sampling_policy: dict[str, Any] | None) -> dict[str, Any]:
         "acquire_pages": bool(policy.get("acquire_pages", False)),
         "page_fetch_limit": int(policy.get("page_fetch_limit", 2) or 2),
         "use_render_fallback": bool(policy.get("use_render_fallback", False)),
+        "use_crawl4ai_adapter": bool(policy.get("use_crawl4ai_adapter", False)),
         "preferred_content_types": [
             str(item or "").strip()
             for item in list(policy.get("preferred_content_types") or [])
@@ -156,9 +158,10 @@ def search_query(
         # through the formal search mesh layer.
         if "unittest.mock" in str(type(platform_search)):
             outcome = platform_search(platform_config, platform_query)
+            batch = SearchHitBatch.from_platform_outcome(outcome, query=platform_query, backend=str(platform_config.get("name") or ""))
         else:
-            outcome = search_platform(platform_config, platform_query)
-        all_results.extend(outcome.results)
+            batch = search_platform(platform_config, platform_query)
+        all_results.extend(batch.to_search_results())
     _, raw_score, new_results = scorer.score_results(all_results)
     if sampling["rank_by_relevance"]:
         ranked_results = sorted(
@@ -177,13 +180,20 @@ def search_query(
     for index, result in enumerate(selected_results[: sampling["per_query_findings_cap"]]):
         record = build_evidence_record_from_result(result, query_str)
         if sampling["acquire_pages"] and index < sampling["page_fetch_limit"]:
+            enrich_kwargs: dict[str, Any] = {}
+            if sampling["use_crawl4ai_adapter"]:
+                enrich_kwargs["use_crawl4ai_adapter"] = True
             if sampling["use_render_fallback"]:
                 record = enrich_evidence_record(
                     record,
                     use_render_fallback=True,
+                    **enrich_kwargs,
                 )
             else:
-                record = enrich_evidence_record(record)
+                record = enrich_evidence_record(
+                    record,
+                    **enrich_kwargs,
+                )
             if sampling["prefer_acquired_text"] and record.get("acquired_text"):
                 record = build_evidence_record(
                     title=str(record.get("acquired_title") or record.get("title") or ""),

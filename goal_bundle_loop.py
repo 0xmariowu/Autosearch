@@ -140,6 +140,45 @@ def _update_plateau_state(
         next_state["practical_ceiling"] = int(next_state.get("best_score", candidate_score) or candidate_score)
     return next_state
 
+
+def _updated_evolution_stats(
+    current_program: dict[str, Any],
+    *,
+    population: list[dict[str, Any]],
+    accepted: bool,
+    accepted_program: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    stats = dict(current_program.get("evolution_stats") or {})
+    stats["accepted_rounds"] = int(stats.get("accepted_rounds", 0) or 0) + (1 if accepted else 0)
+    stats["rejected_rounds"] = int(stats.get("rejected_rounds", 0) or 0) + (0 if accepted else 1)
+    family_best_scores = dict(stats.get("family_best_scores") or {})
+    if accepted_program is not None:
+        family_id = str(accepted_program.get("family_id") or "")
+        if family_id:
+            family_best_scores[family_id] = max(
+                int(family_best_scores.get(family_id, 0) or 0),
+                int(accepted_program.get("score", 0) or 0),
+            )
+    stats["family_best_scores"] = family_best_scores
+    stats["last_population_summary"] = {
+        "population_size": len(population),
+        "branch_counts": {
+            str(item.get("branch_id") or ""): sum(
+                1 for other in population if str(other.get("branch_id") or "") == str(item.get("branch_id") or "")
+            )
+            for item in population
+            if str(item.get("branch_id") or "")
+        },
+        "family_counts": {
+            str(item.get("family_id") or ""): sum(
+                1 for other in population if str(other.get("family_id") or "") == str(item.get("family_id") or "")
+            )
+            for item in population
+            if str(item.get("family_id") or "")
+        },
+    }
+    return stats
+
 def _promote_compatible_archive_candidate(
     *,
     goal_case: dict[str, Any],
@@ -520,6 +559,7 @@ def run_goal_bundle_loop(
                 "provider_mix": list(candidate_program.get("provider_mix") or []),
                 "search_backends": list(candidate_program.get("search_backends") or []),
                 "branch_id": str(candidate_program.get("branch_id") or ""),
+                "family_id": str(candidate_program.get("family_id") or ""),
                 "branch_root_program_id": str(candidate_program.get("branch_root_program_id") or ""),
                 "branch_depth": int(candidate_program.get("branch_depth", 0) or 0),
                 "repair_depth": int(candidate_program.get("repair_depth", 0) or 0),
@@ -590,6 +630,15 @@ def run_goal_bundle_loop(
                     current_dimensions=previous_dimensions,
                     candidate_dimensions=dict(judge_result.get("dimension_scores") or {}),
                 ),
+                "evolution_stats": _updated_evolution_stats(
+                    accepted_program,
+                    population=population,
+                    accepted=True,
+                    accepted_program={
+                        **best_candidate["program"],
+                        "score": candidate_score,
+                    },
+                ),
                 "accepted_at": datetime.now().astimezone().isoformat(),
             }
             save_accepted_program(str(goal_case.get("id") or "goal"), accepted_program)
@@ -605,6 +654,11 @@ def run_goal_bundle_loop(
                     current_score=previous_score,
                     current_dimensions=previous_dimensions,
                     candidate_dimensions=dict(judge_result.get("dimension_scores") or {}),
+                ),
+                "evolution_stats": _updated_evolution_stats(
+                    accepted_program,
+                    population=population,
+                    accepted=False,
                 ),
             }
 

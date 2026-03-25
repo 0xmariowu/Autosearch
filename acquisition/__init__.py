@@ -9,6 +9,7 @@ Stable local boundary for:
 """
 
 from .document_models import AcquiredDocument
+from .crawl4ai_adapter import crawl4ai_available, fetch_with_crawl4ai
 from .fetch_pipeline import fetch_document, fetch_page
 from .markdown_cleaner import clean_markdown, fit_markdown
 from .reference_extractor import extract_references
@@ -17,10 +18,12 @@ from .render_pipeline import render_document
 __all__ = [
     "AcquiredDocument",
     "clean_markdown",
+    "crawl4ai_available",
     "enrich_evidence_record",
     "extract_references",
     "extract_visible_text",
     "fetch_document",
+    "fetch_with_crawl4ai",
     "fetch_page",
     "fit_markdown",
     "render_document",
@@ -40,6 +43,7 @@ def enrich_evidence_record(
     *,
     timeout: int = 10,
     use_render_fallback: bool = False,
+    use_crawl4ai_adapter: bool = False,
 ) -> dict:
     enriched = dict(record)
     url = str(record.get("url") or "").strip()
@@ -48,29 +52,32 @@ def enrich_evidence_record(
         enriched["acquisition_error"] = "missing url"
         return enriched
     try:
-        page = fetch_page(url, timeout=timeout)
-        if "raw_html" in page:
-            document = AcquiredDocument.from_html(
-                page["url"],
-                page["raw_html"],
-                content_type=page.get("content_type", ""),
-                final_url=page.get("final_url", page["url"]),
-            )
-            document.clean_markdown = clean_markdown(document.text)
-            document.fit_markdown = fit_markdown(document.clean_markdown)
-            document.references = extract_references(document.final_url, document.raw_html)
+        if use_crawl4ai_adapter:
+            document = fetch_with_crawl4ai(url, timeout=timeout)
         else:
-            document = AcquiredDocument(
-                url=url,
-                final_url=str(page.get("final_url") or url),
-                content_type=str(page.get("content_type") or ""),
-                title=str(page.get("title") or ""),
-                text=str(page.get("text") or ""),
-                raw_html=str(page.get("raw_html") or ""),
-            )
-            document.clean_markdown = clean_markdown(document.text)
-            document.fit_markdown = fit_markdown(document.clean_markdown)
-            document.references = list(page.get("references") or [])
+            page = fetch_page(url, timeout=timeout)
+            if "raw_html" in page:
+                document = AcquiredDocument.from_html(
+                    page["url"],
+                    page["raw_html"],
+                    content_type=page.get("content_type", ""),
+                    final_url=page.get("final_url", page["url"]),
+                )
+                document.clean_markdown = clean_markdown(document.text)
+                document.fit_markdown = fit_markdown(document.clean_markdown)
+                document.references = extract_references(document.final_url, document.raw_html)
+            else:
+                document = AcquiredDocument(
+                    url=url,
+                    final_url=str(page.get("final_url") or url),
+                    content_type=str(page.get("content_type") or ""),
+                    title=str(page.get("title") or ""),
+                    text=str(page.get("text") or ""),
+                    raw_html=str(page.get("raw_html") or ""),
+                )
+                document.clean_markdown = clean_markdown(document.text)
+                document.fit_markdown = fit_markdown(document.clean_markdown)
+                document.references = list(page.get("references") or [])
     except Exception as exc:
         if not use_render_fallback:
             enriched["acquired"] = False

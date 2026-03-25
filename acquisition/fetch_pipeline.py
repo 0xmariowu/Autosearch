@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import urllib.request
 
+from .crawl4ai_adapter import crawl4ai_available, fetch_with_crawl4ai
 from .document_models import AcquiredDocument
 from .markdown_cleaner import clean_markdown, fit_markdown
 from .reference_extractor import extract_references
@@ -32,7 +33,10 @@ def fetch_document(
     *,
     timeout: int = 10,
     use_render_fallback: bool = False,
+    use_crawl4ai: bool = False,
 ) -> AcquiredDocument:
+    if use_crawl4ai and crawl4ai_available():
+        return fetch_with_crawl4ai(url, timeout=timeout)
     try:
         page = fetch_page(url, timeout=timeout)
         document = AcquiredDocument.from_html(

@@ -116,6 +116,7 @@ def execute_research_plan(
         "graph_node": str(plan.get("graph_node") or ""),
         "graph_edges": list(plan.get("graph_edges") or []),
         "branch_targets": list(plan.get("branch_targets") or []),
+        "local_evidence_hits": len(local_records),
         "query_keys": query_keys,
         "query_runs": query_runs,
         "findings": findings,
