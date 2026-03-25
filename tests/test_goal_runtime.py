@@ -33,6 +33,12 @@ class GoalRuntimeTests(unittest.TestCase):
         self.assertEqual(program["dimension_strategies"]["gap_a"]["queries"][0]["text"], "query a1")
         self.assertEqual(program["round_roles"][0], "broad_recall")
         self.assertEqual(program["current_role"], "broad_recall")
+        self.assertIn("search_backends", program)
+        self.assertIn("backend_roles", program)
+        self.assertIn("acquisition_policy", program)
+        self.assertIn("evidence_policy", program)
+        self.assertIn("repair_policy", program)
+        self.assertIn("population_policy", program)
         self.assertEqual(program["explore_budget"], 0.25)
         self.assertEqual(program["exploit_budget"], 0.75)
         self.assertEqual(program["sampling_policy"]["bundle_per_query_cap"], 4)
@@ -61,6 +67,11 @@ class GoalRuntimeTests(unittest.TestCase):
                 "exploit_budget": 0.3,
                 "sampling_policy": {"anchor_followups": False},
                 "current_role": "dimension_repair",
+                "search_backends": ["searxng", "ddgs"],
+                "acquisition_policy": {"acquire_pages": True, "page_fetch_limit": 1},
+                "evidence_policy": {"preferred_content_types": ["code"]},
+                "repair_policy": {"target_weak_dimensions": 1},
+                "population_policy": {"plan_count": 4, "max_queries": 2},
             },
         )
         self.assertEqual(candidate["topic_frontier"][0]["id"], "topic-b")
@@ -68,6 +79,11 @@ class GoalRuntimeTests(unittest.TestCase):
         self.assertEqual(candidate["exploit_budget"], 0.3)
         self.assertFalse(candidate["sampling_policy"]["anchor_followups"])
         self.assertEqual(candidate["current_role"], "dimension_repair")
+        self.assertEqual(candidate["search_backends"], ["searxng", "ddgs"])
+        self.assertTrue(candidate["acquisition_policy"]["acquire_pages"])
+        self.assertEqual(candidate["evidence_policy"]["preferred_content_types"], ["code"])
+        self.assertEqual(candidate["repair_policy"]["target_weak_dimensions"], 1)
+        self.assertEqual(candidate["population_policy"]["plan_count"], 4)
 
     def test_ensure_harness_persists_default_payload(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -11,6 +11,7 @@ from typing import Any
 
 from evaluation_harness import build_bundle, bundle_metrics
 from evidence.legacy_adapter import normalize_legacy_finding
+from evidence_index import LocalEvidenceIndex
 from goal_editor import GoalSearcher
 from goal_judge import evaluate_goal_bundle
 from goal_runtime import (
@@ -255,6 +256,7 @@ def run_goal_bundle_loop(
     searcher = GoalSearcher(goal_case)
     available_provider_names = [platform["name"] for platform in platforms]
     accepted_program = load_accepted_program(goal_case, available_provider_names)
+    index = LocalEvidenceIndex(runtime_paths(str(goal_case.get("id") or "goal"))["evidence_index"])
     tried_queries: set[str] = set()
     rounds: list[dict[str, Any]] = []
     no_improvement_rounds = 0
@@ -312,6 +314,7 @@ def run_goal_bundle_loop(
             judge_result = replay_judge
             accepted_program["score"] = bundle_state["score"]
             accepted_program["dimension_scores"] = dict(bundle_state["dimension_scores"])
+            index.add(list(bundle_state["accepted_findings"]))
             for query in prior_queries:
                 tried_queries.add(_query_key(query))
             warm_start = {
@@ -336,8 +339,9 @@ def run_goal_bundle_loop(
                     "promoted_archive_candidate": promoted,
                 }
 
-    effective_plan_count = int(plan_count_override or accepted_program.get("plan_count", 3) or 3)
-    effective_max_queries = int(max_queries_override or accepted_program.get("max_queries", 5) or 5)
+    population_policy = dict(accepted_program.get("population_policy") or {})
+    effective_plan_count = int(plan_count_override or population_policy.get("plan_count", accepted_program.get("plan_count", 3)) or 3)
+    effective_max_queries = int(max_queries_override or population_policy.get("max_queries", accepted_program.get("max_queries", 5)) or 5)
     plateau_rounds_limit = int(
         plateau_rounds_override
         or (accepted_program.get("stop_rules") or {}).get("plateau_rounds", 3)
@@ -361,6 +365,7 @@ def run_goal_bundle_loop(
                     round_history=rounds,
                     plan_count=effective_plan_count,
                     max_queries=effective_max_queries,
+                    local_evidence_records=index.load_all(),
                 )
         else:
             candidate_plans = build_research_plan(
@@ -373,6 +378,7 @@ def run_goal_bundle_loop(
                 round_history=rounds,
                 plan_count=effective_plan_count,
                 max_queries=effective_max_queries,
+                local_evidence_records=index.load_all(),
             )
         if not candidate_plans:
             break
@@ -391,7 +397,13 @@ def run_goal_bundle_loop(
                 candidate_index=plan_index,
                 program_overrides=dict(plan.get("program_overrides") or {}),
             )
-            candidate_platforms = _platforms_for_provider_mix(platforms, candidate_program.get("provider_mix"))
+            search_backends = list(candidate_program.get("search_backends") or candidate_program.get("provider_mix") or [])
+            candidate_platforms = _platforms_for_provider_mix(platforms, search_backends)
+            candidate_sampling_policy = {
+                **dict(candidate_program.get("sampling_policy") or {}),
+                **dict(candidate_program.get("acquisition_policy") or {}),
+                **dict(candidate_program.get("evidence_policy") or {}),
+            }
             execution = execute_research_plan(
                 {
                     "label": plan.get("label", f"plan-{plan_index}"),
@@ -399,9 +411,11 @@ def run_goal_bundle_loop(
                 },
                 default_platforms=candidate_platforms,
                 provider_mix=list(candidate_program.get("provider_mix") or []),
-                sampling_policy=dict(candidate_program.get("sampling_policy") or {}),
+                backend_roles=dict(candidate_program.get("backend_roles") or {}),
+                sampling_policy=candidate_sampling_policy,
                 tried_queries=tried_queries,
                 query_key_fn=_query_key,
+                local_evidence_records=index.load_all(),
             )
             query_runs = list(execution["query_runs"])
             round_findings = _normalized_findings(list(execution["findings"]))
@@ -483,12 +497,14 @@ def run_goal_bundle_loop(
                 "selection": selection,
                 "sample_bundle": _sample_findings(candidate_bundle, limit=6),
                 "rationale": plan_judge.get("rationale", ""),
+                "routeable_output": synthesized.get("routeable_output", {}),
             })
             population.append({
                 "program_id": candidate_program["program_id"],
                 "parent_program_id": candidate_program.get("parent_program_id"),
                 "label": candidate["label"],
                 "provider_mix": list(candidate_program.get("provider_mix") or []),
+                "search_backends": list(candidate_program.get("search_backends") or []),
                 "mutation_history": list(candidate_program.get("mutation_history") or []),
                 "score": candidate["score"],
                 "result": {
@@ -558,6 +574,7 @@ def run_goal_bundle_loop(
                 "accepted_at": datetime.now().astimezone().isoformat(),
             }
             save_accepted_program(str(goal_case.get("id") or "goal"), accepted_program)
+            index.add(list(bundle_state["accepted_findings"]))
             no_improvement_rounds = 0
         else:
             no_improvement_rounds += 1
@@ -594,6 +611,14 @@ def run_goal_bundle_loop(
             "missing_dimensions": judge_result.get("missing_dimensions", []),
             "sample_bundle": _sample_findings(best_candidate["bundle"], limit=8),
             "rationale": judge_result.get("rationale", ""),
+            "routeable_output": next(
+                (
+                    summary.get("routeable_output", {})
+                    for summary in strategy_summaries
+                    if str(summary.get("program_id") or "") == str(best_candidate["program"]["program_id"] or "")
+                ),
+                {},
+            ),
         })
 
         if bundle_state["score"] >= target_score:
@@ -636,6 +661,7 @@ def run_goal_bundle_loop(
             "sample_findings": _sample_findings(bundle_state.get("accepted_findings", []), limit=10),
             "rationale": bundle_state.get("rationale", ""),
         },
+        "routeable_output": rounds[-1].get("routeable_output", {}) if rounds else {},
         "improvement_vs_baseline": None,
         "rounds": rounds,
     }

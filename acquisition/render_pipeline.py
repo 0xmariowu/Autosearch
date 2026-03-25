@@ -1,13 +1,43 @@
 """Render fallback for acquisition.
 
-Current native implementation is intentionally conservative: return the same
-document shape without requiring a browser runtime. This keeps the boundary in
-place so a richer renderer can be added later without changing callers.
+Uses a local Playwright browser when available. This keeps the render path
+inside our own runtime boundary and avoids relying on external services.
 """
 
 from __future__ import annotations
 
+from typing import Any
+
 from .document_models import AcquiredDocument
+
+
+def _playwright_sync():
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception as exc:  # pragma: no cover - import availability is environment-specific
+        raise RuntimeError("playwright render fallback not available") from exc
+    return sync_playwright
+
+
+def _render_with_playwright(url: str, *, timeout: int = 15) -> dict[str, Any]:
+    sync_playwright = _playwright_sync()
+    timeout_ms = max(int(timeout), 1) * 1000
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        try:
+            page = browser.new_page()
+            page.goto(str(url or "").strip(), wait_until="networkidle", timeout=timeout_ms)
+            html = page.content()
+            title = page.title()
+            final_url = page.url
+        finally:
+            browser.close()
+    return {
+        "url": str(url or "").strip(),
+        "final_url": str(final_url or url or "").strip(),
+        "title": str(title or "").strip(),
+        "raw_html": str(html or ""),
+    }
 
 
 def render_document(
@@ -15,4 +45,14 @@ def render_document(
     *,
     timeout: int = 15,
 ) -> AcquiredDocument:
-    raise RuntimeError("render fallback not configured")
+    rendered = _render_with_playwright(url, timeout=timeout)
+    document = AcquiredDocument.from_html(
+        rendered["url"],
+        rendered["raw_html"],
+        content_type="text/html",
+        final_url=rendered.get("final_url"),
+        used_render_fallback=True,
+    )
+    if rendered.get("title") and not document.title:
+        document.title = str(rendered.get("title") or "")
+    return document

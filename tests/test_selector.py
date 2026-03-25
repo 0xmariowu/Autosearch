@@ -99,6 +99,40 @@ class SelectorTests(unittest.TestCase):
         self.assertTrue(decision["program_changed"])
         self.assertIn("provider_mix", decision["program_change_fields"])
 
+    def test_selector_tracks_new_program_policy_fields(self):
+        decision = evaluate_acceptance(
+            current_state={
+                "score": 82,
+                "accepted_findings": [{}] * 20,
+                "dimension_scores": {"a": 14, "b": 15},
+            },
+            candidate_score=82,
+            candidate_dimensions={"a": 14, "b": 15},
+            candidate_metrics={
+                "new_unique_urls": 2,
+                "novelty_ratio": 0.1,
+                "source_diversity": 0.2,
+                "source_concentration": 0.5,
+                "query_concentration": 0.4,
+            },
+            harness={
+                "anti_cheat": {
+                    "min_new_unique_urls": 1,
+                    "min_novelty_ratio": 0.01,
+                    "min_source_diversity": 0.15,
+                    "max_source_concentration": 0.82,
+                    "max_query_concentration": 0.70,
+                }
+            },
+            candidate_finding_count=20,
+            current_program={"search_backends": ["exa"], "acquisition_policy": {"acquire_pages": False}},
+            candidate_program={"search_backends": ["searxng"], "acquisition_policy": {"acquire_pages": True}},
+        )
+        self.assertTrue(decision["program_changed"])
+        self.assertIn("search_backends", decision["program_change_fields"])
+        self.assertIn("acquisition_policy", decision["program_change_fields"])
+        self.assertGreaterEqual(decision["repair_alignment"], 2)
+
     def test_selector_rejects_tie_without_new_urls_even_if_profile_improves(self):
         decision = evaluate_acceptance(
             current_state={

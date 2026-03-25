@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from evidence.legacy_adapter import normalize_legacy_finding
+from evidence_index import search_evidence
 from goal_services import (
     platforms_for_provider_mix,
     restrict_query_to_provider_mix,
@@ -12,14 +14,59 @@ from goal_services import (
 )
 
 
+def _query_role_terms(text: str) -> set[str]:
+    lowered = str(text or "").lower()
+    roles: set[str] = set()
+    if any(term in lowered for term in ("repo", "repository", "sdk", "library", "tool")):
+        roles.add("repos")
+    if any(term in lowered for term in ("issue", "error", "bug", "failure", "incident", "postmortem")):
+        roles.add("discussion")
+    if any(term in lowered for term in ("code", "implementation", "source", "diff", "patch")):
+        roles.add("code")
+    if any(term in lowered for term in ("dataset", "benchmark", "trajectory", "eval set")):
+        roles.add("datasets")
+    if any(term in lowered for term in ("tweet", "twitter", "xreach", "social")):
+        roles.add("social")
+    return roles
+
+
+def _platforms_for_intent(
+    query: dict[str, Any],
+    default_platforms: list[dict[str, Any]],
+    *,
+    provider_mix: list[str],
+    backend_roles: dict[str, list[str]] | None,
+    plan_role: str,
+) -> list[dict[str, Any]]:
+    effective_platforms = platforms_for_provider_mix(default_platforms, provider_mix)
+    roles = dict(backend_roles or {})
+    selected: list[str] = []
+    if plan_role == "broad_recall":
+        selected.extend(list(roles.get("breadth") or []))
+    for role_name in sorted(_query_role_terms(query.get("text") or "")):
+        selected.extend(list(roles.get(role_name) or []))
+    if not selected:
+        return effective_platforms
+    seen: set[str] = set()
+    narrowed = []
+    for platform in effective_platforms:
+        name = str(platform.get("name") or "")
+        if name in selected and name not in seen:
+            narrowed.append(dict(platform))
+            seen.add(name)
+    return narrowed or effective_platforms
+
+
 def execute_research_plan(
     plan: dict[str, Any],
     *,
     default_platforms: list[dict[str, Any]],
     provider_mix: list[str] | None = None,
+    backend_roles: dict[str, list[str]] | None = None,
     sampling_policy: dict[str, Any] | None = None,
     tried_queries: set[str] | None = None,
     query_key_fn: Any | None = None,
+    local_evidence_records: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     effective_provider_mix = list(provider_mix or [])
     effective_platforms = platforms_for_provider_mix(default_platforms, effective_provider_mix)
@@ -28,16 +75,28 @@ def execute_research_plan(
     query_keys: list[str] = []
     tried = set(tried_queries or set())
     intents = list(plan.get("intents") or [])
+    local_records = [normalize_legacy_finding(item) for item in list(local_evidence_records or plan.get("local_evidence_records") or [])]
+    local_limit = int((sampling_policy or {}).get("local_evidence_limit", 3) or 3)
+    plan_role = str(plan.get("role") or "")
     for query in intents:
-        effective_query = restrict_query_to_provider_mix(query, effective_provider_mix)
+        intent_platforms = _platforms_for_intent(
+            normalize_legacy_finding(query) if isinstance(query, dict) and query.get("record_type") == "evidence" else restrict_query_to_provider_mix(query, effective_provider_mix),
+            effective_platforms,
+            provider_mix=effective_provider_mix,
+            backend_roles=backend_roles,
+            plan_role=plan_role,
+        )
+        effective_query = restrict_query_to_provider_mix(query, [str(item.get("name") or "") for item in intent_platforms])
         if query_key_fn is not None:
             key = str(query_key_fn(effective_query))
             if key in tried:
                 continue
             query_keys.append(key)
+        local_hits = search_evidence(local_records, str(effective_query.get("text") or ""), limit=local_limit)
+        findings.extend(local_hits)
         run = search_query(
             effective_query,
-            effective_platforms,
+            intent_platforms,
             sampling_policy=sampling_policy,
         )
         query_runs.append({
@@ -45,12 +104,15 @@ def execute_research_plan(
             "query_spec": run["query_spec"],
             "baseline_score": run["baseline_score"],
             "finding_count": len(run["findings"]),
+            "local_evidence_count": len(local_hits),
             "sample_findings": sample_findings(run["findings"], limit=5),
         })
         findings.extend(run["findings"])
     return {
         "label": str(plan.get("label") or "plan"),
         "queries": intents,
+        "role": str(plan.get("role") or ""),
+        "stage": str(plan.get("stage") or ""),
         "query_keys": query_keys,
         "query_runs": query_runs,
         "findings": findings,

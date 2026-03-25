@@ -16,6 +16,12 @@ def _program_change_fields(current_program: dict[str, Any] | None, candidate_pro
     changed: list[str] = []
     for field in (
         "provider_mix",
+        "search_backends",
+        "backend_roles",
+        "acquisition_policy",
+        "evidence_policy",
+        "repair_policy",
+        "population_policy",
         "topic_frontier",
         "query_templates",
         "explore_budget",
@@ -53,6 +59,25 @@ def _dimension_improvements(
         if int(candidate_dimensions.get(dim_id, 0) or 0) > int(current_dimensions.get(dim_id, 0) or 0):
             improved.append(str(dim_id))
     return sorted(improved), int(weakest_delta)
+
+
+def _repair_alignment_score(
+    program_change_fields: list[str],
+    *,
+    improved_dimensions: list[str],
+    weakest_dimension_delta: int,
+) -> int:
+    score = 0
+    if weakest_dimension_delta > 0:
+        score += 2
+    if improved_dimensions:
+        score += 1
+    for field in ("repair_policy", "evidence_policy", "acquisition_policy", "search_backends", "backend_roles"):
+        if field in program_change_fields:
+            score += 1
+    if "population_policy" in program_change_fields:
+        score += 1
+    return score
 
 
 def evaluate_acceptance(
@@ -93,6 +118,11 @@ def evaluate_acceptance(
         current_state.get("dimension_scores"),
         candidate_dimensions,
     )
+    repair_alignment = _repair_alignment_score(
+        program_change_fields,
+        improved_dimensions=improved_dimensions,
+        weakest_dimension_delta=weakest_dimension_delta,
+    )
 
     improved_score = candidate_score > current_score
     improved_profile = candidate_profile > current_profile
@@ -124,6 +154,7 @@ def evaluate_acceptance(
         "candidate_profile": candidate_profile,
         "program_changed": program_changed,
         "program_change_fields": program_change_fields,
+        "repair_alignment": repair_alignment,
         "provider_specialization": provider_specialization,
         "improved_dimensions": improved_dimensions,
         "weakest_dimension_delta": weakest_dimension_delta,
@@ -138,6 +169,7 @@ def candidate_rank(candidate: dict[str, Any]) -> tuple[int, int, int, int, int, 
     return (
         int(candidate.get("score", 0) or 0),
         int(selection.get("weakest_dimension_delta", 0) or 0),
+        int(selection.get("repair_alignment", 0) or 0),
         int(len(selection.get("improved_dimensions", [])) or 0),
         *balance,
         int(metrics.get("new_unique_urls", 0) or 0),

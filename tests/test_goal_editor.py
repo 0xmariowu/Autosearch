@@ -105,6 +105,7 @@ class GoalEditorTests(unittest.TestCase):
             plans[0]["program_overrides"]["query_templates"]["gap_a"][0]["text"],
             "query override",
         )
+        self.assertIn("search_backends", plans[0]["program_overrides"])
 
     def test_heuristic_editor_avoids_recent_failed_queries(self):
         goal_case = {
@@ -196,6 +197,8 @@ class GoalEditorTests(unittest.TestCase):
             plans[0]["program_overrides"]["provider_mix"],
             ["github_code", "github_issues"],
         )
+        self.assertTrue(plans[0]["program_overrides"]["acquisition_policy"]["acquire_pages"])
+        self.assertIn("code", plans[0]["program_overrides"]["evidence_policy"]["preferred_content_types"])
 
     def test_heuristic_searcher_rotates_into_topic_frontier(self):
         goal_case = {
@@ -227,6 +230,7 @@ class GoalEditorTests(unittest.TestCase):
         self.assertEqual(frontier_plan["program_overrides"]["topic_frontier"][0]["id"], "trajectory_subsets")
         self.assertGreaterEqual(frontier_plan["program_overrides"]["explore_budget"], 0.7)
         self.assertEqual(frontier_plan["program_overrides"]["provider_mix"], ["huggingface_datasets"])
+        self.assertFalse(frontier_plan["program_overrides"]["acquisition_policy"]["acquire_pages"])
 
     def test_goal_director_synthesizes_templates_from_rubric_when_dimension_queries_missing(self):
         goal_case = {
@@ -294,6 +298,8 @@ class GoalEditorTests(unittest.TestCase):
         self.assertIn("exa", provider_mix)
         self.assertIn("tavily", provider_mix)
         self.assertIn("github_issues", provider_mix)
+        self.assertIn("search_backends", plans[0]["program_overrides"])
+        self.assertIn("population_policy", plans[0]["program_overrides"])
 
     def test_repair_focus_dimensions_prioritizes_stagnant_dimension(self):
         goal_case = {

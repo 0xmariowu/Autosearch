@@ -6,6 +6,7 @@ from typing import Any
 
 from evaluation_harness import build_bundle, bundle_metrics
 from goal_judge import evaluate_goal_bundle
+from .routeable_output import build_routeable_output
 
 
 def synthesize_research_round(
@@ -33,4 +34,13 @@ def synthesize_research_round(
             "weakest_dimension": weakest_dimension,
             "missing_dimensions": list(judge_result.get("missing_dimensions") or []),
         },
+        "routeable_output": build_routeable_output(
+            goal_case,
+            bundle=bundle,
+            judge_result=judge_result,
+            repair_hints={
+                "weakest_dimension": weakest_dimension,
+                "missing_dimensions": list(judge_result.get("missing_dimensions") or []),
+            },
+        ),
     }
