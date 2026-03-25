@@ -5,6 +5,9 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any
 
+from .decision import SearchDecision
+from .modes import get_mode_policy
+
 GENERIC_ANCHOR_TOKENS = {
     "https",
     "http",
@@ -125,6 +128,115 @@ def _followup_program_overrides(active_program: dict[str, Any]) -> dict[str, Any
             "prefer_acquired_text": True,
         },
     }
+
+
+def _cross_verification_queries(
+    *,
+    queries: list[dict[str, Any]],
+    tried_queries: set[str],
+    max_queries: int,
+) -> list[dict[str, Any]]:
+    variants: list[dict[str, Any]] = []
+    suffixes = ["independent review", "limitations", "comparison"]
+    for query in list(queries or []):
+        text = str((query or {}).get("text") or "").strip()
+        if not text:
+            continue
+        for suffix in suffixes:
+            spec = {
+                "text": f"{text} {suffix}".strip(),
+                "platforms": list((query or {}).get("platforms") or []),
+            }
+            if str(spec) in tried_queries or spec in variants:
+                continue
+            variants.append(spec)
+            if len(variants) >= max_queries:
+                return variants
+    return variants
+
+
+def _decision_for_plan(
+    *,
+    active_program: dict[str, Any],
+    role: str,
+    branch_type: str,
+    queries: list[dict[str, Any]],
+    program_overrides: dict[str, Any],
+    judge_result: dict[str, Any],
+    tried_queries: set[str],
+    max_queries: int,
+) -> SearchDecision:
+    mode = str(active_program.get("mode") or "balanced")
+    mode_policy = get_mode_policy(mode, dict(active_program.get("mode_policy_overrides") or {}))
+    provider_mix = list(program_overrides.get("provider_mix") or active_program.get("provider_mix") or [])
+    search_backends = list(program_overrides.get("search_backends") or active_program.get("search_backends") or provider_mix)
+    backend_roles = dict(active_program.get("backend_roles") or {})
+    sampling_policy = {
+        **dict(active_program.get("sampling_policy") or {}),
+        **dict(program_overrides.get("sampling_policy") or {}),
+    }
+    acquisition_policy = {
+        **dict(active_program.get("acquisition_policy") or {}),
+        **dict(program_overrides.get("acquisition_policy") or {}),
+    }
+    evidence_policy = {
+        **dict(active_program.get("evidence_policy") or {}),
+        **dict(program_overrides.get("evidence_policy") or {}),
+    }
+    cross_verify = bool(mode_policy.enable_cross_verification and branch_type in {"repair", "followup", "research"})
+    cross_queries = _cross_verification_queries(
+        queries=queries,
+        tried_queries=tried_queries,
+        max_queries=max_queries,
+    ) if cross_verify else []
+    if cross_queries:
+        evidence_policy["cross_verification_required"] = True
+    if mode_policy.enable_acquisition and branch_type in {"followup", "research"}:
+        acquisition_policy["acquire_pages"] = True
+        acquisition_policy["page_fetch_limit"] = max(int(acquisition_policy.get("page_fetch_limit", 2) or 2), 2)
+        evidence_policy["prefer_acquired_text"] = True
+    rationale = f"{mode} mode -> {role}"
+    missing = list(judge_result.get("missing_dimensions") or [])
+    if missing:
+        rationale += f"; weakest={missing[0]}"
+    return SearchDecision(
+        role=role,
+        mode=mode,
+        provider_mix=provider_mix,
+        search_backends=search_backends,
+        backend_roles=backend_roles,
+        sampling_policy=sampling_policy,
+        acquisition_policy=acquisition_policy,
+        evidence_policy=evidence_policy,
+        cross_verify=cross_verify,
+        cross_verification_queries=cross_queries,
+        stop_if_saturated=not bool(missing),
+        rationale=rationale,
+    )
+
+
+def _planning_ops_for_plan(
+    *,
+    role: str,
+    branch_type: str,
+    branch_targets: list[str],
+    branch_depth: int,
+    recursive_depth_limit: int,
+    decision: SearchDecision,
+) -> list[dict[str, Any]]:
+    ops: list[dict[str, Any]] = []
+    primary_target = str((branch_targets or [""])[0]).strip()
+    if decision.cross_verify and primary_target:
+        ops.append({"op": "request_cross_check", "target": primary_target, "mode": "cross_check"})
+    if branch_type in {"followup", "research"} and decision.mode == "deep":
+        ops.append({"op": "raise_budget", "amount": 1, "target": primary_target})
+    if branch_depth >= recursive_depth_limit and role:
+        ops.append({"op": "retire_branch", "target": role, "mutation_kind": _mutation_kind_for_role(role)})
+    if primary_target and branch_type == "repair":
+        ops.append({"op": "add_branch", "target": primary_target, "role": "graph_followup"})
+    if decision.stop_if_saturated and primary_target:
+        ops.append({"op": "mark_saturated", "target": primary_target})
+    return ops
 
 
 def _repair_terms(judge_result: dict[str, Any]) -> list[str]:
@@ -343,6 +455,25 @@ def build_research_plan(
         graph_node = _node_id(role, index, branch_depth + 1)
         branch_targets = _repair_terms(judge_result)
         plan_priority = int(plan.get("branch_priority", 0) or 0)
+        program_overrides = dict(plan.get("program_overrides") or {})
+        decision = _decision_for_plan(
+            active_program=active_program,
+            role=role,
+            branch_type=branch_type,
+            queries=queries,
+            program_overrides=program_overrides,
+            judge_result=judge_result,
+            tried_queries=tried_queries,
+            max_queries=max_queries,
+        )
+        planning_ops = _planning_ops_for_plan(
+            role=role,
+            branch_type=branch_type,
+            branch_targets=branch_targets,
+            branch_depth=branch_depth + 1,
+            recursive_depth_limit=recursive_depth_limit,
+            decision=decision,
+        )
         normalized.append({
             "label": str(plan.get("label") or "plan"),
             "queries": queries,
@@ -360,13 +491,26 @@ def build_research_plan(
                 }
             ] if previous_node else [],
             "branch_targets": branch_targets,
-            "program_overrides": dict(plan.get("program_overrides") or {}),
+            "program_overrides": program_overrides,
+            "decision": decision.to_dict(),
+            "planning_ops": planning_ops,
             "local_evidence_records": local_evidence_records,
             "branch_depth": branch_depth + 1,
             "branch_priority": plan_priority or (3 if branch_type == "repair" else 2 if branch_type == "followup" else 1),
         })
     if follow_up_candidates and len(normalized) < max(plan_count, 1) and branch_depth + 1 <= recursive_depth_limit and "anchor_followup" not in retired_mutations:
         graph_node = _node_id("graph_followup", len(normalized) + 1, branch_depth + 1)
+        followup_overrides = _followup_program_overrides(active_program)
+        followup_decision = _decision_for_plan(
+            active_program=active_program,
+            role="graph_followup",
+            branch_type="followup",
+            queries=follow_up_candidates[:max_queries],
+            program_overrides=followup_overrides,
+            judge_result=judge_result,
+            tried_queries=tried_queries,
+            max_queries=max_queries,
+        )
         normalized.append({
             "label": "graph-followup",
             "queries": follow_up_candidates[:max_queries],
@@ -378,13 +522,33 @@ def build_research_plan(
             "graph_node": graph_node,
             "graph_edges": [{"from": previous_node, "to": graph_node, "kind": "follow_up"}] if previous_node else [],
             "branch_targets": _repair_terms(judge_result),
-            "program_overrides": _followup_program_overrides(active_program),
+            "program_overrides": followup_overrides,
+            "decision": followup_decision.to_dict(),
+            "planning_ops": _planning_ops_for_plan(
+                role="graph_followup",
+                branch_type="followup",
+                branch_targets=_repair_terms(judge_result),
+                branch_depth=branch_depth + 1,
+                recursive_depth_limit=recursive_depth_limit,
+                decision=followup_decision,
+            ),
             "local_evidence_records": local_evidence_records,
             "branch_depth": branch_depth + 1,
             "branch_priority": 4,
         })
     if decomposition_candidates and len(normalized) < max(plan_count + 1, 2) and branch_depth + 2 <= recursive_depth_limit and "anchor_followup" not in retired_mutations:
         graph_node = _node_id("decomposition_followup", len(normalized) + 1, branch_depth + 2)
+        decomposition_overrides = _followup_program_overrides(active_program)
+        decomposition_decision = _decision_for_plan(
+            active_program=active_program,
+            role="decomposition_followup",
+            branch_type="followup",
+            queries=decomposition_candidates[:max_queries],
+            program_overrides=decomposition_overrides,
+            judge_result=judge_result,
+            tried_queries=tried_queries,
+            max_queries=max_queries,
+        )
         normalized.append({
             "label": "graph-decomposition-followup",
             "queries": decomposition_candidates[:max_queries],
@@ -396,7 +560,16 @@ def build_research_plan(
             "graph_node": graph_node,
             "graph_edges": [{"from": previous_node, "to": graph_node, "kind": "recursive_follow_up"}] if previous_node else [],
             "branch_targets": _repair_terms(judge_result),
-            "program_overrides": _followup_program_overrides(active_program),
+            "program_overrides": decomposition_overrides,
+            "decision": decomposition_decision.to_dict(),
+            "planning_ops": _planning_ops_for_plan(
+                role="decomposition_followup",
+                branch_type="followup",
+                branch_targets=_repair_terms(judge_result),
+                branch_depth=branch_depth + 2,
+                recursive_depth_limit=recursive_depth_limit,
+                decision=decomposition_decision,
+            ),
             "local_evidence_records": local_evidence_records,
             "branch_depth": branch_depth + 2,
             "branch_priority": 5,

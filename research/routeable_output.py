@@ -49,6 +49,7 @@ def build_routeable_output(
         if len(term) >= 4
     )
     weakest_dimension = str(repair_hints.get("weakest_dimension") or "")
+    cross_verification = dict(repair_hints.get("cross_verification") or {})
     handoff_packets = []
     for route_name, items in route_groups.items():
         if not items:
@@ -85,5 +86,13 @@ def build_routeable_output(
             "merge_candidates": list(repair_hints.get("merge_candidates") or []),
             "prune_candidates": list(repair_hints.get("prune_candidates") or []),
             "next_branch_mode": str(repair_hints.get("next_branch_mode") or ""),
+        },
+        "cross_verification": {
+            "enabled": bool(cross_verification.get("enabled")),
+            "verification_queries": int(cross_verification.get("verification_queries", 0) or 0),
+            "provider_count": int(cross_verification.get("provider_count", 0) or 0),
+            "domain_count": int(cross_verification.get("domain_count", 0) or 0),
+            "consensus_strength": str(cross_verification.get("consensus_strength") or ""),
+            "contradiction_signals": list(cross_verification.get("contradiction_signals") or []),
         },
     }
