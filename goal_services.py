@@ -6,8 +6,12 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from evidence_records import build_evidence_record_from_result
 from engine import PlatformConnector, Scorer
 from source_capability import get_source_decision
+
+FREE_BREADTH_PROVIDERS = ["searxng", "ddgs"]
+PREMIUM_BREADTH_PROVIDERS = {"exa", "tavily"}
 
 __all__ = [
     "available_platforms",
@@ -21,6 +25,40 @@ __all__ = [
     "sample_findings",
     "search_query",
 ]
+
+
+def _platform_config_for_provider(name: str) -> dict[str, Any]:
+    if name == "github_repos":
+        return {"name": name, "limit": 5, "min_stars": 20}
+    if name == "github_issues":
+        return {"name": name, "limit": 5}
+    if name == "twitter_xreach":
+        return {"name": name, "limit": 10}
+    if name in {"searxng", "ddgs", "exa", "tavily"}:
+        return {"name": name, "limit": 8}
+    return {"name": name, "limit": 5}
+
+
+def _goal_provider_names(goal_case: dict[str, Any]) -> list[str]:
+    requested = [
+        str(name or "").strip()
+        for name in list(goal_case.get("providers") or [])
+        if str(name or "").strip()
+    ]
+    names: list[str] = []
+    if not requested:
+        names.extend(FREE_BREADTH_PROVIDERS)
+    elif any(name in PREMIUM_BREADTH_PROVIDERS for name in requested):
+        names.extend(FREE_BREADTH_PROVIDERS)
+    names.extend(requested)
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for name in names:
+        if name in seen:
+            continue
+        seen.add(name)
+        ordered.append(name)
+    return ordered
 
 
 def normalize_query_spec(query: Any) -> dict[str, Any]:
@@ -43,18 +81,11 @@ def query_text(query: Any) -> str:
 
 def available_platforms(goal_case: dict[str, Any], capability_report: dict[str, Any]) -> list[dict[str, Any]]:
     platforms: list[dict[str, Any]] = []
-    for name in goal_case.get("providers", []):
+    for name in _goal_provider_names(goal_case):
         decision = get_source_decision(capability_report, name)
         if decision["should_skip"]:
             continue
-        if name == "github_repos":
-            platforms.append({"name": name, "limit": 5, "min_stars": 20})
-        elif name == "github_issues":
-            platforms.append({"name": name, "limit": 5})
-        elif name == "twitter_xreach":
-            platforms.append({"name": name, "limit": 10})
-        else:
-            platforms.append({"name": name, "limit": 5})
+        platforms.append(_platform_config_for_provider(name))
     return platforms
 
 
@@ -143,13 +174,7 @@ def search_query(
     positive_ranked = [result for result in ranked_results if _result_relevance(query_str, result)[0] > 0]
     selected_results = positive_ranked or ranked_results
     for result in selected_results[: sampling["per_query_findings_cap"]]:
-        findings.append({
-            "title": result.title,
-            "url": result.url,
-            "body": result.body,
-            "source": result.source,
-            "query": query_str,
-        })
+        findings.append(build_evidence_record_from_result(result, query_str))
     return {
         "query": query_str,
         "query_spec": normalize_query_spec(query),

@@ -10,6 +10,7 @@ This layer is intentionally separate from runtime experience:
 from __future__ import annotations
 
 import json
+import importlib.util
 import shutil
 import subprocess
 import urllib.request
@@ -178,6 +179,28 @@ def _check_tavily_api(source: dict[str, Any]) -> dict[str, Any]:
     return _status(source, status="off", message="Tavily API key missing", available=False)
 
 
+def _check_ddgs_local(source: dict[str, Any]) -> dict[str, Any]:
+    if importlib.util.find_spec("ddgs") is not None:
+        return _status(source, status="ok", message="ddgs Python package installed", available=True)
+    return _status(source, status="off", message="ddgs Python package missing", available=False)
+
+
+def _check_searxng_http(source: dict[str, Any]) -> dict[str, Any]:
+    import os
+
+    base_url = str(os.environ.get("SEARXNG_URL", "http://127.0.0.1:8888")).rstrip("/")
+    url = f"{base_url}/search?q=test&format=json"
+    try:
+        request = urllib.request.Request(url, headers={"User-Agent": "autosearch/1.0"})
+        with urllib.request.urlopen(request, timeout=4) as response:
+            code = getattr(response, "status", 200)
+    except Exception:
+        return _status(source, status="off", message=f"SearXNG endpoint unreachable at {base_url}", available=False)
+    if code == 200:
+        return _status(source, status="ok", message=f"SearXNG reachable at {base_url}", available=True)
+    return _status(source, status="warn", message=f"SearXNG returned HTTP {code}", available=False)
+
+
 def _check_alphaxiv_mcp(source: dict[str, Any]) -> dict[str, Any]:
     servers = _read_global_mcp_servers()
     server = servers.get("alphaxiv")
@@ -222,6 +245,8 @@ CHECKERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "xreach_cli": _check_xreach_cli,
     "exa_mcporter": _check_exa_mcporter,
     "tavily_api": _check_tavily_api,
+    "ddgs_local": _check_ddgs_local,
+    "searxng_http": _check_searxng_http,
     "alphaxiv_mcp": _check_alphaxiv_mcp,
     "huggingface_public": _check_huggingface_public,
     "web_reader": _check_web_reader,
@@ -296,13 +321,16 @@ def get_source_decision(report: dict[str, Any], source_name: str) -> dict[str, A
     available = bool(source.get("available", True))
     runtime_enabled = bool(source.get("runtime_enabled", True))
     should_skip = (not runtime_enabled) or (not available)
+    tier_value = source.get("tier", 9)
+    tier = int(9 if tier_value is None else tier_value)
     return {
         "name": source_name,
         "status": status,
         "available": available,
         "runtime_enabled": runtime_enabled,
         "should_skip": should_skip,
-        "priority": STATUS_PRIORITY.get(status, 5),
+        "priority": (STATUS_PRIORITY.get(status, 5) * 10) + tier,
+        "tier": tier,
         "message": str(source.get("message") or ""),
     }
 

@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from types import SimpleNamespace
+import types
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -63,6 +64,61 @@ class SourceCapabilityTests(unittest.TestCase):
         self.assertEqual(len(result.results), 1)
         self.assertEqual(result.results[0].url, "https://example.com/provider-doctor")
 
+    def test_searxng_search_parses_results(self):
+        payload = {
+            "results": [
+                {
+                    "title": "Search orchestration with citations",
+                    "url": "https://example.com/orchestration",
+                    "content": "planner executor synthesizer with citations",
+                }
+            ]
+        }
+
+        class FakeResponse:
+            status = 200
+
+            def read(self):
+                return __import__("json").dumps(payload).encode("utf-8")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        with patch("engine.urllib.request.urlopen", return_value=FakeResponse()):
+            result = PlatformConnector._searxng({"name": "searxng", "limit": 5}, "search orchestration")
+
+        self.assertEqual(result.provider, "searxng")
+        self.assertEqual(len(result.results), 1)
+        self.assertEqual(result.results[0].url, "https://example.com/orchestration")
+
+    def test_ddgs_search_parses_results(self):
+        class FakeDDGS:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def text(self, query, max_results=5, backend="auto"):
+                return [
+                    {
+                        "title": "Local meta search",
+                        "href": "https://example.com/ddgs-result",
+                        "body": "ddgs aggregates multiple public engines",
+                    }
+                ]
+
+        fake_module = types.SimpleNamespace(DDGS=FakeDDGS)
+        with patch.dict(sys.modules, {"ddgs": fake_module}):
+            result = PlatformConnector._ddgs({"name": "ddgs", "limit": 5}, "meta search")
+
+        self.assertEqual(result.provider, "ddgs")
+        self.assertEqual(len(result.results), 1)
+        self.assertEqual(result.results[0].url, "https://example.com/ddgs-result")
+
     def test_tavily_capability_requires_api_key(self):
         with patch.dict("os.environ", {}, clear=True):
             status = sc.check_source({
@@ -74,6 +130,41 @@ class SourceCapabilityTests(unittest.TestCase):
                 "check": "tavily_api",
             })
         self.assertFalse(status["available"])
+
+    def test_ddgs_capability_requires_installed_package(self):
+        with patch("source_capability.importlib.util.find_spec", return_value=None):
+            status = sc.check_source({
+                "name": "ddgs",
+                "kind": "provider",
+                "runtime_enabled": True,
+                "tier": 0,
+                "backend": "Local ddgs Python package",
+                "check": "ddgs_local",
+            })
+        self.assertFalse(status["available"])
+
+    def test_searxng_capability_reports_reachable_endpoint(self):
+        class FakeResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        with patch.dict("os.environ", {"SEARXNG_URL": "http://127.0.0.1:8888"}), \
+             patch("source_capability.urllib.request.urlopen", return_value=FakeResponse()):
+            status = sc.check_source({
+                "name": "searxng",
+                "kind": "provider",
+                "runtime_enabled": True,
+                "tier": 0,
+                "backend": "Local SearXNG HTTP",
+                "check": "searxng_http",
+            })
+        self.assertTrue(status["available"])
+        self.assertEqual(status["status"], "ok")
 
     def test_build_capability_report_tracks_runtime_availability(self):
         catalog = {
@@ -153,6 +244,17 @@ class SourceCapabilityTests(unittest.TestCase):
         self.assertEqual(search.call_count, 1)
         platform_arg = search.call_args[0][0]
         self.assertEqual(platform_arg["name"], "exa")
+
+    def test_source_decision_priority_prefers_lower_tier_when_available(self):
+        report = {
+            "sources": {
+                "searxng": {"status": "ok", "available": True, "runtime_enabled": True, "tier": 0},
+                "exa": {"status": "ok", "available": True, "runtime_enabled": True, "tier": 3},
+            }
+        }
+        searxng = sc.get_source_decision(report, "searxng")
+        exa = sc.get_source_decision(report, "exa")
+        self.assertLess(searxng["priority"], exa["priority"])
 
 
 if __name__ == "__main__":
