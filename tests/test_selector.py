@@ -259,6 +259,45 @@ class SelectorTests(unittest.TestCase):
         self.assertEqual(decision["family_novelty"], 1)
         self.assertEqual(decision["repair_depth"], 2)
 
+    def test_selector_uses_evolution_feedback_for_candidate_family(self):
+        decision = evaluate_acceptance(
+            current_state={
+                "score": 82,
+                "accepted_findings": [{}] * 20,
+                "dimension_scores": {"runtime_skip": 5, "implementation_signal": 15},
+            },
+            candidate_score=82,
+            candidate_dimensions={"runtime_skip": 12, "implementation_signal": 15},
+            candidate_metrics={
+                "new_unique_urls": 2,
+                "novelty_ratio": 0.1,
+                "source_diversity": 0.3,
+                "source_concentration": 0.5,
+                "query_concentration": 0.4,
+            },
+            harness={
+                "anti_cheat": {
+                    "min_new_unique_urls": 1,
+                    "min_novelty_ratio": 0.01,
+                    "min_source_diversity": 0.15,
+                    "max_source_concentration": 0.82,
+                    "max_query_concentration": 0.70,
+                }
+            },
+            candidate_finding_count=22,
+            current_program={
+                "evolution_stats": {
+                    "mutation_acceptance": {"dimension_repair": 2},
+                    "mutation_rejection_streaks": {"dimension_repair": 1},
+                    "retired_families": ["retired-family"],
+                    "retired_mutation_kinds": ["frontier_probe"],
+                }
+            },
+            candidate_program={"mutation_kind": "dimension_repair", "family_id": "retired-family"},
+        )
+        self.assertEqual(decision["evolution_acceptance_score"], 1)
+        self.assertEqual(decision["retirement_penalty"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()

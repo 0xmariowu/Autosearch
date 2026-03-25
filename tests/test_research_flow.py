@@ -67,6 +67,36 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertTrue(any(plan["label"] == "graph-followup" for plan in plans))
         self.assertTrue(any(plan["label"] == "graph-decomposition-followup" for plan in plans))
 
+    def test_planner_respects_retired_mutation_kinds_and_budget(self):
+        plans = build_research_plan(
+            searcher=_FakeSearcher(),
+            bundle_state={"accepted_findings": []},
+            judge_result={"missing_dimensions": ["implementation_signal"], "dimension_scores": {"implementation_signal": 5}},
+            tried_queries=set(),
+            available_providers=["searxng"],
+            active_program={
+                "round_roles": ["dimension_repair", "orthogonal_probe"],
+                "population_policy": {
+                    "branch_budget_per_round": {"followup": 0, "repair": 1, "probe": 1, "breadth": 1},
+                    "recursive_depth_limit": 1,
+                },
+                "evolution_stats": {"retired_mutation_kinds": ["dimension_repair"]},
+            },
+            round_history=[{"graph_node": "seed-1", "branch_depth": 1}],
+            plan_count=3,
+            max_queries=2,
+            local_evidence_records=[{
+                "record_type": "evidence",
+                "title": "Harness implementation patterns",
+                "url": "https://example.com",
+                "source": "local",
+                "query": "harness",
+            }],
+        )
+        self.assertTrue(plans)
+        self.assertTrue(all(plan["branch_type"] != "followup" for plan in plans))
+        self.assertTrue(all(plan["role"] != "dimension_repair" for plan in plans))
+
     def test_executor_returns_query_runs_and_findings(self):
         with patch("research.executor.search_query", return_value={
             "query": "eval harness",
