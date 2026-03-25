@@ -76,6 +76,25 @@ class InterfaceTests(unittest.TestCase):
             self.assertEqual(mocked_benchmark.call_args.kwargs["target_score"], 100)
             self.assertEqual(mocked_benchmark.call_args.kwargs["plateau_rounds"], 3)
 
+    def test_optimize_goal_forwards_target_controls(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            client = api.AutoSearchInterface(tmp)
+            client.goal_cases_root = Path(tmp)
+            with patch.object(api.AutoSearchInterface, "run_goal_case", return_value={"goal_id": "demo"}) as mocked_run:
+                result = client.optimize_goal(
+                    {"id": "demo"},
+                    target_score=100,
+                    max_rounds=6,
+                    plateau_rounds=2,
+                    plan_count=2,
+                    max_queries=3,
+                    persist_run=False,
+                )
+            self.assertEqual(result["goal_id"], "demo")
+            self.assertEqual(mocked_run.call_args.args[0]["id"], "demo")
+            self.assertEqual(mocked_run.call_args.kwargs["target_score"], 100)
+            self.assertEqual(mocked_run.call_args.kwargs["plateau_rounds"], 2)
+
     def test_build_searcher_judge_session_exposes_both_roles(self):
         goal_case = {
             "id": "goal-a",

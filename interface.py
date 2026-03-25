@@ -238,6 +238,27 @@ class AutoSearchInterface:
             result = {**result, "run_path": str(run_path)}
         return result
 
+    def optimize_goal(
+        self,
+        goal_case: str | Path | dict[str, Any],
+        *,
+        target_score: int = 100,
+        max_rounds: int = 8,
+        plateau_rounds: int = 3,
+        plan_count: int | None = None,
+        max_queries: int | None = None,
+        persist_run: bool = True,
+    ) -> dict[str, Any]:
+        return self.run_goal_case(
+            goal_case,
+            max_rounds=max_rounds,
+            plan_count=plan_count,
+            max_queries=max_queries,
+            target_score=target_score,
+            plateau_rounds=plateau_rounds,
+            persist_run=persist_run,
+        )
+
     def run_goal_benchmark(
         self,
         goals: list[str | Path | dict[str, Any]],

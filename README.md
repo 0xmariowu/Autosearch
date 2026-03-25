@@ -76,6 +76,8 @@ Use the smallest entry point that matches your need:
   `AutoSearchInterface.build_searcher_judge_session(...)`
 - If you want to run the full goal loop directly:
   `AutoSearchInterface.run_goal_case(...)`
+- If you want the simplest “push this goal toward a target score” entry:
+  `AutoSearchInterface.optimize_goal(...)`
 - If you want to run the same runtime across multiple goals:
   `AutoSearchInterface.run_goal_benchmark(...)`
 
@@ -111,6 +113,21 @@ benchmark = client.run_goal_benchmark(
     max_rounds=1,
     plan_count=1,
     max_queries=1,
+)
+```
+
+Optimize-to-target example:
+
+```python
+from interface import AutoSearchInterface
+
+client = AutoSearchInterface("/path/to/autosearch")
+result = client.optimize_goal(
+    "autosearch-capability-doctor",
+    target_score=100,
+    max_rounds=8,
+    plateau_rounds=3,
+    persist_run=False,
 )
 ```
 
@@ -160,6 +177,18 @@ benchmark = client.run_goal_benchmark(
   - optional `max_queries`
   - optional `target_score`
   - optional `plateau_rounds`
+
+`optimize_goal(...)`
+
+- Convenience wrapper around `run_goal_case(...)` for the common case:
+  “keep pushing this goal toward a target score until success or plateau”.
+- Stable arguments:
+  - `target_score`
+  - `max_rounds`
+  - `plateau_rounds`
+  - optional `plan_count`
+  - optional `max_queries`
+  - optional `persist_run`
 
 `run_goal_benchmark(...)`
 

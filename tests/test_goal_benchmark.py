@@ -7,7 +7,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from goal_benchmark import _benchmark_summary
+from goal_benchmark import _benchmark_summary, run_benchmark
 
 
 class GoalBenchmarkTests(unittest.TestCase):
@@ -32,6 +32,24 @@ class GoalBenchmarkTests(unittest.TestCase):
         self.assertEqual(summary["final_score"], 72)
         self.assertEqual(summary["accepted_rounds"], 1)
         self.assertEqual(summary["accepted_program_id"], "prog-1")
+
+    def test_run_benchmark_forwards_target_controls(self):
+        goal_path = Path("/tmp/goal-a.json")
+        with unittest.mock.patch("goal_benchmark.load_goal_case", return_value={"id": "goal-a"}), \
+             unittest.mock.patch("goal_benchmark.run_goal_bundle_loop", return_value={
+                 "goal_id": "goal-a",
+                 "problem": "p",
+                 "target_score": 100,
+                 "providers_used": [],
+                 "accepted_program": {"program_id": "p1"},
+                 "bundle_final": {"score": 10, "matched_dimensions": [], "missing_dimensions": []},
+                 "rounds": [],
+             }) as mocked_loop:
+            result = run_benchmark([goal_path], 2, target_score=100, plateau_rounds=2)
+        self.assertEqual(result["payload"]["target_score"], 100)
+        self.assertEqual(result["payload"]["plateau_rounds"], 2)
+        self.assertEqual(mocked_loop.call_args.kwargs["target_score_override"], 100)
+        self.assertEqual(mocked_loop.call_args.kwargs["plateau_rounds_override"], 2)
 
 
 if __name__ == "__main__":
