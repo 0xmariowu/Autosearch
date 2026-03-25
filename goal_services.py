@@ -79,9 +79,24 @@ def _result_relevance(query: str, result: Any) -> tuple[int, int]:
     return overlap, int(getattr(result, "eng", 0) or 0)
 
 
-def search_query(query: Any, default_platforms: list[dict[str, Any]]) -> dict[str, Any]:
+def _sampling_config(sampling_policy: dict[str, Any] | None) -> dict[str, Any]:
+    policy = dict(sampling_policy or {})
+    bundle_cap = int(policy.get("bundle_per_query_cap", 5) or 5)
+    return {
+        "rank_by_relevance": bool(policy.get("rank_by_relevance", True)),
+        "per_query_findings_cap": int(policy.get("per_query_findings_cap", max(bundle_cap * 3, 5)) or max(bundle_cap * 3, 5)),
+        "bundle_per_query_cap": bundle_cap,
+    }
+
+
+def search_query(
+    query: Any,
+    default_platforms: list[dict[str, Any]],
+    sampling_policy: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     query_str = query_text(query)
     platforms = _query_platforms(query, default_platforms)
+    sampling = _sampling_config(sampling_policy)
     scorer = Scorer()
     all_results = []
     findings: list[dict[str, Any]] = []
@@ -92,14 +107,17 @@ def search_query(query: Any, default_platforms: list[dict[str, Any]]) -> dict[st
         outcome = PlatformConnector.search(platform_config, platform_query)
         all_results.extend(outcome.results)
     _, raw_score, new_results = scorer.score_results(all_results)
-    ranked_results = sorted(
-        new_results,
-        key=lambda result: _result_relevance(query_str, result),
-        reverse=True,
-    )
+    if sampling["rank_by_relevance"]:
+        ranked_results = sorted(
+            new_results,
+            key=lambda result: _result_relevance(query_str, result),
+            reverse=True,
+        )
+    else:
+        ranked_results = list(new_results)
     positive_ranked = [result for result in ranked_results if _result_relevance(query_str, result)[0] > 0]
     selected_results = positive_ranked or ranked_results
-    for result in selected_results[:15]:
+    for result in selected_results[: sampling["per_query_findings_cap"]]:
         findings.append({
             "title": result.title,
             "url": result.url,
@@ -144,11 +162,12 @@ def sample_findings(items: list[dict[str, Any]], limit: int = 12) -> list[dict[s
 def replay_queries(
     queries: list[dict[str, Any]],
     platforms: list[dict[str, Any]],
+    sampling_policy: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     query_runs: list[dict[str, Any]] = []
     findings: list[dict[str, Any]] = []
     for query in queries:
-        run = search_query(query, platforms)
+        run = search_query(query, platforms, sampling_policy=sampling_policy)
         query_runs.append({
             "query": run["query"],
             "query_spec": run["query_spec"],
@@ -158,4 +177,3 @@ def replay_queries(
         })
         findings.extend(run["findings"])
     return query_runs, merge_findings([], findings)
-
