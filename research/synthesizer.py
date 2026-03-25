@@ -81,6 +81,41 @@ def _graph_scheduler_hints(
     }
 
 
+def _cross_verification_summary(
+    *,
+    bundle: list[dict[str, Any]],
+    graph_plan: dict[str, Any] | None,
+) -> dict[str, Any]:
+    graph_plan = dict(graph_plan or {})
+    decision = dict(graph_plan.get("decision") or {})
+    query_runs = list(graph_plan.get("query_runs") or [])
+    provider_count = len({
+        str(item.get("source") or "").strip()
+        for item in list(bundle or [])
+        if str(item.get("source") or "").strip()
+    })
+    domain_count = len({
+        str(item.get("domain") or "").strip()
+        for item in list(bundle or [])
+        if str(item.get("domain") or "").strip()
+    })
+    contradiction_terms = {"vs", "versus", "limitation", "limitations", "criticism", "tradeoff", "tradeoffs"}
+    contradiction_signals = [
+        str(item.get("title") or "")
+        for item in list(bundle or [])
+        if contradiction_terms.intersection(set(str(item.get("title") or "").lower().split()))
+    ][:6]
+    return {
+        "enabled": bool(decision.get("cross_verify")),
+        "verification_queries": int(((graph_plan.get("cross_verification") or {}).get("verification_query_count", 0) or 0)),
+        "provider_count": provider_count,
+        "domain_count": domain_count,
+        "consensus_strength": "high" if provider_count >= 2 and domain_count >= 2 else "low",
+        "contradiction_signals": contradiction_signals,
+        "query_run_count": len(query_runs),
+    }
+
+
 def synthesize_research_round(
     goal_case: dict[str, Any],
     *,
@@ -114,6 +149,10 @@ def synthesize_research_round(
         judge_result=judge_result,
         graph_plan=graph_plan,
     )
+    cross_verification = _cross_verification_summary(
+        bundle=bundle,
+        graph_plan=graph_plan,
+    )
     return {
         "bundle": bundle,
         "research_bundle": research_bundle.to_dict(),
@@ -136,6 +175,7 @@ def synthesize_research_round(
             "branch_type": str((graph_plan or {}).get("branch_type") or ""),
             "branch_subgoal": str((graph_plan or {}).get("branch_subgoal") or ""),
             "scheduler": graph_scheduler,
+            "cross_verification": cross_verification,
         },
         "repair_hints": {
             "weakest_dimension": weakest_dimension,
@@ -144,6 +184,7 @@ def synthesize_research_round(
             "merge_candidates": list(graph_scheduler.get("merge_candidates") or []),
             "prune_candidates": list(graph_scheduler.get("prune_candidates") or []),
             "next_branch_mode": str(graph_scheduler.get("next_branch_mode") or ""),
+            "cross_verification": cross_verification,
         },
         "routeable_output": build_routeable_output(
             goal_case,
@@ -156,6 +197,7 @@ def synthesize_research_round(
                 "merge_candidates": list(graph_scheduler.get("merge_candidates") or []),
                 "prune_candidates": list(graph_scheduler.get("prune_candidates") or []),
                 "next_branch_mode": str(graph_scheduler.get("next_branch_mode") or ""),
+                "cross_verification": cross_verification,
             },
         ),
     }

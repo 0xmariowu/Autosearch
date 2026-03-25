@@ -52,6 +52,8 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertEqual(plans[0]["branch_subgoal"], "implementation")
         self.assertEqual(plans[0]["graph_edges"], [])
         self.assertEqual(plans[0]["branch_priority"], 4)
+        self.assertIn("decision", plans[0])
+        self.assertIn("planning_ops", plans[0])
 
     def test_planner_adds_follow_up_branch_from_local_evidence(self):
         plans = build_research_plan(
@@ -78,6 +80,8 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertTrue(any("runtime skip" in query["text"] or "implementation signal" in query["text"] for query in graph_followup["queries"]))
         self.assertTrue(graph_followup["program_overrides"]["acquisition_policy"]["acquire_pages"])
         self.assertTrue(graph_followup["program_overrides"]["evidence_policy"]["prefer_acquired_text"])
+        self.assertTrue(graph_followup["decision"]["cross_verify"])
+        self.assertTrue(any(op["op"] == "request_cross_check" for op in graph_followup["planning_ops"]))
 
     def test_planner_respects_retired_mutation_kinds_and_budget(self):
         plans = build_research_plan(
@@ -117,7 +121,19 @@ class ResearchFlowTests(unittest.TestCase):
             "findings": [{"record_type": "evidence", "title": "A", "url": "https://example.com", "source": "searxng", "query": "eval harness"}],
         }):
             result = execute_research_plan(
-                {"label": "repair", "intents": [{"text": "eval harness", "platforms": []}]},
+                {
+                    "label": "repair",
+                    "intents": [{"text": "eval harness", "platforms": []}],
+                    "decision": {
+                        "provider_mix": ["searxng"],
+                        "cross_verify": True,
+                        "cross_verification_queries": [{"text": "eval harness comparison", "platforms": []}],
+                        "sampling_policy": {},
+                        "acquisition_policy": {},
+                        "evidence_policy": {},
+                    },
+                    "planning_ops": [{"op": "request_cross_check", "target": "implementation"}],
+                },
                 default_platforms=[{"name": "searxng", "limit": 5}],
                 provider_mix=["searxng"],
                 query_key_fn=lambda q: str(q),
@@ -130,11 +146,14 @@ class ResearchFlowTests(unittest.TestCase):
                     "query": "eval harness",
                 }],
             )
-        self.assertEqual(len(result["query_runs"]), 1)
+        self.assertEqual(len(result["query_runs"]), 2)
         self.assertEqual(result["findings"][0]["record_type"], "evidence")
         self.assertEqual(result["query_runs"][0]["local_evidence_count"], 1)
         self.assertIn("graph_node", result)
         self.assertEqual(result["local_evidence_hits"], 1)
+        self.assertTrue(result["cross_verification"]["enabled"])
+        self.assertEqual(result["cross_verification"]["verification_query_count"], 1)
+        self.assertEqual(result["planning_ops"][0]["op"], "request_cross_check")
 
     def test_executor_uses_backend_roles_to_narrow_platforms(self):
         observed = {}
@@ -198,6 +217,8 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertIn("scheduler", result["search_graph"])
         self.assertIn("graph_handoff", result["routeable_output"])
         self.assertIn("next_branch_mode", result["routeable_output"]["graph_handoff"])
+        self.assertIn("cross_verification", result["search_graph"])
+        self.assertIn("cross_verification", result["routeable_output"])
 
 
 if __name__ == "__main__":

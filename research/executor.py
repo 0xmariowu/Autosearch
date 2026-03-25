@@ -72,6 +72,28 @@ def _intent_query_spec(query: dict[str, Any], provider_mix: list[str]) -> dict[s
     return restrict_query_to_provider_mix(query, provider_mix)
 
 
+def _cross_verification_intents(
+    decision: dict[str, Any] | None,
+    *,
+    tried: set[str],
+) -> list[dict[str, Any]]:
+    payload = dict(decision or {})
+    if not bool(payload.get("cross_verify")):
+        return []
+    intents: list[dict[str, Any]] = []
+    for query in list(payload.get("cross_verification_queries") or []):
+        spec = {
+            "text": str((query or {}).get("text") or "").strip(),
+            "platforms": list((query or {}).get("platforms") or []),
+        }
+        if not spec["text"]:
+            continue
+        if str(spec) in tried or spec in intents:
+            continue
+        intents.append(spec)
+    return intents
+
+
 def execute_research_plan(
     plan: dict[str, Any],
     *,
@@ -83,16 +105,26 @@ def execute_research_plan(
     query_key_fn: Any | None = None,
     local_evidence_records: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    effective_provider_mix = list(provider_mix or [])
+    decision = dict(plan.get("decision") or {})
+    effective_provider_mix = list(decision.get("provider_mix") or provider_mix or [])
     effective_platforms = platforms_for_provider_mix(default_platforms, effective_provider_mix)
     query_runs: list[dict[str, Any]] = []
     findings: list[dict[str, Any]] = []
     query_keys: list[str] = []
     tried = set(tried_queries or set())
     intents = list(plan.get("intents") or [])
+    intents.extend(_cross_verification_intents(decision, tried=tried))
     local_records = coerce_evidence_records(local_evidence_records or plan.get("local_evidence_records") or [])
-    local_limit = int((sampling_policy or {}).get("local_evidence_limit", 3) or 3)
+    effective_sampling_policy = {
+        **dict(sampling_policy or {}),
+        **dict(decision.get("sampling_policy") or {}),
+        **dict(decision.get("acquisition_policy") or {}),
+        **dict(decision.get("evidence_policy") or {}),
+    }
+    effective_backend_roles = dict(decision.get("backend_roles") or backend_roles or {})
+    local_limit = int(effective_sampling_policy.get("local_evidence_limit", 3) or 3)
     plan_role = str(plan.get("role") or "")
+    verification_query_count = 0
     for query in intents:
         raw_query = (
             coerce_evidence_record(query)
@@ -104,7 +136,7 @@ def execute_research_plan(
             effective_query,
             effective_platforms,
             provider_mix=effective_provider_mix,
-            backend_roles=backend_roles,
+            backend_roles=effective_backend_roles,
             plan_role=plan_role,
         )
         effective_query = _intent_query_spec(
@@ -123,9 +155,11 @@ def execute_research_plan(
         run = search_query(
             effective_query,
             intent_platforms,
-            sampling_policy=sampling_policy,
+            sampling_policy=effective_sampling_policy,
         )
         normalized_findings = coerce_evidence_records(run["findings"])
+        if effective_query in _cross_verification_intents(decision, tried=set()):
+            verification_query_count += 1
         query_runs.append({
             "query": run["query"],
             "query_spec": run["query_spec"],
@@ -146,6 +180,12 @@ def execute_research_plan(
         "graph_edges": list(plan.get("graph_edges") or []),
         "branch_targets": list(plan.get("branch_targets") or []),
         "branch_depth": int(plan.get("branch_depth", 0) or 0),
+        "decision": decision,
+        "planning_ops": list(plan.get("planning_ops") or []),
+        "cross_verification": {
+            "enabled": bool(decision.get("cross_verify")),
+            "verification_query_count": verification_query_count,
+        },
         "local_evidence_hits": len(local_records),
         "query_keys": query_keys,
         "query_runs": query_runs,

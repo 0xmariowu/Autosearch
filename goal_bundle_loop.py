@@ -35,7 +35,7 @@ from goal_services import (
     sample_findings as _sample_findings,
     search_query as _search_query,
 )
-from research import build_research_plan, execute_research_plan, synthesize_research_round
+from research import apply_planning_ops, build_research_plan, execute_research_plan, synthesize_research_round
 from research.mode_policy import get_mode_policy
 from selector import candidate_rank, evaluate_acceptance
 from source_capability import refresh_source_capability
@@ -556,6 +556,7 @@ def run_goal_bundle_loop(
                 candidate_index=plan_index,
                 program_overrides=dict(plan.get("program_overrides") or {}),
             )
+            candidate_program = apply_planning_ops(candidate_program, list(plan.get("planning_ops") or []))
             if str(candidate_program.get("family_id") or "") in _retired_families(accepted_program):
                 strategy_summaries.append({
                     "label": plan.get("label", f"plan-{plan_index}"),
@@ -661,6 +662,7 @@ def run_goal_bundle_loop(
                 existing_findings=_normalized_findings(bundle_state["accepted_findings"]),
                 round_findings=round_findings,
                 harness=effective_harness,
+                graph_plan=execution,
             )
             candidate_bundle = list(synthesized["bundle"])
             plan_judge = dict(synthesized["judge_result"])
@@ -698,6 +700,8 @@ def run_goal_bundle_loop(
                 "plan_index": plan_index,
                 "research_bundle": synthesized.get("research_bundle", {}),
                 "search_graph": synthesized.get("search_graph", {}),
+                "decision": execution.get("decision", {}),
+                "planning_ops": execution.get("planning_ops", []),
             }
             archive_path = archive_candidate_program(
                 str(goal_case.get("id") or "goal"),
@@ -708,6 +712,8 @@ def run_goal_bundle_loop(
                     "harness_metrics": harness_state,
                     "selection": selection,
                     "query_runs": query_runs,
+                    "decision": execution.get("decision", {}),
+                    "planning_ops": execution.get("planning_ops", []),
                 },
             )
             strategy_summaries.append({
@@ -732,6 +738,8 @@ def run_goal_bundle_loop(
                 "routeable_output": synthesized.get("routeable_output", {}),
                 "research_bundle": synthesized.get("research_bundle", {}),
                 "search_graph": synthesized.get("search_graph", {}),
+                "decision": execution.get("decision", {}),
+                "planning_ops": execution.get("planning_ops", []),
             })
             population.append({
                 "program_id": candidate_program["program_id"],
