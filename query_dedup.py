@@ -6,6 +6,8 @@ import math
 import re
 from typing import Any
 
+from embeddings import semantic_similarity as embedding_semantic_similarity
+
 
 STOP_WORDS = {
     "the", "and", "for", "with", "that", "this", "from", "into", "after", "before",
@@ -65,7 +67,8 @@ def semantic_query_similarity(left: str, right: str) -> float:
     left_terms = set(query_terms(left))
     right_terms = set(query_terms(right))
     overlap = len(left_terms & right_terms) / max(len(left_terms | right_terms), 1)
-    return (0.5 * token_cosine) + (0.3 * char_cosine) + (0.2 * overlap)
+    embedding_score = embedding_semantic_similarity(left, right)
+    return (0.35 * token_cosine) + (0.2 * char_cosine) + (0.15 * overlap) + (0.3 * embedding_score)
 
 
 def dedup_query_specs(

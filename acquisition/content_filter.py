@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 import re
 
+from embeddings import semantic_similarity as embedding_semantic_similarity
+
 
 def _terms(query: str) -> set[str]:
     return {
@@ -49,13 +51,20 @@ def _bm25ish_score(text: str, query_terms: set[str]) -> float:
     return score + coverage
 
 
-def _paragraph_score(paragraph: str, query_terms: set[str], index: int, total: int) -> tuple[float, int, int]:
+def _embedding_score(text: str, query: str) -> float:
+    if not str(query or "").strip():
+        return 0.0
+    return embedding_semantic_similarity(text, query)
+
+
+def _paragraph_score(paragraph: str, query_terms: set[str], query: str, index: int, total: int) -> tuple[float, int, int]:
     lowered = paragraph.lower()
     overlap = sum(1 for term in query_terms if term in lowered)
     bm25ish = _bm25ish_score(paragraph, query_terms)
+    semantic = _embedding_score(paragraph, query)
     density = len(re.findall(r"[A-Za-z0-9_\-]{4,}", paragraph))
     edge_bonus = 1 if index in {0, max(total - 1, 0)} else 0
-    return (bm25ish + overlap, edge_bonus, density)
+    return (bm25ish + overlap + semantic, edge_bonus, density)
 
 
 def select_relevant_content(text: str, *, query: str = "", max_chars: int = 2400) -> str:
@@ -75,7 +84,7 @@ def select_relevant_content(text: str, *, query: str = "", max_chars: int = 2400
             expanded_middle.append((index, chunk))
     ranked_middle = sorted(
         expanded_middle,
-        key=lambda item: _paragraph_score(item[1], terms, item[0], len(paragraphs)),
+        key=lambda item: _paragraph_score(item[1], terms, query, item[0], len(paragraphs)),
         reverse=True,
     )
     selected_middle = [paragraph for _, paragraph in ranked_middle[:3]]

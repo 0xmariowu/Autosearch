@@ -95,6 +95,9 @@ def build_routeable_output(
             "provider_count": int(cross_verification.get("provider_count", 0) or 0),
             "domain_count": int(cross_verification.get("domain_count", 0) or 0),
             "consensus_strength": str(cross_verification.get("consensus_strength") or ""),
+            "contradiction_detected": bool(cross_verification.get("contradiction_detected", False)),
+            "stance_counts": dict(cross_verification.get("stance_counts") or {}),
             "contradiction_signals": list(cross_verification.get("contradiction_signals") or []),
+            "contradiction_pairs": list(cross_verification.get("contradiction_pairs") or []),
         },
     }
