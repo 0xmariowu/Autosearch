@@ -101,6 +101,19 @@ def _default_backend_roles(available_providers: list[str]) -> dict[str, list[str
     return roles
 
 
+def _mutation_kind(label: str) -> str:
+    lowered = str(label or "").strip().lower()
+    if "anchored" in lowered:
+        return "anchor_followup"
+    if "frontier" in lowered or "orthogonal" in lowered:
+        return "frontier_probe"
+    if "repair" in lowered or "heuristic" in lowered:
+        return "dimension_repair"
+    if "seed" in lowered or "primary" in lowered:
+        return "broad_recall"
+    return "mutation"
+
+
 def default_program(goal_case: dict[str, Any], available_providers: list[str]) -> dict[str, Any]:
     queries = [
         _normalize_query_spec(query)
@@ -132,6 +145,9 @@ def default_program(goal_case: dict[str, Any], available_providers: list[str]) -
         "goal_id": str(goal_case.get("id") or ""),
         "parent_program_id": None,
         "label": "seed-program",
+        "branch_id": "seed",
+        "branch_depth": 0,
+        "mutation_kind": "seed",
         "created_at": datetime.now().astimezone().isoformat(),
         "queries": queries,
         "provider_mix": list(available_providers),
@@ -218,6 +234,9 @@ def build_candidate_program(
         "goal_id": goal_id,
         "parent_program_id": parent_program.get("program_id"),
         "label": label,
+        "branch_id": str(parent_program.get("branch_id") or _mutation_kind(label)),
+        "branch_depth": int(parent_program.get("branch_depth", 0) or 0) + 1,
+        "mutation_kind": _mutation_kind(label),
         "created_at": created_at,
         "queries": list(queries),
         "provider_mix": list(provider_mix),
@@ -292,6 +311,11 @@ def _population_lineage_summary(population: list[dict[str, Any]]) -> dict[str, A
             for item in population
             if str(item.get("parent_program_id") or "")
         }),
+        "branch_ids": sorted({
+            str(item.get("branch_id") or "")
+            for item in population
+            if str(item.get("branch_id") or "")
+        }),
         "accepted_candidates": [
             str(item.get("program_id") or "")
             for item in population
@@ -304,6 +328,19 @@ def _population_lineage_summary(population: list[dict[str, Any]]) -> dict[str, A
             for item in population
             for field in list((item.get("selection") or {}).get("program_change_fields") or [])
         }),
+        "mutation_kinds": sorted({
+            str(item.get("mutation_kind") or "")
+            for item in population
+            if str(item.get("mutation_kind") or "")
+        }),
+        "branch_counts": {
+            branch_id: sum(1 for item in population if str(item.get("branch_id") or "") == branch_id)
+            for branch_id in sorted({
+                str(item.get("branch_id") or "")
+                for item in population
+                if str(item.get("branch_id") or "")
+            })
+        },
     }
     return summary
 

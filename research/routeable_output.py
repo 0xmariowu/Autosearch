@@ -57,6 +57,12 @@ def build_routeable_output(
         "missing_dimensions": list(judge_result.get("missing_dimensions") or []),
         "weakest_dimension": str(repair_hints.get("weakest_dimension") or ""),
         "routes": route_groups,
+        "next_actions": [
+            {
+                "type": "repair",
+                "dimension": str(repair_hints.get("weakest_dimension") or ""),
+            }
+        ] if str(repair_hints.get("weakest_dimension") or "") else [],
         "citations": citations[:20],
         "keywords": [term for term, _ in keywords.most_common(12)],
     }

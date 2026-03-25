@@ -27,6 +27,8 @@ class GoalRuntimeTests(unittest.TestCase):
             ["github_repos"],
         )
         self.assertEqual(program["program_id"], "seed-program")
+        self.assertEqual(program["branch_id"], "seed")
+        self.assertEqual(program["mutation_kind"], "seed")
         self.assertEqual([item["text"] for item in program["queries"]], ["a", "b"])
         self.assertEqual(program["topic_frontier"][0]["id"], "topic-a")
         self.assertEqual(program["query_templates"]["gap_a"], ["query a1"])
@@ -75,6 +77,8 @@ class GoalRuntimeTests(unittest.TestCase):
             },
         )
         self.assertEqual(candidate["topic_frontier"][0]["id"], "topic-b")
+        self.assertEqual(candidate["branch_depth"], 1)
+        self.assertEqual(candidate["mutation_kind"], "frontier_probe")
         self.assertEqual(candidate["explore_budget"], 0.7)
         self.assertEqual(candidate["exploit_budget"], 0.3)
         self.assertFalse(candidate["sampling_policy"]["anchor_followups"])
@@ -112,6 +116,7 @@ class GoalRuntimeTests(unittest.TestCase):
                 self.assertEqual(payload["population"][0]["program_id"], "p1")
                 lineage = __import__("json").loads(paths["latest_lineage"].read_text(encoding="utf-8"))
                 self.assertEqual(lineage["summary"]["top_score"], 88)
+                self.assertIn("branch_counts", lineage["summary"])
 
 
 if __name__ == "__main__":
