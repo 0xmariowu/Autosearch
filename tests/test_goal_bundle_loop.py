@@ -14,6 +14,35 @@ import goal_bundle_loop as gbl
 
 
 class GoalBundleLoopTests(unittest.TestCase):
+    def test_available_platforms_injects_free_web_search_before_premium(self):
+        goal_case = {
+            "providers": ["exa", "tavily", "github_repos"],
+        }
+        capability_report = {
+            "sources": {
+                "searxng": {"status": "ok", "available": True, "runtime_enabled": True, "tier": 0},
+                "ddgs": {"status": "ok", "available": True, "runtime_enabled": True, "tier": 0},
+                "exa": {"status": "ok", "available": True, "runtime_enabled": True, "tier": 3},
+                "tavily": {"status": "ok", "available": True, "runtime_enabled": True, "tier": 3},
+                "github_repos": {"status": "ok", "available": True, "runtime_enabled": True, "tier": 1},
+            }
+        }
+        platforms = gbl._available_platforms(goal_case, capability_report)
+        self.assertEqual(
+            [item["name"] for item in platforms],
+            ["searxng", "ddgs", "exa", "tavily", "github_repos"],
+        )
+
+    def test_available_platforms_defaults_to_free_web_search_when_no_providers(self):
+        capability_report = {
+            "sources": {
+                "searxng": {"status": "ok", "available": True, "runtime_enabled": True, "tier": 0},
+                "ddgs": {"status": "ok", "available": True, "runtime_enabled": True, "tier": 0},
+            }
+        }
+        platforms = gbl._available_platforms({}, capability_report)
+        self.assertEqual([item["name"] for item in platforms], ["searxng", "ddgs"])
+
     def test_harness_for_program_applies_sampling_policy_bundle_caps(self):
         harness = {
             "bundle_policy": {

@@ -225,6 +225,8 @@ class PlatformConnector:
     def search(platform: dict, query: str) -> PlatformSearchOutcome:
         name = platform["name"]
         dispatch = {
+            "searxng": PlatformConnector._searxng,
+            "ddgs": PlatformConnector._ddgs,
             "reddit": PlatformConnector._reddit_api,
             "reddit_exa": PlatformConnector._reddit_exa,
             "hn": PlatformConnector._hn_algolia,
@@ -361,6 +363,70 @@ class PlatformConnector:
             )
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return PlatformConnector._outcome("exa", error_alias="exa_unavailable")
+
+    @staticmethod
+    def _searxng(platform: dict, query: str) -> PlatformSearchOutcome:
+        base_url = str(os.environ.get("SEARXNG_URL", "http://127.0.0.1:8888")).rstrip("/")
+        limit = int(platform.get("limit", 10) or 10)
+        params = {
+            "q": str(platform.get("query") or query or "").strip(),
+            "format": "json",
+            "language": str(platform.get("language") or "en"),
+        }
+        if limit > 0:
+            params["pageno"] = "1"
+        url = f"{base_url}/search?{urllib.parse.urlencode(params)}"
+        try:
+            request = urllib.request.Request(
+                url,
+                headers={"User-Agent": "autosearch/1.0"},
+            )
+            with urllib.request.urlopen(request, timeout=10) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            results = []
+            for item in list(data.get("results") or [])[:limit]:
+                url_value = str(item.get("url") or "").strip()
+                title = str(item.get("title") or "").strip()
+                if not url_value and not title:
+                    continue
+                body = str(item.get("content") or item.get("snippet") or "")[:500]
+                results.append(SearchResult(
+                    title=title,
+                    url=url_value,
+                    body=body,
+                    source="searxng",
+                ))
+            return PlatformConnector._outcome("searxng", results)
+        except Exception:
+            return PlatformConnector._outcome("searxng", error_alias="searxng_unavailable")
+
+    @staticmethod
+    def _ddgs(platform: dict, query: str) -> PlatformSearchOutcome:
+        limit = int(platform.get("limit", 10) or 10)
+        backend = str(platform.get("backend_name") or "auto")
+        try:
+            module = __import__("ddgs")
+            ddgs_class = getattr(module, "DDGS", None)
+            if ddgs_class is None:
+                return PlatformConnector._outcome("ddgs", error_alias="ddgs_unavailable")
+            with ddgs_class() as client:
+                rows = list(client.text(query, max_results=limit, backend=backend) or [])
+            results = []
+            for item in rows[:limit]:
+                url_value = str(item.get("href") or item.get("url") or "").strip()
+                title = str(item.get("title") or "").strip()
+                if not url_value and not title:
+                    continue
+                body = str(item.get("body") or item.get("snippet") or "")[:500]
+                results.append(SearchResult(
+                    title=title,
+                    url=url_value,
+                    body=body,
+                    source="ddgs",
+                ))
+            return PlatformConnector._outcome("ddgs", results)
+        except Exception:
+            return PlatformConnector._outcome("ddgs", error_alias="ddgs_unavailable")
 
     @staticmethod
     def _tavily(platform: dict, query: str) -> PlatformSearchOutcome:

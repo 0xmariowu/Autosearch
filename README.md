@@ -27,6 +27,7 @@ Self-improving search system. Finds repos, articles, and tools for Armory intake
 | `outcomes.py` | Feedback loop: query→repo tracking + WHEN/USE outcome scoring |
 | `project_experience.py` | Runtime experience layer: ledger → index → policy → health |
 | `source_capability.py` | Static source capability layer: catalog → doctor → latest-capability |
+| `evidence_records.py` | Normalizes raw search hits into stable evidence records with domain/content metadata |
 | `control_plane.py` | Current operating program: objective + capability + experience |
 | `goal_judge.py` | Goal-specific evaluator with heuristic / OpenRouter modes |
 | `goal_loop.py` | Goal-driven search loop with keep/discard by score delta |
@@ -96,6 +97,7 @@ round_result = session.run_searcher_round()
 
 Current runtime default:
 
+- Search is free-first by default: when a goal asks for broad premium web search (`exa` / `tavily`), the runtime injects local free web providers (`searxng`, `ddgs`) ahead of them when available.
 - Searcher uses the local AutoSearch runtime and heuristic goal searcher.
 - Judge can use OpenRouter when `OPENROUTER_API_KEY` is configured.
 - Current default judge model is `google/gemini-3-flash-preview`.
@@ -103,6 +105,7 @@ Current runtime default:
 - Rubric-only goal cases are supported; if a goal does not define explicit `dimensions`, the runtime derives stable bundle dimensions from `rubric`.
 - The main bundle loop now supports rubric-only goals even when they have no `seed_queries`; round 1 falls back to synthesized candidate plans instead of terminating early.
 - Session mode now follows the same provider restrictions as the main loop; `provider_mix` limits both default platforms and structured per-query platform overrides.
+- Search results are normalized into evidence records before bundle scoring. Legacy fields (`title`, `url`, `body`, `source`, `query`) remain stable; new fields such as `domain`, `content_type`, `snippet`, and `canonical_text` are additive.
 
 Cross-goal benchmark example:
 

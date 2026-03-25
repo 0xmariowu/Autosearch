@@ -1,10 +1,28 @@
 {
   "sources": [
     {
+      "name": "searxng",
+      "kind": "provider",
+      "family": "web",
+      "tier": 0,
+      "runtime_enabled": true,
+      "backend": "Local SearXNG HTTP",
+      "check": "searxng_http"
+    },
+    {
+      "name": "ddgs",
+      "kind": "provider",
+      "family": "web",
+      "tier": 0,
+      "runtime_enabled": true,
+      "backend": "Local ddgs Python package",
+      "check": "ddgs_local"
+    },
+    {
       "name": "github_repos",
       "kind": "provider",
       "family": "github",
-      "tier": 0,
+      "tier": 1,
       "runtime_enabled": true,
       "backend": "gh CLI",
       "check": "github_cli"
@@ -13,7 +31,7 @@
       "name": "github_issues",
       "kind": "provider",
       "family": "github",
-      "tier": 0,
+      "tier": 1,
       "runtime_enabled": true,
       "backend": "gh CLI",
       "check": "github_cli"
@@ -22,7 +40,7 @@
       "name": "github_code",
       "kind": "provider",
       "family": "github",
-      "tier": 0,
+      "tier": 1,
       "runtime_enabled": true,
       "backend": "gh CLI",
       "check": "github_cli"
@@ -40,7 +58,7 @@
       "name": "exa",
       "kind": "provider",
       "family": "exa",
-      "tier": 0,
+      "tier": 3,
       "runtime_enabled": true,
       "backend": "mcporter + Exa MCP",
       "check": "exa_mcporter"
@@ -49,7 +67,7 @@
       "name": "tavily",
       "kind": "provider",
       "family": "web",
-      "tier": 0,
+      "tier": 3,
       "runtime_enabled": true,
       "backend": "Tavily Search API",
       "check": "tavily_api"
@@ -58,7 +76,7 @@
       "name": "reddit_exa",
       "kind": "provider",
       "family": "reddit",
-      "tier": 0,
+      "tier": 3,
       "runtime_enabled": true,
       "backend": "mcporter + Exa MCP",
       "check": "exa_mcporter"
@@ -67,7 +85,7 @@
       "name": "hn_exa",
       "kind": "provider",
       "family": "hackernews",
-      "tier": 0,
+      "tier": 3,
       "runtime_enabled": true,
       "backend": "mcporter + Exa MCP",
       "check": "exa_mcporter"
@@ -85,7 +103,7 @@
       "name": "huggingface_datasets",
       "kind": "provider",
       "family": "huggingface",
-      "tier": 0,
+      "tier": 1,
       "runtime_enabled": true,
       "backend": "agent-reach HF public API",
       "check": "huggingface_public"
