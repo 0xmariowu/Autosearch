@@ -615,6 +615,8 @@ def run_goal_bundle_loop(
         "stop_reason": stop_reason,
         "plateau_state": dict(accepted_program.get("plateau_state") or {}),
         "practical_ceiling": (accepted_program.get("plateau_state") or {}).get("practical_ceiling"),
+        "goal_reached": bool(bundle_state["score"] >= target_score),
+        "score_gap": max(0, int(target_score) - int(bundle_state["score"])),
         "warm_start": warm_start,
         "baseline_best": baseline_best,
         "bundle_final": {

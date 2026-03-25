@@ -78,6 +78,8 @@ Use the smallest entry point that matches your need:
   `AutoSearchInterface.run_goal_case(...)`
 - If you want the simplest “push this goal toward a target score” entry:
   `AutoSearchInterface.optimize_goal(...)`
+- If you want to optimize multiple goals with the same target settings:
+  `AutoSearchInterface.optimize_goals(...)`
 - If you want to run the same runtime across multiple goals:
   `AutoSearchInterface.run_goal_benchmark(...)`
 
@@ -131,6 +133,20 @@ result = client.optimize_goal(
 )
 ```
 
+Batch optimize example:
+
+```python
+from interface import AutoSearchInterface
+
+client = AutoSearchInterface("/path/to/autosearch")
+summary = client.optimize_goals(
+    ["autosearch-capability-doctor", "autosearch-goal-judge"],
+    target_score=100,
+    max_rounds=4,
+    plateau_rounds=2,
+)
+```
+
 ### Stable Return Shapes
 
 `doctor()`
@@ -168,6 +184,8 @@ result = client.optimize_goal(
   - `stop_reason`
   - `plateau_state`
   - optional `practical_ceiling`
+  - `goal_reached`
+  - `score_gap`
   - `bundle_final`
   - `rounds`
   - optional `run_path` when `persist_run=True`
@@ -190,6 +208,16 @@ result = client.optimize_goal(
   - optional `max_queries`
   - optional `persist_run`
 
+`optimize_goals(...)`
+
+- Convenience wrapper around `run_goal_benchmark(...)` for batch optimization.
+- Stable arguments:
+  - `target_score`
+  - `max_rounds`
+  - `plateau_rounds`
+  - optional `plan_count`
+  - optional `max_queries`
+
 `run_goal_benchmark(...)`
 
 - Returns a benchmark summary payload for multiple goal cases.
@@ -206,6 +234,10 @@ result = client.optimize_goal(
   - `problem`
   - `target_score`
   - `final_score`
+  - `goal_reached`
+  - `score_gap`
+  - `stop_reason`
+  - optional `practical_ceiling`
   - `accepted_rounds`
   - `rounds_run`
   - `providers_used`

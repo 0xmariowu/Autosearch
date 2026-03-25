@@ -289,6 +289,25 @@ class AutoSearchInterface:
         )
         return benchmark["payload"]
 
+    def optimize_goals(
+        self,
+        goals: list[str | Path | dict[str, Any]],
+        *,
+        target_score: int = 100,
+        max_rounds: int = 8,
+        plateau_rounds: int = 3,
+        plan_count: int = 1,
+        max_queries: int = 1,
+    ) -> dict[str, Any]:
+        return self.run_goal_benchmark(
+            goals,
+            max_rounds=max_rounds,
+            plan_count=plan_count,
+            max_queries=max_queries,
+            target_score=target_score,
+            plateau_rounds=plateau_rounds,
+        )
+
     def run_search_task(
         self,
         *,

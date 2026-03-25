@@ -30,6 +30,8 @@ class GoalBenchmarkTests(unittest.TestCase):
         })
         self.assertEqual(summary["goal_id"], "goal-x")
         self.assertEqual(summary["final_score"], 72)
+        self.assertFalse(summary["goal_reached"])
+        self.assertEqual(summary["score_gap"], 8)
         self.assertEqual(summary["accepted_rounds"], 1)
         self.assertEqual(summary["accepted_program_id"], "prog-1")
 
@@ -40,6 +42,10 @@ class GoalBenchmarkTests(unittest.TestCase):
                  "goal_id": "goal-a",
                  "problem": "p",
                  "target_score": 100,
+                 "goal_reached": False,
+                 "score_gap": 90,
+                 "stop_reason": "plateau_detected",
+                 "practical_ceiling": 10,
                  "providers_used": [],
                  "accepted_program": {"program_id": "p1"},
                  "bundle_final": {"score": 10, "matched_dimensions": [], "missing_dimensions": []},
