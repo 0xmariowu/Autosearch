@@ -9,6 +9,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from acquisition import AcquiredDocument
+from acquisition.crawl4ai_adapter import fetch_with_crawl4ai
 from acquisition.fetch_pipeline import fetch_document
 from acquisition.render_pipeline import render_document
 
@@ -63,6 +64,36 @@ class AcquisitionPipelineTests(unittest.TestCase):
         self.assertTrue(document.used_render_fallback)
         self.assertEqual(document.final_url, "https://example.com/docs")
         self.assertIn("Rendered body", document.text)
+
+    def test_fetch_document_can_use_optional_crawl4ai_adapter(self):
+        fake_result = type(
+            "FakeCrawlResult",
+            (),
+            {
+                "markdown": "planner executor synthesizer",
+                "fit_markdown": "planner executor",
+                "html": "<html></html>",
+                "url": "https://example.com/docs",
+                "title": "Crawl4AI",
+                "text": "planner executor synthesizer",
+                "references": [{"url": "https://example.com/ref", "text": "Ref"}],
+            },
+        )()
+        class FakeCrawler:
+            def run(self, url, timeout=10):
+                return fake_result
+
+        fake_module = type(
+            "FakeModule",
+            (),
+            {"WebCrawler": FakeCrawler},
+        )()
+        with patch("acquisition.crawl4ai_adapter.importlib.util.find_spec", return_value=object()), \
+             patch.dict(sys.modules, {"crawl4ai": fake_module}):
+            document = fetch_with_crawl4ai("https://example.com")
+        self.assertEqual(document.title, "Crawl4AI")
+        self.assertTrue(document.fit_markdown)
+        self.assertEqual(document.references[0]["url"], "https://example.com/ref")
 
 
 if __name__ == "__main__":

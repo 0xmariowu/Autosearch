@@ -48,6 +48,20 @@ def build_routeable_output(
         for term in str(record.get("query") or "").lower().split()
         if len(term) >= 4
     )
+    weakest_dimension = str(repair_hints.get("weakest_dimension") or "")
+    handoff_packets = []
+    for route_name, items in route_groups.items():
+        if not items:
+            continue
+        handoff_packets.append({
+            "route": route_name,
+            "goal_id": str(goal_case.get("id") or ""),
+            "target": route_name,
+            "priority_dimension": weakest_dimension,
+            "evidence_count": len(items),
+            "top_items": items[:5],
+            "next_action": "review_and_route" if route_name != "implementation" else "inspect_for_reuse",
+        })
     return {
         "goal_id": str(goal_case.get("id") or ""),
         "goal_title": str(goal_case.get("title") or goal_case.get("problem") or ""),
@@ -55,14 +69,15 @@ def build_routeable_output(
         "score_gap": max(int(goal_case.get("target_score", 100) or 100) - int(judge_result.get("score", 0) or 0), 0),
         "matched_dimensions": list(judge_result.get("matched_dimensions") or []),
         "missing_dimensions": list(judge_result.get("missing_dimensions") or []),
-        "weakest_dimension": str(repair_hints.get("weakest_dimension") or ""),
+        "weakest_dimension": weakest_dimension,
         "routes": route_groups,
         "next_actions": [
             {
                 "type": "repair",
-                "dimension": str(repair_hints.get("weakest_dimension") or ""),
+                "dimension": weakest_dimension,
             }
-        ] if str(repair_hints.get("weakest_dimension") or "") else [],
+        ] if weakest_dimension else [],
         "citations": citations[:20],
         "keywords": [term for term, _ in keywords.most_common(12)],
+        "handoff_packets": handoff_packets,
     }

@@ -43,6 +43,27 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertTrue(plans[0]["graph_node"].startswith("broad_recall-"))
         self.assertEqual(plans[0]["graph_edges"], [])
 
+    def test_planner_adds_follow_up_branch_from_local_evidence(self):
+        plans = build_research_plan(
+            searcher=_FakeSearcher(),
+            bundle_state={"accepted_findings": []},
+            judge_result={"missing_dimensions": ["implementation_signal"], "dimension_scores": {"implementation_signal": 5}},
+            tried_queries=set(),
+            available_providers=["searxng"],
+            active_program={"round_roles": ["dimension_repair"]},
+            round_history=[{"graph_node": "seed-1"}],
+            plan_count=2,
+            max_queries=2,
+            local_evidence_records=[{
+                "record_type": "evidence",
+                "title": "Harness implementation patterns",
+                "url": "https://example.com",
+                "source": "local",
+                "query": "harness",
+            }],
+        )
+        self.assertTrue(any(plan["label"] == "graph-followup" for plan in plans))
+
     def test_executor_returns_query_runs_and_findings(self):
         with patch("research.executor.search_query", return_value={
             "query": "eval harness",
@@ -68,6 +89,7 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertEqual(result["findings"][0]["record_type"], "evidence")
         self.assertEqual(result["query_runs"][0]["local_evidence_count"], 1)
         self.assertIn("graph_node", result)
+        self.assertEqual(result["local_evidence_hits"], 1)
 
     def test_executor_uses_backend_roles_to_narrow_platforms(self):
         observed = {}
@@ -117,6 +139,8 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertIn("routes", result["routeable_output"])
         self.assertIn("score_gap", result["routeable_output"])
         self.assertIn("next_actions", result["routeable_output"])
+        self.assertIn("handoff_packets", result["routeable_output"])
+        self.assertIn("search_graph", result)
 
 
 if __name__ == "__main__":

@@ -51,6 +51,12 @@ def _branch_evolution_score(current_program: dict[str, Any] | None, candidate_pr
     return branch_novelty, repair_depth
 
 
+def _family_novelty(current_program: dict[str, Any] | None, candidate_program: dict[str, Any] | None) -> int:
+    current_family = str((current_program or {}).get("family_id") or "")
+    candidate_family = str((candidate_program or {}).get("family_id") or "")
+    return int(bool(candidate_family and candidate_family != current_family))
+
+
 def _dimension_improvements(
     current_dimensions: dict[str, Any] | None,
     candidate_dimensions: dict[str, Any] | None,
@@ -125,6 +131,7 @@ def evaluate_acceptance(
     program_changed = bool(program_change_fields)
     provider_specialization = _provider_specialization_score(current_program, candidate_program)
     branch_novelty, repair_depth = _branch_evolution_score(current_program, candidate_program)
+    family_novelty = _family_novelty(current_program, candidate_program)
     improved_dimensions, weakest_dimension_delta = _dimension_improvements(
         current_state.get("dimension_scores"),
         candidate_dimensions,
@@ -168,6 +175,7 @@ def evaluate_acceptance(
         "repair_alignment": repair_alignment,
         "provider_specialization": provider_specialization,
         "branch_novelty": branch_novelty,
+        "family_novelty": family_novelty,
         "repair_depth": repair_depth,
         "improved_dimensions": improved_dimensions,
         "weakest_dimension_delta": weakest_dimension_delta,
@@ -185,6 +193,7 @@ def candidate_rank(candidate: dict[str, Any]) -> tuple[int, int, int, int, int, 
         int(selection.get("repair_alignment", 0) or 0),
         int(len(selection.get("improved_dimensions", [])) or 0),
         int(selection.get("branch_novelty", 0) or 0),
+        int(selection.get("family_novelty", 0) or 0),
         *balance,
         int(metrics.get("new_unique_urls", 0) or 0),
         int(selection.get("provider_specialization", 0) or 0),

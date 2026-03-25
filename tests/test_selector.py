@@ -252,10 +252,11 @@ class SelectorTests(unittest.TestCase):
                 }
             },
             candidate_finding_count=22,
-            current_program={"branch_id": "seed"},
-            candidate_program={"branch_id": "runtime-repair", "repair_depth": 2},
+            current_program={"branch_id": "seed", "family_id": "seed-family"},
+            candidate_program={"branch_id": "runtime-repair", "family_id": "repair-family", "repair_depth": 2},
         )
         self.assertEqual(decision["branch_novelty"], 1)
+        self.assertEqual(decision["family_novelty"], 1)
         self.assertEqual(decision["repair_depth"], 2)
 
 

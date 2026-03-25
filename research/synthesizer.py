@@ -30,9 +30,15 @@ def synthesize_research_round(
         "bundle": bundle,
         "judge_result": judge_result,
         "harness_metrics": metrics,
+        "search_graph": {
+            "bundle_size": len(bundle),
+            "missing_dimensions": list(judge_result.get("missing_dimensions") or []),
+            "weakest_dimension": weakest_dimension,
+        },
         "repair_hints": {
             "weakest_dimension": weakest_dimension,
             "missing_dimensions": list(judge_result.get("missing_dimensions") or []),
+            "follow_up_dimensions": list(judge_result.get("missing_dimensions") or [])[:2],
         },
         "routeable_output": build_routeable_output(
             goal_case,
@@ -41,6 +47,7 @@ def synthesize_research_round(
             repair_hints={
                 "weakest_dimension": weakest_dimension,
                 "missing_dimensions": list(judge_result.get("missing_dimensions") or []),
+                "follow_up_dimensions": list(judge_result.get("missing_dimensions") or [])[:2],
             },
         ),
     }

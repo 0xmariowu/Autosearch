@@ -28,6 +28,7 @@ class GoalRuntimeTests(unittest.TestCase):
         )
         self.assertEqual(program["program_id"], "seed-program")
         self.assertEqual(program["branch_id"], "seed")
+        self.assertEqual(program["family_id"], "seed-family")
         self.assertEqual(program["mutation_kind"], "seed")
         self.assertEqual([item["text"] for item in program["queries"]], ["a", "b"])
         self.assertEqual(program["topic_frontier"][0]["id"], "topic-a")
@@ -79,6 +80,7 @@ class GoalRuntimeTests(unittest.TestCase):
         )
         self.assertEqual(candidate["topic_frontier"][0]["id"], "topic-b")
         self.assertEqual(candidate["branch_root_program_id"], "seed-program")
+        self.assertEqual(candidate["family_id"], "seed-family")
         self.assertEqual(candidate["branch_depth"], 1)
         self.assertEqual(candidate["mutation_kind"], "frontier_probe")
         self.assertEqual(candidate["repair_depth"], 0)
@@ -122,6 +124,7 @@ class GoalRuntimeTests(unittest.TestCase):
                 self.assertIn("branch_counts", lineage["summary"])
                 self.assertIn("branch_best_scores", lineage["summary"])
                 self.assertIn("mutation_kind_counts", lineage["summary"])
+                self.assertIn("family_best_scores", lineage["summary"])
 
 
 if __name__ == "__main__":
