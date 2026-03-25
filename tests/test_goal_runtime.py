@@ -83,9 +83,13 @@ class GoalRuntimeTests(unittest.TestCase):
                 )
                 self.assertTrue(paths["latest"].exists())
                 self.assertTrue(paths["history"].exists())
+                self.assertTrue(paths["latest_lineage"].exists())
+                self.assertTrue(paths["lineage_history"].exists())
                 payload = __import__("json").loads(paths["latest"].read_text(encoding="utf-8"))
                 self.assertEqual(payload["round"], 2)
                 self.assertEqual(payload["population"][0]["program_id"], "p1")
+                lineage = __import__("json").loads(paths["latest_lineage"].read_text(encoding="utf-8"))
+                self.assertEqual(lineage["summary"]["top_score"], 88)
 
 
 if __name__ == "__main__":

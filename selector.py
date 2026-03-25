@@ -10,6 +10,31 @@ def _dimension_profile(payload: dict[str, Any]) -> tuple[int, ...]:
     return tuple(sorted(int(value or 0) for value in scores.values()))
 
 
+def _program_change_fields(current_program: dict[str, Any] | None, candidate_program: dict[str, Any] | None) -> list[str]:
+    current_program = dict(current_program or {})
+    candidate_program = dict(candidate_program or {})
+    changed: list[str] = []
+    for field in (
+        "provider_mix",
+        "topic_frontier",
+        "query_templates",
+        "explore_budget",
+        "exploit_budget",
+        "sampling_policy",
+    ):
+        if current_program.get(field) != candidate_program.get(field):
+            changed.append(field)
+    return changed
+
+
+def _provider_specialization_score(current_program: dict[str, Any] | None, candidate_program: dict[str, Any] | None) -> int:
+    current_mix = list((current_program or {}).get("provider_mix") or [])
+    candidate_mix = list((candidate_program or {}).get("provider_mix") or [])
+    if not candidate_mix:
+        return 0
+    return max(0, len(current_mix) - len(candidate_mix))
+
+
 def evaluate_acceptance(
     *,
     current_state: dict[str, Any],
@@ -18,6 +43,8 @@ def evaluate_acceptance(
     candidate_metrics: dict[str, Any],
     harness: dict[str, Any],
     candidate_finding_count: int,
+    current_program: dict[str, Any] | None = None,
+    candidate_program: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     anti = dict(harness.get("anti_cheat") or {})
     hard_failures: list[str] = []
@@ -39,6 +66,9 @@ def evaluate_acceptance(
     candidate_profile = _dimension_profile({"dimension_scores": candidate_dimensions})
     current_findings = int(len(current_state.get("accepted_findings", [])) or 0)
     new_unique_urls = int(candidate_metrics.get("new_unique_urls", 0) or 0)
+    program_change_fields = _program_change_fields(current_program, candidate_program)
+    program_changed = bool(program_change_fields)
+    provider_specialization = _provider_specialization_score(current_program, candidate_program)
 
     improved_score = candidate_score > current_score
     improved_profile = candidate_profile > current_profile
@@ -50,9 +80,11 @@ def evaluate_acceptance(
     if improved_score and not hard_failures:
         accepted = True
         reason = "score_improved"
-    elif candidate_score == current_score and not hard_failures and materially_new and (improved_profile or improved_findings):
+    elif candidate_score == current_score and not hard_failures and materially_new and (
+        improved_profile or improved_findings or program_changed
+    ):
         accepted = True
-        reason = "tie_broken_by_profile_or_novelty"
+        reason = "tie_broken_by_profile_novelty_or_program"
 
     if accepted and warnings:
         reason = f"{reason}_with_warnings"
@@ -66,6 +98,9 @@ def evaluate_acceptance(
         "candidate_score": candidate_score,
         "current_profile": current_profile,
         "candidate_profile": candidate_profile,
+        "program_changed": program_changed,
+        "program_change_fields": program_change_fields,
+        "provider_specialization": provider_specialization,
     }
 
 
@@ -78,6 +113,8 @@ def candidate_rank(candidate: dict[str, Any]) -> tuple[int, int, int, int, int, 
         int(candidate.get("score", 0) or 0),
         *balance,
         int(metrics.get("new_unique_urls", 0) or 0),
+        int(selection.get("provider_specialization", 0) or 0),
+        int(len(selection.get("program_change_fields", [])) or 0),
         -int(len(selection.get("anti_cheat_warnings", [])) or 0),
         int(candidate.get("matched_count", 0) or 0),
         int(candidate.get("finding_count", 0) or 0),

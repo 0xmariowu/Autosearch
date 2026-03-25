@@ -161,6 +161,8 @@ def _promote_compatible_archive_candidate(
             candidate_metrics=dict(result.get("harness_metrics") or {}),
             harness=harness,
             candidate_finding_count=int((result.get("harness_metrics") or {}).get("total_findings", 0) or 0),
+            current_program=accepted_program,
+            candidate_program=candidate_program,
         )
         if not reevaluated.get("accepted"):
             continue
@@ -222,7 +224,13 @@ def _promote_compatible_archive_candidate(
     }
 
 
-def run_goal_bundle_loop(goal_case: dict[str, Any], max_rounds: int = 8) -> dict[str, Any]:
+def run_goal_bundle_loop(
+    goal_case: dict[str, Any],
+    max_rounds: int = 8,
+    *,
+    plan_count_override: int | None = None,
+    max_queries_override: int | None = None,
+) -> dict[str, Any]:
     capability_report = refresh_source_capability(goal_case.get("providers"))
     platforms = _available_platforms(goal_case, capability_report)
     harness = ensure_harness(goal_case)
@@ -310,9 +318,12 @@ def run_goal_bundle_loop(goal_case: dict[str, Any], max_rounds: int = 8) -> dict
                     "promoted_archive_candidate": promoted,
                 }
 
+    effective_plan_count = int(plan_count_override or accepted_program.get("plan_count", 3) or 3)
+    effective_max_queries = int(max_queries_override or accepted_program.get("max_queries", 5) or 5)
+
     for round_index in range(1, max_rounds + 1):
         if round_index == 1 and not bundle_state["accepted_queries"]:
-            candidate_plans = [{"label": "seed", "queries": searcher.initial_queries()}]
+            candidate_plans = [{"label": "seed", "queries": searcher.initial_queries()[:effective_max_queries]}]
         else:
             candidate_plans = searcher.candidate_plans(
                 bundle_state=bundle_state,
@@ -321,8 +332,8 @@ def run_goal_bundle_loop(goal_case: dict[str, Any], max_rounds: int = 8) -> dict
                 available_providers=available_provider_names,
                 active_program=accepted_program,
                 round_history=rounds,
-                plan_count=int(accepted_program.get("plan_count", 3) or 3),
-                max_queries=int(accepted_program.get("max_queries", 5) or 5),
+                plan_count=effective_plan_count,
+                max_queries=effective_max_queries,
             )
         if not candidate_plans:
             break
@@ -393,6 +404,8 @@ def run_goal_bundle_loop(goal_case: dict[str, Any], max_rounds: int = 8) -> dict
                 candidate_metrics=harness_state,
                 harness=effective_harness,
                 candidate_finding_count=len(candidate_bundle),
+                current_program=accepted_program,
+                candidate_program=candidate_program,
             )
             candidate = {
                 "program": candidate_program,
@@ -439,8 +452,10 @@ def run_goal_bundle_loop(goal_case: dict[str, Any], max_rounds: int = 8) -> dict
             })
             population.append({
                 "program_id": candidate_program["program_id"],
+                "parent_program_id": candidate_program.get("parent_program_id"),
                 "label": candidate["label"],
                 "provider_mix": list(candidate_program.get("provider_mix") or []),
+                "mutation_history": list(candidate_program.get("mutation_history") or []),
                 "score": candidate["score"],
                 "dimension_scores": dict(candidate["dimension_scores"]),
                 "selection": selection,
