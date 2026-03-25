@@ -38,6 +38,8 @@ def run_benchmark(
     *,
     plan_count: int | None = None,
     max_queries: int | None = None,
+    target_score: int | None = None,
+    plateau_rounds: int | None = None,
 ) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
     summaries: list[dict[str, Any]] = []
@@ -48,6 +50,8 @@ def run_benchmark(
             max_rounds=max_rounds,
             plan_count_override=plan_count,
             max_queries_override=max_queries,
+            target_score_override=target_score,
+            plateau_rounds_override=plateau_rounds,
         )
         results.append(result)
         summaries.append(_benchmark_summary(result))
@@ -58,6 +62,8 @@ def run_benchmark(
         "max_rounds": int(max_rounds),
         "plan_count": int(plan_count or 0),
         "max_queries": int(max_queries or 0),
+        "target_score": int(target_score or 0),
+        "plateau_rounds": int(plateau_rounds or 0),
         "goals": summaries,
     }
     return {

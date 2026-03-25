@@ -86,11 +86,19 @@ def _normalize_plan(plan: Any) -> dict[str, Any]:
 
 def _provider_mix_for_queries(queries: list[dict[str, Any]], available_providers: list[str]) -> list[str]:
     inferred: list[str] = []
+    has_unscoped_query = False
     for query in list(queries or []):
-        for platform in list((query or {}).get("platforms") or []):
+        query_platforms = list((query or {}).get("platforms") or [])
+        if not query_platforms:
+            has_unscoped_query = True
+        for platform in query_platforms:
             name = str((platform or {}).get("name") or "").strip()
             if name and name in available_providers and name not in inferred:
                 inferred.append(name)
+    if has_unscoped_query:
+        for provider in list(available_providers):
+            if provider not in inferred:
+                inferred.append(provider)
     return inferred or list(available_providers)
 
 
@@ -102,6 +110,40 @@ def _active_query_templates(
     if isinstance(raw, dict) and raw:
         return {str(key): list(value or []) for key, value in raw.items()}
     return {str(key): list(value or []) for key, value in dict(fallback_templates or {}).items()}
+
+
+def _active_dimension_strategies(
+    active_program: dict[str, Any],
+    query_templates: dict[str, list[Any]],
+) -> dict[str, dict[str, Any]]:
+    raw = dict(active_program.get("dimension_strategies") or {})
+    if raw:
+        return {
+            str(key): {
+                "queries": [
+                    _normalize_query_spec(query)
+                    for query in list((value or {}).get("queries") or [])
+                    if _normalize_query_spec(query)["text"]
+                ],
+                "preferred_providers": [
+                    str(provider).strip()
+                    for provider in list((value or {}).get("preferred_providers") or [])
+                    if str(provider).strip()
+                ],
+            }
+            for key, value in raw.items()
+        }
+    return {
+        str(key): {
+            "queries": [
+                _normalize_query_spec(query)
+                for query in list(value or [])
+                if _normalize_query_spec(query)["text"]
+            ],
+            "preferred_providers": [],
+        }
+        for key, value in dict(query_templates or {}).items()
+    }
 
 
 def _synthesized_query_templates(goal_case: dict[str, Any]) -> dict[str, list[Any]]:
@@ -131,6 +173,45 @@ def _synthesized_query_templates(goal_case: dict[str, Any]) -> dict[str, list[An
                 seen.add(lowered)
                 terms.append(normalized)
         return " ".join(terms).strip()
+
+    def _structured_platforms(criterion_id: str, keywords: list[str], query_text: str) -> list[dict[str, Any]]:
+        providers = {str(provider).strip() for provider in list(goal_case.get("providers") or []) if str(provider).strip()}
+        lowered_id = criterion_id.lower()
+        lowered_keywords = [keyword.lower() for keyword in keywords]
+        implementation_like = (
+            "implementation" in lowered_id
+            or "runtime" in lowered_id
+            or any(term in lowered_keywords for term in ["cli", "command", "script", "tool", "preflight", "skip", "runtime"])
+        )
+        config_like = (
+            "auth" in lowered_id
+            or "config" in lowered_id
+            or any(term in lowered_keywords for term in ["auth", "authenticated", "login", "config", "configured"])
+        )
+        platforms: list[dict[str, Any]] = []
+        short_query = " ".join(keywords[:3]) or query_text
+        if "github_code" in providers and implementation_like:
+            platforms.append({
+                "name": "github_code",
+                "query": short_query,
+                "limit": 5,
+            })
+        if "github_issues" in providers and (implementation_like or config_like):
+            issue_query = " ".join(keywords[:2] + ["provider"]) or query_text
+            platforms.append({
+                "name": "github_issues",
+                "query": issue_query,
+                "limit": 5,
+            })
+        if "github_repos" in providers and ("provider" in lowered_id or config_like):
+            repo_query = " ".join(keywords[:2] + ["cli"]) or query_text
+            platforms.append({
+                "name": "github_repos",
+                "query": repo_query,
+                "limit": 5,
+                "min_stars": 5,
+            })
+        return platforms
 
     synthesized: dict[str, list[Any]] = {}
     mutation_terms = [
@@ -166,12 +247,23 @@ def _synthesized_query_templates(goal_case: dict[str, Any]) -> dict[str, list[An
             continue
         queries: list[dict[str, Any]] = []
         for seed in ranked_seed_queries[:3]:
-            queries.append(_normalize_query_spec(_compose_query([seed["text"]], [keywords[0]], mutation_terms[:1])))
+            seed_query = _compose_query([seed["text"]], [keywords[0]], mutation_terms[:1])
+            queries.append(_normalize_query_spec({
+                "text": seed_query,
+                "platforms": _structured_platforms(criterion_id, keywords, seed_query),
+            }))
         base = _compose_query(keywords[:3], provider_terms[:1])
         if base:
-            queries.append(_normalize_query_spec(base))
+            queries.append(_normalize_query_spec({
+                "text": base,
+                "platforms": _structured_platforms(criterion_id, keywords, base),
+            }))
         if base and mutation_terms:
-            queries.append(_normalize_query_spec(_compose_query(keywords[:2], provider_terms, mutation_terms[:1], ["implementation"])))
+            implementation_query = _compose_query(keywords[:2], provider_terms, mutation_terms[:1], ["implementation"])
+            queries.append(_normalize_query_spec({
+                "text": implementation_query,
+                "platforms": _structured_platforms(criterion_id, keywords + ["implementation"], implementation_query),
+            }))
         merged: list[dict[str, Any]] = []
         seen: set[str] = set()
         for query in queries:
@@ -202,6 +294,46 @@ def _updated_query_templates(
         if spec["text"] and spec not in merged:
             merged.append(spec)
     updated[dim_id] = merged
+    return updated
+
+
+def _updated_dimension_strategies(
+    current_strategies: dict[str, dict[str, Any]],
+    dim_id: str,
+    queries: list[dict[str, Any]],
+    available_providers: list[str],
+) -> dict[str, dict[str, Any]]:
+    updated = {
+        str(key): {
+            "queries": [
+                _normalize_query_spec(query)
+                for query in list((value or {}).get("queries") or [])
+                if _normalize_query_spec(query)["text"]
+            ],
+            "preferred_providers": [
+                str(provider).strip()
+                for provider in list((value or {}).get("preferred_providers") or [])
+                if str(provider).strip()
+            ],
+        }
+        for key, value in dict(current_strategies or {}).items()
+    }
+    if not dim_id:
+        return updated
+    merged_queries: list[dict[str, Any]] = []
+    preferred_providers = list((updated.get(dim_id) or {}).get("preferred_providers") or [])
+    for query in list(queries or []) + list((updated.get(dim_id) or {}).get("queries") or []):
+        spec = _normalize_query_spec(query)
+        if spec["text"] and spec not in merged_queries:
+            merged_queries.append(spec)
+        for platform in list(spec.get("platforms") or []):
+            name = str((platform or {}).get("name") or "").strip()
+            if name and name in available_providers and name not in preferred_providers:
+                preferred_providers.append(name)
+    updated[dim_id] = {
+        "queries": merged_queries,
+        "preferred_providers": preferred_providers,
+    }
     return updated
 
 
@@ -252,6 +384,36 @@ def _weak_dimensions(goal_case: dict[str, Any], judge_result: dict[str, Any], ma
     return [str(dim.get("id") or "") for dim in list(goal_case.get("dimensions") or [])[:max_count] if str(dim.get("id") or "")]
 
 
+def _repair_focus_dimensions(
+    goal_case: dict[str, Any],
+    active_program: dict[str, Any],
+    judge_result: dict[str, Any],
+    max_count: int = 2,
+) -> list[str]:
+    focus: list[str] = []
+    for dim_id in [str(dim).strip() for dim in list(judge_result.get("missing_dimensions") or []) if str(dim).strip()]:
+        if dim_id not in focus:
+            focus.append(dim_id)
+
+    stagnation = {
+        str(key): int(value or 0)
+        for key, value in dict(((active_program.get("plateau_state") or {}).get("dimension_stagnation") or {})).items()
+        if str(key).strip()
+    }
+    for dim_id, _score in sorted(stagnation.items(), key=lambda item: int(item[1] or 0), reverse=True):
+        if dim_id not in focus:
+            focus.append(dim_id)
+        if len(focus) >= max_count:
+            return focus[:max_count]
+
+    for dim_id in _weak_dimensions(goal_case, judge_result, max_count=max_count * 2):
+        if dim_id and dim_id not in focus:
+            focus.append(dim_id)
+        if len(focus) >= max_count:
+            break
+    return focus[:max_count]
+
+
 def _dimension_keywords(goal_case: dict[str, Any], dim_id: str, limit: int = 2) -> list[str]:
     for dimension in goal_case.get("dimensions", []):
         if str(dimension.get("id") or "") == dim_id:
@@ -298,6 +460,38 @@ def _topic_frontier_queries(goal_case: dict[str, Any], limit: int = 2) -> list[d
     return queries
 
 
+def _current_round_role(
+    active_program: dict[str, Any],
+    bundle_state: dict[str, Any],
+    judge_result: dict[str, Any],
+    round_history: list[dict[str, Any]],
+) -> str:
+    round_roles = [str(role).strip() for role in list(active_program.get("round_roles") or []) if str(role).strip()]
+    if not round_roles:
+        round_roles = ["broad_recall", "dimension_repair", "orthogonal_probe"]
+    missing_dimensions = list(judge_result.get("missing_dimensions") or [])
+    dimension_scores = {
+        str(key): int(value or 0)
+        for key, value in dict(judge_result.get("dimension_scores") or {}).items()
+        if str(key).strip()
+    }
+    if not list(bundle_state.get("accepted_findings") or []) and not missing_dimensions and not dimension_scores:
+        return "broad_recall"
+    low_dimensions = [dim_id for dim_id, score in sorted(dimension_scores.items(), key=lambda item: int(item[1] or 0)) if score < 20]
+    if missing_dimensions or low_dimensions:
+        recent_repair_rounds = [
+            item for item in list(round_history or [])[-2:]
+            if str(item.get("round_role") or "") == "dimension_repair"
+        ]
+        if len(recent_repair_rounds) >= 2 and not any(bool(item.get("accepted")) for item in recent_repair_rounds):
+            return "orthogonal_probe" if "orthogonal_probe" in round_roles else round_roles[-1]
+        return "dimension_repair" if "dimension_repair" in round_roles else round_roles[0]
+    current = str(active_program.get("current_role") or "").strip()
+    if current == "orthogonal_probe" and "broad_recall" in round_roles:
+        return "broad_recall"
+    return "orthogonal_probe" if "orthogonal_probe" in round_roles else round_roles[-1]
+
+
 def _rotate_frontier(frontier: list[dict[str, Any]], focus_topic_id: str) -> list[dict[str, Any]]:
     if not focus_topic_id:
         return list(frontier or [])
@@ -340,6 +534,7 @@ class HeuristicGoalSearcher:
         tried_queries: set[str],
         query_templates: dict[str, list[Any]] | None = None,
         round_history: list[dict[str, Any]] | None = None,
+        focus_dimensions: list[str] | None = None,
         max_queries: int = 5,
     ) -> list[Any]:
         round_history = list(round_history or [])
@@ -357,20 +552,23 @@ class HeuristicGoalSearcher:
             if str(query.get("text") or "").strip()
         }
 
-        focus_dimensions: list[str] = []
+        effective_focus_dimensions: list[str] = []
+        for dim in list(focus_dimensions or []):
+            if dim not in effective_focus_dimensions:
+                effective_focus_dimensions.append(dim)
         for dim in missing_dimensions:
-            if dim not in focus_dimensions:
-                focus_dimensions.append(dim)
+            if dim not in effective_focus_dimensions:
+                effective_focus_dimensions.append(dim)
 
-        if not focus_dimensions:
+        if not effective_focus_dimensions:
             ordered = sorted(
                 dimension_scores.items(),
                 key=lambda item: int(item[1]),
             )
-            focus_dimensions = [dim for dim, _ in ordered[:2]]
+            effective_focus_dimensions = [dim for dim, _ in ordered[:2]]
 
-        if not focus_dimensions and query_templates:
-            focus_dimensions = [str(key) for key in list(query_templates.keys())[:2] if str(key)]
+        if not effective_focus_dimensions and query_templates:
+            effective_focus_dimensions = [str(key) for key in list(query_templates.keys())[:2] if str(key)]
 
         candidate_queries: list[Any] = []
         dim_candidates = {
@@ -379,13 +577,13 @@ class HeuristicGoalSearcher:
                 for query in list(query_templates.get(dim, []) or [])
                 if _normalize_query_spec(query)["text"]
             ]
-            for dim in focus_dimensions
+            for dim in effective_focus_dimensions
         }
         round_index = 0
         while len(candidate_queries) < max_queries:
             added = False
             has_more_candidates = False
-            for dim in focus_dimensions:
+            for dim in effective_focus_dimensions:
                 queries = dim_candidates.get(dim) or []
                 if round_index >= len(queries):
                     continue
@@ -447,8 +645,11 @@ class HeuristicGoalSearcher:
         active_program = dict(active_program or {})
         current_frontier = list(active_program.get("topic_frontier") or self.topic_frontier)
         current_templates = _active_query_templates(active_program, self.dimension_queries)
+        current_strategies = _active_dimension_strategies(active_program, current_templates)
+        current_role = _current_round_role(active_program, bundle_state, judge_result, round_history)
         explore_budget = float(active_program.get("explore_budget", 0.4) or 0.4)
         exploit_budget = float(active_program.get("exploit_budget", 0.6) or 0.6)
+        repair_dimensions = _repair_focus_dimensions(self.goal_case, active_program, judge_result, max_count=2)
         recent_failed_queries = {
             str(query.get("text") or "").strip().lower()
             for item in round_history[-3:]
@@ -462,11 +663,23 @@ class HeuristicGoalSearcher:
             tried_queries=tried_queries,
             query_templates=current_templates,
             round_history=round_history,
+            focus_dimensions=repair_dimensions,
             max_queries=max_queries,
         )
+        if current_role == "broad_recall":
+            seed_focus = [
+                _normalize_query_spec(query)
+                for query in self.initial_queries()
+                if _normalize_query_spec(query)["text"]
+                and _query_key(_normalize_query_spec(query)) not in tried_queries
+                and _normalize_query_spec(query)["text"].lower() not in recent_failed_queries
+            ]
+            if seed_focus:
+                focus = seed_focus[:max_queries]
         anchor_queries: list[dict[str, Any]] = []
         anchors = _anchor_evidence(self.goal_case, bundle_state, judge_result)
-        for dim_id in _weak_dimensions(self.goal_case, judge_result, max_count=2):
+        weak_dimensions = list(repair_dimensions)
+        for dim_id in weak_dimensions:
             keywords = _dimension_keywords(self.goal_case, dim_id, limit=2)
             keyword_query = " ".join(keywords) or dim_id.replace("_", " ")
             for repo_name in anchors["repos"][:2]:
@@ -495,9 +708,9 @@ class HeuristicGoalSearcher:
                 return []
         plans: list[dict[str, Any]] = []
         if anchor_queries:
-            anchor_dim = _weak_dimensions(self.goal_case, judge_result, max_count=1) or list(judge_result.get("missing_dimensions", []))[:1]
+            anchor_dim = weak_dimensions[:1] or list(judge_result.get("missing_dimensions", []))[:1]
             plans.append({
-                "label": "heuristic-anchored",
+                "label": f"{current_role}-anchored",
                 "queries": anchor_queries[:max_queries],
                 "program_overrides": {
                     "provider_mix": _provider_mix_for_queries(anchor_queries[:max_queries], available_providers),
@@ -506,6 +719,13 @@ class HeuristicGoalSearcher:
                         anchor_dim[0] if anchor_dim else "",
                         anchor_queries[:max_queries],
                     ),
+                    "dimension_strategies": _updated_dimension_strategies(
+                        current_strategies,
+                        anchor_dim[0] if anchor_dim else "",
+                        anchor_queries[:max_queries],
+                        available_providers,
+                    ),
+                    "current_role": "dimension_repair",
                     "exploit_budget": max(exploit_budget, 0.75),
                     "explore_budget": min(explore_budget, 0.25),
                     "sampling_policy": {
@@ -515,17 +735,29 @@ class HeuristicGoalSearcher:
                 },
             })
         if focus:
-            primary_dim = _weak_dimensions(self.goal_case, judge_result, max_count=1) or list(judge_result.get("missing_dimensions", []))[:1]
+            primary_dim = weak_dimensions[:1] or list(judge_result.get("missing_dimensions", []))[:1]
+            preferred_providers = list((current_strategies.get(primary_dim[0]) or {}).get("preferred_providers") or []) if primary_dim else []
+            provider_mix = _provider_mix_for_queries(focus, available_providers)
+            for provider in preferred_providers:
+                if provider in available_providers and provider not in provider_mix:
+                    provider_mix.append(provider)
             plans.append({
-                "label": "heuristic-primary",
+                "label": f"{current_role}-primary",
                 "queries": focus,
                 "program_overrides": {
-                    "provider_mix": _provider_mix_for_queries(focus, available_providers),
+                    "provider_mix": provider_mix,
                     "query_templates": _updated_query_templates(
                         current_templates,
                         primary_dim[0] if primary_dim else "",
                         focus,
                     ),
+                    "dimension_strategies": _updated_dimension_strategies(
+                        current_strategies,
+                        primary_dim[0] if primary_dim else "",
+                        focus,
+                        available_providers,
+                    ),
+                    "current_role": current_role,
                     "exploit_budget": max(exploit_budget, 0.65),
                     "explore_budget": min(explore_budget, 0.35),
                 },
@@ -556,6 +788,7 @@ class HeuristicGoalSearcher:
                 "program_overrides": {
                     "provider_mix": _provider_mix_for_queries(topic_queries, available_providers),
                     "topic_frontier": _rotate_frontier(current_frontier, topic_id),
+                    "current_role": "orthogonal_probe",
                     "explore_budget": max(explore_budget, 0.7),
                     "exploit_budget": min(exploit_budget, 0.3),
                     "sampling_policy": {
@@ -583,6 +816,13 @@ class HeuristicGoalSearcher:
                     "program_overrides": {
                         "provider_mix": _provider_mix_for_queries(dim_queries, available_providers),
                         "query_templates": _updated_query_templates(current_templates, dim, dim_queries),
+                        "dimension_strategies": _updated_dimension_strategies(
+                            current_strategies,
+                            dim,
+                            dim_queries,
+                            available_providers,
+                        ),
+                        "current_role": "dimension_repair",
                         "exploit_budget": max(exploit_budget, 0.7),
                         "explore_budget": min(explore_budget, 0.3),
                     },

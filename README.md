@@ -144,9 +144,13 @@ benchmark = client.run_goal_benchmark(
 - Stable keys to rely on:
   - `goal_id`
   - `target_score`
+  - `plateau_rounds_limit`
   - `providers_used`
   - `judge_model`
   - `accepted_program`
+  - `stop_reason`
+  - `plateau_state`
+  - optional `practical_ceiling`
   - `bundle_final`
   - `rounds`
   - optional `run_path` when `persist_run=True`
@@ -154,6 +158,8 @@ benchmark = client.run_goal_benchmark(
   - `max_rounds`
   - optional `plan_count`
   - optional `max_queries`
+  - optional `target_score`
+  - optional `plateau_rounds`
 
 `run_goal_benchmark(...)`
 
@@ -163,6 +169,8 @@ benchmark = client.run_goal_benchmark(
   - `max_rounds`
   - `plan_count`
   - `max_queries`
+  - optional `target_score`
+  - optional `plateau_rounds`
   - `goals`
 - Each `goals[*]` item guarantees:
   - `goal_id`

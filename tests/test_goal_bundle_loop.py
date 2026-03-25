@@ -204,6 +204,77 @@ class GoalBundleLoopTests(unittest.TestCase):
         self.assertEqual(result["rounds"][0]["selected_plan_label"], "heuristic-primary")
         self.assertEqual(result["rounds"][0]["queries"][0]["text"], "judge evaluator loop")
 
+    def test_run_goal_bundle_loop_reports_plateau_state(self):
+        goal_case = {
+            "id": "goal-plateau",
+            "providers": ["github_repos"],
+            "seed_queries": ["seed"],
+            "target_score": 100,
+            "plateau_rounds": 1,
+        }
+        with patch.object(gbl, "refresh_source_capability", return_value={"sources": {}}), \
+             patch.object(gbl, "_available_platforms", return_value=[{"name": "github_repos", "limit": 5}]), \
+             patch.object(gbl, "ensure_harness", return_value={"goal_id": "goal-plateau", "bundle_policy": {}, "anti_cheat": {}}), \
+             patch.object(gbl, "GoalSearcher") as searcher_cls, \
+             patch.object(gbl, "load_accepted_program", return_value={"program_id": "seed-program", "queries": [], "sampling_policy": {}, "stop_rules": {"plateau_rounds": 1}, "plateau_state": {}}), \
+             patch.object(gbl, "_best_prior_run", return_value=(None, None)), \
+             patch.object(gbl, "_search_query", return_value={"query": "seed", "query_spec": {"text": "seed", "platforms": []}, "baseline_score": 1, "findings": [{"title": "x", "url": "u", "source": "github_repos", "query": "seed"}]}), \
+             patch.object(gbl, "build_candidate_program", return_value={"program_id": "goal-plateau-r1-c1", "provider_mix": ["github_repos"], "sampling_policy": {}, "queries": [{"text": "seed", "platforms": []}], "current_role": "broad_recall"}), \
+             patch.object(gbl, "archive_candidate_program"), \
+             patch.object(gbl, "save_population_snapshot"), \
+             patch.object(gbl, "candidate_rank", side_effect=lambda item: int(item.get("score") or 0)), \
+             patch.object(gbl, "evaluate_acceptance", return_value={"accepted": False, "candidate_score": 10, "anti_cheat_failures": [], "anti_cheat_warnings": []}), \
+             patch.object(gbl, "build_bundle", return_value=[{"title": "x", "url": "u", "source": "github_repos", "query": "seed"}]), \
+             patch.object(gbl, "bundle_metrics", return_value={"total_findings": 1, "new_unique_urls": 1, "novelty_ratio": 1.0, "source_diversity": 1.0, "source_concentration": 1.0, "query_concentration": 1.0}), \
+             patch.object(gbl, "evaluate_goal_bundle", return_value={"score": 10, "dimension_scores": {"gap": 10}, "missing_dimensions": ["gap"], "matched_dimensions": [], "rationale": "plateau", "judge": "heuristic-bundle"}), \
+             patch.object(gbl, "save_accepted_program"):
+            searcher_cls.return_value = SimpleNamespace(
+                initial_queries=lambda: [{"text": "seed", "platforms": []}],
+                candidate_plans=lambda **kwargs: [],
+            )
+            result = gbl.run_goal_bundle_loop(goal_case, max_rounds=2, plan_count_override=1, max_queries_override=1)
+        self.assertEqual(result["stop_reason"], "plateau_detected")
+        self.assertIn("stagnant_rounds", result["plateau_state"])
+
+    def test_run_goal_bundle_loop_accepts_target_and_plateau_overrides(self):
+        goal_case = {
+            "id": "goal-overrides",
+            "providers": ["github_repos"],
+            "seed_queries": ["seed"],
+            "target_score": 60,
+            "plateau_rounds": 5,
+        }
+        with patch.object(gbl, "refresh_source_capability", return_value={"sources": {}}), \
+             patch.object(gbl, "_available_platforms", return_value=[{"name": "github_repos", "limit": 5}]), \
+             patch.object(gbl, "ensure_harness", return_value={"goal_id": "goal-overrides", "bundle_policy": {}, "anti_cheat": {}}), \
+             patch.object(gbl, "GoalSearcher") as searcher_cls, \
+             patch.object(gbl, "load_accepted_program", return_value={"program_id": "seed-program", "queries": [], "sampling_policy": {}, "stop_rules": {"plateau_rounds": 5}, "plateau_state": {}}), \
+             patch.object(gbl, "_best_prior_run", return_value=(None, None)), \
+             patch.object(gbl, "_search_query", return_value={"query": "seed", "query_spec": {"text": "seed", "platforms": []}, "baseline_score": 1, "findings": [{"title": "x", "url": "u", "source": "github_repos", "query": "seed"}]}), \
+             patch.object(gbl, "build_candidate_program", return_value={"program_id": "goal-overrides-r1-c1", "provider_mix": ["github_repos"], "sampling_policy": {}, "queries": [{"text": "seed", "platforms": []}], "current_role": "broad_recall"}), \
+             patch.object(gbl, "archive_candidate_program"), \
+             patch.object(gbl, "save_population_snapshot"), \
+             patch.object(gbl, "candidate_rank", side_effect=lambda item: int(item.get("score") or 0)), \
+             patch.object(gbl, "evaluate_acceptance", return_value={"accepted": False, "candidate_score": 10, "anti_cheat_failures": [], "anti_cheat_warnings": []}), \
+             patch.object(gbl, "build_bundle", return_value=[{"title": "x", "url": "u", "source": "github_repos", "query": "seed"}]), \
+             patch.object(gbl, "bundle_metrics", return_value={"total_findings": 1, "new_unique_urls": 1, "novelty_ratio": 1.0, "source_diversity": 1.0, "source_concentration": 1.0, "query_concentration": 1.0}), \
+             patch.object(gbl, "evaluate_goal_bundle", return_value={"score": 10, "dimension_scores": {"gap": 10}, "missing_dimensions": ["gap"], "matched_dimensions": [], "rationale": "plateau", "judge": "heuristic-bundle"}), \
+             patch.object(gbl, "save_accepted_program"):
+            searcher_cls.return_value = SimpleNamespace(
+                initial_queries=lambda: [{"text": "seed", "platforms": []}],
+                candidate_plans=lambda **kwargs: [],
+            )
+            result = gbl.run_goal_bundle_loop(
+                goal_case,
+                max_rounds=2,
+                plan_count_override=1,
+                max_queries_override=1,
+                target_score_override=95,
+                plateau_rounds_override=1,
+            )
+        self.assertEqual(result["target_score"], 95)
+        self.assertEqual(result["plateau_rounds_limit"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

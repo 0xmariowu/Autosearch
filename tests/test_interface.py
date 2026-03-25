@@ -30,11 +30,21 @@ class InterfaceTests(unittest.TestCase):
             client = api.AutoSearchInterface(tmp)
             client.goal_cases_root = Path(tmp)
             client.goal_runs_root = Path(tmp) / "runs"
-            with patch.object(api, "run_goal_bundle_loop", return_value={"goal_id": "demo", "bundle_final": {"score": 82}}):
-                result = client.run_goal_case({"id": "demo"}, max_rounds=1, plan_count=1, max_queries=1, persist_run=True)
+            with patch.object(api, "run_goal_bundle_loop", return_value={"goal_id": "demo", "bundle_final": {"score": 82}}) as mocked_loop:
+                result = client.run_goal_case(
+                    {"id": "demo"},
+                    max_rounds=1,
+                    plan_count=1,
+                    max_queries=1,
+                    target_score=95,
+                    plateau_rounds=2,
+                    persist_run=True,
+                )
             self.assertEqual(result["bundle_final"]["score"], 82)
             self.assertIn("run_path", result)
             self.assertTrue(Path(result["run_path"]).exists())
+            self.assertEqual(mocked_loop.call_args.kwargs["target_score_override"], 95)
+            self.assertEqual(mocked_loop.call_args.kwargs["plateau_rounds_override"], 2)
 
     def test_run_goal_benchmark_returns_payload(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -53,9 +63,18 @@ class InterfaceTests(unittest.TestCase):
                     "max_queries": 1,
                     "goals": [{"goal_id": "goal-a", "final_score": 80}],
                 }
-            }):
-                payload = client.run_goal_benchmark(["goal-a"], max_rounds=1, plan_count=1, max_queries=1)
+            }) as mocked_benchmark:
+                payload = client.run_goal_benchmark(
+                    ["goal-a"],
+                    max_rounds=1,
+                    plan_count=1,
+                    max_queries=1,
+                    target_score=100,
+                    plateau_rounds=3,
+                )
             self.assertEqual(payload["goals"][0]["goal_id"], "goal-a")
+            self.assertEqual(mocked_benchmark.call_args.kwargs["target_score"], 100)
+            self.assertEqual(mocked_benchmark.call_args.kwargs["plateau_rounds"], 3)
 
     def test_build_searcher_judge_session_exposes_both_roles(self):
         goal_case = {
@@ -117,7 +136,7 @@ class InterfaceTests(unittest.TestCase):
              patch.object(api, "available_platforms", return_value=[{"name": "github_repos", "limit": 5}]):
             session = api.SearcherJudgeSession(goal_case)
             plans = session.searcher_propose()
-        self.assertEqual(plans[0]["label"], "heuristic-primary")
+        self.assertEqual(plans[0]["label"], "dimension_repair-primary")
         self.assertIn("seed", plans[0]["queries"][0]["text"])
 
     def test_searcher_execute_respects_provider_mix(self):
