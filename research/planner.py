@@ -107,6 +107,26 @@ def _dimension_phrases(goal_case: dict[str, Any], judge_result: dict[str, Any], 
     return phrases
 
 
+def _followup_program_overrides(active_program: dict[str, Any]) -> dict[str, Any]:
+    current_acquisition = dict(active_program.get("acquisition_policy") or {})
+    current_evidence = dict(active_program.get("evidence_policy") or {})
+    return {
+        "current_role": "dimension_repair",
+        "acquisition_policy": {
+            **current_acquisition,
+            "acquire_pages": True,
+            "page_fetch_limit": max(int(current_acquisition.get("page_fetch_limit", 2) or 2), 2),
+            "use_render_fallback": bool(current_acquisition.get("use_render_fallback", True)),
+            "use_crawl4ai_adapter": bool(current_acquisition.get("use_crawl4ai_adapter", True)),
+        },
+        "evidence_policy": {
+            **current_evidence,
+            "preferred_content_types": ["web", "reference"],
+            "prefer_acquired_text": True,
+        },
+    }
+
+
 def _repair_terms(judge_result: dict[str, Any]) -> list[str]:
     terms: list[str] = []
     for item in list(judge_result.get("missing_dimensions") or [])[:3]:
@@ -358,7 +378,7 @@ def build_research_plan(
             "graph_node": graph_node,
             "graph_edges": [{"from": previous_node, "to": graph_node, "kind": "follow_up"}] if previous_node else [],
             "branch_targets": _repair_terms(judge_result),
-            "program_overrides": {"current_role": "dimension_repair"},
+            "program_overrides": _followup_program_overrides(active_program),
             "local_evidence_records": local_evidence_records,
             "branch_depth": branch_depth + 1,
             "branch_priority": 4,
@@ -376,7 +396,7 @@ def build_research_plan(
             "graph_node": graph_node,
             "graph_edges": [{"from": previous_node, "to": graph_node, "kind": "recursive_follow_up"}] if previous_node else [],
             "branch_targets": _repair_terms(judge_result),
-            "program_overrides": {"current_role": "dimension_repair"},
+            "program_overrides": _followup_program_overrides(active_program),
             "local_evidence_records": local_evidence_records,
             "branch_depth": branch_depth + 2,
             "branch_priority": 5,
