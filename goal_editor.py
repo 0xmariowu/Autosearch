@@ -104,6 +104,86 @@ def _active_query_templates(
     return {str(key): list(value or []) for key, value in dict(fallback_templates or {}).items()}
 
 
+def _synthesized_query_templates(goal_case: dict[str, Any]) -> dict[str, list[Any]]:
+    def _unique_terms(items: list[str], *, limit: int) -> list[str]:
+        seen: set[str] = set()
+        ordered: list[str] = []
+        for item in items:
+            normalized = str(item or "").strip()
+            lowered = normalized.lower()
+            if not normalized or lowered in seen:
+                continue
+            seen.add(lowered)
+            ordered.append(normalized)
+            if len(ordered) >= limit:
+                break
+        return ordered
+
+    def _compose_query(*groups: list[str]) -> str:
+        terms: list[str] = []
+        seen: set[str] = set()
+        for group in groups:
+            for term in group:
+                normalized = str(term or "").strip()
+                lowered = normalized.lower()
+                if not normalized or lowered in seen:
+                    continue
+                seen.add(lowered)
+                terms.append(normalized)
+        return " ".join(terms).strip()
+
+    synthesized: dict[str, list[Any]] = {}
+    mutation_terms = [
+        str(term).strip()
+        for term in list(goal_case.get("mutation_terms") or goal_case.get("refinement_terms") or [])
+        if str(term).strip()
+    ]
+    provider_terms = _unique_terms([
+        str(provider).replace("_", " ")
+        for provider in list(goal_case.get("providers") or [])
+        if str(provider).strip()
+    ], limit=2)
+    seed_queries = [
+        _normalize_query_spec(query)
+        for query in list(goal_case.get("seed_queries") or [])
+        if _normalize_query_spec(query)["text"]
+    ]
+    ranked_seed_queries = sorted(
+        seed_queries,
+        key=lambda item: len(str(item.get("text") or "").split()),
+        reverse=True,
+    )
+    for index, criterion in enumerate(list(goal_case.get("rubric") or []), start=1):
+        criterion_id = str(criterion.get("id") or f"criterion_{index}").strip()
+        if not criterion_id:
+            continue
+        keywords = _unique_terms([
+            str(keyword).strip()
+            for keyword in list(criterion.get("keywords") or [])
+            if str(keyword).strip()
+        ], limit=4)
+        if not keywords:
+            continue
+        queries: list[dict[str, Any]] = []
+        for seed in ranked_seed_queries[:3]:
+            queries.append(_normalize_query_spec(_compose_query([seed["text"]], [keywords[0]], mutation_terms[:1])))
+        base = _compose_query(keywords[:3], provider_terms[:1])
+        if base:
+            queries.append(_normalize_query_spec(base))
+        if base and mutation_terms:
+            queries.append(_normalize_query_spec(_compose_query(keywords[:2], provider_terms, mutation_terms[:1], ["implementation"])))
+        merged: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for query in queries:
+            key = _query_key(query)
+            if query["text"] and key not in seen:
+                seen.add(key)
+                merged.append(query)
+        if merged:
+            synthesized[criterion_id] = merged
+    return synthesized
+
+
 def _updated_query_templates(
     current_templates: dict[str, list[Any]],
     dim_id: str,
@@ -243,8 +323,9 @@ def _extract_json_object(text: str) -> dict[str, Any]:
 class HeuristicGoalSearcher:
     def __init__(self, goal_case: dict[str, Any]):
         self.goal_case = goal_case
-        self.dimension_queries = goal_case.get("dimension_queries", {})
-        self.refinement_terms = list(goal_case.get("refinement_terms", []))
+        dimension_queries = goal_case.get("dimension_queries", {})
+        self.dimension_queries = dict(dimension_queries or _synthesized_query_templates(goal_case))
+        self.refinement_terms = list(goal_case.get("refinement_terms") or goal_case.get("mutation_terms") or [])
         self.seed_queries = list(goal_case.get("seed_queries", []))
         self.topic_frontier = list(goal_case.get("topic_frontier") or [])
 
@@ -288,10 +369,26 @@ class HeuristicGoalSearcher:
             )
             focus_dimensions = [dim for dim, _ in ordered[:2]]
 
+        if not focus_dimensions and query_templates:
+            focus_dimensions = [str(key) for key in list(query_templates.keys())[:2] if str(key)]
+
         candidate_queries: list[Any] = []
-        for dim in focus_dimensions:
-            for query in query_templates.get(dim, []):
-                spec = _normalize_query_spec(query)
+        dim_candidates = {
+            dim: [
+                _normalize_query_spec(query)
+                for query in list(query_templates.get(dim, []) or [])
+                if _normalize_query_spec(query)["text"]
+            ]
+            for dim in focus_dimensions
+        }
+        round_index = 0
+        while len(candidate_queries) < max_queries:
+            added = False
+            for dim in focus_dimensions:
+                queries = dim_candidates.get(dim) or []
+                if round_index >= len(queries):
+                    continue
+                spec = queries[round_index]
                 if (
                     spec["text"]
                     and _query_key(spec) not in tried_queries
@@ -299,8 +396,12 @@ class HeuristicGoalSearcher:
                     and spec not in candidate_queries
                 ):
                     candidate_queries.append(spec)
-            if len(candidate_queries) >= max_queries:
+                    added = True
+                    if len(candidate_queries) >= max_queries:
+                        break
+            if not added:
                 break
+            round_index += 1
 
         if not candidate_queries:
             best_titles = [
@@ -315,6 +416,13 @@ class HeuristicGoalSearcher:
                         candidate_queries.append(query)
                     if len(candidate_queries) >= max_queries:
                         break
+                if len(candidate_queries) >= max_queries:
+                    break
+
+        if not candidate_queries:
+            for seed in self.initial_queries()[:max_queries]:
+                if _query_key(seed) not in tried_queries and seed["text"].lower() not in recent_failed_queries:
+                    candidate_queries.append(seed)
                 if len(candidate_queries) >= max_queries:
                     break
 

@@ -25,9 +25,11 @@ from goal_services import (
     available_platforms as _available_platforms,
     merge_findings as _merge_findings,
     normalize_query_spec as _normalize_query_spec,
+    platforms_for_provider_mix as _platforms_for_provider_mix,
     query_key as _query_key,
     query_text as _query_text,
     replay_queries as _replay_queries,
+    restrict_query_to_provider_mix as _restrict_query_to_provider_mix,
     sample_findings as _sample_findings,
     search_query as _search_query,
 )
@@ -85,29 +87,6 @@ def _accepted_queries_from_run(payload: dict[str, Any]) -> list[dict[str, Any]]:
             if spec["text"] and spec not in accepted_queries:
                 accepted_queries.append(spec)
     return accepted_queries
-
-
-def _platforms_for_provider_mix(
-    platforms: list[dict[str, Any]],
-    provider_mix: list[str] | None,
-) -> list[dict[str, Any]]:
-    allowed = [str(name or "").strip() for name in list(provider_mix or []) if str(name or "").strip()]
-    if not allowed:
-        return [dict(platform) for platform in platforms]
-    return [dict(platform) for platform in platforms if str(platform.get("name") or "") in allowed]
-
-
-def _restrict_query_to_provider_mix(query: dict[str, Any], provider_mix: list[str] | None) -> dict[str, Any]:
-    spec = _normalize_query_spec(query)
-    allowed = {str(name or "").strip() for name in list(provider_mix or []) if str(name or "").strip()}
-    if not allowed or not spec.get("platforms"):
-        return spec
-    spec["platforms"] = [
-        dict(platform)
-        for platform in list(spec.get("platforms") or [])
-        if str((platform or {}).get("name") or "") in allowed
-    ]
-    return spec
 
 
 def _harness_for_program(harness: dict[str, Any], program: dict[str, Any]) -> dict[str, Any]:

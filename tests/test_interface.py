@@ -105,7 +105,7 @@ class InterfaceTests(unittest.TestCase):
         self.assertGreaterEqual(len(plans), 1)
         self.assertEqual(plans[0]["queries"][0]["text"], "provider runtime skip")
 
-    def test_searcher_judge_session_falls_back_to_seed_when_no_plans_generated(self):
+    def test_searcher_judge_session_can_synthesize_rubric_plan_before_seed_fallback(self):
         goal_case = {
             "id": "goal-seed",
             "providers": ["github_repos"],
@@ -117,8 +117,36 @@ class InterfaceTests(unittest.TestCase):
              patch.object(api, "available_platforms", return_value=[{"name": "github_repos", "limit": 5}]):
             session = api.SearcherJudgeSession(goal_case)
             plans = session.searcher_propose()
-        self.assertEqual(plans[0]["label"], "seed")
-        self.assertEqual(plans[0]["queries"][0]["text"], "seed query")
+        self.assertEqual(plans[0]["label"], "heuristic-primary")
+        self.assertIn("seed", plans[0]["queries"][0]["text"])
+
+    def test_searcher_execute_respects_provider_mix(self):
+        goal_case = {
+            "id": "goal-mix",
+            "providers": ["github_repos", "github_issues"],
+            "seed_queries": [],
+            "dimension_queries": {},
+        }
+        with patch.object(api, "refresh_source_capability", return_value={"sources": {}}), \
+             patch.object(api, "available_platforms", return_value=[
+                 {"name": "github_repos", "limit": 5},
+                 {"name": "github_issues", "limit": 5},
+             ]), \
+             patch.object(api, "search_query", return_value={
+                 "query": "provider mix query",
+                 "query_spec": {"text": "provider mix query", "platforms": [{"name": "github_repos", "limit": 5}]},
+                 "baseline_score": 9,
+                 "findings": [],
+             }) as mocked_search:
+            session = api.SearcherJudgeSession(goal_case)
+            session.searcher_execute(
+                [{"text": "provider mix query", "platforms": [{"name": "github_repos"}, {"name": "github_issues"}]}],
+                provider_mix=["github_repos"],
+            )
+        forwarded_query = mocked_search.call_args.args[0]
+        forwarded_platforms = mocked_search.call_args.args[1]
+        self.assertEqual([platform["name"] for platform in forwarded_query["platforms"]], ["github_repos"])
+        self.assertEqual([platform["name"] for platform in forwarded_platforms], ["github_repos"])
 
 
 if __name__ == "__main__":

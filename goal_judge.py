@@ -152,39 +152,59 @@ def _heuristic_bundle_dimension_score(dimension: dict[str, Any], text: str) -> t
     return score, hits
 
 
-def _heuristic_bundle_eval(goal_case: dict[str, Any], findings: list[dict[str, Any]]) -> dict[str, Any]:
-    if not list(goal_case.get("dimensions") or []):
-        text = _normalize_text(findings)
-        total = 0
-        dimension_scores: dict[str, int] = {}
-        missing_dimensions: list[str] = []
-        matched_dimensions: list[str] = []
-        for index, criterion in enumerate(goal_case.get("rubric", []), start=1):
-            criterion_id = str(criterion.get("id") or f"criterion_{index}")
-            weight = int(criterion.get("weight", 0) or 0)
-            keywords = [str(keyword) for keyword in criterion.get("keywords", []) if str(keyword).strip()]
-            score, hits = _criterion_score(weight, keywords, text)
-            dimension_scores[criterion_id] = score
-            total += score
-            if hits:
-                matched_dimensions.append(criterion_id)
-            else:
-                missing_dimensions.append(criterion_id)
-        return {
-            "score": min(100, total),
-            "dimension_scores": dimension_scores,
-            "missing_dimensions": missing_dimensions,
-            "matched_dimensions": matched_dimensions,
-            "rationale": "heuristic rubric-backed bundle evaluation",
-            "judge": "heuristic-bundle",
-        }
+def _bundle_dimensions(goal_case: dict[str, Any]) -> list[dict[str, Any]]:
+    explicit = [
+        dict(dimension)
+        for dimension in list(goal_case.get("dimensions") or [])
+        if str(dimension.get("id") or "").strip()
+    ]
+    if explicit:
+        return explicit
+    derived: list[dict[str, Any]] = []
+    for index, criterion in enumerate(list(goal_case.get("rubric") or []), start=1):
+        criterion_id = str(criterion.get("id") or f"criterion_{index}").strip()
+        if not criterion_id:
+            continue
+        derived.append({
+            "id": criterion_id,
+            "weight": int(criterion.get("weight", 0) or 0),
+            "keywords": [str(keyword) for keyword in list(criterion.get("keywords") or []) if str(keyword).strip()],
+        })
+    return derived
 
+
+def _normalize_bundle_result(result: dict[str, Any], dimensions: list[dict[str, Any]]) -> dict[str, Any]:
+    dimension_ids = [str(dimension.get("id") or "").strip() for dimension in dimensions if str(dimension.get("id") or "").strip()]
+    dimension_scores = {
+        dimension_id: int((result.get("dimension_scores") or {}).get(dimension_id, 0) or 0)
+        for dimension_id in dimension_ids
+    }
+    matched_dimensions = [
+        dimension_id
+        for dimension_id in dimension_ids
+        if dimension_id in set(str(item) for item in list(result.get("matched_dimensions") or []))
+        or int(dimension_scores.get(dimension_id, 0) or 0) > 0
+    ]
+    missing_dimensions = [
+        dimension_id
+        for dimension_id in dimension_ids
+        if dimension_id not in set(matched_dimensions)
+    ]
+    normalized = dict(result)
+    normalized["score"] = min(100, max(0, int(result.get("score", 0) or 0)))
+    normalized["dimension_scores"] = dimension_scores
+    normalized["matched_dimensions"] = matched_dimensions
+    normalized["missing_dimensions"] = missing_dimensions
+    return normalized
+
+
+def _heuristic_bundle_eval(goal_case: dict[str, Any], findings: list[dict[str, Any]]) -> dict[str, Any]:
     text = _normalize_text(findings)
     total = 0
     dimension_scores: dict[str, int] = {}
     missing_dimensions: list[str] = []
     matched_dimensions: list[str] = []
-    for dimension in goal_case.get("dimensions", []):
+    for dimension in _bundle_dimensions(goal_case):
         dim_id = str(dimension.get("id") or "")
         score, hits = _heuristic_bundle_dimension_score(dimension, text)
         dimension_scores[dim_id] = score
@@ -243,13 +263,14 @@ def _openrouter_bundle_eval(goal_case: dict[str, Any], findings: list[dict[str, 
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY not configured")
 
+    dimensions = _bundle_dimensions(goal_case)
     sample = _bundle_sample(findings, limit=18, per_query=3)
     prompt = (
         "You are a scoring judge only. Do not suggest strategies.\n"
         "Score the cumulative evidence bundle for a concrete project problem.\n"
         f"Problem: {goal_case.get('problem', '')}\n"
         f"Context: {goal_case.get('context_notes', '')}\n"
-        f"Dimensions: {json.dumps(goal_case.get('dimensions', []), ensure_ascii=False)}\n"
+        f"Dimensions: {json.dumps(dimensions, ensure_ascii=False)}\n"
         f"Evidence bundle: {json.dumps(sample, ensure_ascii=False)}\n\n"
         "Return only JSON with keys: score, dimension_scores, matched_dimensions, missing_dimensions, rationale.\n"
         "dimension_scores must map each dimension id to an integer 0-20.\n"
@@ -275,7 +296,7 @@ def _openrouter_bundle_eval(goal_case: dict[str, Any], findings: list[dict[str, 
     end = content.rfind("}") + 1
     if start >= 0 and end > start:
         content = content[start:end]
-    result = json.loads(content)
+    result = _normalize_bundle_result(json.loads(content), dimensions)
     result["judge"] = f"openrouter:{model}"
     return result
 

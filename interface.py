@@ -16,6 +16,8 @@ from goal_judge import evaluate_goal_bundle
 from goal_services import (
     available_platforms,
     normalize_query_spec,
+    platforms_for_provider_mix,
+    restrict_query_to_provider_mix,
     sample_findings,
     search_query,
 )
@@ -98,11 +100,14 @@ class SearcherJudgeSession:
         queries: list[dict[str, Any]],
         *,
         sampling_policy: dict[str, Any] | None = None,
+        provider_mix: list[str] | None = None,
     ) -> dict[str, Any]:
+        effective_platforms = platforms_for_provider_mix(self.platforms, provider_mix)
         query_runs: list[dict[str, Any]] = []
         findings: list[dict[str, Any]] = []
         for query in queries:
-            run = search_query(query, self.platforms, sampling_policy=sampling_policy)
+            effective_query = restrict_query_to_provider_mix(query, provider_mix)
+            run = search_query(effective_query, effective_platforms, sampling_policy=sampling_policy)
             query_runs.append({
                 "query": run["query"],
                 "query_spec": run["query_spec"],
@@ -142,14 +147,16 @@ class SearcherJudgeSession:
         )
         plan_results: list[dict[str, Any]] = []
         for plan in plans:
+            program_overrides = dict(plan.get("program_overrides") or {})
             execution = self.searcher_execute(
                 list(plan.get("queries") or []),
-                sampling_policy=dict((plan.get("program_overrides") or {}).get("sampling_policy") or {}),
+                sampling_policy=dict(program_overrides.get("sampling_policy") or {}),
+                provider_mix=list(program_overrides.get("provider_mix") or []),
             )
             judged = self.judge_bundle(execution["findings"])
             plan_results.append({
                 "label": str(plan.get("label") or ""),
-                "program_overrides": dict(plan.get("program_overrides") or {}),
+                "program_overrides": program_overrides,
                 "queries": execution["queries"],
                 "query_runs": execution["query_runs"],
                 "finding_count": len(execution["findings"]),
