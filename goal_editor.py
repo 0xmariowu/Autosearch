@@ -93,6 +93,37 @@ def _provider_mix_for_queries(queries: list[dict[str, Any]], available_providers
     return inferred or list(available_providers)
 
 
+def _active_query_templates(
+    active_program: dict[str, Any],
+    fallback_templates: dict[str, Any],
+) -> dict[str, list[Any]]:
+    raw = active_program.get("query_templates")
+    if isinstance(raw, dict) and raw:
+        return {str(key): list(value or []) for key, value in raw.items()}
+    return {str(key): list(value or []) for key, value in dict(fallback_templates or {}).items()}
+
+
+def _updated_query_templates(
+    current_templates: dict[str, list[Any]],
+    dim_id: str,
+    queries: list[dict[str, Any]],
+) -> dict[str, list[Any]]:
+    updated = {str(key): list(value or []) for key, value in dict(current_templates or {}).items()}
+    if not dim_id:
+        return updated
+    merged: list[Any] = []
+    for query in list(queries or []):
+        spec = _normalize_query_spec(query)
+        if spec["text"] and spec not in merged:
+            merged.append(spec)
+    for query in list(updated.get(dim_id) or []):
+        spec = _normalize_query_spec(query)
+        if spec["text"] and spec not in merged:
+            merged.append(spec)
+    updated[dim_id] = merged
+    return updated
+
+
 def _provider_capability_notes(available_providers: list[str]) -> dict[str, str]:
     notes = {
         "github_repos": "use for repos, benchmarks, libraries, and projects",
@@ -225,10 +256,15 @@ class HeuristicGoalSearcher:
         bundle_state: dict[str, Any],
         judge_result: dict[str, Any],
         tried_queries: set[str],
+        query_templates: dict[str, list[Any]] | None = None,
         round_history: list[dict[str, Any]] | None = None,
         max_queries: int = 5,
     ) -> list[Any]:
         round_history = list(round_history or [])
+        query_templates = {
+            str(key): list(value or [])
+            for key, value in dict(query_templates or self.dimension_queries).items()
+        }
         missing_dimensions = list(judge_result.get("missing_dimensions", []))
         dimension_scores = judge_result.get("dimension_scores", {}) or {}
         recent_failed_queries = {
@@ -253,7 +289,7 @@ class HeuristicGoalSearcher:
 
         candidate_queries: list[Any] = []
         for dim in focus_dimensions:
-            for query in self.dimension_queries.get(dim, []):
+            for query in query_templates.get(dim, []):
                 spec = _normalize_query_spec(query)
                 if (
                     spec["text"]
@@ -298,6 +334,7 @@ class HeuristicGoalSearcher:
         round_history = list(round_history or [])
         active_program = dict(active_program or {})
         current_frontier = list(active_program.get("topic_frontier") or self.topic_frontier)
+        current_templates = _active_query_templates(active_program, self.dimension_queries)
         explore_budget = float(active_program.get("explore_budget", 0.4) or 0.4)
         exploit_budget = float(active_program.get("exploit_budget", 0.6) or 0.6)
         recent_failed_queries = {
@@ -311,6 +348,7 @@ class HeuristicGoalSearcher:
             bundle_state=bundle_state,
             judge_result=judge_result,
             tried_queries=tried_queries,
+            query_templates=current_templates,
             round_history=round_history,
             max_queries=max_queries,
         )
@@ -345,11 +383,17 @@ class HeuristicGoalSearcher:
                 return []
         plans: list[dict[str, Any]] = []
         if anchor_queries:
+            anchor_dim = _weak_dimensions(self.goal_case, judge_result, max_count=1) or list(judge_result.get("missing_dimensions", []))[:1]
             plans.append({
                 "label": "heuristic-anchored",
                 "queries": anchor_queries[:max_queries],
                 "program_overrides": {
                     "provider_mix": _provider_mix_for_queries(anchor_queries[:max_queries], available_providers),
+                    "query_templates": _updated_query_templates(
+                        current_templates,
+                        anchor_dim[0] if anchor_dim else "",
+                        anchor_queries[:max_queries],
+                    ),
                     "exploit_budget": max(exploit_budget, 0.75),
                     "explore_budget": min(explore_budget, 0.25),
                     "sampling_policy": {
@@ -359,11 +403,17 @@ class HeuristicGoalSearcher:
                 },
             })
         if focus:
+            primary_dim = _weak_dimensions(self.goal_case, judge_result, max_count=1) or list(judge_result.get("missing_dimensions", []))[:1]
             plans.append({
                 "label": "heuristic-primary",
                 "queries": focus,
                 "program_overrides": {
                     "provider_mix": _provider_mix_for_queries(focus, available_providers),
+                    "query_templates": _updated_query_templates(
+                        current_templates,
+                        primary_dim[0] if primary_dim else "",
+                        focus,
+                    ),
                     "exploit_budget": max(exploit_budget, 0.65),
                     "explore_budget": min(explore_budget, 0.35),
                 },
@@ -420,6 +470,7 @@ class HeuristicGoalSearcher:
                     "queries": dim_queries,
                     "program_overrides": {
                         "provider_mix": _provider_mix_for_queries(dim_queries, available_providers),
+                        "query_templates": _updated_query_templates(current_templates, dim, dim_queries),
                         "exploit_budget": max(exploit_budget, 0.7),
                         "explore_budget": min(explore_budget, 0.3),
                     },

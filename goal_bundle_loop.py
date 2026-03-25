@@ -109,6 +109,20 @@ def _restrict_query_to_provider_mix(query: dict[str, Any], provider_mix: list[st
     ]
     return spec
 
+
+def _harness_for_program(harness: dict[str, Any], program: dict[str, Any]) -> dict[str, Any]:
+    effective = json.loads(json.dumps(harness))
+    sampling_policy = dict(program.get("sampling_policy") or {})
+    bundle_policy = dict(effective.get("bundle_policy") or {})
+    if "bundle_per_query_cap" in sampling_policy:
+        bundle_policy["per_query_cap"] = int(sampling_policy.get("bundle_per_query_cap") or bundle_policy.get("per_query_cap", 5))
+    if "bundle_per_source_cap" in sampling_policy:
+        bundle_policy["per_source_cap"] = int(sampling_policy.get("bundle_per_source_cap") or bundle_policy.get("per_source_cap", 18))
+    if "bundle_per_domain_cap" in sampling_policy:
+        bundle_policy["per_domain_cap"] = int(sampling_policy.get("bundle_per_domain_cap") or bundle_policy.get("per_domain_cap", 18))
+    effective["bundle_policy"] = bundle_policy
+    return effective
+
 def _promote_compatible_archive_candidate(
     *,
     goal_case: dict[str, Any],
@@ -173,8 +187,13 @@ def _promote_compatible_archive_candidate(
     promoted_queries = list(bundle_state.get("accepted_queries", [])) + [
         _normalize_query_spec(query) for query in list(best["program"].get("queries") or [])
     ]
-    replay_runs, replay_findings = _replay_queries(promoted_queries, platforms)
-    replay_bundle = build_bundle([], replay_findings, harness)
+    effective_harness = _harness_for_program(harness, best["program"])
+    replay_runs, replay_findings = _replay_queries(
+        promoted_queries,
+        platforms,
+        sampling_policy=dict(best["program"].get("sampling_policy") or {}),
+    )
+    replay_bundle = build_bundle([], replay_findings, effective_harness)
     replay_judge = evaluate_goal_bundle(goal_case, replay_bundle)
     promoted_bundle_state = {
         "accepted_findings": replay_bundle,
@@ -246,8 +265,13 @@ def run_goal_bundle_loop(goal_case: dict[str, Any], max_rounds: int = 8) -> dict
             accepted_program["dimension_scores"] = dict(((prior_payload.get("bundle_final") or {}).get("dimension_scores") or {}))
     if prior_queries:
         if prior_queries:
-            replay_runs, replay_findings = _replay_queries(prior_queries, platforms)
-            replay_bundle = build_bundle([], replay_findings, harness)
+            effective_harness = _harness_for_program(harness, accepted_program)
+            replay_runs, replay_findings = _replay_queries(
+                prior_queries,
+                platforms,
+                sampling_policy=dict(accepted_program.get("sampling_policy") or {}),
+            )
+            replay_bundle = build_bundle([], replay_findings, effective_harness)
             replay_judge = evaluate_goal_bundle(goal_case, replay_bundle)
             bundle_state = {
                 "accepted_findings": replay_bundle,
@@ -327,7 +351,11 @@ def run_goal_bundle_loop(goal_case: dict[str, Any], max_rounds: int = 8) -> dict
                 if query_key in tried_queries:
                     continue
                 plan_query_keys.append(query_key)
-                run = _search_query(effective_query, candidate_platforms)
+                run = _search_query(
+                    effective_query,
+                    candidate_platforms,
+                    sampling_policy=dict(candidate_program.get("sampling_policy") or {}),
+                )
                 query_runs.append({
                     "query": run["query"],
                     "query_spec": run["query_spec"],
@@ -351,7 +379,8 @@ def run_goal_bundle_loop(goal_case: dict[str, Any], max_rounds: int = 8) -> dict
                 })
                 continue
 
-            candidate_bundle = build_bundle(bundle_state["accepted_findings"], round_findings, harness)
+            effective_harness = _harness_for_program(harness, candidate_program)
+            candidate_bundle = build_bundle(bundle_state["accepted_findings"], round_findings, effective_harness)
             plan_judge = evaluate_goal_bundle(goal_case, candidate_bundle)
             harness_state = bundle_metrics(
                 candidate_bundle,
@@ -362,7 +391,7 @@ def run_goal_bundle_loop(goal_case: dict[str, Any], max_rounds: int = 8) -> dict
                 candidate_score=int(plan_judge.get("score", 0) or 0),
                 candidate_dimensions=plan_judge.get("dimension_scores", {}),
                 candidate_metrics=harness_state,
-                harness=harness,
+                harness=effective_harness,
                 candidate_finding_count=len(candidate_bundle),
             )
             candidate = {

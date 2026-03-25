@@ -64,6 +64,29 @@ class GoalEditorTests(unittest.TestCase):
         self.assertEqual(plans[0]["queries"][0]["text"], "query a1")
         self.assertIn("program_overrides", plans[0])
 
+    def test_goal_director_uses_active_program_query_templates(self):
+        goal_case = {
+            "seed_queries": ["seed a"],
+            "dimension_queries": {
+                "gap_a": ["query a1"],
+            },
+        }
+        searcher = GoalSearcher(goal_case)
+        plans = searcher.candidate_plans(
+            bundle_state={"accepted_findings": [], "score": 0},
+            judge_result={"missing_dimensions": ["gap_a"], "dimension_scores": {}},
+            tried_queries=set(),
+            available_providers=["github_issues"],
+            active_program={"query_templates": {"gap_a": ["query override"]}},
+            plan_count=1,
+            max_queries=2,
+        )
+        self.assertEqual(plans[0]["queries"][0]["text"], "query override")
+        self.assertEqual(
+            plans[0]["program_overrides"]["query_templates"]["gap_a"][0]["text"],
+            "query override",
+        )
+
     def test_heuristic_editor_avoids_recent_failed_queries(self):
         goal_case = {
             "seed_queries": ["seed a"],

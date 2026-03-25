@@ -13,6 +13,27 @@ import goal_bundle_loop as gbl
 
 
 class GoalBundleLoopTests(unittest.TestCase):
+    def test_harness_for_program_applies_sampling_policy_bundle_caps(self):
+        harness = {
+            "bundle_policy": {
+                "per_query_cap": 5,
+                "per_source_cap": 18,
+                "per_domain_cap": 18,
+            }
+        }
+        effective = gbl._harness_for_program(
+            harness,
+            {
+                "sampling_policy": {
+                    "bundle_per_query_cap": 2,
+                    "bundle_per_source_cap": 9,
+                }
+            },
+        )
+        self.assertEqual(effective["bundle_policy"]["per_query_cap"], 2)
+        self.assertEqual(effective["bundle_policy"]["per_source_cap"], 9)
+        self.assertEqual(harness["bundle_policy"]["per_query_cap"], 5)
+
     def test_platforms_for_provider_mix_filters_defaults(self):
         platforms = [
             {"name": "github_repos", "limit": 5},
