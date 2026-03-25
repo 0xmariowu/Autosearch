@@ -97,6 +97,7 @@ Current runtime default:
 - Current default judge model is `google/gemini-3-flash-preview`.
 - The OpenRouter editor/searcher is disabled by default; enable it only intentionally with `OPENROUTER_ENABLE_EDITOR=1`.
 - Rubric-only goal cases are supported; if a goal does not define explicit `dimensions`, the runtime derives stable bundle dimensions from `rubric`.
+- The main bundle loop now supports rubric-only goals even when they have no `seed_queries`; round 1 falls back to synthesized candidate plans instead of terminating early.
 - Session mode now follows the same provider restrictions as the main loop; `provider_mix` limits both default platforms and structured per-query platform overrides.
 
 Cross-goal benchmark example:

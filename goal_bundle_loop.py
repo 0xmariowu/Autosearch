@@ -302,7 +302,20 @@ def run_goal_bundle_loop(
 
     for round_index in range(1, max_rounds + 1):
         if round_index == 1 and not bundle_state["accepted_queries"]:
-            candidate_plans = [{"label": "seed", "queries": searcher.initial_queries()[:effective_max_queries]}]
+            initial_queries = searcher.initial_queries()[:effective_max_queries]
+            if initial_queries:
+                candidate_plans = [{"label": "seed", "queries": initial_queries}]
+            else:
+                candidate_plans = searcher.candidate_plans(
+                    bundle_state=bundle_state,
+                    judge_result=judge_result,
+                    tried_queries=tried_queries,
+                    available_providers=available_provider_names,
+                    active_program=accepted_program,
+                    round_history=rounds,
+                    plan_count=effective_plan_count,
+                    max_queries=effective_max_queries,
+                )
         else:
             candidate_plans = searcher.candidate_plans(
                 bundle_state=bundle_state,
