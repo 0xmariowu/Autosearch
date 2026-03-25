@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ from goal_services import (
     search_query,
 )
 from source_capability import load_source_capability_report, refresh_source_capability
+from watch.runtime import run_watch as _run_watch, run_watches as _run_watches
 
 __all__ = [
     "AutoSearchInterface",
@@ -213,6 +215,7 @@ class AutoSearchInterface:
         self,
         goal_case: str | Path | dict[str, Any],
         *,
+        mode: str | None = None,
         max_rounds: int = 8,
         plan_count: int | None = None,
         max_queries: int | None = None,
@@ -221,6 +224,8 @@ class AutoSearchInterface:
         persist_run: bool = True,
     ) -> dict[str, Any]:
         payload = self.resolve_goal_case(goal_case)
+        if mode:
+            payload["mode"] = str(mode).strip()
         result = run_goal_bundle_loop(
             payload,
             max_rounds=max_rounds,
@@ -242,6 +247,7 @@ class AutoSearchInterface:
         self,
         goal_case: str | Path | dict[str, Any],
         *,
+        mode: str | None = None,
         target_score: int = 100,
         max_rounds: int = 8,
         plateau_rounds: int = 3,
@@ -251,6 +257,7 @@ class AutoSearchInterface:
     ) -> dict[str, Any]:
         return self.run_goal_case(
             goal_case,
+            mode=mode,
             max_rounds=max_rounds,
             plan_count=plan_count,
             max_queries=max_queries,
@@ -263,6 +270,7 @@ class AutoSearchInterface:
         self,
         goals: list[str | Path | dict[str, Any]],
         *,
+        mode: str | None = None,
         max_rounds: int = 1,
         plan_count: int = 1,
         max_queries: int = 1,
@@ -270,6 +278,7 @@ class AutoSearchInterface:
         plateau_rounds: int | None = None,
     ) -> dict[str, Any]:
         goal_paths: list[Path] = []
+        temp_goal_paths: list[Path] = []
         for goal in goals:
             if isinstance(goal, dict):
                 raise TypeError("run_goal_benchmark currently accepts goal ids or paths, not inline dict goal cases")
@@ -278,21 +287,44 @@ class AutoSearchInterface:
                 goal_paths.append(path)
             else:
                 resolved = self.resolve_goal_case(goal)
+                if mode:
+                    resolved["mode"] = str(mode).strip()
+                    with tempfile.NamedTemporaryFile(
+                        mode="w",
+                        suffix=".json",
+                        prefix=f"benchmark-{resolved.get('id')}-",
+                        dir=self.goal_cases_root,
+                        delete=False,
+                        encoding="utf-8",
+                    ) as handle:
+                        handle.write(json.dumps(resolved, ensure_ascii=False, indent=2) + "\n")
+                        benchmark_path = Path(handle.name)
+                    temp_goal_paths.append(benchmark_path)
+                    goal_paths.append(benchmark_path)
+                    continue
                 goal_paths.append(Path(self.goal_cases_root / f"{resolved.get('id')}.json"))
-        benchmark = run_benchmark(
-            goal_paths,
-            max_rounds=max_rounds,
-            plan_count=plan_count,
-            max_queries=max_queries,
-            target_score=target_score,
-            plateau_rounds=plateau_rounds,
-        )
+        try:
+            benchmark = run_benchmark(
+                goal_paths,
+                max_rounds=max_rounds,
+                plan_count=plan_count,
+                max_queries=max_queries,
+                target_score=target_score,
+                plateau_rounds=plateau_rounds,
+            )
+        finally:
+            for path in temp_goal_paths:
+                try:
+                    path.unlink(missing_ok=True)
+                except OSError:
+                    continue
         return benchmark["payload"]
 
     def optimize_goals(
         self,
         goals: list[str | Path | dict[str, Any]],
         *,
+        mode: str | None = None,
         target_score: int = 100,
         max_rounds: int = 8,
         plateau_rounds: int = 3,
@@ -301,6 +333,7 @@ class AutoSearchInterface:
     ) -> dict[str, Any]:
         return self.run_goal_benchmark(
             goals,
+            mode=mode,
             max_rounds=max_rounds,
             plan_count=plan_count,
             max_queries=max_queries,
@@ -333,6 +366,20 @@ class AutoSearchInterface:
 
     def doctor(self, providers: list[str] | None = None) -> dict[str, Any]:
         return refresh_source_capability(providers)
+
+    def run_watch(self, watch: dict[str, Any]) -> dict[str, Any]:
+        return _run_watch(
+            watch,
+            resolve_goal_case=self.resolve_goal_case,
+            optimize_goal=self.optimize_goal,
+        )
+
+    def run_watches(self, watches: list[dict[str, Any]]) -> dict[str, Any]:
+        return _run_watches(
+            list(watches or []),
+            resolve_goal_case=self.resolve_goal_case,
+            optimize_goal=self.optimize_goal,
+        )
 
 
 def default_interface() -> AutoSearchInterface:

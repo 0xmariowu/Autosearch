@@ -11,6 +11,7 @@ if str(REPO_ROOT) not in sys.path:
 from engine import PlatformSearchOutcome, SearchResult
 from search_mesh.models import SearchHitBatch
 from search_mesh.provider_policy import available_platforms, default_platform_config, goal_provider_names
+from search_mesh.registry import get_provider, providers_for_role, registered_provider_names
 from search_mesh.router import route_for_provider, search_platform
 
 
@@ -85,6 +86,17 @@ class SearchMeshTests(unittest.TestCase):
         self.assertIsNotNone(route)
         self.assertEqual(route.provider, "github_code")
 
+    def test_provider_registry_exposes_registered_providers(self):
+        names = registered_provider_names()
+        self.assertIn("github_code", names)
+        provider = get_provider("github_code")
+        self.assertIsNotNone(provider)
+        self.assertIn("code", provider.roles)
+
+    def test_provider_registry_filters_by_role(self):
+        providers = providers_for_role("breadth")
+        self.assertTrue(any("searxng" in provider.provider_names for provider in providers))
+
     def test_search_platform_dispatches_to_wrapped_backend(self):
         with patch("search_mesh.backends.github_backend.PlatformConnector._github_code") as search:
             search.return_value = PlatformSearchOutcome(
@@ -96,6 +108,16 @@ class SearchMeshTests(unittest.TestCase):
         self.assertEqual(outcome.provider, "github_code")
         self.assertEqual(len(outcome.hits), 1)
         self.assertEqual(outcome.hits[0].title, "hit")
+
+    def test_search_platform_applies_provider_query_transform(self):
+        with patch("search_mesh.backends.github_backend.PlatformConnector._github_repos") as search:
+            search.return_value = PlatformSearchOutcome(
+                provider="github_repos",
+                results=[],
+            )
+            search_platform({"name": "github_repos", "limit": 5}, "OpenManus agent runtime")
+        forwarded_query = search.call_args.args[1]
+        self.assertIn("stars:>20", forwarded_query)
 
 
 if __name__ == "__main__":

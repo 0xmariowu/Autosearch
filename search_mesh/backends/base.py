@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -15,6 +16,42 @@ class SearchBackend(Protocol):
 
     def search(self, platform: dict[str, Any], query: str, *, query_family: str = "unknown") -> SearchHitBatch:
         """Execute a search for a single configured provider."""
+
+
+class SearchProvider:
+    """Registry-facing provider contract."""
+
+    provider_names: tuple[str, ...] = ()
+    roles: set[str] = set()
+    capabilities: dict[str, Any] = {}
+    supports_cross_verification: bool = False
+    supports_acquisition_hints: bool = False
+
+    def transform_query(self, provider_name: str, query: str, context: dict[str, Any] | None = None) -> str:
+        return str(query or "").strip()
+
+    def search(self, platform: dict[str, Any], query: str, *, query_family: str = "unknown") -> SearchHitBatch:
+        raise NotImplementedError
+
+
+def quote_entities(query: str, entities: list[str] | None = None) -> str:
+    updated = str(query or "").strip()
+    for entity in list(entities or []):
+        clean = str(entity or "").strip()
+        if not clean or clean.startswith('"') or clean not in updated:
+            continue
+        updated = updated.replace(clean, f'"{clean}"')
+    return updated
+
+
+def extract_entities(query: str) -> list[str]:
+    text = str(query or "").strip()
+    entities: list[str] = []
+    for match in re.findall(r"\b[A-Z][A-Za-z0-9_\-]+(?:\s+[A-Z][A-Za-z0-9_\-]+)*\b", text):
+        clean = str(match or "").strip()
+        if clean and clean not in entities:
+            entities.append(clean)
+    return entities
 
 
 @dataclass(frozen=True)

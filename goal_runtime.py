@@ -7,6 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from research.mode_policy import apply_mode_policy
+
 
 REPO_ROOT = Path(__file__).resolve().parent
 GOAL_CASES_ROOT = REPO_ROOT / "goal_cases"
@@ -115,6 +117,8 @@ def _mutation_kind(label: str) -> str:
 
 
 def default_program(goal_case: dict[str, Any], available_providers: list[str]) -> dict[str, Any]:
+    # Default programs always pass through mode policy resolution so mode behavior
+    # is applied before any loop or selector logic reads the program.
     queries = [
         _normalize_query_spec(query)
         for query in list(goal_case.get("seed_queries") or [])
@@ -140,7 +144,7 @@ def default_program(goal_case: dict[str, Any], available_providers: list[str]) -
         }
         for dimension_id, template_queries in query_templates.items()
     }
-    return {
+    program = {
         "program_id": "seed-program",
         "goal_id": str(goal_case.get("id") or ""),
         "parent_program_id": None,
@@ -155,6 +159,8 @@ def default_program(goal_case: dict[str, Any], available_providers: list[str]) -
         "topic_frontier": list(goal_case.get("topic_frontier") or []),
         "query_templates": query_templates,
         "dimension_strategies": dimension_strategies,
+        "mode": str(goal_case.get("mode") or "balanced"),
+        "mode_policy_overrides": dict(goal_case.get("mode_policy_overrides") or {}),
         "round_roles": list(goal_case.get("round_roles") or ["broad_recall", "dimension_repair", "orthogonal_probe"]),
         "current_role": "broad_recall",
         "search_backends": list(goal_case.get("search_backends") or _default_search_backends(available_providers)),
@@ -223,6 +229,7 @@ def default_program(goal_case: dict[str, Any], available_providers: list[str]) -
         "score": 0,
         "dimension_scores": {},
     }
+    return apply_mode_policy(program)
 
 
 def load_accepted_program(goal_case: dict[str, Any], available_providers: list[str]) -> dict[str, Any]:
@@ -230,7 +237,10 @@ def load_accepted_program(goal_case: dict[str, Any], available_providers: list[s
     paths = runtime_paths(goal_id)
     payload = _read_json(paths["accepted_program"])
     if payload:
-        return payload
+        if "mode" not in payload:
+            payload["mode"] = str(goal_case.get("mode") or "balanced")
+        payload.setdefault("mode_policy_overrides", dict(goal_case.get("mode_policy_overrides") or {}))
+        return apply_mode_policy(payload)
     return default_program(goal_case, available_providers)
 
 
@@ -270,6 +280,8 @@ def build_candidate_program(
         "topic_frontier": list(parent_program.get("topic_frontier") or []),
         "query_templates": dict(parent_program.get("query_templates") or {}),
         "dimension_strategies": dict(parent_program.get("dimension_strategies") or {}),
+        "mode": str(parent_program.get("mode") or "balanced"),
+        "mode_policy_overrides": dict(parent_program.get("mode_policy_overrides") or {}),
         "round_roles": list(parent_program.get("round_roles") or ["broad_recall", "dimension_repair", "orthogonal_probe"]),
         "current_role": str(parent_program.get("current_role") or "dimension_repair"),
         "search_backends": list(parent_program.get("search_backends") or []),
@@ -310,7 +322,7 @@ def build_candidate_program(
             candidate[key] = list(value)
         else:
             candidate[key] = value
-    return candidate
+    return apply_mode_policy(candidate)
 
 def archive_candidate_program(
     goal_id: str,

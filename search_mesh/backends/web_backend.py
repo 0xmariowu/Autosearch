@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from engine import PlatformConnector
-from .base import legacy_results_to_batch
+from .base import SearchProvider, extract_entities, legacy_results_to_batch, quote_entities
 
 
-class WebBackend:
+class WebBackend(SearchProvider):
     provider_names = (
         "exa",
         "tavily",
@@ -18,6 +18,19 @@ class WebBackend:
         "reddit",
         "hn",
     )
+    roles = {"web", "discussion", "academic", "verification"}
+    capabilities = {"supports_query_transform": True}
+    supports_cross_verification = True
+    supports_acquisition_hints = True
+
+    def transform_query(self, provider_name: str, query: str, context: dict | None = None) -> str:
+        q = str(query or "").strip()
+        entities = list((context or {}).get("entities") or extract_entities(q))
+        if provider_name in {"reddit_exa", "reddit"} and "sort:relevance" not in q:
+            q = f"{q} sort:relevance".strip()
+        if provider_name in {"hn_exa", "hn"}:
+            q = quote_entities(q, entities or [q] if q and " " in q else entities)
+        return q
 
     def search(self, platform: dict[str, Any], query: str, *, query_family: str = "unknown"):
         name = str(platform.get("name") or "")

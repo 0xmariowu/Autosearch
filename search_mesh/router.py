@@ -7,26 +7,15 @@ from typing import Any
 from engine import PlatformConnector
 from .models import SearchHitBatch
 from .backends.base import BackendRoute, legacy_results_to_batch
-from .backends.ddgs_backend import DDGSBackend
-from .backends.github_backend import GitHubBackend
-from .backends.searxng_backend import SearXNGBackend
-from .backends.web_backend import WebBackend
-
-
-_BACKENDS = [
-    SearXNGBackend(),
-    DDGSBackend(),
-    GitHubBackend(),
-    WebBackend(),
-]
+from .backends import register_builtin_providers
+from .backends.base import extract_entities
+from .registry import get_provider, registered_provider_names
 
 
 def backend_for_provider(name: str):
-    provider = str(name or "").strip()
-    for backend in _BACKENDS:
-        if provider in getattr(backend, "provider_names", ()):
-            return backend
-    return None
+    if not registered_provider_names():
+        register_builtin_providers()
+    return get_provider(str(name or "").strip())
 
 
 def route_for_provider(name: str) -> BackendRoute | None:
@@ -41,6 +30,7 @@ def search_platform(
     query: str,
     *,
     query_family: str = "unknown",
+    context: dict[str, Any] | None = None,
 ) -> SearchHitBatch:
     name = str(platform.get("name") or "").strip()
     route = route_for_provider(name)
@@ -54,4 +44,10 @@ def search_platform(
             query_family=query_family,
             error_alias=str(outcome.error_alias or ""),
         )
-    return route.backend.search(dict(platform), query, query_family=query_family)
+    effective_context = {
+        "query_family": query_family,
+        "entities": extract_entities(query),
+        **dict(context or {}),
+    }
+    transformed_query = route.backend.transform_query(name, query, effective_context)
+    return route.backend.search(dict(platform), transformed_query, query_family=query_family)
