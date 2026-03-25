@@ -88,6 +88,26 @@ def default_program(goal_case: dict[str, Any], available_providers: list[str]) -
         for query in list(goal_case.get("seed_queries") or [])
         if _normalize_query_spec(query)["text"]
     ]
+    query_templates = {
+        str(key): list(value or [])
+        for key, value in dict(goal_case.get("dimension_queries") or {}).items()
+    }
+    dimension_strategies = {
+        dimension_id: {
+            "queries": [
+                _normalize_query_spec(query)
+                for query in list(template_queries or [])
+                if _normalize_query_spec(query)["text"]
+            ],
+            "preferred_providers": sorted({
+                str((platform or {}).get("name") or "").strip()
+                for query in list(template_queries or [])
+                for platform in list((_normalize_query_spec(query).get("platforms") or []))
+                if str((platform or {}).get("name") or "").strip() in available_providers
+            }),
+        }
+        for dimension_id, template_queries in query_templates.items()
+    }
     return {
         "program_id": "seed-program",
         "goal_id": str(goal_case.get("id") or ""),
@@ -97,7 +117,10 @@ def default_program(goal_case: dict[str, Any], available_providers: list[str]) -
         "queries": queries,
         "provider_mix": list(available_providers),
         "topic_frontier": list(goal_case.get("topic_frontier") or []),
-        "query_templates": dict(goal_case.get("dimension_queries") or {}),
+        "query_templates": query_templates,
+        "dimension_strategies": dimension_strategies,
+        "round_roles": list(goal_case.get("round_roles") or ["broad_recall", "dimension_repair", "orthogonal_probe"]),
+        "current_role": "broad_recall",
         "explore_budget": float(goal_case.get("explore_budget", 0.4) or 0.4),
         "exploit_budget": float(goal_case.get("exploit_budget", 0.6) or 0.6),
         "sampling_policy": dict(goal_case.get("sampling_policy") or {
@@ -105,6 +128,16 @@ def default_program(goal_case: dict[str, Any], available_providers: list[str]) -
             "rank_by_relevance": True,
             "anchor_followups": True,
         }),
+        "stop_rules": {
+            "plateau_rounds": int(goal_case.get("plateau_rounds", 3) or 3),
+            "target_score": int(goal_case.get("target_score", 100) or 100),
+        },
+        "plateau_state": {
+            "stagnant_rounds": 0,
+            "best_score": 0,
+            "practical_ceiling": None,
+            "dimension_stagnation": {},
+        },
         "plan_count": 3,
         "max_queries": 5,
         "mutation_history": [],
@@ -151,9 +184,14 @@ def build_candidate_program(
         "provider_mix": list(provider_mix),
         "topic_frontier": list(parent_program.get("topic_frontier") or []),
         "query_templates": dict(parent_program.get("query_templates") or {}),
+        "dimension_strategies": dict(parent_program.get("dimension_strategies") or {}),
+        "round_roles": list(parent_program.get("round_roles") or ["broad_recall", "dimension_repair", "orthogonal_probe"]),
+        "current_role": str(parent_program.get("current_role") or "dimension_repair"),
         "explore_budget": float(parent_program.get("explore_budget", 0.4) or 0.4),
         "exploit_budget": float(parent_program.get("exploit_budget", 0.6) or 0.6),
         "sampling_policy": dict(parent_program.get("sampling_policy") or {}),
+        "stop_rules": dict(parent_program.get("stop_rules") or {}),
+        "plateau_state": dict(parent_program.get("plateau_state") or {}),
         "plan_count": int(parent_program.get("plan_count", 3) or 3),
         "max_queries": int(parent_program.get("max_queries", 5) or 5),
         "mutation_history": list(parent_program.get("mutation_history") or []) + [label],
@@ -163,8 +201,10 @@ def build_candidate_program(
     for key, value in dict(program_overrides or {}).items():
         if key in {"topic_frontier"} and isinstance(value, list):
             candidate[key] = list(value)
-        elif key in {"query_templates", "sampling_policy"} and isinstance(value, dict):
+        elif key in {"query_templates", "sampling_policy", "dimension_strategies", "stop_rules", "plateau_state"} and isinstance(value, dict):
             candidate[key] = dict(value)
+        elif key in {"round_roles"} and isinstance(value, list):
+            candidate[key] = list(value)
         else:
             candidate[key] = value
     return candidate

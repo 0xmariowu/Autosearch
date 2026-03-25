@@ -248,6 +248,87 @@ class GoalEditorTests(unittest.TestCase):
         self.assertGreaterEqual(len(plans), 1)
         self.assertIn("judge", plans[0]["queries"][0]["text"])
 
+    def test_goal_director_synthesized_rubric_queries_can_add_structured_platforms(self):
+        goal_case = {
+            "seed_queries": ["provider doctor cli auth config runtime skip implementation"],
+            "mutation_terms": ["health check", "preflight"],
+            "providers": ["github_code", "github_issues", "github_repos"],
+            "rubric": [
+                {"id": "runtime_skip", "weight": 20, "keywords": ["skip", "runtime", "preflight", "before", "unavailable"]},
+            ],
+        }
+        searcher = GoalSearcher(goal_case)
+        plans = searcher.candidate_plans(
+            bundle_state={"accepted_findings": [], "score": 0},
+            judge_result={"missing_dimensions": ["runtime_skip"], "dimension_scores": {}},
+            tried_queries=set(),
+            available_providers=["github_code", "github_issues", "github_repos"],
+            plan_count=1,
+            max_queries=2,
+        )
+        platforms = plans[0]["queries"][0]["platforms"]
+        self.assertTrue(platforms)
+        self.assertIn("github_code", [platform["name"] for platform in platforms])
+        self.assertIn("github_issues", [platform["name"] for platform in platforms])
+
+    def test_provider_mix_keeps_defaults_when_plan_has_unscoped_and_structured_queries(self):
+        goal_case = {
+            "seed_queries": ["provider doctor cli auth config runtime skip implementation"],
+            "mutation_terms": ["health check", "preflight"],
+            "providers": ["exa", "tavily", "github_code", "github_issues", "github_repos"],
+            "rubric": [
+                {"id": "availability", "weight": 20, "keywords": ["available", "availability", "health", "doctor", "status"]},
+                {"id": "auth_and_config", "weight": 20, "keywords": ["auth", "authenticated", "login", "config", "configured"]},
+            ],
+        }
+        searcher = GoalSearcher(goal_case)
+        plans = searcher.candidate_plans(
+            bundle_state={"accepted_findings": [], "score": 0},
+            judge_result={"missing_dimensions": ["availability", "auth_and_config"], "dimension_scores": {}},
+            tried_queries=set(),
+            available_providers=["exa", "tavily", "github_code", "github_issues", "github_repos"],
+            plan_count=1,
+            max_queries=2,
+        )
+        provider_mix = plans[0]["program_overrides"]["provider_mix"]
+        self.assertIn("exa", provider_mix)
+        self.assertIn("tavily", provider_mix)
+        self.assertIn("github_issues", provider_mix)
+
+    def test_repair_focus_dimensions_prioritizes_stagnant_dimension(self):
+        goal_case = {
+            "seed_queries": ["provider doctor"],
+            "providers": ["github_repos", "github_issues"],
+            "dimension_queries": {
+                "runtime_skip": ["runtime skip query"],
+                "implementation_signal": ["implementation query"],
+            },
+            "rubric": [
+                {"id": "runtime_skip", "weight": 20, "keywords": ["skip", "runtime"]},
+                {"id": "implementation_signal", "weight": 20, "keywords": ["cli", "implementation"]},
+            ],
+        }
+        searcher = GoalSearcher(goal_case)
+        plans = searcher.candidate_plans(
+            bundle_state={"accepted_findings": [], "score": 80},
+            judge_result={
+                "missing_dimensions": [],
+                "dimension_scores": {"runtime_skip": 10, "implementation_signal": 10},
+            },
+            tried_queries=set(),
+            available_providers=["github_repos", "github_issues"],
+            active_program={
+                "plateau_state": {"dimension_stagnation": {"runtime_skip": 4, "implementation_signal": 1}},
+                "query_templates": {
+                    "runtime_skip": ["runtime skip query"],
+                    "implementation_signal": ["implementation query"],
+                },
+            },
+            plan_count=1,
+            max_queries=1,
+        )
+        self.assertEqual(plans[0]["queries"][0]["text"], "runtime skip query")
+
     def test_editor_uses_mutation_terms_as_refinement_fallback(self):
         goal_case = {
             "seed_queries": ["goal loop"],

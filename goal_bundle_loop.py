@@ -102,6 +102,37 @@ def _harness_for_program(harness: dict[str, Any], program: dict[str, Any]) -> di
     effective["bundle_policy"] = bundle_policy
     return effective
 
+
+def _update_plateau_state(
+    plateau_state: dict[str, Any],
+    *,
+    candidate_score: int,
+    current_score: int,
+    current_dimensions: dict[str, Any],
+    candidate_dimensions: dict[str, Any],
+) -> dict[str, Any]:
+    next_state = dict(plateau_state or {})
+    dimension_stagnation = {
+        str(key): int(value or 0)
+        for key, value in dict(next_state.get("dimension_stagnation") or {}).items()
+    }
+    improved = int(candidate_score or 0) > int(current_score or 0)
+    next_state["best_score"] = max(int(next_state.get("best_score", 0) or 0), int(candidate_score or 0))
+    next_state["stagnant_rounds"] = 0 if improved else int(next_state.get("stagnant_rounds", 0) or 0) + 1
+    current_dimensions = dict(current_dimensions or {})
+    candidate_dimensions = dict(candidate_dimensions or {})
+    for dim_id in set(current_dimensions) | set(candidate_dimensions):
+        previous = int(current_dimensions.get(dim_id, 0) or 0)
+        current = int(candidate_dimensions.get(dim_id, 0) or 0)
+        if current > previous:
+            dimension_stagnation[dim_id] = 0
+        else:
+            dimension_stagnation[dim_id] = int(dimension_stagnation.get(dim_id, 0) or 0) + 1
+    next_state["dimension_stagnation"] = dimension_stagnation
+    if next_state["stagnant_rounds"] >= 3:
+        next_state["practical_ceiling"] = int(next_state.get("best_score", candidate_score) or candidate_score)
+    return next_state
+
 def _promote_compatible_archive_candidate(
     *,
     goal_case: dict[str, Any],
@@ -209,6 +240,8 @@ def run_goal_bundle_loop(
     *,
     plan_count_override: int | None = None,
     max_queries_override: int | None = None,
+    target_score_override: int | None = None,
+    plateau_rounds_override: int | None = None,
 ) -> dict[str, Any]:
     capability_report = refresh_source_capability(goal_case.get("providers"))
     platforms = _available_platforms(goal_case, capability_report)
@@ -238,7 +271,7 @@ def run_goal_bundle_loop(
         "matched_dimensions": [],
         "rationale": "empty bundle",
     }
-    target_score = int(goal_case.get("target_score", 100) or 100)
+    target_score = int(target_score_override or goal_case.get("target_score", 100) or 100)
 
     prior_path, prior_payload = _best_prior_run(str(goal_case.get("id") or ""))
     prior_queries = list(accepted_program.get("queries") or [])
@@ -299,6 +332,12 @@ def run_goal_bundle_loop(
 
     effective_plan_count = int(plan_count_override or accepted_program.get("plan_count", 3) or 3)
     effective_max_queries = int(max_queries_override or accepted_program.get("max_queries", 5) or 5)
+    plateau_rounds_limit = int(
+        plateau_rounds_override
+        or (accepted_program.get("stop_rules") or {}).get("plateau_rounds", 3)
+        or 3
+    )
+    stop_reason = "max_rounds_reached"
 
     for round_index in range(1, max_rounds + 1):
         if round_index == 1 and not bundle_state["accepted_queries"]:
@@ -482,6 +521,8 @@ def run_goal_bundle_loop(
         judge_result = best_candidate["judge_result"]
         candidate_score = best_candidate["score"]
         accepted = bool(best_candidate["selection"]["accepted"])
+        previous_score = int(bundle_state.get("score", 0) or 0)
+        previous_dimensions = dict(bundle_state.get("dimension_scores") or {})
         if accepted:
             bundle_state = {
                 "accepted_findings": best_candidate["bundle"],
@@ -500,12 +541,29 @@ def run_goal_bundle_loop(
                 "queries": list(bundle_state["accepted_queries"]),
                 "score": candidate_score,
                 "dimension_scores": dict(judge_result.get("dimension_scores", {})),
+                "plateau_state": _update_plateau_state(
+                    dict(accepted_program.get("plateau_state") or {}),
+                    candidate_score=candidate_score,
+                    current_score=previous_score,
+                    current_dimensions=previous_dimensions,
+                    candidate_dimensions=dict(judge_result.get("dimension_scores") or {}),
+                ),
                 "accepted_at": datetime.now().astimezone().isoformat(),
             }
             save_accepted_program(str(goal_case.get("id") or "goal"), accepted_program)
             no_improvement_rounds = 0
         else:
             no_improvement_rounds += 1
+            accepted_program = {
+                **accepted_program,
+                "plateau_state": _update_plateau_state(
+                    dict(accepted_program.get("plateau_state") or {}),
+                    candidate_score=candidate_score,
+                    current_score=previous_score,
+                    current_dimensions=previous_dimensions,
+                    candidate_dimensions=dict(judge_result.get("dimension_scores") or {}),
+                ),
+            }
 
         rounds.append({
             "round": round_index,
@@ -521,6 +579,7 @@ def run_goal_bundle_loop(
             "added_finding_count": len(best_candidate["round_findings"]),
             "candidate_score": candidate_score,
             "accepted": accepted,
+            "round_role": str((best_candidate["program"] or {}).get("current_role") or ""),
             "selection": best_candidate["selection"],
             "harness_metrics": best_candidate["harness_metrics"],
             "bundle_score_after_round": bundle_state["score"],
@@ -531,8 +590,10 @@ def run_goal_bundle_loop(
         })
 
         if bundle_state["score"] >= target_score:
+            stop_reason = "target_score_reached"
             break
-        if no_improvement_rounds >= 3:
+        if no_improvement_rounds >= plateau_rounds_limit:
+            stop_reason = "plateau_detected"
             break
 
     baseline_best = None
@@ -546,10 +607,14 @@ def run_goal_bundle_loop(
         "goal_id": goal_case.get("id", ""),
         "problem": goal_case.get("problem", ""),
         "target_score": target_score,
+        "plateau_rounds_limit": plateau_rounds_limit,
         "providers_used": [platform["name"] for platform in platforms],
         "judge_model": bundle_state.get("judge", ""),
         "evaluation_harness": harness,
         "accepted_program": accepted_program,
+        "stop_reason": stop_reason,
+        "plateau_state": dict(accepted_program.get("plateau_state") or {}),
+        "practical_ceiling": (accepted_program.get("plateau_state") or {}).get("practical_ceiling"),
         "warm_start": warm_start,
         "baseline_best": baseline_best,
         "bundle_final": {

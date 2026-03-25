@@ -30,9 +30,13 @@ class GoalRuntimeTests(unittest.TestCase):
         self.assertEqual([item["text"] for item in program["queries"]], ["a", "b"])
         self.assertEqual(program["topic_frontier"][0]["id"], "topic-a")
         self.assertEqual(program["query_templates"]["gap_a"], ["query a1"])
+        self.assertEqual(program["dimension_strategies"]["gap_a"]["queries"][0]["text"], "query a1")
+        self.assertEqual(program["round_roles"][0], "broad_recall")
+        self.assertEqual(program["current_role"], "broad_recall")
         self.assertEqual(program["explore_budget"], 0.25)
         self.assertEqual(program["exploit_budget"], 0.75)
         self.assertEqual(program["sampling_policy"]["bundle_per_query_cap"], 4)
+        self.assertEqual(program["stop_rules"]["target_score"], 100)
 
     def test_build_candidate_program_applies_program_overrides(self):
         parent = gr.default_program(
@@ -56,12 +60,14 @@ class GoalRuntimeTests(unittest.TestCase):
                 "explore_budget": 0.7,
                 "exploit_budget": 0.3,
                 "sampling_policy": {"anchor_followups": False},
+                "current_role": "dimension_repair",
             },
         )
         self.assertEqual(candidate["topic_frontier"][0]["id"], "topic-b")
         self.assertEqual(candidate["explore_budget"], 0.7)
         self.assertEqual(candidate["exploit_budget"], 0.3)
         self.assertFalse(candidate["sampling_policy"]["anchor_followups"])
+        self.assertEqual(candidate["current_role"], "dimension_repair")
 
     def test_ensure_harness_persists_default_payload(self):
         with tempfile.TemporaryDirectory() as tmp:

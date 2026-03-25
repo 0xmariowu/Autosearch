@@ -216,6 +216,8 @@ class AutoSearchInterface:
         max_rounds: int = 8,
         plan_count: int | None = None,
         max_queries: int | None = None,
+        target_score: int | None = None,
+        plateau_rounds: int | None = None,
         persist_run: bool = True,
     ) -> dict[str, Any]:
         payload = self.resolve_goal_case(goal_case)
@@ -224,6 +226,8 @@ class AutoSearchInterface:
             max_rounds=max_rounds,
             plan_count_override=plan_count,
             max_queries_override=max_queries,
+            target_score_override=target_score,
+            plateau_rounds_override=plateau_rounds,
         )
         if persist_run:
             self.goal_runs_root.mkdir(parents=True, exist_ok=True)
@@ -241,6 +245,8 @@ class AutoSearchInterface:
         max_rounds: int = 1,
         plan_count: int = 1,
         max_queries: int = 1,
+        target_score: int | None = None,
+        plateau_rounds: int | None = None,
     ) -> dict[str, Any]:
         goal_paths: list[Path] = []
         for goal in goals:
@@ -257,6 +263,8 @@ class AutoSearchInterface:
             max_rounds=max_rounds,
             plan_count=plan_count,
             max_queries=max_queries,
+            target_score=target_score,
+            plateau_rounds=plateau_rounds,
         )
         return benchmark["payload"]
 
