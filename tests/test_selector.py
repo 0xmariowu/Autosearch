@@ -226,6 +226,38 @@ class SelectorTests(unittest.TestCase):
         self.assertEqual(decision["weakest_dimension_delta"], 7)
         self.assertIn("runtime_skip", decision["improved_dimensions"])
 
+    def test_selector_tracks_branch_novelty_and_repair_depth(self):
+        decision = evaluate_acceptance(
+            current_state={
+                "score": 82,
+                "accepted_findings": [{}] * 20,
+                "dimension_scores": {"runtime_skip": 5, "implementation_signal": 15},
+            },
+            candidate_score=82,
+            candidate_dimensions={"runtime_skip": 12, "implementation_signal": 15},
+            candidate_metrics={
+                "new_unique_urls": 2,
+                "novelty_ratio": 0.1,
+                "source_diversity": 0.3,
+                "source_concentration": 0.5,
+                "query_concentration": 0.4,
+            },
+            harness={
+                "anti_cheat": {
+                    "min_new_unique_urls": 1,
+                    "min_novelty_ratio": 0.01,
+                    "min_source_diversity": 0.15,
+                    "max_source_concentration": 0.82,
+                    "max_query_concentration": 0.70,
+                }
+            },
+            candidate_finding_count=22,
+            current_program={"branch_id": "seed"},
+            candidate_program={"branch_id": "runtime-repair", "repair_depth": 2},
+        )
+        self.assertEqual(decision["branch_novelty"], 1)
+        self.assertEqual(decision["repair_depth"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()

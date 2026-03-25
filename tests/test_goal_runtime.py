@@ -41,6 +41,7 @@ class GoalRuntimeTests(unittest.TestCase):
         self.assertIn("evidence_policy", program)
         self.assertIn("repair_policy", program)
         self.assertIn("population_policy", program)
+        self.assertEqual(program["population_policy"]["max_branch_depth"], 4)
         self.assertEqual(program["explore_budget"], 0.25)
         self.assertEqual(program["exploit_budget"], 0.75)
         self.assertEqual(program["sampling_policy"]["bundle_per_query_cap"], 4)
@@ -77,8 +78,10 @@ class GoalRuntimeTests(unittest.TestCase):
             },
         )
         self.assertEqual(candidate["topic_frontier"][0]["id"], "topic-b")
+        self.assertEqual(candidate["branch_root_program_id"], "seed-program")
         self.assertEqual(candidate["branch_depth"], 1)
         self.assertEqual(candidate["mutation_kind"], "frontier_probe")
+        self.assertEqual(candidate["repair_depth"], 0)
         self.assertEqual(candidate["explore_budget"], 0.7)
         self.assertEqual(candidate["exploit_budget"], 0.3)
         self.assertFalse(candidate["sampling_policy"]["anchor_followups"])
@@ -117,6 +120,8 @@ class GoalRuntimeTests(unittest.TestCase):
                 lineage = __import__("json").loads(paths["latest_lineage"].read_text(encoding="utf-8"))
                 self.assertEqual(lineage["summary"]["top_score"], 88)
                 self.assertIn("branch_counts", lineage["summary"])
+                self.assertIn("branch_best_scores", lineage["summary"])
+                self.assertIn("mutation_kind_counts", lineage["summary"])
 
 
 if __name__ == "__main__":

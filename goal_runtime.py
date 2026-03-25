@@ -175,6 +175,9 @@ def default_program(goal_case: dict[str, Any], available_providers: list[str]) -
         "population_policy": dict(goal_case.get("population_policy") or {
             "plan_count": 3,
             "max_queries": 5,
+            "max_branch_depth": 4,
+            "stale_branch_rounds": 3,
+            "prefer_diverse_branches": True,
         }),
         "explore_budget": float(goal_case.get("explore_budget", 0.4) or 0.4),
         "exploit_budget": float(goal_case.get("exploit_budget", 0.6) or 0.6),
@@ -235,7 +238,9 @@ def build_candidate_program(
         "parent_program_id": parent_program.get("program_id"),
         "label": label,
         "branch_id": str(parent_program.get("branch_id") or _mutation_kind(label)),
+        "branch_root_program_id": str(parent_program.get("branch_root_program_id") or parent_program.get("program_id") or "seed-program"),
         "branch_depth": int(parent_program.get("branch_depth", 0) or 0) + 1,
+        "repair_depth": int(parent_program.get("repair_depth", 0) or 0) + (1 if _mutation_kind(label) == "dimension_repair" else 0),
         "mutation_kind": _mutation_kind(label),
         "created_at": created_at,
         "queries": list(queries),
@@ -316,6 +321,11 @@ def _population_lineage_summary(population: list[dict[str, Any]]) -> dict[str, A
             for item in population
             if str(item.get("branch_id") or "")
         }),
+        "branch_root_program_ids": sorted({
+            str(item.get("branch_root_program_id") or "")
+            for item in population
+            if str(item.get("branch_root_program_id") or "")
+        }),
         "accepted_candidates": [
             str(item.get("program_id") or "")
             for item in population
@@ -341,6 +351,28 @@ def _population_lineage_summary(population: list[dict[str, Any]]) -> dict[str, A
                 if str(item.get("branch_id") or "")
             })
         },
+        "branch_best_scores": {
+            branch_id: max(
+                int(item.get("score", 0) or 0)
+                for item in population
+                if str(item.get("branch_id") or "") == branch_id
+            )
+            for branch_id in sorted({
+                str(item.get("branch_id") or "")
+                for item in population
+                if str(item.get("branch_id") or "")
+            })
+        },
+        "mutation_kind_counts": {
+            kind: sum(1 for item in population if str(item.get("mutation_kind") or "") == kind)
+            for kind in sorted({
+                str(item.get("mutation_kind") or "")
+                for item in population
+                if str(item.get("mutation_kind") or "")
+            })
+        },
+        "deepest_branch_depth": max((int(item.get("branch_depth", 0) or 0) for item in population), default=0),
+        "max_repair_depth": max((int(item.get("repair_depth", 0) or 0) for item in population), default=0),
     }
     return summary
 
