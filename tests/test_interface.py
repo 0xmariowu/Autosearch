@@ -45,8 +45,8 @@ class InterfaceTests(unittest.TestCase):
             "dimension_queries": {"pair_extract": [{"text": "pair query", "platforms": []}]},
         }
         with patch.object(api, "refresh_source_capability", return_value={"sources": {}}), \
-             patch.object(api, "_available_platforms", return_value=[{"name": "github_repos", "limit": 5}]), \
-             patch.object(api, "_search_query", return_value={
+             patch.object(api, "available_platforms", return_value=[{"name": "github_repos", "limit": 5}]), \
+             patch.object(api, "search_query", return_value={
                  "query": "pair query",
                  "query_spec": {"text": "pair query", "platforms": []},
                  "baseline_score": 12,

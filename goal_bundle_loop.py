@@ -9,7 +9,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from engine import PlatformConnector, Scorer
 from evaluation_harness import build_bundle, bundle_metrics
 from goal_editor import GoalSearcher
 from goal_judge import evaluate_goal_bundle
@@ -21,8 +20,18 @@ from goal_runtime import (
     runtime_paths,
     save_accepted_program,
 )
+from goal_services import (
+    available_platforms as _available_platforms,
+    merge_findings as _merge_findings,
+    normalize_query_spec as _normalize_query_spec,
+    query_key as _query_key,
+    query_text as _query_text,
+    replay_queries as _replay_queries,
+    sample_findings as _sample_findings,
+    search_query as _search_query,
+)
 from selector import candidate_rank, evaluate_acceptance
-from source_capability import get_source_decision, refresh_source_capability
+from source_capability import refresh_source_capability
 
 
 REPO_ROOT = Path(__file__).resolve().parent
@@ -40,126 +49,6 @@ def _load_run(path: Path) -> dict[str, Any] | None:
     except (OSError, json.JSONDecodeError):
         return None
     return payload if isinstance(payload, dict) else None
-
-
-def _normalize_query_spec(query: Any) -> dict[str, Any]:
-    if isinstance(query, dict):
-        return {
-            "text": str(query.get("text") or "").strip(),
-            "platforms": list(query.get("platforms") or []),
-        }
-    return {"text": str(query or "").strip(), "platforms": []}
-
-
-def _query_key(query: Any) -> str:
-    spec = _normalize_query_spec(query)
-    return json.dumps(spec, ensure_ascii=False, sort_keys=True)
-
-
-def _query_text(query: Any) -> str:
-    return _normalize_query_spec(query).get("text", "")
-
-
-def _available_platforms(goal_case: dict[str, Any], capability_report: dict[str, Any]) -> list[dict[str, Any]]:
-    platforms: list[dict[str, Any]] = []
-    for name in goal_case.get("providers", []):
-        decision = get_source_decision(capability_report, name)
-        if decision["should_skip"]:
-            continue
-        if name == "github_repos":
-            platforms.append({"name": name, "limit": 5, "min_stars": 20})
-        elif name == "github_issues":
-            platforms.append({"name": name, "limit": 5})
-        elif name == "twitter_xreach":
-            platforms.append({"name": name, "limit": 10})
-        else:
-            platforms.append({"name": name, "limit": 5})
-    return platforms
-
-
-def _query_platforms(query: Any, default_platforms: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    spec = _normalize_query_spec(query)
-    if spec["platforms"]:
-        return [dict(item) for item in spec["platforms"] if item.get("name")]
-    return [dict(item) for item in default_platforms]
-
-
-def _query_terms(text: str) -> set[str]:
-    return {term for term in text.lower().split() if len(term) >= 4}
-
-
-def _result_relevance(query_text: str, result: Any) -> tuple[int, int]:
-    terms = _query_terms(query_text)
-    haystack = " ".join([
-        str(getattr(result, "title", "") or ""),
-        str(getattr(result, "body", "") or ""),
-        str(getattr(result, "url", "") or ""),
-        str(getattr(result, "source", "") or ""),
-    ]).lower()
-    overlap = sum(1 for term in terms if term in haystack)
-    return overlap, int(getattr(result, "eng", 0) or 0)
-
-
-def _search_query(query: Any, default_platforms: list[dict[str, Any]]) -> dict[str, Any]:
-    query_text = _query_text(query)
-    platforms = _query_platforms(query, default_platforms)
-    scorer = Scorer()
-    all_results = []
-    findings: list[dict[str, Any]] = []
-    for platform in platforms:
-        platform_query = str(platform.get("query") or query_text)
-        platform_config = dict(platform)
-        platform_config.pop("query", None)
-        outcome = PlatformConnector.search(platform_config, platform_query)
-        all_results.extend(outcome.results)
-    _, raw_score, new_results = scorer.score_results(all_results)
-    ranked_results = sorted(
-        new_results,
-        key=lambda result: _result_relevance(query_text, result),
-        reverse=True,
-    )
-    positive_ranked = [result for result in ranked_results if _result_relevance(query_text, result)[0] > 0]
-    selected_results = positive_ranked or ranked_results
-    for result in selected_results[:15]:
-        findings.append({
-            "title": result.title,
-            "url": result.url,
-            "body": result.body,
-            "source": result.source,
-            "query": query_text,
-        })
-    return {
-        "query": query_text,
-        "query_spec": _normalize_query_spec(query),
-        "baseline_score": raw_score,
-        "findings": findings,
-    }
-
-
-def _merge_findings(existing: list[dict[str, Any]], incoming: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    merged: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for item in list(existing) + list(incoming):
-        url = str(item.get("url") or "")
-        key = url or str(item.get("title") or "")
-        if not key or key in seen:
-            continue
-        seen.add(key)
-        merged.append(item)
-    return merged
-
-
-def _sample_findings(items: list[dict[str, Any]], limit: int = 12) -> list[dict[str, Any]]:
-    return [
-        {
-            "title": str(item.get("title") or ""),
-            "url": str(item.get("url") or ""),
-            "source": str(item.get("source") or ""),
-            "query": str(item.get("query") or ""),
-            "body": str(item.get("body") or "")[:220],
-        }
-        for item in items[:limit]
-    ]
 
 
 def _best_prior_run(goal_id: str) -> tuple[Path | None, dict[str, Any] | None]:
@@ -195,26 +84,6 @@ def _accepted_queries_from_run(payload: dict[str, Any]) -> list[dict[str, Any]]:
             if spec["text"] and spec not in accepted_queries:
                 accepted_queries.append(spec)
     return accepted_queries
-
-
-def _replay_queries(
-    queries: list[dict[str, Any]],
-    platforms: list[dict[str, Any]],
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    query_runs: list[dict[str, Any]] = []
-    findings: list[dict[str, Any]] = []
-    for query in queries:
-        run = _search_query(query, platforms)
-        query_runs.append({
-            "query": run["query"],
-            "query_spec": run["query_spec"],
-            "baseline_score": run["baseline_score"],
-            "finding_count": len(run["findings"]),
-            "sample_findings": _sample_findings(run["findings"], limit=5),
-        })
-        findings.extend(run["findings"])
-    return query_runs, _merge_findings([], findings)
-
 
 def _promote_compatible_archive_candidate(
     *,
