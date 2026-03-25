@@ -395,12 +395,22 @@ def build_research_plan(
     plan_count: int,
     max_queries: int,
     local_evidence_records: list[dict[str, Any]] | None = None,
+    gap_queue: list[dict[str, Any]] | None = None,
+    diary_summary: list[str] | None = None,
+    action_policy: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     current_role = _current_round_role(active_program, round_history)
     retired_mutations = _retired_mutation_kinds(active_program)
     if _mutation_kind_for_role(current_role) in retired_mutations:
         current_role = "orthogonal_probe" if "orthogonal_probe" in list(active_program.get("round_roles") or []) else "broad_recall"
     local_evidence_records = list(local_evidence_records or [])
+    gap_dimensions = [
+        str(item.get("dimension") or "").strip()
+        for item in list(gap_queue or [])
+        if str(item.get("status") or "open") == "open" and str(item.get("dimension") or "").strip()
+    ]
+    action_policy = dict(action_policy or {})
+    allowed_actions = set(action_policy.get("allowed_actions") or ["search", "repair", "cross_verify"])
     goal_case = _goal_case_from_searcher(searcher)
     plans = searcher.candidate_plans(
         bundle_state=bundle_state,
@@ -453,7 +463,7 @@ def build_research_plan(
         if _mutation_kind_for_role(role) in retired_mutations:
             continue
         graph_node = _node_id(role, index, branch_depth + 1)
-        branch_targets = _repair_terms(judge_result)
+        branch_targets = gap_dimensions[:3] or _repair_terms(judge_result)
         plan_priority = int(plan.get("branch_priority", 0) or 0)
         program_overrides = dict(plan.get("program_overrides") or {})
         decision = _decision_for_plan(
@@ -495,9 +505,13 @@ def build_research_plan(
             "decision": decision.to_dict(),
             "planning_ops": planning_ops,
             "local_evidence_records": local_evidence_records,
+            "diary_summary": list(diary_summary or []),
             "branch_depth": branch_depth + 1,
             "branch_priority": plan_priority or (3 if branch_type == "repair" else 2 if branch_type == "followup" else 1),
         })
+    if follow_up_candidates and len(normalized) < max(plan_count, 1) and branch_depth + 1 <= recursive_depth_limit and "anchor_followup" not in retired_mutations:
+        if "cross_verify" not in allowed_actions:
+            follow_up_candidates = []
     if follow_up_candidates and len(normalized) < max(plan_count, 1) and branch_depth + 1 <= recursive_depth_limit and "anchor_followup" not in retired_mutations:
         graph_node = _node_id("graph_followup", len(normalized) + 1, branch_depth + 1)
         followup_overrides = _followup_program_overrides(active_program)
@@ -521,13 +535,13 @@ def build_research_plan(
             "stage": "followup",
             "graph_node": graph_node,
             "graph_edges": [{"from": previous_node, "to": graph_node, "kind": "follow_up"}] if previous_node else [],
-            "branch_targets": _repair_terms(judge_result),
+            "branch_targets": gap_dimensions[:3] or _repair_terms(judge_result),
             "program_overrides": followup_overrides,
             "decision": followup_decision.to_dict(),
             "planning_ops": _planning_ops_for_plan(
                 role="graph_followup",
                 branch_type="followup",
-                branch_targets=_repair_terms(judge_result),
+                branch_targets=gap_dimensions[:3] or _repair_terms(judge_result),
                 branch_depth=branch_depth + 1,
                 recursive_depth_limit=recursive_depth_limit,
                 decision=followup_decision,
@@ -535,7 +549,11 @@ def build_research_plan(
             "local_evidence_records": local_evidence_records,
             "branch_depth": branch_depth + 1,
             "branch_priority": 4,
+            "diary_summary": list(diary_summary or []),
         })
+    if decomposition_candidates and len(normalized) < max(plan_count + 1, 2) and branch_depth + 2 <= recursive_depth_limit and "anchor_followup" not in retired_mutations:
+        if "cross_verify" not in allowed_actions:
+            decomposition_candidates = []
     if decomposition_candidates and len(normalized) < max(plan_count + 1, 2) and branch_depth + 2 <= recursive_depth_limit and "anchor_followup" not in retired_mutations:
         graph_node = _node_id("decomposition_followup", len(normalized) + 1, branch_depth + 2)
         decomposition_overrides = _followup_program_overrides(active_program)
@@ -559,13 +577,13 @@ def build_research_plan(
             "stage": "followup",
             "graph_node": graph_node,
             "graph_edges": [{"from": previous_node, "to": graph_node, "kind": "recursive_follow_up"}] if previous_node else [],
-            "branch_targets": _repair_terms(judge_result),
+            "branch_targets": gap_dimensions[:3] or _repair_terms(judge_result),
             "program_overrides": decomposition_overrides,
             "decision": decomposition_decision.to_dict(),
             "planning_ops": _planning_ops_for_plan(
                 role="decomposition_followup",
                 branch_type="followup",
-                branch_targets=_repair_terms(judge_result),
+                branch_targets=gap_dimensions[:3] or _repair_terms(judge_result),
                 branch_depth=branch_depth + 2,
                 recursive_depth_limit=recursive_depth_limit,
                 decision=decomposition_decision,
@@ -573,6 +591,7 @@ def build_research_plan(
             "local_evidence_records": local_evidence_records,
             "branch_depth": branch_depth + 2,
             "branch_priority": 5,
+            "diary_summary": list(diary_summary or []),
         })
     ranked = sorted(
         normalized,

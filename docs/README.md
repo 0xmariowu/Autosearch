@@ -12,6 +12,8 @@
 | `2026-03-22-system-architecture.md` | design | active | Complete architecture: engine + pipeline + outcome feedback loop, file inventory, scheduling, ops manual |
 | `2026-03-25-competitor-improvements.md` | research | superseded | V1: 17 improvements from 5 repos (see V2) |
 | `2026-03-25-competitor-improvements-v2.md` | research | active | V2 FINAL: 25 improvements from 16 repos, with implementation details, code references, Python ports, execution roadmap |
+| `plans/2026-03-25-autosearch-super-search-v3.md` | plan | active | V3: mode/registry/cross-verification/watch super-search plan |
+| `plans/2026-03-25-autosearch-super-search-v4.md` | plan | active | V4: 1:1 competitor-port implementation spec with exact runtime objects, files, and acceptance criteria |
 
 ## Related
 

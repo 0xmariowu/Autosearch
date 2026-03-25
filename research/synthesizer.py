@@ -116,6 +116,35 @@ def _cross_verification_summary(
     }
 
 
+def _gap_queue_update(
+    *,
+    gap_queue: list[dict[str, Any]] | None,
+    judge_result: dict[str, Any],
+) -> list[dict[str, Any]]:
+    missing = {str(item or "").strip() for item in list(judge_result.get("missing_dimensions") or []) if str(item or "").strip()}
+    updated: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in list(gap_queue or []):
+        payload = dict(item)
+        dimension = str(payload.get("dimension") or "").strip()
+        if not dimension:
+            continue
+        payload["status"] = "open" if dimension in missing else "satisfied"
+        updated.append(payload)
+        seen.add(dimension)
+    for dimension in missing:
+        if dimension in seen:
+            continue
+        updated.append({
+            "gap_id": f"gap:{dimension.replace(' ', '_')}",
+            "dimension": dimension,
+            "question": dimension.replace("_", " "),
+            "priority": len(updated) + 1,
+            "status": "open",
+        })
+    return updated
+
+
 def synthesize_research_round(
     goal_case: dict[str, Any],
     *,
@@ -123,6 +152,7 @@ def synthesize_research_round(
     round_findings: list[dict[str, Any]],
     harness: dict[str, Any],
     graph_plan: dict[str, Any] | None = None,
+    gap_queue: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     bundle = build_bundle(
         coerce_evidence_records(existing_findings),
@@ -153,6 +183,7 @@ def synthesize_research_round(
         bundle=bundle,
         graph_plan=graph_plan,
     )
+    updated_gap_queue = _gap_queue_update(gap_queue=gap_queue, judge_result=judge_result)
     return {
         "bundle": bundle,
         "research_bundle": research_bundle.to_dict(),
@@ -185,7 +216,9 @@ def synthesize_research_round(
             "prune_candidates": list(graph_scheduler.get("prune_candidates") or []),
             "next_branch_mode": str(graph_scheduler.get("next_branch_mode") or ""),
             "cross_verification": cross_verification,
+            "gap_queue": updated_gap_queue,
         },
+        "gap_queue": updated_gap_queue,
         "routeable_output": build_routeable_output(
             goal_case,
             bundle=bundle,
@@ -198,6 +231,7 @@ def synthesize_research_round(
                 "prune_candidates": list(graph_scheduler.get("prune_candidates") or []),
                 "next_branch_mode": str(graph_scheduler.get("next_branch_mode") or ""),
                 "cross_verification": cross_verification,
+                "gap_queue": updated_gap_queue,
             },
         ),
     }
