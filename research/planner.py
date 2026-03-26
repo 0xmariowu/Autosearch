@@ -82,7 +82,14 @@ def _anchor_tokens(local_evidence_records: list[dict[str, Any]] | None, *, limit
 
 
 def _goal_case_from_searcher(searcher: Any) -> dict[str, Any]:
-    return dict(getattr(searcher, "goal_case", {}) or {})
+    direct_goal_case = dict(getattr(searcher, "goal_case", {}) or {})
+    if direct_goal_case:
+        return direct_goal_case
+    for attr in ("heuristic", "llm"):
+        nested = dict(getattr(getattr(searcher, attr, None), "goal_case", {}) or {})
+        if nested:
+            return nested
+    return {}
 
 
 def _dimension_phrases(goal_case: dict[str, Any], judge_result: dict[str, Any], *, limit: int = 6) -> list[str]:

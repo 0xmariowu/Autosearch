@@ -145,6 +145,33 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertTrue(any("dedup" in text or "duplicate" in text or "semhash" in text for text in texts))
         self.assertFalse(any("repository source" in text or "release blocker" in text or "issue discussion" in text for text in texts))
 
+    def test_decomposition_followups_with_real_atoms_goal_case_do_not_use_bare_dedupe_quality(self):
+        queries = _decomposition_followups(
+            goal_case=_load_atoms_goal_case(),
+            local_evidence_records=[{
+                "record_type": "evidence",
+                "title": "semhash implementation notes",
+                "url": "https://example.com",
+                "source": "local",
+                "query": "dedupe",
+            }],
+            judge_result={
+                "missing_dimensions": [],
+                "dimension_scores": {
+                    "dedupe_quality": 10,
+                    "extraction_completeness": 20,
+                    "label_separation": 20,
+                    "pair_extract": 20,
+                    "validation_release": 20,
+                },
+            },
+            max_queries=6,
+            tried_queries=set(),
+        )
+        texts = [query["text"].lower() for query in queries]
+        self.assertTrue(any("semantic deduplication" in text for text in texts))
+        self.assertFalse(any("dedupe quality" in text for text in texts))
+
     def test_follow_up_queries_pair_still_uses_pair_templates(self):
         queries = _follow_up_queries(
             goal_case=_PairSearcher.goal_case,
