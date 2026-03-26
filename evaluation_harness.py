@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections import Counter, defaultdict
+from collections import Counter
 from urllib.parse import urlparse
 from typing import Any
 
@@ -72,7 +72,11 @@ def bundle_metrics(
         if str(item.get("url") or "").strip()
     }
     total = len(bundle)
-    urls = [str(item.get("url") or "").strip() for item in bundle if str(item.get("url") or "").strip()]
+    urls = [
+        str(item.get("url") or "").strip()
+        for item in bundle
+        if str(item.get("url") or "").strip()
+    ]
     new_urls = [url for url in urls if url not in previous_urls]
     sources = [str(item.get("source") or "unknown") for item in bundle]
     queries = [str(item.get("query") or "unknown") for item in bundle]
@@ -84,9 +88,15 @@ def bundle_metrics(
 
     unique_sources = len(source_counts)
     unique_queries = len(query_counts)
-    source_concentration = (max(source_counts.values()) / total) if total and source_counts else 1.0
-    query_concentration = (max(query_counts.values()) / total) if total and query_counts else 1.0
-    domain_concentration = (max(domain_counts.values()) / total) if total and domain_counts else 1.0
+    source_concentration = (
+        (max(source_counts.values()) / total) if total and source_counts else 1.0
+    )
+    query_concentration = (
+        (max(query_counts.values()) / total) if total and query_counts else 1.0
+    )
+    domain_concentration = (
+        (max(domain_counts.values()) / total) if total and domain_counts else 1.0
+    )
 
     title_prefixes = Counter()
     for item in bundle:
@@ -96,7 +106,9 @@ def bundle_metrics(
         prefix = " ".join(title.split()[:3])
         if prefix:
             title_prefixes[prefix] += 1
-    title_repetition = (max(title_prefixes.values()) / total) if total and title_prefixes else 0.0
+    title_repetition = (
+        (max(title_prefixes.values()) / total) if total and title_prefixes else 0.0
+    )
 
     return {
         "total_findings": total,
@@ -110,9 +122,11 @@ def bundle_metrics(
         "title_repetition": round(title_repetition, 4),
         "new_unique_urls": len(set(new_urls)),
         "novelty_ratio": round((len(set(new_urls)) / total), 4) if total else 0.0,
-        "new_sources": sorted({
-            str(item.get("source") or "unknown")
-            for item in bundle
-            if str(item.get("url") or "").strip() in set(new_urls)
-        }),
+        "new_sources": sorted(
+            {
+                str(item.get("source") or "unknown")
+                for item in bundle
+                if str(item.get("url") or "").strip() in set(new_urls)
+            }
+        ),
     }

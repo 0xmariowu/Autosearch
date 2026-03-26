@@ -70,12 +70,20 @@ def enrich_evidence_record(
                     content_type=page.get("content_type", ""),
                     final_url=page.get("final_url", page["url"]),
                 )
-                markdown_views = build_markdown_views(document.text, query=query or str(record.get("query") or ""))
-                document.clean_markdown = str(markdown_views.get("clean_markdown") or "")
+                markdown_views = build_markdown_views(
+                    document.text, query=query or str(record.get("query") or "")
+                )
+                document.clean_markdown = str(
+                    markdown_views.get("clean_markdown") or ""
+                )
                 document.fit_markdown = str(markdown_views.get("fit_markdown") or "")
                 document.chunk_scores = list(markdown_views.get("chunk_scores") or [])
-                document.selected_chunks = list(markdown_views.get("selected_chunks") or [])
-                document.references = extract_references(document.final_url, document.raw_html)
+                document.selected_chunks = list(
+                    markdown_views.get("selected_chunks") or []
+                )
+                document.references = extract_references(
+                    document.final_url, document.raw_html
+                )
             else:
                 document = AcquiredDocument(
                     url=url,
@@ -85,11 +93,17 @@ def enrich_evidence_record(
                     text=str(page.get("text") or ""),
                     raw_html=str(page.get("raw_html") or ""),
                 )
-                markdown_views = build_markdown_views(document.text, query=query or str(record.get("query") or ""))
-                document.clean_markdown = str(markdown_views.get("clean_markdown") or "")
+                markdown_views = build_markdown_views(
+                    document.text, query=query or str(record.get("query") or "")
+                )
+                document.clean_markdown = str(
+                    markdown_views.get("clean_markdown") or ""
+                )
                 document.fit_markdown = str(markdown_views.get("fit_markdown") or "")
                 document.chunk_scores = list(markdown_views.get("chunk_scores") or [])
-                document.selected_chunks = list(markdown_views.get("selected_chunks") or [])
+                document.selected_chunks = list(
+                    markdown_views.get("selected_chunks") or []
+                )
                 document.references = list(page.get("references") or [])
     except Exception as exc:
         if not use_render_fallback:
@@ -98,12 +112,16 @@ def enrich_evidence_record(
             return enriched
         try:
             document = render_document(url, timeout=timeout)
-            markdown_views = build_markdown_views(document.text, query=query or str(record.get("query") or ""))
+            markdown_views = build_markdown_views(
+                document.text, query=query or str(record.get("query") or "")
+            )
             document.clean_markdown = str(markdown_views.get("clean_markdown") or "")
             document.fit_markdown = str(markdown_views.get("fit_markdown") or "")
             document.chunk_scores = list(markdown_views.get("chunk_scores") or [])
             document.selected_chunks = list(markdown_views.get("selected_chunks") or [])
-            document.references = extract_references(document.final_url, document.raw_html)
+            document.references = extract_references(
+                document.final_url, document.raw_html
+            )
         except Exception as render_exc:
             enriched["acquired"] = False
             enriched["acquisition_error"] = str(render_exc)

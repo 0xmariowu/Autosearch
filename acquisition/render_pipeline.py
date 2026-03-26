@@ -14,7 +14,9 @@ from .document_models import AcquiredDocument
 def _playwright_sync():
     try:
         from playwright.sync_api import sync_playwright
-    except Exception as exc:  # pragma: no cover - import availability is environment-specific
+    except (
+        Exception
+    ) as exc:  # pragma: no cover - import availability is environment-specific
         raise RuntimeError("playwright render fallback not available") from exc
     return sync_playwright
 
@@ -26,7 +28,9 @@ def _render_with_playwright(url: str, *, timeout: int = 15) -> dict[str, Any]:
         browser = playwright.chromium.launch(headless=True)
         try:
             page = browser.new_page()
-            page.goto(str(url or "").strip(), wait_until="networkidle", timeout=timeout_ms)
+            page.goto(
+                str(url or "").strip(), wait_until="networkidle", timeout=timeout_ms
+            )
             html = page.content()
             title = page.title()
             final_url = page.url

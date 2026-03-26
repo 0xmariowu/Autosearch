@@ -23,7 +23,10 @@ class GoalRuntimeTests(unittest.TestCase):
                 "dimension_queries": {"gap_a": ["query a1"]},
                 "explore_budget": 0.25,
                 "exploit_budget": 0.75,
-                "sampling_policy": {"bundle_per_query_cap": 4, "anchor_followups": False},
+                "sampling_policy": {
+                    "bundle_per_query_cap": 4,
+                    "anchor_followups": False,
+                },
             },
             ["github_repos"],
         )
@@ -34,7 +37,9 @@ class GoalRuntimeTests(unittest.TestCase):
         self.assertEqual([item["text"] for item in program["queries"]], ["a", "b"])
         self.assertEqual(program["topic_frontier"][0]["id"], "topic-a")
         self.assertEqual(program["query_templates"]["gap_a"], ["query a1"])
-        self.assertEqual(program["dimension_strategies"]["gap_a"]["queries"][0]["text"], "query a1")
+        self.assertEqual(
+            program["dimension_strategies"]["gap_a"]["queries"][0]["text"], "query a1"
+        )
         self.assertEqual(program["round_roles"][0], "broad_recall")
         self.assertEqual(program["current_role"], "broad_recall")
         self.assertIn("search_backends", program)
@@ -45,7 +50,9 @@ class GoalRuntimeTests(unittest.TestCase):
         self.assertIn("population_policy", program)
         self.assertEqual(program["population_policy"]["max_branch_depth"], 4)
         self.assertEqual(program["population_policy"]["recursive_depth_limit"], 4)
-        self.assertEqual(program["population_policy"]["retire_family_after_rejections"], 3)
+        self.assertEqual(
+            program["population_policy"]["retire_family_after_rejections"], 3
+        )
         self.assertIn("branch_budget_per_round", program["population_policy"])
         self.assertEqual(program["explore_budget"], 0.25)
         self.assertEqual(program["exploit_budget"], 0.75)
@@ -72,7 +79,9 @@ class GoalRuntimeTests(unittest.TestCase):
             round_index=1,
             candidate_index=1,
             program_overrides={
-                "topic_frontier": [{"id": "topic-b", "queries": ["other frontier query"]}],
+                "topic_frontier": [
+                    {"id": "topic-b", "queries": ["other frontier query"]}
+                ],
                 "explore_budget": 0.7,
                 "exploit_budget": 0.3,
                 "sampling_policy": {"anchor_followups": False},
@@ -96,12 +105,16 @@ class GoalRuntimeTests(unittest.TestCase):
         self.assertEqual(candidate["current_role"], "dimension_repair")
         self.assertEqual(candidate["search_backends"], ["searxng", "ddgs"])
         self.assertTrue(candidate["acquisition_policy"]["acquire_pages"])
-        self.assertEqual(candidate["evidence_policy"]["preferred_content_types"], ["code"])
+        self.assertEqual(
+            candidate["evidence_policy"]["preferred_content_types"], ["code"]
+        )
         self.assertEqual(candidate["repair_policy"]["target_weak_dimensions"], 1)
         self.assertEqual(candidate["population_policy"]["plan_count"], 4)
 
     def test_build_candidate_program_clamps_branch_depth_to_population_limit(self):
-        parent = gr.default_program({"id": "g1", "seed_queries": ["seed"]}, ["github_repos"])
+        parent = gr.default_program(
+            {"id": "g1", "seed_queries": ["seed"]}, ["github_repos"]
+        )
         parent["branch_depth"] = 5
         parent["population_policy"]["max_branch_depth"] = 5
         candidate = gr.build_candidate_program(
@@ -120,7 +133,10 @@ class GoalRuntimeTests(unittest.TestCase):
             {
                 "id": "g1",
                 "seed_queries": ["seed"],
-                "topic_frontier": ["validation_release", {"id": "pairing", "queries": ["pair query"]}],
+                "topic_frontier": [
+                    "validation_release",
+                    {"id": "pairing", "queries": ["pair query"]},
+                ],
             },
             ["github_repos"],
         )
@@ -129,7 +145,9 @@ class GoalRuntimeTests(unittest.TestCase):
         self.assertEqual(program["topic_frontier"][1]["id"], "pairing")
 
     def test_build_candidate_program_normalizes_topic_frontier_overrides(self):
-        parent = gr.default_program({"id": "g1", "seed_queries": ["seed"]}, ["github_repos"])
+        parent = gr.default_program(
+            {"id": "g1", "seed_queries": ["seed"]}, ["github_repos"]
+        )
         candidate = gr.build_candidate_program(
             goal_id="g1",
             parent_program=parent,
@@ -165,10 +183,14 @@ class GoalRuntimeTests(unittest.TestCase):
                 self.assertTrue(paths["history"].exists())
                 self.assertTrue(paths["latest_lineage"].exists())
                 self.assertTrue(paths["lineage_history"].exists())
-                payload = __import__("json").loads(paths["latest"].read_text(encoding="utf-8"))
+                payload = __import__("json").loads(
+                    paths["latest"].read_text(encoding="utf-8")
+                )
                 self.assertEqual(payload["round"], 2)
                 self.assertEqual(payload["population"][0]["program_id"], "p1")
-                lineage = __import__("json").loads(paths["latest_lineage"].read_text(encoding="utf-8"))
+                lineage = __import__("json").loads(
+                    paths["latest_lineage"].read_text(encoding="utf-8")
+                )
                 self.assertEqual(lineage["summary"]["top_score"], 88)
                 self.assertIn("branch_counts", lineage["summary"])
                 self.assertIn("branch_best_scores", lineage["summary"])
@@ -183,16 +205,26 @@ class GoalRuntimeTests(unittest.TestCase):
                 paths = gr.save_population_snapshot(
                     "goal-x",
                     1,
-                    [{
-                        "program_id": "p1",
-                        "label": "repair",
-                        "branch_id": "repair-1",
-                        "family_id": "repair-family",
-                        "score": 42,
-                        "planning_ops": [{"op": "request_cross_check", "target": "implementation", "mode": "cross_check"}],
-                    }],
+                    [
+                        {
+                            "program_id": "p1",
+                            "label": "repair",
+                            "branch_id": "repair-1",
+                            "family_id": "repair-family",
+                            "score": 42,
+                            "planning_ops": [
+                                {
+                                    "op": "request_cross_check",
+                                    "target": "implementation",
+                                    "mode": "cross_check",
+                                }
+                            ],
+                        }
+                    ],
                 )
-                lineage = __import__("json").loads(paths["latest_lineage"].read_text(encoding="utf-8"))
+                lineage = __import__("json").loads(
+                    paths["latest_lineage"].read_text(encoding="utf-8")
+                )
                 history = lineage["summary"]["planning_op_history"]
                 self.assertEqual(history[0]["program_id"], "p1")
                 self.assertEqual(history[0]["ops"][0]["op"], "request_cross_check")
@@ -202,13 +234,21 @@ class GoalRuntimeTests(unittest.TestCase):
             runtime_root = Path(tmp)
             accepted_path = runtime_root / "g1" / "accepted-program.json"
             accepted_path.parent.mkdir(parents=True, exist_ok=True)
-            accepted_path.write_text(json.dumps({
-                "program_id": "p1",
-                "mode": "balanced",
-                "queries": [{"text": "seed", "platforms": []}],
-            }) + "\n", encoding="utf-8")
+            accepted_path.write_text(
+                json.dumps(
+                    {
+                        "program_id": "p1",
+                        "mode": "balanced",
+                        "queries": [{"text": "seed", "platforms": []}],
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
             with patch.object(gr, "GOAL_RUNTIME_ROOT", runtime_root):
-                program = gr.load_accepted_program({"id": "g1", "mode": "deep"}, ["searxng"])
+                program = gr.load_accepted_program(
+                    {"id": "g1", "mode": "deep"}, ["searxng"]
+                )
         self.assertEqual(program["mode"], "deep")
         self.assertTrue(program["acquisition_policy"]["acquire_pages"])
 
@@ -217,12 +257,18 @@ class GoalRuntimeTests(unittest.TestCase):
             runtime_root = Path(tmp)
             accepted_path = runtime_root / "g1" / "accepted-program.json"
             accepted_path.parent.mkdir(parents=True, exist_ok=True)
-            accepted_path.write_text(json.dumps({
-                "program_id": "p1",
-                "mode": "deep",
-                "queries": [{"text": "seed", "platforms": []}],
-                "topic_frontier": ["validation_release"],
-            }) + "\n", encoding="utf-8")
+            accepted_path.write_text(
+                json.dumps(
+                    {
+                        "program_id": "p1",
+                        "mode": "deep",
+                        "queries": [{"text": "seed", "platforms": []}],
+                        "topic_frontier": ["validation_release"],
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
             with patch.object(gr, "GOAL_RUNTIME_ROOT", runtime_root):
                 program = gr.load_accepted_program({"id": "g1"}, ["searxng"])
         self.assertEqual(program["topic_frontier"][0]["id"], "validation_release")

@@ -70,15 +70,25 @@ class SearcherJudgeSession:
 
     def __init__(self, goal_case: dict[str, Any]):
         self.goal_case = dict(goal_case)
-        self.capability_report = refresh_source_capability(self.goal_case.get("providers"))
+        self.capability_report = refresh_source_capability(
+            self.goal_case.get("providers")
+        )
         self.platforms = available_platforms(self.goal_case, self.capability_report)
         self.searcher = GoalSearcher(self.goal_case)
 
     def _goal_axes(self) -> list[str]:
-        dimension_ids = [str(dim.get("id") or "") for dim in self.goal_case.get("dimensions", []) if str(dim.get("id") or "")]
+        dimension_ids = [
+            str(dim.get("id") or "")
+            for dim in self.goal_case.get("dimensions", [])
+            if str(dim.get("id") or "")
+        ]
         if dimension_ids:
             return dimension_ids
-        template_ids = [str(key) for key in dict(self.goal_case.get("dimension_queries") or {}).keys() if str(key)]
+        template_ids = [
+            str(key)
+            for key in dict(self.goal_case.get("dimension_queries") or {}).keys()
+            if str(key)
+        ]
         if template_ids:
             return template_ids
         rubric_ids = [
@@ -89,7 +99,9 @@ class SearcherJudgeSession:
 
     def initial_queries(self) -> list[dict[str, Any]]:
         """Return normalized seed queries for the goal case."""
-        return [normalize_query_spec(query) for query in self.searcher.initial_queries()]
+        return [
+            normalize_query_spec(query) for query in self.searcher.initial_queries()
+        ]
 
     def searcher_propose(
         self,
@@ -104,19 +116,27 @@ class SearcherJudgeSession:
     ) -> list[dict[str, Any]]:
         """Return candidate search plans from the searcher role."""
         goal_axes = self._goal_axes()
-        bundle_state = dict(bundle_state or {
-            "accepted_findings": [],
-            "score": 0,
-            "dimension_scores": {},
-            "missing_dimensions": goal_axes,
-        })
-        judge_result = dict(judge_result or {
-            "score": 0,
-            "dimension_scores": {},
-            "missing_dimensions": list(bundle_state.get("missing_dimensions", []) or goal_axes),
-            "matched_dimensions": [],
-            "rationale": "empty bundle",
-        })
+        bundle_state = dict(
+            bundle_state
+            or {
+                "accepted_findings": [],
+                "score": 0,
+                "dimension_scores": {},
+                "missing_dimensions": goal_axes,
+            }
+        )
+        judge_result = dict(
+            judge_result
+            or {
+                "score": 0,
+                "dimension_scores": {},
+                "missing_dimensions": list(
+                    bundle_state.get("missing_dimensions", []) or goal_axes
+                ),
+                "matched_dimensions": [],
+                "rationale": "empty bundle",
+            }
+        )
         return self.searcher.candidate_plans(
             bundle_state=bundle_state,
             judge_result=judge_result,
@@ -127,7 +147,13 @@ class SearcherJudgeSession:
             plan_count=plan_count,
             max_queries=max_queries,
         ) or (
-            [{"label": "seed", "queries": self.initial_queries()[:max_queries], "program_overrides": {}}]
+            [
+                {
+                    "label": "seed",
+                    "queries": self.initial_queries()[:max_queries],
+                    "program_overrides": {},
+                }
+            ]
             if not list(bundle_state.get("accepted_findings") or [])
             else []
         )
@@ -145,14 +171,18 @@ class SearcherJudgeSession:
         findings: list[dict[str, Any]] = []
         for query in queries:
             effective_query = restrict_query_to_provider_mix(query, provider_mix)
-            run = search_query(effective_query, effective_platforms, sampling_policy=sampling_policy)
-            query_runs.append({
-                "query": run["query"],
-                "query_spec": run["query_spec"],
-                "baseline_score": run["baseline_score"],
-                "finding_count": len(run["findings"]),
-                "sample_findings": sample_findings(run["findings"], limit=5),
-            })
+            run = search_query(
+                effective_query, effective_platforms, sampling_policy=sampling_policy
+            )
+            query_runs.append(
+                {
+                    "query": run["query"],
+                    "query_spec": run["query_spec"],
+                    "baseline_score": run["baseline_score"],
+                    "finding_count": len(run["findings"]),
+                    "sample_findings": sample_findings(run["findings"], limit=5),
+                }
+            )
             findings.extend(run["findings"])
         return {
             "queries": [normalize_query_spec(query) for query in queries],
@@ -194,14 +224,16 @@ class SearcherJudgeSession:
                 provider_mix=list(program_overrides.get("provider_mix") or []),
             )
             judged = self.judge_bundle(execution["findings"])
-            plan_results.append({
-                "label": str(plan.get("label") or ""),
-                "program_overrides": program_overrides,
-                "queries": execution["queries"],
-                "query_runs": execution["query_runs"],
-                "finding_count": len(execution["findings"]),
-                "judge_result": judged,
-            })
+            plan_results.append(
+                {
+                    "label": str(plan.get("label") or ""),
+                    "program_overrides": program_overrides,
+                    "queries": execution["queries"],
+                    "query_runs": execution["query_runs"],
+                    "finding_count": len(execution["findings"]),
+                    "judge_result": judged,
+                }
+            )
         return {
             "goal_id": str(self.goal_case.get("id") or ""),
             "plans": plan_results,
@@ -224,7 +256,9 @@ class AutoSearchInterface:
     def _api_payload(self, method: str, payload: dict[str, Any]) -> dict[str, Any]:
         return with_api_meta(payload, method)
 
-    def _goal_platform_list(self, goal_case: str | Path | dict[str, Any]) -> list[dict[str, Any]]:
+    def _goal_platform_list(
+        self, goal_case: str | Path | dict[str, Any]
+    ) -> list[dict[str, Any]]:
         payload = self.resolve_goal_case(goal_case)
         capability_report = refresh_source_capability(payload.get("providers"))
         return available_platforms(payload, capability_report)
@@ -242,15 +276,19 @@ class AutoSearchInterface:
         items: list[dict[str, str]] = []
         for path in sorted(self.goal_cases_root.glob("*.json")):
             payload = load_goal_case(path)
-            items.append({
-                "id": str(payload.get("id") or path.stem),
-                "path": str(path),
-                "project": str(payload.get("project") or ""),
-                "problem": str(payload.get("problem") or ""),
-            })
+            items.append(
+                {
+                    "id": str(payload.get("id") or path.stem),
+                    "path": str(path),
+                    "project": str(payload.get("project") or ""),
+                    "problem": str(payload.get("problem") or ""),
+                }
+            )
         return items
 
-    def resolve_goal_case(self, goal_case: str | Path | dict[str, Any]) -> dict[str, Any]:
+    def resolve_goal_case(
+        self, goal_case: str | Path | dict[str, Any]
+    ) -> dict[str, Any]:
         """Resolve a goal id, path, or inline payload into a goal-case dict."""
         if isinstance(goal_case, dict):
             return dict(goal_case)
@@ -270,11 +308,15 @@ class AutoSearchInterface:
 
         raise FileNotFoundError(f"Goal case not found: {goal_case}")
 
-    def build_searcher_judge_session(self, goal_case: str | Path | dict[str, Any]) -> SearcherJudgeSession:
+    def build_searcher_judge_session(
+        self, goal_case: str | Path | dict[str, Any]
+    ) -> SearcherJudgeSession:
         """Build a stable searcher/judge session for a single goal case."""
         return SearcherJudgeSession(self.resolve_goal_case(goal_case))
 
-    def goal_capability_report(self, goal_case: str | Path | dict[str, Any]) -> dict[str, Any]:
+    def goal_capability_report(
+        self, goal_case: str | Path | dict[str, Any]
+    ) -> dict[str, Any]:
         """Return the refreshed capability report for one goal case."""
         payload = self.resolve_goal_case(goal_case)
         return self._api_payload(
@@ -328,17 +370,23 @@ class AutoSearchInterface:
         """Replay multiple goal-scoped queries and return runs plus findings."""
         platforms = self._goal_platform_list(goal_case)
         effective_platforms = platforms_for_provider_mix(platforms, provider_mix)
-        effective_queries = [restrict_query_to_provider_mix(query, provider_mix) for query in list(queries or [])]
+        effective_queries = [
+            restrict_query_to_provider_mix(query, provider_mix)
+            for query in list(queries or [])
+        ]
         query_runs, findings = replay_queries(
             effective_queries,
             effective_platforms,
             sampling_policy=sampling_policy,
         )
-        return self._api_payload("replay_goal_queries", {
-            "queries": [normalize_query_spec(query) for query in effective_queries],
-            "query_runs": query_runs,
-            "findings": findings,
-        })
+        return self._api_payload(
+            "replay_goal_queries",
+            {
+                "queries": [normalize_query_spec(query) for query in effective_queries],
+                "query_runs": query_runs,
+                "findings": findings,
+            },
+        )
 
     def fetch_document(
         self,
@@ -383,14 +431,18 @@ class AutoSearchInterface:
             ),
         )
 
-    def build_markdown_views(self, text: str, *, query: str = "", max_chars: int = 2400) -> dict[str, Any]:
+    def build_markdown_views(
+        self, text: str, *, query: str = "", max_chars: int = 2400
+    ) -> dict[str, Any]:
         """Build clean/fit markdown plus ranked chunk metadata."""
         return self._api_payload(
             "build_markdown_views",
             _build_markdown_views(text, query=query, max_chars=max_chars),
         )
 
-    def chunk_document(self, text: str, *, query: str = "", limit: int = 4) -> dict[str, Any]:
+    def chunk_document(
+        self, text: str, *, query: str = "", limit: int = 4
+    ) -> dict[str, Any]:
         """Return ranked chunks for a document-like text blob."""
         return self._api_payload(
             "chunk_document",
@@ -414,7 +466,11 @@ class AutoSearchInterface:
         """Normalize an acquired document into an evidence record."""
         return self._api_payload(
             "normalize_acquired_document",
-            {"record": _normalize_acquired_document(document, source=source, query=query)},
+            {
+                "record": _normalize_acquired_document(
+                    document, source=source, query=query
+                )
+            },
         )
 
     def normalize_evidence_record(self, record: dict[str, Any]) -> dict[str, Any]:
@@ -598,11 +654,17 @@ class AutoSearchInterface:
             run_path = self.goal_runs_root / (
                 f"{datetime.now().strftime('%Y-%m-%d-%H%M%S')}-{payload.get('id', 'bundle-goal')}-bundle.json"
             )
-            run_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            run_path.write_text(
+                json.dumps(result, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
             result = {**result, "run_path": str(run_path)}
         routeable_output = dict(result.get("routeable_output") or {})
         if routeable_output.get("research_packet"):
-            result = {**result, "research_packet": dict(routeable_output.get("research_packet") or {})}
+            result = {
+                **result,
+                "research_packet": dict(routeable_output.get("research_packet") or {}),
+            }
         return self._api_payload("run_goal_case", result)
 
     def optimize_goal(
@@ -651,7 +713,9 @@ class AutoSearchInterface:
         temp_goal_paths: list[Path] = []
         for goal in goals:
             if isinstance(goal, dict):
-                raise TypeError("run_goal_benchmark currently accepts goal ids or paths, not inline dict goal cases")
+                raise TypeError(
+                    "run_goal_benchmark currently accepts goal ids or paths, not inline dict goal cases"
+                )
             path = Path(goal)
             if path.exists():
                 goal_paths.append(path)
@@ -667,12 +731,16 @@ class AutoSearchInterface:
                         delete=False,
                         encoding="utf-8",
                     ) as handle:
-                        handle.write(json.dumps(resolved, ensure_ascii=False, indent=2) + "\n")
+                        handle.write(
+                            json.dumps(resolved, ensure_ascii=False, indent=2) + "\n"
+                        )
                         benchmark_path = Path(handle.name)
                     temp_goal_paths.append(benchmark_path)
                     goal_paths.append(benchmark_path)
                     continue
-                goal_paths.append(Path(self.goal_cases_root / f"{resolved.get('id')}.json"))
+                goal_paths.append(
+                    Path(self.goal_cases_root / f"{resolved.get('id')}.json")
+                )
         try:
             benchmark = run_benchmark(
                 goal_paths,
@@ -746,19 +814,25 @@ class AutoSearchInterface:
 
     def run_watch(self, watch: dict[str, Any]) -> dict[str, Any]:
         """Run one scheduled goal watch profile."""
-        return self._api_payload("run_watch", _run_watch(
-            watch,
-            resolve_goal_case=self.resolve_goal_case,
-            optimize_goal=self.optimize_goal,
-        ))
+        return self._api_payload(
+            "run_watch",
+            _run_watch(
+                watch,
+                resolve_goal_case=self.resolve_goal_case,
+                optimize_goal=self.optimize_goal,
+            ),
+        )
 
     def run_watches(self, watches: list[dict[str, Any]]) -> dict[str, Any]:
         """Run multiple independent goal watches and aggregate the results."""
-        return self._api_payload("run_watches", _run_watches(
-            list(watches or []),
-            resolve_goal_case=self.resolve_goal_case,
-            optimize_goal=self.optimize_goal,
-        ))
+        return self._api_payload(
+            "run_watches",
+            _run_watches(
+                list(watches or []),
+                resolve_goal_case=self.resolve_goal_case,
+                optimize_goal=self.optimize_goal,
+            ),
+        )
 
 
 def default_interface() -> AutoSearchInterface:

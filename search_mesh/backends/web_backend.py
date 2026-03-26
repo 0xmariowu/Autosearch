@@ -36,7 +36,9 @@ class WebBackend(SearchProvider):
     supports_cross_verification = True
     supports_acquisition_hints = True
 
-    def transform_query(self, provider_name: str, query: str, context: dict | None = None) -> str:
+    def transform_query(
+        self, provider_name: str, query: str, context: dict | None = None
+    ) -> str:
         q = str(query or "").strip()
         entities = list((context or {}).get("entities") or extract_entities(q))
         if provider_name in {"reddit_exa", "reddit"} and "sort:relevance" not in q:
@@ -45,7 +47,9 @@ class WebBackend(SearchProvider):
             q = quote_entities(q, entities or [q] if q and " " in q else entities)
         return q
 
-    def search(self, platform: dict[str, Any], query: str, *, query_family: str = "unknown"):
+    def search(
+        self, platform: dict[str, Any], query: str, *, query_family: str = "unknown"
+    ):
         name = str(platform.get("name") or "")
         dispatch = {
             "exa": PlatformConnector._exa,

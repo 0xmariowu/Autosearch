@@ -47,7 +47,13 @@ MODE_POLICIES: dict[ResearchModeName, ResearchModePolicy] = {
         page_fetch_limit=0,
         prefer_acquired_text=False,
         rerank_profile="lexical",
-        branch_budget_per_round={"breadth": 1, "repair": 1, "followup": 0, "probe": 0, "research": 0},
+        branch_budget_per_round={
+            "breadth": 1,
+            "repair": 1,
+            "followup": 0,
+            "probe": 0,
+            "research": 0,
+        },
         plateau_rounds=1,
         stop_on_saturated=True,
         max_findings_before_search_disable=18,
@@ -66,7 +72,13 @@ MODE_POLICIES: dict[ResearchModeName, ResearchModePolicy] = {
         page_fetch_limit=2,
         prefer_acquired_text=False,
         rerank_profile="hybrid",
-        branch_budget_per_round={"breadth": 1, "repair": 2, "followup": 1, "probe": 1, "research": 1},
+        branch_budget_per_round={
+            "breadth": 1,
+            "repair": 2,
+            "followup": 1,
+            "probe": 1,
+            "research": 1,
+        },
         plateau_rounds=3,
         stop_on_saturated=False,
         max_findings_before_search_disable=40,
@@ -85,7 +97,13 @@ MODE_POLICIES: dict[ResearchModeName, ResearchModePolicy] = {
         page_fetch_limit=4,
         prefer_acquired_text=True,
         rerank_profile="hybrid",
-        branch_budget_per_round={"breadth": 1, "repair": 3, "followup": 2, "probe": 2, "research": 2},
+        branch_budget_per_round={
+            "breadth": 1,
+            "repair": 3,
+            "followup": 2,
+            "probe": 2,
+            "research": 2,
+        },
         plateau_rounds=4,
         stop_on_saturated=False,
         max_findings_before_search_disable=80,
@@ -101,7 +119,9 @@ def normalize_mode(mode: str | None) -> ResearchModeName:
     return "balanced"
 
 
-def get_mode_policy(mode: str | None, overrides: dict[str, Any] | None = None) -> ResearchModePolicy:
+def get_mode_policy(
+    mode: str | None, overrides: dict[str, Any] | None = None
+) -> ResearchModePolicy:
     normalized = normalize_mode(mode)
     base = MODE_POLICIES[normalized].to_dict()
     for key, value in dict(overrides or {}).items():

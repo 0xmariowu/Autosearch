@@ -20,7 +20,9 @@ class GitHubBackend(SearchProvider):
     supports_cross_verification = True
     supports_acquisition_hints = False
 
-    def transform_query(self, provider_name: str, query: str, context: dict | None = None) -> str:
+    def transform_query(
+        self, provider_name: str, query: str, context: dict | None = None
+    ) -> str:
         q = str(query or "").strip()
         entities = list((context or {}).get("entities") or extract_entities(q))
         if provider_name == "github_repos" and "stars:" not in q:
@@ -31,7 +33,9 @@ class GitHubBackend(SearchProvider):
             q = quote_entities(q, entities)
         return q
 
-    def search(self, platform: dict[str, Any], query: str, *, query_family: str = "unknown"):
+    def search(
+        self, platform: dict[str, Any], query: str, *, query_family: str = "unknown"
+    ):
         name = str(platform.get("name") or "")
         if name == "github_repos":
             outcome = PlatformConnector._github_repos(platform, query)

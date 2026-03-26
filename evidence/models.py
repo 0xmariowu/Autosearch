@@ -80,12 +80,18 @@ def build_evidence_record(
     if fit_markdown:
         canonical_parts.append(clean_text(fit_markdown, limit=1200))
     canonical_text = "\n\n".join(part for part in canonical_parts if part).strip()
-    citations = [str(item.get("url") or "").strip() for item in list(references or []) if str(item.get("url") or "").strip()]
+    citations = [
+        str(item.get("url") or "").strip()
+        for item in list(references or [])
+        if str(item.get("url") or "").strip()
+    ]
     extract = _extract(snippet, fit_markdown)
     summary = _summary(clean_title, snippet)
     return {
         "record_type": "evidence",
-        "evidence_id": _evidence_id(str(url or "").strip(), clean_title, str(query or "").strip()),
+        "evidence_id": _evidence_id(
+            str(url or "").strip(), clean_title, str(query or "").strip()
+        ),
         "title": clean_title,
         "url": str(url or "").strip(),
         "body": snippet,

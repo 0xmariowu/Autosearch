@@ -14,7 +14,15 @@ from search_mesh.models import SearchHit
 
 
 class RerankTests(unittest.TestCase):
-    def _hit(self, *, title: str, url: str, snippet: str, provider: str = "searxng", score_hint: int = 0) -> SearchHit:
+    def _hit(
+        self,
+        *,
+        title: str,
+        url: str,
+        snippet: str,
+        provider: str = "searxng",
+        score_hint: int = 0,
+    ) -> SearchHit:
         return SearchHit.from_fields(
             url=url,
             title=title,
@@ -43,8 +51,14 @@ class RerankTests(unittest.TestCase):
 
     def test_rerank_hits_prefers_more_relevant_result(self):
         hits = [
-            self._hit(title="Random page", url="https://example.com/r", snippet="misc text"),
-            self._hit(title="Agent runtime guide", url="https://example.com/a", snippet="agent runtime implementation"),
+            self._hit(
+                title="Random page", url="https://example.com/r", snippet="misc text"
+            ),
+            self._hit(
+                title="Agent runtime guide",
+                url="https://example.com/a",
+                snippet="agent runtime implementation",
+            ),
         ]
         ranked = rerank_hits("agent runtime", hits, rerank_profile="hybrid")
         self.assertEqual(ranked[0].title, "Agent runtime guide")
@@ -56,7 +70,10 @@ class RerankTests(unittest.TestCase):
             self._hit(title="C", url="https://other.com/c", snippet="agent runtime"),
         ]
         deduped = dedup_hits(hits, max_per_domain=1)
-        self.assertEqual([item.url for item in deduped], ["https://example.com/a", "https://other.com/c"])
+        self.assertEqual(
+            [item.url for item in deduped],
+            ["https://example.com/a", "https://other.com/c"],
+        )
 
     def test_harmonic_position_bonus_prefers_earlier_rank(self):
         self.assertGreater(harmonic_position_bonus(1), harmonic_position_bonus(5))
