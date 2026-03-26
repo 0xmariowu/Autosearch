@@ -147,10 +147,12 @@ def _update_plateau_state(
     candidate_dimensions: dict[str, Any],
 ) -> dict[str, Any]:
     next_state = dict(plateau_state or {})
-    dimension_stagnation = {
-        str(key): int(value or 0)
-        for key, value in dict(next_state.get("dimension_stagnation") or {}).items()
-    }
+    dimension_stagnation = {}
+    for key, value in dict(next_state.get("dimension_stagnation") or {}).items():
+        try:
+            dimension_stagnation[str(key)] = int(value or 0)
+        except (ValueError, TypeError):
+            dimension_stagnation[str(key)] = 0
     improved = int(candidate_score or 0) > int(current_score or 0)
     next_state["best_score"] = max(int(next_state.get("best_score", 0) or 0), int(candidate_score or 0))
     next_state["stagnant_rounds"] = 0 if improved else int(next_state.get("stagnant_rounds", 0) or 0) + 1
