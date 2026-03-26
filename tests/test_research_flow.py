@@ -192,6 +192,47 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertTrue(result["cross_verification"]["enabled"])
         self.assertEqual(result["cross_verification"]["verification_query_count"], 1)
         self.assertEqual(result["planning_ops"][0]["op"], "request_cross_check")
+        self.assertEqual(result["deep_steps"][0]["kind"], "search")
+        self.assertEqual(result["deep_steps"][1]["kind"], "read")
+
+    def test_executor_deep_mode_generates_reason_step_and_followup(self):
+        calls = {"count": 0}
+
+        def _fake_search(query, platforms, sampling_policy=None):
+            calls["count"] += 1
+            return {
+                "query": query["text"],
+                "query_spec": query,
+                "baseline_score": 10,
+                "findings": [{
+                    "record_type": "evidence",
+                    "title": "Release gate validator implementation",
+                    "url": f"https://example.com/{calls['count']}",
+                    "source": "searxng",
+                    "query": query["text"],
+                    "extract": "validation contract release blocker implementation details",
+                }],
+            }
+
+        with patch("research.executor.search_query", side_effect=_fake_search):
+            result = execute_research_plan(
+                {
+                    "label": "repair",
+                    "intents": [{"text": "validation release gate", "platforms": []}],
+                    "decision": {
+                        "mode": "deep",
+                        "provider_mix": ["searxng"],
+                        "sampling_policy": {},
+                        "acquisition_policy": {"acquire_pages": True},
+                        "evidence_policy": {"prefer_acquired_text": True},
+                    },
+                },
+                default_platforms=[{"name": "searxng", "limit": 5}],
+                provider_mix=["searxng"],
+                query_key_fn=lambda q: str(q),
+            )
+        self.assertGreaterEqual(calls["count"], 2)
+        self.assertTrue(any(step["kind"] == "reason" for step in result["deep_steps"]))
 
     def test_executor_uses_backend_roles_to_narrow_platforms(self):
         observed = {}
@@ -214,6 +255,75 @@ class ResearchFlowTests(unittest.TestCase):
                 query_key_fn=lambda q: str(q),
             )
         self.assertEqual(observed["platforms"], ["github_repos"])
+
+    def test_executor_preserves_explicit_structured_platforms_over_classification(self):
+        observed = {}
+
+        def _fake_search(query, platforms, sampling_policy=None):
+            observed["platforms"] = [platform["name"] for platform in platforms]
+            observed["query"] = query
+            return {
+                "query": query["text"],
+                "query_spec": query,
+                "baseline_score": 5,
+                "findings": [],
+            }
+
+        with patch("research.executor.search_query", side_effect=_fake_search):
+            execute_research_plan(
+                {
+                    "label": "repair",
+                    "role": "dimension_repair",
+                    "intents": [{
+                        "text": "validation release fail-closed release gate",
+                        "platforms": [
+                            {"name": "github_code", "query": "\"fail-closed release gate\"", "limit": 5},
+                            {"name": "github_issues", "query": "fail-closed release gate", "limit": 5},
+                            {"name": "github_repos", "query": "fail-closed release gate", "limit": 5},
+                        ],
+                    }],
+                },
+                default_platforms=[
+                    {"name": "searxng", "limit": 5},
+                    {"name": "ddgs", "limit": 5},
+                    {"name": "github_code", "limit": 5},
+                    {"name": "github_issues", "limit": 5},
+                    {"name": "github_repos", "limit": 5},
+                ],
+                provider_mix=["searxng", "ddgs", "github_code", "github_issues", "github_repos"],
+                backend_roles={"breadth": ["searxng", "ddgs"]},
+                query_key_fn=lambda q: str(q),
+            )
+        self.assertEqual(observed["platforms"], ["github_code", "github_issues", "github_repos"])
+        self.assertEqual(
+            [platform["name"] for platform in observed["query"]["platforms"]],
+            ["github_code", "github_issues", "github_repos"],
+        )
+
+    def test_executor_treats_unscoped_query_with_new_provider_mix_as_new_attempt(self):
+        observed = {"count": 0}
+
+        def _fake_search(query, platforms, sampling_policy=None):
+            observed["count"] += 1
+            return {
+                "query": query["text"],
+                "query_spec": query,
+                "baseline_score": 5,
+                "findings": [],
+            }
+
+        with patch("research.executor.search_query", side_effect=_fake_search):
+            execute_research_plan(
+                {"label": "repair", "role": "dimension_repair", "intents": [{"text": "validation report implementation", "platforms": []}]},
+                default_platforms=[
+                    {"name": "searxng", "limit": 5},
+                    {"name": "ddgs", "limit": 5},
+                ],
+                provider_mix=["searxng", "ddgs"],
+                query_key_fn=lambda q: f"{q['text']}::{q.get('platforms', [])!r}",
+                tried_queries={"validation report implementation::[]::providers=['github_code']"},
+            )
+        self.assertEqual(observed["count"], 1)
 
     def test_synthesizer_builds_bundle_and_repair_hints(self):
         goal_case = {
@@ -258,6 +368,9 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertIn("next_branch_mode", result["routeable_output"]["graph_handoff"])
         self.assertIn("cross_verification", result["search_graph"])
         self.assertIn("cross_verification", result["routeable_output"])
+        self.assertIn("research_packet", result["routeable_output"])
+        self.assertIn("deep_loop", result["search_graph"])
+        self.assertEqual(result["search_graph"]["deep_loop"]["steps"][0]["kind"], "search")
         self.assertIn("gap_queue", result)
         self.assertIn("gap_queue", result["routeable_output"])
         self.assertIn("regression", [item["dimension"] for item in result["gap_queue"]])

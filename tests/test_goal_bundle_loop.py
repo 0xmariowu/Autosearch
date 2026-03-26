@@ -355,6 +355,8 @@ class GoalBundleLoopTests(unittest.TestCase):
         self.assertIn("diary_summary", result)
         self.assertIn("gap_queue", result["rounds"][0])
         self.assertIn("diary_summary", result["rounds"][0])
+        self.assertIn("deep_steps", result)
+        self.assertIn("deep_steps", result["rounds"][0])
 
     def test_run_goal_bundle_loop_reports_plateau_state(self):
         goal_case = {
@@ -426,6 +428,45 @@ class GoalBundleLoopTests(unittest.TestCase):
             )
         self.assertEqual(result["target_score"], 95)
         self.assertEqual(result["plateau_rounds_limit"], 1)
+
+    def test_run_goal_bundle_loop_surfaces_research_packet_and_deep_steps(self):
+        goal_case = {
+            "id": "goal-deep-output",
+            "providers": ["github_repos"],
+            "seed_queries": ["seed"],
+            "target_score": 20,
+        }
+        fake_routeable_output = {
+            "goal_id": "goal-deep-output",
+            "research_packet": {"packet_id": "packet-1"},
+        }
+        fake_research_bundle = {"bundle_id": "bundle-1"}
+        fake_search_graph = {"deep_loop": {"steps": [{"kind": "search"}]}}
+        with patch.object(gbl, "refresh_source_capability", return_value={"sources": {}}), \
+             patch.object(gbl, "_available_platforms", return_value=[{"name": "github_repos", "limit": 5}]), \
+             patch.object(gbl, "ensure_harness", return_value={"goal_id": "goal-deep-output", "bundle_policy": {}, "anti_cheat": {}}), \
+             patch.object(gbl, "GoalSearcher") as searcher_cls, \
+             patch.object(gbl, "load_accepted_program", return_value={"program_id": "seed-program", "queries": [], "sampling_policy": {}, "stop_rules": {}, "plateau_state": {}}), \
+             patch.object(gbl, "_best_prior_run", return_value=(None, None)), \
+             patch.object(gbl, "_search_query", return_value={"query": "seed", "query_spec": {"text": "seed", "platforms": []}, "baseline_score": 1, "findings": [{"title": "x", "url": "u", "source": "github_repos", "query": "seed"}]}), \
+             patch.object(gbl, "build_candidate_program", return_value={"program_id": "goal-deep-output-r1-c1", "provider_mix": ["github_repos"], "sampling_policy": {}, "queries": [{"text": "seed", "platforms": []}], "current_role": "deep_research"}), \
+             patch.object(gbl, "archive_candidate_program"), \
+             patch.object(gbl, "save_population_snapshot"), \
+             patch.object(gbl, "candidate_rank", side_effect=lambda item: int(item.get("score") or 0)), \
+             patch.object(gbl, "evaluate_acceptance", return_value={"accepted": True, "candidate_score": 25, "anti_cheat_failures": [], "anti_cheat_warnings": []}), \
+             patch.object(gbl, "build_bundle", return_value=[{"title": "x", "url": "u", "source": "github_repos", "query": "seed"}]), \
+             patch.object(gbl, "bundle_metrics", return_value={"total_findings": 1, "new_unique_urls": 1, "novelty_ratio": 1.0, "source_diversity": 1.0, "source_concentration": 1.0, "query_concentration": 1.0}), \
+             patch.object(gbl, "evaluate_goal_bundle", return_value={"score": 25, "dimension_scores": {"gap": 25}, "missing_dimensions": [], "matched_dimensions": ["gap"], "rationale": "ok", "judge": "heuristic-bundle"}), \
+             patch.object(gbl, "synthesize_research_round", return_value={"bundle": [{"title": "x", "url": "u", "source": "github_repos", "query": "seed"}], "judge_result": {"score": 25, "dimension_scores": {"gap": 25}, "missing_dimensions": [], "matched_dimensions": ["gap"], "rationale": "ok", "judge": "heuristic-bundle"}, "harness_metrics": {"total_findings": 1, "new_unique_urls": 1, "novelty_ratio": 1.0, "source_diversity": 1.0, "source_concentration": 1.0, "query_concentration": 1.0}, "routeable_output": fake_routeable_output, "research_bundle": fake_research_bundle, "search_graph": fake_search_graph, "gap_queue": []}), \
+             patch.object(gbl, "save_accepted_program"):
+            searcher_cls.return_value = SimpleNamespace(
+                initial_queries=lambda: [{"text": "seed", "platforms": []}],
+                candidate_plans=lambda **kwargs: [],
+            )
+            result = gbl.run_goal_bundle_loop(goal_case, max_rounds=1, plan_count_override=1, max_queries_override=1)
+        self.assertEqual(result["research_packet"]["packet_id"], "packet-1")
+        self.assertEqual(result["rounds"][0]["routeable_output"]["research_packet"]["packet_id"], "packet-1")
+        self.assertEqual(result["rounds"][0]["search_graph"]["deep_loop"]["steps"][0]["kind"], "search")
 
 
 if __name__ == "__main__":

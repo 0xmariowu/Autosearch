@@ -649,8 +649,8 @@ def run_goal_bundle_loop(
                     "rationale": "branch retired by stale branch policy",
                 })
                 continue
-            search_backends = list(candidate_program.get("search_backends") or candidate_program.get("provider_mix") or [])
-            candidate_platforms = _platforms_for_provider_mix(platforms, search_backends)
+            provider_mix = list(candidate_program.get("provider_mix") or [])
+            candidate_platforms = _platforms_for_provider_mix(platforms, provider_mix)
             candidate_sampling_policy = {
                 **dict(candidate_program.get("sampling_policy") or {}),
                 **dict(candidate_program.get("acquisition_policy") or {}),
@@ -747,6 +747,7 @@ def run_goal_bundle_loop(
                 "gap_queue": list(synthesized.get("gap_queue") or []),
                 "decision": execution.get("decision", {}),
                 "planning_ops": execution.get("planning_ops", []),
+                "deep_steps": list(execution.get("deep_steps") or []),
             }
             archive_path = archive_candidate_program(
                 str(goal_case.get("id") or "goal"),
@@ -786,6 +787,7 @@ def run_goal_bundle_loop(
                 "gap_queue": gap_queue_summary(synthesized.get("gap_queue") or []),
                 "decision": execution.get("decision", {}),
                 "planning_ops": execution.get("planning_ops", []),
+                "deep_steps": list(execution.get("deep_steps") or []),
                 "budget_state": current_budget,
             })
             population.append({
@@ -960,6 +962,7 @@ def run_goal_bundle_loop(
                 ),
                 {},
             ),
+            "deep_steps": list(best_candidate.get("deep_steps") or []),
         })
         diary_entries.append(
             build_diary_entry(
@@ -1029,6 +1032,12 @@ def run_goal_bundle_loop(
         "routeable_output": rounds[-1].get("routeable_output", {}) if rounds else {},
         "research_bundle": rounds[-1].get("research_bundle", {}) if rounds else {},
         "search_graph": rounds[-1].get("search_graph", {}) if rounds else {},
+        "research_packet": (
+            ((rounds[-1].get("routeable_output", {}) or {}).get("research_packet", {}))
+            if rounds
+            else {}
+        ),
+        "deep_steps": rounds[-1].get("deep_steps", []) if rounds else [],
         "improvement_vs_baseline": None,
         "rounds": rounds,
     }

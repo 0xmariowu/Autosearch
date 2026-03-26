@@ -30,7 +30,11 @@ class InterfaceTests(unittest.TestCase):
             client = api.AutoSearchInterface(tmp)
             client.goal_cases_root = Path(tmp)
             client.goal_runs_root = Path(tmp) / "runs"
-            with patch.object(api, "run_goal_bundle_loop", return_value={"goal_id": "demo", "bundle_final": {"score": 82}}) as mocked_loop:
+            with patch.object(api, "run_goal_bundle_loop", return_value={
+                "goal_id": "demo",
+                "bundle_final": {"score": 82},
+                "routeable_output": {"research_packet": {"packet_id": "demo:82:1"}},
+            }) as mocked_loop:
                 result = client.run_goal_case(
                     {"id": "demo"},
                     mode="deep",
@@ -43,6 +47,7 @@ class InterfaceTests(unittest.TestCase):
                 )
             self.assertEqual(result["bundle_final"]["score"], 82)
             self.assertIn("run_path", result)
+            self.assertEqual(result["research_packet"]["packet_id"], "demo:82:1")
             self.assertTrue(Path(result["run_path"]).exists())
             self.assertEqual(mocked_loop.call_args.kwargs["target_score_override"], 95)
             self.assertEqual(mocked_loop.call_args.kwargs["plateau_rounds_override"], 2)
