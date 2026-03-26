@@ -100,6 +100,49 @@ class GoalRuntimeTests(unittest.TestCase):
         self.assertEqual(candidate["repair_policy"]["target_weak_dimensions"], 1)
         self.assertEqual(candidate["population_policy"]["plan_count"], 4)
 
+    def test_build_candidate_program_clamps_branch_depth_to_population_limit(self):
+        parent = gr.default_program({"id": "g1", "seed_queries": ["seed"]}, ["github_repos"])
+        parent["branch_depth"] = 5
+        parent["population_policy"]["max_branch_depth"] = 5
+        candidate = gr.build_candidate_program(
+            goal_id="g1",
+            parent_program=parent,
+            label="dimension_repair-primary",
+            queries=[{"text": "next query", "platforms": []}],
+            provider_mix=["github_repos"],
+            round_index=2,
+            candidate_index=1,
+        )
+        self.assertEqual(candidate["branch_depth"], 5)
+
+    def test_default_program_normalizes_string_topic_frontier_entries(self):
+        program = gr.default_program(
+            {
+                "id": "g1",
+                "seed_queries": ["seed"],
+                "topic_frontier": ["validation_release", {"id": "pairing", "queries": ["pair query"]}],
+            },
+            ["github_repos"],
+        )
+        self.assertEqual(program["topic_frontier"][0]["id"], "validation_release")
+        self.assertEqual(program["topic_frontier"][0]["queries"], [])
+        self.assertEqual(program["topic_frontier"][1]["id"], "pairing")
+
+    def test_build_candidate_program_normalizes_topic_frontier_overrides(self):
+        parent = gr.default_program({"id": "g1", "seed_queries": ["seed"]}, ["github_repos"])
+        candidate = gr.build_candidate_program(
+            goal_id="g1",
+            parent_program=parent,
+            label="repair",
+            queries=[{"text": "next query", "platforms": []}],
+            provider_mix=["github_repos"],
+            round_index=1,
+            candidate_index=1,
+            program_overrides={"topic_frontier": ["validation_release"]},
+        )
+        self.assertEqual(candidate["topic_frontier"][0]["id"], "validation_release")
+        self.assertEqual(candidate["topic_frontier"][0]["queries"], [])
+
     def test_ensure_harness_persists_default_payload(self):
         with tempfile.TemporaryDirectory() as tmp:
             runtime_root = Path(tmp)
@@ -168,6 +211,22 @@ class GoalRuntimeTests(unittest.TestCase):
                 program = gr.load_accepted_program({"id": "g1", "mode": "deep"}, ["searxng"])
         self.assertEqual(program["mode"], "deep")
         self.assertTrue(program["acquisition_policy"]["acquire_pages"])
+
+    def test_load_accepted_program_normalizes_string_topic_frontier_entries(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime_root = Path(tmp)
+            accepted_path = runtime_root / "g1" / "accepted-program.json"
+            accepted_path.parent.mkdir(parents=True, exist_ok=True)
+            accepted_path.write_text(json.dumps({
+                "program_id": "p1",
+                "mode": "deep",
+                "queries": [{"text": "seed", "platforms": []}],
+                "topic_frontier": ["validation_release"],
+            }) + "\n", encoding="utf-8")
+            with patch.object(gr, "GOAL_RUNTIME_ROOT", runtime_root):
+                program = gr.load_accepted_program({"id": "g1"}, ["searxng"])
+        self.assertEqual(program["topic_frontier"][0]["id"], "validation_release")
+        self.assertEqual(program["topic_frontier"][0]["queries"], [])
 
 
 if __name__ == "__main__":

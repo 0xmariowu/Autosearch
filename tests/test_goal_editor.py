@@ -190,15 +190,16 @@ class GoalEditorTests(unittest.TestCase):
             plan_count=2,
             max_queries=3,
         )
-        anchored = plans[0]["queries"][0]
+        anchored_plan = next(plan for plan in plans if "anchored" in plan["label"])
+        anchored = anchored_plan["queries"][0]
         self.assertIn("great-expectations/great_expectations", anchored["text"])
         self.assertEqual(anchored["platforms"][0]["repo"], "great-expectations/great_expectations")
         self.assertEqual(
-            plans[0]["program_overrides"]["provider_mix"],
-            ["github_code", "github_issues"],
+            set(anchored_plan["program_overrides"]["provider_mix"]),
+            {"github_code", "github_issues"},
         )
-        self.assertTrue(plans[0]["program_overrides"]["acquisition_policy"]["acquire_pages"])
-        self.assertIn("code", plans[0]["program_overrides"]["evidence_policy"]["preferred_content_types"])
+        self.assertTrue(anchored_plan["program_overrides"]["acquisition_policy"]["acquire_pages"])
+        self.assertIn("code", anchored_plan["program_overrides"]["evidence_policy"]["preferred_content_types"])
 
     def test_heuristic_searcher_rotates_into_topic_frontier(self):
         goal_case = {
@@ -231,6 +232,17 @@ class GoalEditorTests(unittest.TestCase):
         self.assertGreaterEqual(frontier_plan["program_overrides"]["explore_budget"], 0.7)
         self.assertEqual(frontier_plan["program_overrides"]["provider_mix"], ["huggingface_datasets"])
         self.assertFalse(frontier_plan["program_overrides"]["acquisition_policy"]["acquire_pages"])
+
+    def test_heuristic_searcher_normalizes_string_topic_frontier_entries(self):
+        goal_case = {
+            "dimensions": [{"id": "validation_release", "keywords": ["fail-closed", "validation report"]}],
+            "dimension_queries": {"validation_release": ["query a1"]},
+            "seed_queries": [],
+            "topic_frontier": ["trajectory_subsets"],
+        }
+        searcher = HeuristicGoalSearcher(goal_case)
+        self.assertEqual(searcher.topic_frontier[0]["id"], "trajectory_subsets")
+        self.assertEqual(searcher.topic_frontier[0]["queries"], [])
 
     def test_goal_director_synthesizes_templates_from_rubric_when_dimension_queries_missing(self):
         goal_case = {
@@ -283,6 +295,61 @@ class GoalEditorTests(unittest.TestCase):
         self.assertEqual(context_plan["branch_priority"], 5)
         self.assertTrue(all("validation should run after extraction" not in query["text"] for query in context_plan["queries"]))
         self.assertTrue(any("implementation" in query["text"] for query in context_plan["queries"]))
+
+    def test_goal_director_emits_specialized_validation_release_queries(self):
+        goal_case = {
+            "seed_queries": [],
+            "providers": ["searxng", "ddgs", "github_code", "github_issues", "github_repos"],
+            "context_notes": "base release must be fail-closed and publish must stop on validation failure.",
+            "dimensions": [
+                {
+                    "id": "validation_release",
+                    "weight": 20,
+                    "keywords": ["validation report", "fail-closed", "release gate"],
+                }
+            ],
+            "dimension_queries": {"validation_release": []},
+        }
+        searcher = GoalSearcher(goal_case)
+        plans = searcher.candidate_plans(
+            bundle_state={"accepted_findings": [], "score": 0},
+            judge_result={"missing_dimensions": ["validation_release"], "dimension_scores": {"validation_release": 0}},
+            tried_queries=set(),
+            available_providers=["searxng", "ddgs", "github_code", "github_issues", "github_repos"],
+            plan_count=3,
+            max_queries=3,
+        )
+        labels = [plan["label"] for plan in plans]
+        self.assertIn("dimension_repair-specialized-repair", labels)
+        specialized = next(plan for plan in plans if plan["label"] == "dimension_repair-specialized-repair")
+        texts = [query["text"] for query in specialized["queries"]]
+        self.assertTrue(any("post-run validation report" in text or "fail-closed release gate" in text for text in texts))
+        self.assertTrue(specialized["program_overrides"]["evidence_policy"]["prefer_acquired_text"])
+        self.assertIn("searxng", specialized["program_overrides"]["provider_mix"])
+        self.assertIn("ddgs", specialized["program_overrides"]["provider_mix"])
+        self.assertIn("github_issues", specialized["program_overrides"]["provider_mix"])
+
+    def test_missing_dimension_heuristic_plan_is_not_crowded_out_by_frontier(self):
+        goal_case = {
+            "dimensions": [{"id": "validation_release", "keywords": ["validation report", "release gate"]}],
+            "seed_queries": [],
+            "dimension_queries": {"validation_release": ["validation release query"]},
+            "topic_frontier": [
+                {"id": "frontier-a", "queries": [{"text": "frontier a", "platforms": []}]},
+                {"id": "frontier-b", "queries": [{"text": "frontier b", "platforms": []}]},
+            ],
+        }
+        searcher = GoalSearcher(goal_case)
+        plans = searcher.candidate_plans(
+            bundle_state={"accepted_findings": [], "score": 80},
+            judge_result={"missing_dimensions": ["validation_release"], "dimension_scores": {"validation_release": 0}},
+            tried_queries={"validation release query::[]"},
+            available_providers=["searxng"],
+            plan_count=2,
+            max_queries=1,
+        )
+        labels = [plan["label"] for plan in plans]
+        self.assertIn("dimension_repair-specialized-repair", labels)
 
     def test_goal_director_synthesized_rubric_queries_can_add_structured_platforms(self):
         goal_case = {
@@ -366,6 +433,41 @@ class GoalEditorTests(unittest.TestCase):
             max_queries=1,
         )
         self.assertEqual(plans[0]["queries"][0]["text"], "runtime skip query")
+
+    def test_deep_mode_promotes_evidence_strengthening_after_failed_repairs(self):
+        goal_case = {
+            "seed_queries": [],
+            "providers": ["searxng", "ddgs", "github_code", "github_issues", "github_repos"],
+            "dimensions": [
+                {"id": "validation_release", "weight": 20, "keywords": ["validation report", "release gate"]},
+                {"id": "pair_extract", "weight": 20, "keywords": ["pair extract", "paired extraction"]},
+            ],
+            "dimension_queries": {"validation_release": [], "pair_extract": []},
+        }
+        searcher = GoalSearcher(goal_case)
+        plans = searcher.candidate_plans(
+            bundle_state={"accepted_findings": [{"title": "existing evidence", "url": "u", "source": "github_code"}], "score": 48},
+            judge_result={
+                "missing_dimensions": [],
+                "dimension_scores": {"validation_release": 8, "pair_extract": 14},
+            },
+            tried_queries=set(),
+            available_providers=["searxng", "ddgs", "github_code", "github_issues", "github_repos"],
+            active_program={"mode": "deep"},
+            round_history=[
+                {"round_role": "dimension_repair", "accepted": False, "queries": [{"text": "repair 1"}]},
+                {"round_role": "dimension_repair", "accepted": False, "queries": [{"text": "repair 2"}]},
+            ],
+            plan_count=3,
+            max_queries=3,
+        )
+        strengthening = next(plan for plan in plans if plan["label"] == "evidence_strengthening-primary")
+        self.assertEqual(strengthening["role"], "evidence_strengthening")
+        self.assertIn("searxng", strengthening["program_overrides"]["provider_mix"])
+        self.assertIn("ddgs", strengthening["program_overrides"]["provider_mix"])
+        self.assertIn("github_code", strengthening["program_overrides"]["provider_mix"])
+        self.assertIn("github_issues", strengthening["program_overrides"]["provider_mix"])
+        self.assertTrue(strengthening["program_overrides"]["evidence_policy"]["cross_verification"])
 
     def test_editor_uses_mutation_terms_as_refinement_fallback(self):
         goal_case = {

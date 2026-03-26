@@ -116,6 +116,22 @@ def _mutation_kind(label: str) -> str:
     return "mutation"
 
 
+def _normalize_topic_frontier(frontier: Any) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    for item in list(frontier or []):
+        if isinstance(item, dict):
+            topic_id = str(item.get("id") or item.get("topic_id") or item.get("label") or "").strip()
+            topic = dict(item)
+            if topic_id:
+                topic["id"] = topic_id
+            normalized.append(topic)
+            continue
+        topic_id = str(item or "").strip()
+        if topic_id:
+            normalized.append({"id": topic_id, "queries": []})
+    return normalized
+
+
 def default_program(goal_case: dict[str, Any], available_providers: list[str]) -> dict[str, Any]:
     # Default programs always pass through mode policy resolution so mode behavior
     # is applied before any loop or selector logic reads the program.
@@ -156,7 +172,7 @@ def default_program(goal_case: dict[str, Any], available_providers: list[str]) -
         "created_at": datetime.now().astimezone().isoformat(),
         "queries": queries,
         "provider_mix": list(available_providers),
-        "topic_frontier": list(goal_case.get("topic_frontier") or []),
+        "topic_frontier": _normalize_topic_frontier(goal_case.get("topic_frontier") or []),
         "query_templates": query_templates,
         "dimension_strategies": dimension_strategies,
         "mode": str(goal_case.get("mode") or "balanced"),
@@ -253,13 +269,16 @@ def load_accepted_program(goal_case: dict[str, Any], available_providers: list[s
             payload["mode_policy_overrides"] = goal_mode_overrides
         else:
             payload.setdefault("mode_policy_overrides", {})
+        payload["topic_frontier"] = _normalize_topic_frontier(payload.get("topic_frontier") or [])
         return apply_mode_policy(payload)
     return default_program(goal_case, available_providers)
 
 
 def save_accepted_program(goal_id: str, program: dict[str, Any]) -> Path:
     paths = runtime_paths(goal_id)
-    _write_json(paths["accepted_program"], program)
+    payload = dict(program)
+    payload["topic_frontier"] = _normalize_topic_frontier(payload.get("topic_frontier") or [])
+    _write_json(paths["accepted_program"], payload)
     return paths["accepted_program"]
 
 
@@ -276,6 +295,10 @@ def build_candidate_program(
 ) -> dict[str, Any]:
     created_at = datetime.now().astimezone().isoformat()
     run_token = datetime.now().strftime("%H%M%S%f")
+    max_branch_depth = int(((parent_program.get("population_policy") or {}).get("max_branch_depth", 0)) or 0)
+    next_branch_depth = int(parent_program.get("branch_depth", 0) or 0) + 1
+    if max_branch_depth > 0:
+        next_branch_depth = min(next_branch_depth, max_branch_depth)
     candidate = {
         "program_id": f"{goal_id}-r{round_index}-c{candidate_index}-{run_token}",
         "goal_id": goal_id,
@@ -284,13 +307,13 @@ def build_candidate_program(
         "branch_id": str(parent_program.get("branch_id") or _mutation_kind(label)),
         "family_id": str(parent_program.get("family_id") or f"{_mutation_kind(label)}-family"),
         "branch_root_program_id": str(parent_program.get("branch_root_program_id") or parent_program.get("program_id") or "seed-program"),
-        "branch_depth": int(parent_program.get("branch_depth", 0) or 0) + 1,
+        "branch_depth": next_branch_depth,
         "repair_depth": int(parent_program.get("repair_depth", 0) or 0) + (1 if _mutation_kind(label) == "dimension_repair" else 0),
         "mutation_kind": _mutation_kind(label),
         "created_at": created_at,
         "queries": list(queries),
         "provider_mix": list(provider_mix),
-        "topic_frontier": list(parent_program.get("topic_frontier") or []),
+        "topic_frontier": _normalize_topic_frontier(parent_program.get("topic_frontier") or []),
         "query_templates": dict(parent_program.get("query_templates") or {}),
         "dimension_strategies": dict(parent_program.get("dimension_strategies") or {}),
         "mode": str(parent_program.get("mode") or "balanced"),
@@ -316,7 +339,9 @@ def build_candidate_program(
         "dimension_scores": dict(parent_program.get("dimension_scores") or {}),
     }
     for key, value in dict(program_overrides or {}).items():
-        if key in {"topic_frontier", "search_backends"} and isinstance(value, list):
+        if key == "topic_frontier" and isinstance(value, list):
+            candidate[key] = _normalize_topic_frontier(value)
+        elif key in {"search_backends"} and isinstance(value, list):
             candidate[key] = list(value)
         elif key in {
             "query_templates",
