@@ -11,6 +11,8 @@ from embeddings import semantic_similarity
 from evidence.normalize import coerce_evidence_records
 from goal_judge import evaluate_goal_bundle
 from .bundle import ResearchBundle
+from .deep_loop import build_deep_loop_state
+from .graph_models import GraphEdge, GraphNode, SearchGraph
 from .routeable_output import build_routeable_output
 
 POSITIVE_CLAIM_TERMS = {
@@ -467,14 +469,66 @@ def synthesize_research_round(
             for item in list(planning_ops or [])[:6]
         ],
     }
+    graph_node_id = str((graph_plan or {}).get("graph_node") or "")
+    graph_edges = [
+        GraphEdge(
+            source=str(item.get("from") or ""),
+            target=str(item.get("to") or ""),
+            kind=str(item.get("kind") or "branch"),
+            metadata={k: v for k, v in dict(item).items() if k not in {"from", "to", "kind"}},
+        )
+        for item in list((graph_plan or {}).get("graph_edges") or [])
+    ]
+    graph_nodes = []
+    if graph_node_id:
+        graph_nodes.append(
+            GraphNode(
+                node_id=graph_node_id,
+                label=graph_node_id,
+                node_type="research_branch",
+                branch_type=str((graph_plan or {}).get("branch_type") or ""),
+                branch_subgoal=str((graph_plan or {}).get("branch_subgoal") or ""),
+                priority=int(((graph_plan or {}).get("branch_depth", 0) or 0)),
+                metadata={"branch_targets": list((graph_plan or {}).get("branch_targets") or [])},
+            )
+        )
+    search_graph = SearchGraph(
+        goal_id=str(goal_case.get("id") or "goal"),
+        bundle_id=str(research_bundle.bundle_id),
+        nodes=graph_nodes,
+        edges=graph_edges,
+        scheduler=graph_scheduler,
+        cross_verification=cross_verification,
+    )
+    deep_loop_state = build_deep_loop_state(
+        mode=str(goal_case.get("mode") or "balanced"),
+        graph_plan=graph_plan,
+        bundle=bundle,
+        judge_result=judge_result,
+    )
+    routeable_output = build_routeable_output(
+        goal_case,
+        bundle=bundle,
+        judge_result=judge_result,
+        repair_hints={
+            "weakest_dimension": weakest_dimension,
+            "missing_dimensions": list(judge_result.get("missing_dimensions") or []),
+            "follow_up_dimensions": list(judge_result.get("missing_dimensions") or [])[:2],
+            "merge_candidates": list(graph_scheduler.get("merge_candidates") or []),
+            "prune_candidates": list(graph_scheduler.get("prune_candidates") or []),
+            "next_branch_mode": str(graph_scheduler.get("next_branch_mode") or ""),
+            "cross_verification": cross_verification,
+            "gap_queue": updated_gap_queue,
+            "planning_ops_summary": planning_ops_summary,
+        },
+    )
     return {
         "bundle": bundle,
         "research_bundle": research_bundle.to_dict(),
         "judge_result": judge_result,
         "harness_metrics": metrics,
         "search_graph": {
-            "goal_id": str(goal_case.get("id") or "goal"),
-            "bundle_id": str(research_bundle.bundle_id),
+            **search_graph.to_dict(),
             "bundle_size": len(bundle),
             "missing_dimensions": list(judge_result.get("missing_dimensions") or []),
             "weakest_dimension": weakest_dimension,
@@ -484,12 +538,11 @@ def synthesize_research_round(
                 for item in bundle[:12]
                 if str(item.get("url") or "").strip()
             ],
-            "graph_node": str((graph_plan or {}).get("graph_node") or ""),
-            "graph_edges": list((graph_plan or {}).get("graph_edges") or []),
+            "graph_node": graph_node_id,
+            "graph_edges": [item.to_dict() for item in graph_edges],
             "branch_type": str((graph_plan or {}).get("branch_type") or ""),
             "branch_subgoal": str((graph_plan or {}).get("branch_subgoal") or ""),
-            "scheduler": graph_scheduler,
-            "cross_verification": cross_verification,
+            "deep_loop": deep_loop_state.to_dict(),
         },
         "repair_hints": {
             "weakest_dimension": weakest_dimension,
@@ -503,20 +556,5 @@ def synthesize_research_round(
             "planning_ops_summary": planning_ops_summary,
         },
         "gap_queue": updated_gap_queue,
-        "routeable_output": build_routeable_output(
-            goal_case,
-            bundle=bundle,
-            judge_result=judge_result,
-            repair_hints={
-                "weakest_dimension": weakest_dimension,
-                "missing_dimensions": list(judge_result.get("missing_dimensions") or []),
-                "follow_up_dimensions": list(judge_result.get("missing_dimensions") or [])[:2],
-                "merge_candidates": list(graph_scheduler.get("merge_candidates") or []),
-                "prune_candidates": list(graph_scheduler.get("prune_candidates") or []),
-                "next_branch_mode": str(graph_scheduler.get("next_branch_mode") or ""),
-                "cross_verification": cross_verification,
-                "gap_queue": updated_gap_queue,
-                "planning_ops_summary": planning_ops_summary,
-            },
-        ),
+        "routeable_output": routeable_output,
     }

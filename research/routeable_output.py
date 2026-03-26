@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any
 
+from .report_packet import build_research_packet
+
 
 def _route_kind(record: dict[str, Any]) -> str:
     content_type = str(record.get("content_type") or "").strip()
@@ -63,6 +65,20 @@ def build_routeable_output(
             "top_items": items[:5],
             "next_action": "review_and_route" if route_name != "implementation" else "inspect_for_reuse",
         })
+    next_actions = [
+        {
+            "type": "repair",
+            "dimension": weakest_dimension,
+            "mode": str(repair_hints.get("next_branch_mode") or "repair"),
+        }
+    ] if weakest_dimension else []
+    research_packet = build_research_packet(
+        goal_case=goal_case,
+        bundle=bundle,
+        judge_result=judge_result,
+        cross_verification=cross_verification,
+        next_actions=next_actions,
+    ).to_dict()
     return {
         "goal_id": str(goal_case.get("id") or ""),
         "goal_title": str(goal_case.get("title") or goal_case.get("problem") or ""),
@@ -72,16 +88,11 @@ def build_routeable_output(
         "missing_dimensions": list(judge_result.get("missing_dimensions") or []),
         "weakest_dimension": weakest_dimension,
         "routes": route_groups,
-        "next_actions": [
-            {
-                "type": "repair",
-                "dimension": weakest_dimension,
-                "mode": str(repair_hints.get("next_branch_mode") or "repair"),
-            }
-        ] if weakest_dimension else [],
+        "next_actions": next_actions,
         "citations": citations[:20],
         "keywords": [term for term, _ in keywords.most_common(12)],
         "handoff_packets": handoff_packets,
+        "research_packet": research_packet,
         "graph_handoff": {
             "merge_candidates": list(repair_hints.get("merge_candidates") or []),
             "prune_candidates": list(repair_hints.get("prune_candidates") or []),

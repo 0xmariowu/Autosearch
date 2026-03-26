@@ -241,6 +241,9 @@ class AutoSearchInterface:
             )
             run_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
             result = {**result, "run_path": str(run_path)}
+        routeable_output = dict(result.get("routeable_output") or {})
+        if routeable_output.get("research_packet"):
+            result = {**result, "research_packet": dict(routeable_output.get("research_packet") or {})}
         return result
 
     def optimize_goal(
