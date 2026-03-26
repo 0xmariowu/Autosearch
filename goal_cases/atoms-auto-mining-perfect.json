@@ -495,6 +495,14 @@
             "query": "ReviewComments dataset"
           }
         ]
+      },
+      {
+        "text": "review comment dataset with original and revised code before and after changes",
+        "platforms": []
+      },
+      {
+        "text": "ReviewComments dataset actionability of code review feedback",
+        "platforms": []
       }
     ],
     "label_separation": [
@@ -541,6 +549,14 @@
             "query": "\"schema validation\" pipeline"
           }
         ]
+      },
+      {
+        "text": "great expectations pandera data validation quality gate",
+        "platforms": []
+      },
+      {
+        "text": "quality gate validation after extraction pipeline",
+        "platforms": []
       }
     ],
     "pair_extract": [
@@ -626,6 +642,14 @@
             "query": "\"SWE-Gym\" trajectory"
           }
         ]
+      },
+      {
+        "text": "swe-bench resolved and unresolved trajectory instances",
+        "platforms": []
+      },
+      {
+        "text": "success failure pair matching on same benchmark instance",
+        "platforms": []
       }
     ],
     "validation_release": [
@@ -692,6 +716,14 @@
             "query": "\"data contract\" validation"
           }
         ]
+      },
+      {
+        "text": "data contract validation report before release gate",
+        "platforms": []
+      },
+      {
+        "text": "smoke test fail-closed release validation",
+        "platforms": []
       }
     ],
     "dedupe_quality": [
@@ -780,6 +812,14 @@
             "query": "\"semantic hashing\" dedup"
           }
         ]
+      },
+      {
+        "text": "near duplicate detection and fake gold filtering",
+        "platforms": []
+      },
+      {
+        "text": "duplicate detection similarity matching dedup pipeline",
+        "platforms": []
       }
     ]
   }
