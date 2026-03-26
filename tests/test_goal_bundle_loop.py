@@ -1,3 +1,4 @@
+import json
 import sys
 import tempfile
 import unittest
@@ -11,9 +12,187 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 import goal_bundle_loop as gbl
+from goal_editor import GoalSearcher as RealGoalSearcher
+
+
+def _load_atoms_goal_case() -> dict:
+    return json.loads((REPO_ROOT / "goal_cases" / "atoms-auto-mining-perfect.json").read_text(encoding="utf-8"))
 
 
 class GoalBundleLoopTests(unittest.TestCase):
+    def test_run_goal_bundle_loop_keeps_dedupe_vocabulary_when_dedupe_is_only_open_dimension(self):
+        goal_case = _load_atoms_goal_case()
+        real_searcher = RealGoalSearcher(goal_case)
+        searcher = SimpleNamespace(
+            initial_queries=lambda: [],
+            candidate_plans=real_searcher.candidate_plans,
+        )
+        warm_judge = {
+            "score": 85,
+            "dimension_scores": {
+                "extraction_completeness": 15,
+                "label_separation": 20,
+                "pair_extract": 20,
+                "validation_release": 20,
+                "dedupe_quality": 10,
+            },
+            "missing_dimensions": [],
+            "matched_dimensions": [
+                "extraction_completeness",
+                "label_separation",
+                "pair_extract",
+                "validation_release",
+            ],
+            "rationale": "dedupe is the only weak dimension",
+            "judge": "heuristic-bundle",
+        }
+        accepted_program = {
+            "program_id": "seed-program",
+            "queries": [{"text": "semantic deduplication baseline", "platforms": []}],
+            "sampling_policy": {},
+            "stop_rules": {},
+            "plateau_state": {},
+            "mode": "deep",
+            "mode_policy_overrides": {},
+            "round_roles": ["dimension_repair"],
+            "current_role": "dimension_repair",
+            "provider_mix": ["searxng", "github_repos", "github_issues", "github_code", "huggingface_datasets"],
+            "search_backends": ["searxng", "github_repos", "github_issues", "github_code", "huggingface_datasets"],
+            "backend_roles": {},
+            "topic_frontier": [],
+            "query_templates": {},
+            "dimension_strategies": {},
+            "acquisition_policy": {},
+            "evidence_policy": {},
+            "repair_policy": {"target_weak_dimensions": 1},
+            "population_policy": {
+                "plan_count": 4,
+                "max_queries": 4,
+                "recursive_depth_limit": 4,
+                "branch_budget_per_round": {"breadth": 1, "repair": 2, "followup": 2, "probe": 1, "research": 1},
+            },
+            "explore_budget": 0.2,
+            "exploit_budget": 0.8,
+        }
+
+        class _FakeIndex:
+            def __init__(self, path):
+                self.records = []
+
+            def load_all(self):
+                return list(self.records)
+
+            def add(self, records):
+                self.records.extend(list(records or []))
+
+        def fake_execute(plan, **kwargs):
+            queries = list(plan.get("intents") or [])
+            query_runs = [
+                {
+                    "query": query["text"],
+                    "query_spec": query,
+                    "baseline_score": 10,
+                    "finding_count": 1,
+                    "sample_findings": [],
+                }
+                for query in queries
+            ]
+            findings = [
+                {
+                    "title": query["text"],
+                    "url": f"https://example.com/{index}",
+                    "source": "github_repos",
+                    "query": query["text"],
+                }
+                for index, query in enumerate(queries, start=1)
+            ]
+            return {
+                "label": plan.get("label", ""),
+                "queries": queries,
+                "role": plan.get("role", ""),
+                "branch_type": plan.get("branch_type", ""),
+                "branch_subgoal": plan.get("branch_subgoal", ""),
+                "stage": plan.get("stage", ""),
+                "graph_node": plan.get("graph_node", ""),
+                "graph_edges": list(plan.get("graph_edges") or []),
+                "branch_targets": list(plan.get("branch_targets") or []),
+                "branch_depth": int(plan.get("branch_depth", 0) or 0),
+                "decision": {"cross_verify": False},
+                "planning_ops": [],
+                "cross_verification": {"enabled": False, "verification_query_count": 0},
+                "deep_steps": [{"kind": "search", "summary": plan.get("label", ""), "metadata": {"round": 1}}],
+                "local_evidence_hits": len(plan.get("local_evidence_records") or []),
+                "query_keys": [f"{query['text']}::{query.get('platforms', [])!r}" for query in queries],
+                "query_runs": query_runs,
+                "findings": findings,
+            }
+
+        def fake_synthesize(goal_case, existing_findings, round_findings, harness, graph_plan, gap_queue, planning_ops):
+            return {
+                "bundle": list(round_findings),
+                "research_bundle": {"bundle_id": "bundle-dedupe"},
+                "judge_result": dict(warm_judge),
+                "harness_metrics": {
+                    "total_findings": len(round_findings),
+                    "new_unique_urls": max(len(round_findings), 1),
+                    "novelty_ratio": 1.0,
+                    "source_diversity": 1.0,
+                    "source_concentration": 1.0,
+                    "query_concentration": 1.0,
+                },
+                "search_graph": {"deep_loop": {"steps": [{"kind": "search", "summary": graph_plan.get("label", "")}]}},
+                "repair_hints": {},
+                "gap_queue": [],
+                "routeable_output": {
+                    "goal_id": goal_case["id"],
+                    "research_packet": {"packet_id": "packet-dedupe"},
+                    "score_gap": 15,
+                },
+            }
+
+        with patch.object(gbl, "refresh_source_capability", return_value={"sources": {}}), \
+             patch.object(gbl, "_available_platforms", return_value=[
+                 {"name": "searxng", "limit": 5},
+                 {"name": "github_repos", "limit": 5},
+                 {"name": "github_issues", "limit": 5},
+                 {"name": "github_code", "limit": 5},
+                 {"name": "huggingface_datasets", "limit": 5},
+             ]), \
+             patch.object(gbl, "ensure_harness", return_value={"goal_id": goal_case["id"], "bundle_policy": {}, "anti_cheat": {}}), \
+             patch.object(gbl, "GoalSearcher", return_value=searcher), \
+             patch.object(gbl, "load_accepted_program", return_value=accepted_program), \
+             patch.object(gbl, "LocalEvidenceIndex", _FakeIndex), \
+             patch.object(gbl, "_best_prior_run", return_value=(None, None)), \
+             patch.object(gbl, "_replay_queries", return_value=(
+                 [{"query_spec": {"text": "semantic deduplication baseline", "platforms": []}, "baseline_score": 10}],
+                 [{"title": "semantic deduplication baseline", "url": "https://example.com/warm", "source": "github_repos", "query": "semantic deduplication baseline"}],
+             )), \
+             patch.object(gbl, "build_bundle", side_effect=lambda existing, findings, harness: list(findings)), \
+             patch.object(gbl, "evaluate_goal_bundle", return_value=warm_judge), \
+             patch.object(gbl, "execute_research_plan", side_effect=fake_execute), \
+             patch.object(gbl, "synthesize_research_round", side_effect=fake_synthesize), \
+             patch.object(gbl, "archive_candidate_program", return_value=Path("/tmp/archive.json")), \
+             patch.object(gbl, "save_population_snapshot", return_value={
+                 "latest": Path("/tmp/latest.json"),
+                 "history": Path("/tmp/history.json"),
+                 "latest_lineage": Path("/tmp/latest-lineage.json"),
+                 "lineage_history": Path("/tmp/lineage-history.json"),
+             }), \
+             patch.object(gbl, "candidate_rank", side_effect=lambda item: int(item.get("score") or item["result"]["score"])), \
+             patch.object(gbl, "evaluate_acceptance", return_value={"accepted": True, "candidate_score": 85, "anti_cheat_failures": [], "anti_cheat_warnings": []}), \
+             patch.object(gbl, "save_accepted_program"):
+            result = gbl.run_goal_bundle_loop(goal_case, max_rounds=1, plan_count_override=4, max_queries_override=4)
+
+        repair_followups = [
+            plan
+            for plan in result["rounds"][0]["editor_plans"]
+            if plan["branch_type"] in {"repair", "followup"}
+        ]
+        self.assertTrue(repair_followups)
+        for plan in repair_followups:
+            text = " ".join(query["text"] for query in plan["queries"]).lower()
+            self.assertTrue(any(term in text for term in ("dedup", "duplicate", "semhash", "semantic")), plan)
+
     def test_update_gap_queue_keeps_low_score_pair_extract_open(self):
         goal_case = {
             "dimensions": [
