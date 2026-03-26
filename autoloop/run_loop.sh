@@ -60,12 +60,16 @@ while true; do
     KEYWORD_SUMMARY=$(echo "$LAST_RUN_JSON" | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
-for dim, detail in d['keyword_detail'].items():
-    ds = d['dimension_scores'].get(dim, 0)
-    if detail['misses']:
-        print(f'{dim}={ds}: misses={detail[\"misses\"][:4]}')
+dims = sorted(d['dimension_scores'].items(), key=lambda x: x[1])
+for dim_id, score in dims:
+    detail = d['keyword_detail'].get(dim_id, {})
+    hits = detail.get('hits', [])
+    misses = detail.get('misses', [])
+    print(f'{dim_id}={score}/20: hits={hits[:3]} misses={misses[:5]}')
 ")
-    RESULTS_TAIL=$(tail -5 "$RESULTS" 2>/dev/null || echo "(no history)")
+    # Build list of previously failed queries to prevent repeats
+    FAILED_QUERIES=$(awk -F'\t' 'NR>1 && $3!="keep" {print $4}' "$RESULTS" 2>/dev/null | tail -10)
+    RESULTS_TAIL=$(tail -10 "$RESULTS" 2>/dev/null || echo "(no history)")
 
     # Use codex exec to modify search_program.py
     codex exec --full-auto -C "$REPO_ROOT" --ephemeral "$(cat <<PROMPT
@@ -73,16 +77,22 @@ You are optimizing autoloop/search_program.py to maximize the search score.
 
 Current score: $LAST_SCORE / 100 (best ever: $BEST_SCORE)
 
-Keyword gaps (dimension=score: missed keywords):
+Dimensions sorted by score (LOWEST FIRST — fix these first):
 $KEYWORD_SUMMARY
 
-Recent experiments:
+Previously failed experiments (DO NOT repeat these):
+$FAILED_QUERIES
+
+Full experiment log:
 $RESULTS_TAIL
 
 Rules:
 - ONLY modify autoloop/search_program.py
 - Change ONE thing: add a query, reword a query, remove a bad query, or change providers
-- Target the MISSED keywords shown above — use those exact phrases in your query
+- PRIORITY: fix the dimension with the LOWEST score first (shown at top of list above)
+- Do NOT repeat a query or approach that already failed (see failed list above)
+- Try DIFFERENT search angles: different wording, different providers, different keyword combinations
+- Search engines find concrete things: library names, project names, technique names work better than abstract phrases
 - Do NOT modify any other file
 
 Read autoloop/search_program.py, make ONE change, save.
