@@ -212,10 +212,7 @@ def main():
     if args.queries:
         queries_path = Path(args.queries)
     else:
-        queries_path = Path.home() / (
-            "Library/Mobile Documents/com~apple~CloudDocs/Dev/"
-            "Armory/scripts/scout/queries.json"
-        )
+        queries_path = Path("/Volumes/4TB/Armory/scripts/scout/queries.json")
 
     if not queries_path.exists():
         print(f"Error: queries file not found: {queries_path}",

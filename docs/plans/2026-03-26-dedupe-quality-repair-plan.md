@@ -202,7 +202,7 @@ Run:
 python3 - <<'PY'
 import sys, json
 from pathlib import Path
-repo = Path('/Users/vimala/Library/Mobile Documents/com~apple~CloudDocs/Dev/autosearch')
+repo = Path('/Users/vimala/Projects/autosearch')
 sys.path.insert(0, str(repo))
 from interface import AutoSearchInterface
 client = AutoSearchInterface(repo)

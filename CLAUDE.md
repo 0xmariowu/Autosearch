@@ -28,7 +28,7 @@ A self-improving search system. The human provides intent. The AI does everythin
 
 9. Don't delete `evolution.jsonl`. Instead, treat it as the append-only experiment log. Because: it's the raw data that enables cross-session analysis and debugging.
 
-10. Don't edit files in `Armory/scripts/scout/autosearch/`. Instead, edit the canonical copy here (`~/Library/Mobile Documents/com~apple~CloudDocs/Dev/autosearch/`). Because: the Armory copy is a sync artifact from launchd rsync — edits there get overwritten silently.
+10. Don't edit files in `Armory/scripts/scout/autosearch/`. Instead, edit the canonical copy here (`~/Projects/autosearch/`). Because: the Armory copy is a sync artifact from launchd rsync — edits there get overwritten silently.
 
 11. Don't run the legacy `run-template.py` for actual searches. Instead, use `pipeline.py` or `cli.py`. Because: the legacy script predates the modular engine and lacks LLMEvaluator, PatternStore, and newer connectors.
 
@@ -46,17 +46,17 @@ AIMD
 
 - **From search-methodology**: Read `autosearch/docs/methodology/principles.md` for evidence standards. Read `platforms/*.md` for per-platform patterns. These guide how queries are designed.
 - **To search-methodology**: After each session, check if `patterns.jsonl` findings should sync to `autosearch/docs/methodology/platforms/*.md`.
-- **Depends on Armory/scripts/scout/**: `pipeline.py` calls `score-and-stage.js`, `auto-intake.sh`, `send-email.sh` from `~/Library/Mobile Documents/com~apple~CloudDocs/Dev/Armory/scripts/scout/`. It also reads `queries.json` (seed genes) and `state.json` (dedup state) from there. Don't remove these dependencies without updating pipeline.py. Because: pipeline.py fails silently without them.
-- **Canonical copy**: `~/Library/Mobile Documents/com~apple~CloudDocs/Dev/autosearch/` is the source of truth.
-- **Findings to Armory**: Valuable repos/articles found during search go to `~/Library/Mobile Documents/com~apple~CloudDocs/Dev/AIMD/recs/master.md` (not directly to Armory). Because: Armory intake has its own review protocol.
+- **Depends on Armory/scripts/scout/**: `pipeline.py` calls `score-and-stage.js`, `auto-intake.sh`, `send-email.sh` from `/Volumes/4TB/Armory/scripts/scout/`. It also reads `queries.json` (seed genes) and `state.json` (dedup state) from there. Don't remove these dependencies without updating pipeline.py. Because: pipeline.py fails silently without them.
+- **Canonical copy**: `~/Projects/autosearch/` is the source of truth.
+- **Findings to Armory**: Valuable repos/articles found during search go to `/Volumes/4TB/AIMD/recs/master.md` (not directly to Armory). Because: Armory intake has its own review protocol.
 - **Findings to AIMD**: Session analysis docs go to AIMD under the relevant project.
-- **From Armory**: Before searching, check `~/Library/Mobile Documents/com~apple~CloudDocs/Dev/Armory/when-blocks.jsonl` for existing knowledge on the topic. Because: re-searching what Armory already knows wastes API calls and produces duplicates.
+- **From Armory**: Before searching, check `/Volumes/4TB/Armory/when-blocks.jsonl` for existing knowledge on the topic. Because: re-searching what Armory already knows wastes API calls and produces duplicates.
 
 ## After completing a search session
 
 1. Verify Phase 3 (post-mortem) ran — `patterns.jsonl` should have new entries.
 2. Verify `evolution.jsonl` has new session entries.
-3. If findings are Armory-worthy, append to `~/Library/Mobile Documents/com~apple~CloudDocs/Dev/AIMD/recs/master.md`.
+3. If findings are Armory-worthy, append to `/Volumes/4TB/AIMD/recs/master.md`.
 4. If the session produced a design/analysis doc, store in AIMD.
 5. Check if new `patterns.jsonl` entries should sync to `autosearch/docs/methodology/platforms/*.md` — new validated patterns get added, failed patterns get added to Known Failures.
 6. If a new search technique was discovered, write an `autosearch/docs/methodology/methods/` file per its CLAUDE.md write protocol.

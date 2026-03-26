@@ -2,7 +2,7 @@
 
 ## Repo State
 
-- Repo: `/Users/vimala/Library/Mobile Documents/com~apple~CloudDocs/Dev/autosearch`
+- Repo: `/Users/vimala/Projects/autosearch`
 - Branch: `main`
 - Worktree: dirty, many tracked modifications already in progress
 - Do not touch:
@@ -148,7 +148,7 @@ Real run:
 python3 - <<'PY'
 import sys, json
 from pathlib import Path
-repo = Path('/Users/vimala/Library/Mobile Documents/com~apple~CloudDocs/Dev/autosearch')
+repo = Path('/Users/vimala/Projects/autosearch')
 sys.path.insert(0, str(repo))
 from interface import AutoSearchInterface
 client = AutoSearchInterface(repo)

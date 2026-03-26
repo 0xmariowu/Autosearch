@@ -28,15 +28,15 @@ from pathlib import Path
 # ── Paths ──
 
 HOME = Path.home()
-DEV = HOME / "Library/Mobile Documents/com~apple~CloudDocs/Dev"
+
 
 # Support override via env vars (for launchd rsync mode)
 ARMORY_ROOT = Path(os.environ.get(
     "ARMORY_ROOT",
-    str(DEV / "Armory")))
+    "/Volumes/4TB/Armory"))
 AIMD_ROOT = Path(os.environ.get(
     "AIMD_ROOT",
-    str(DEV / "AIMD")))
+    "/Volumes/4TB/AIMD"))
 SCOUT_DIR = Path(os.environ.get(
     "SCOUT_DIR",
     str(ARMORY_ROOT / "scripts/scout")))
