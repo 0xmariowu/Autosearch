@@ -24,6 +24,7 @@ def build_routeable_output(
     *,
     bundle: list[dict[str, Any]],
     judge_result: dict[str, Any],
+    effective_target_score: int | None = None,
     repair_hints: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     repair_hints = dict(repair_hints or {})
@@ -79,11 +80,16 @@ def build_routeable_output(
         cross_verification=cross_verification,
         next_actions=next_actions,
     ).to_dict()
+    target_score = int(
+        effective_target_score
+        if effective_target_score is not None
+        else goal_case.get("target_score", 100) or 100
+    )
     return {
         "goal_id": str(goal_case.get("id") or ""),
         "goal_title": str(goal_case.get("title") or goal_case.get("problem") or ""),
         "score": int(judge_result.get("score", 0) or 0),
-        "score_gap": max(int(goal_case.get("target_score", 100) or 100) - int(judge_result.get("score", 0) or 0), 0),
+        "score_gap": max(target_score - int(judge_result.get("score", 0) or 0), 0),
         "matched_dimensions": list(judge_result.get("matched_dimensions") or []),
         "missing_dimensions": list(judge_result.get("missing_dimensions") or []),
         "weakest_dimension": weakest_dimension,

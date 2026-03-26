@@ -53,6 +53,170 @@ class GoalJudgeTests(unittest.TestCase):
         self.assertIn("judge", result["matched_terms"])
         self.assertEqual(result["judge"], "heuristic")
 
+    def test_heuristic_bundle_does_not_under_score_semantic_cross_project_evidence(self):
+        goal_case = {
+            "dimensions": [
+                {
+                    "id": "label_separation",
+                    "weight": 20,
+                    "keywords": [
+                        "validation after extraction",
+                        "separate extraction and validation",
+                        "filter later",
+                    ],
+                }
+            ]
+        }
+        findings = [
+            {
+                "title": "A data pipeline that keeps extraction and QA in different stages",
+                "body": "The system extracts records first, then applies validation and labeling as a later pass.",
+                "url": "https://example.com/pipeline",
+                "source": "github_repos",
+            },
+            {
+                "title": "Post-processing gates enforce schema checks after ingestion",
+                "body": "Validation is deferred until after the raw extraction step finishes.",
+                "url": "https://example.org/gates",
+                "source": "huggingface_datasets",
+            },
+        ]
+        result = gj.evaluate_goal_bundle(goal_case, findings)
+
+        self.assertGreaterEqual(result["dimension_scores"]["label_separation"], 10)
+        self.assertIn("label_separation", result["matched_dimensions"])
+
+    def test_pair_extract_scores_public_pair_trajectory_vocabulary(self):
+        goal_case = {
+            "dimensions": [
+                {
+                    "id": "pair_extract",
+                    "weight": 20,
+                    "keywords": [
+                        "SWE-bench",
+                        "trajectory",
+                        "SWE-agent",
+                        "SWE-Gym",
+                        "resolved",
+                        "unresolved",
+                        "success failure",
+                        "instance matching",
+                    ],
+                    "aliases": [
+                        "issue pull request pair",
+                        "same benchmark instance",
+                        "successful and failed runs",
+                        "resolved unresolved subset",
+                        "verified trajectories",
+                    ],
+                }
+            ]
+        }
+        findings = [
+            {
+                "title": "Verified trajectories include successful and failed runs on the same benchmark instance",
+                "body": "The benchmark release keeps resolved and unresolved subsets aligned to the same task, with issue-pull request pairs and trace records for both outcomes.",
+                "url": "https://example.com/verified-trajectories",
+                "source": "github_repos",
+            },
+            {
+                "title": "Dataset card for paired issue-pull request trajectories",
+                "body": "Each benchmark instance links successful and failed runs to the same task identifier.",
+                "url": "https://example.org/dataset-card",
+                "source": "huggingface_datasets",
+            },
+        ]
+        result = gj.evaluate_goal_bundle(goal_case, findings)
+
+        self.assertGreaterEqual(result["dimension_scores"]["pair_extract"], 10)
+        self.assertIn("pair_extract", result["matched_dimensions"])
+
+    def test_pair_extract_reports_structural_detail(self):
+        goal_case = {
+            "dimensions": [
+                {
+                    "id": "pair_extract",
+                    "weight": 20,
+                    "keywords": [
+                        "SWE-bench",
+                        "trajectory",
+                        "SWE-agent",
+                        "resolved",
+                        "unresolved",
+                        "success failure",
+                    ],
+                    "aliases": [
+                        "same benchmark instance",
+                        "successful and failed runs",
+                        "verified trajectories",
+                        "same task",
+                    ],
+                }
+            ]
+        }
+        findings = [
+            {
+                "title": "Verified trajectories include successful and failed runs on the same benchmark instance",
+                "body": "Resolved and unresolved subsets are aligned to the same task with issue-pull request artifacts.",
+                "url": "https://example.com/pair-proof",
+                "source": "github_repos",
+            }
+        ]
+
+        result = gj.evaluate_goal_bundle(goal_case, findings)
+
+        detail = result.get("pair_extract_detail")
+        self.assertIsInstance(detail, dict)
+        self.assertTrue(detail.get("shared_unit"))
+        self.assertTrue(detail.get("dual_outcome"))
+        self.assertTrue(detail.get("trajectory_form"))
+        self.assertTrue(detail.get("artifact_link"))
+        self.assertIn("https://example.com/pair-proof", list(detail.get("supporting_urls") or []))
+
+    def test_pair_extract_structural_signals_raise_score_beyond_token_floor(self):
+        goal_case = {
+            "dimensions": [
+                {
+                    "id": "pair_extract",
+                    "weight": 20,
+                    "keywords": [
+                        "SWE-bench",
+                        "trajectory",
+                        "SWE-agent",
+                        "SWE-Gym",
+                        "resolved",
+                        "unresolved",
+                        "success failure",
+                        "instance matching",
+                    ],
+                    "aliases": [
+                        "issue pull request pair",
+                        "same benchmark instance",
+                        "successful and failed runs",
+                        "resolved unresolved subset",
+                        "verified trajectories",
+                        "same task",
+                    ],
+                }
+            ]
+        }
+        findings = [
+            {
+                "title": "Benchmark artifact attaches passing and failing traces to the same task identifier",
+                "body": "The dataset links both outcomes back to the same task identifier and keeps pull request artifacts for every run trace.",
+                "url": "https://example.com/structural",
+                "source": "huggingface_datasets",
+            }
+        ]
+
+        result = gj.evaluate_goal_bundle(goal_case, findings)
+
+        self.assertTrue(result["pair_extract_detail"]["shared_unit"])
+        self.assertTrue(result["pair_extract_detail"]["dual_outcome"])
+        self.assertTrue(result["pair_extract_detail"]["trajectory_form"])
+        self.assertTrue(result["pair_extract_detail"]["artifact_link"])
+        self.assertGreaterEqual(result["dimension_scores"]["pair_extract"], 16)
+
     def test_openrouter_bundle_eval_does_not_silently_fallback_in_strict_mode(self):
         with patch.dict("os.environ", {"OPENROUTER_API_KEY": "x", "OPENROUTER_STRICT_JUDGE": "1"}, clear=False):
             with patch.object(gj, "_openrouter_bundle_eval", side_effect=RuntimeError("timeout")):
@@ -113,7 +277,6 @@ class GoalJudgeTests(unittest.TestCase):
         }
         result = gj.evaluate_goal_bundle(goal_case, bundle)
         self.assertIn("doctor", result["dimension_scores"])
-
 
 if __name__ == "__main__":
     unittest.main()

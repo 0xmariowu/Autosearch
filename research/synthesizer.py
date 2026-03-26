@@ -12,6 +12,7 @@ from evidence.normalize import coerce_evidence_records
 from goal_judge import evaluate_goal_bundle
 from .bundle import ResearchBundle
 from .deep_loop import build_deep_loop_state
+from .gap_queue import _dimension_statuses
 from .graph_models import GraphEdge, GraphNode, SearchGraph
 from .routeable_output import build_routeable_output
 
@@ -365,18 +366,28 @@ def _align_claims(bundle: list[dict[str, Any]]) -> dict[str, Any]:
         }
         aligned_claims.append(payload)
         if payload["support_count"] and payload["oppose_count"]:
-            contradiction_clusters.append(payload)
             positive_sources = [item for item in sources if str(item.get("stance") or "") == "positive"]
             negative_sources = [item for item in sources if str(item.get("stance") or "") == "negative"]
+            cluster_pairs: list[dict[str, Any]] = []
             for left in positive_sources[:2]:
                 for right in negative_sources[:2]:
-                    contradiction_pairs.append({
+                    if (
+                        str(left.get("source") or "").strip()
+                        and str(left.get("source") or "").strip() == str(right.get("source") or "").strip()
+                        and str(left.get("url") or "").strip()
+                        and str(left.get("url") or "").strip() == str(right.get("url") or "").strip()
+                    ):
+                        continue
+                    cluster_pairs.append({
                         "claim": payload["claim"],
                         "left_source": str(left.get("source") or ""),
                         "left_url": str(left.get("url") or ""),
                         "right_source": str(right.get("source") or ""),
                         "right_url": str(right.get("url") or ""),
                     })
+            if cluster_pairs:
+                contradiction_clusters.append(payload)
+                contradiction_pairs.extend(cluster_pairs)
     contradiction_detected = bool(contradiction_clusters)
     return {
         "aligned_claims": sorted(
@@ -395,10 +406,11 @@ def _align_claims(bundle: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _gap_queue_update(
     *,
+    goal_case: dict[str, Any],
     gap_queue: list[dict[str, Any]] | None,
     judge_result: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    missing = {str(item or "").strip() for item in list(judge_result.get("missing_dimensions") or []) if str(item or "").strip()}
+    statuses = _dimension_statuses(goal_case, judge_result)
     updated: list[dict[str, Any]] = []
     seen: set[str] = set()
     for item in list(gap_queue or []):
@@ -406,10 +418,10 @@ def _gap_queue_update(
         dimension = str(payload.get("dimension") or "").strip()
         if not dimension:
             continue
-        payload["status"] = "open" if dimension in missing else "satisfied"
+        payload["status"] = str(statuses.get(dimension) or payload.get("status") or "open")
         updated.append(payload)
         seen.add(dimension)
-    for dimension in missing:
+    for dimension, status in statuses.items():
         if dimension in seen:
             continue
         updated.append({
@@ -417,7 +429,7 @@ def _gap_queue_update(
             "dimension": dimension,
             "question": dimension.replace("_", " "),
             "priority": len(updated) + 1,
-            "status": "open",
+            "status": status,
         })
     return updated
 
@@ -431,6 +443,7 @@ def synthesize_research_round(
     graph_plan: dict[str, Any] | None = None,
     gap_queue: list[dict[str, Any]] | None = None,
     planning_ops: list[dict[str, Any]] | None = None,
+    effective_target_score: int | None = None,
 ) -> dict[str, Any]:
     bundle = build_bundle(
         coerce_evidence_records(existing_findings),
@@ -442,7 +455,11 @@ def synthesize_research_round(
         goal_id=str(goal_case.get("id") or "goal"),
         evidence_records=bundle,
         judge_result=judge_result,
-        target_score=int(goal_case.get("target_score", 100) or 100),
+        target_score=int(
+            effective_target_score
+            if effective_target_score is not None
+            else goal_case.get("target_score", 100) or 100
+        ),
     )
     metrics = bundle_metrics(bundle, previous_bundle=existing_findings)
     weakest_dimension = ""
@@ -461,7 +478,7 @@ def synthesize_research_round(
         bundle=bundle,
         graph_plan=graph_plan,
     )
-    updated_gap_queue = _gap_queue_update(gap_queue=gap_queue, judge_result=judge_result)
+    updated_gap_queue = _gap_queue_update(goal_case=goal_case, gap_queue=gap_queue, judge_result=judge_result)
     planning_ops_summary = {
         "count": len(list(planning_ops or [])),
         "ops": [
@@ -510,6 +527,7 @@ def synthesize_research_round(
         goal_case,
         bundle=bundle,
         judge_result=judge_result,
+        effective_target_score=effective_target_score,
         repair_hints={
             "weakest_dimension": weakest_dimension,
             "missing_dimensions": list(judge_result.get("missing_dimensions") or []),

@@ -104,6 +104,22 @@ def _accepted_queries_from_run(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return accepted_queries
 
 
+def _unique_query_specs(queries: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    for query in list(queries or []):
+        spec = _normalize_query_spec(query)
+        if spec["text"] and spec not in deduped:
+            deduped.append(spec)
+    return deduped
+
+
+def _artifact_round(rounds: list[dict[str, Any]]) -> dict[str, Any]:
+    for round_item in reversed(list(rounds or [])):
+        if bool(round_item.get("accepted")):
+            return round_item
+    return dict(rounds[-1]) if rounds else {}
+
+
 def _normalized_findings(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return coerce_evidence_records(items)
 
@@ -369,9 +385,9 @@ def _promote_compatible_archive_candidate(
         }, None
 
     best = max(compatible, key=candidate_rank)
-    promoted_queries = list(bundle_state.get("accepted_queries", [])) + [
-        _normalize_query_spec(query) for query in list(best["program"].get("queries") or [])
-    ]
+    promoted_queries = _unique_query_specs(
+        list(bundle_state.get("accepted_queries", [])) + list(best["program"].get("queries") or [])
+    )
     effective_harness = _harness_for_program(harness, best["program"])
     replay_runs, replay_findings = _replay_queries(
         promoted_queries,
@@ -416,6 +432,7 @@ def run_goal_bundle_loop(
     target_score_override: int | None = None,
     plateau_rounds_override: int | None = None,
 ) -> dict[str, Any]:
+    goal_case = dict(goal_case)
     capability_report = refresh_source_capability(goal_case.get("providers"))
     platforms = _available_platforms(goal_case, capability_report)
     harness = ensure_harness(goal_case)
@@ -453,6 +470,7 @@ def run_goal_bundle_loop(
     )
     diary_entries: list[dict[str, Any]] = []
     target_score = int(target_score_override or goal_case.get("target_score", 100) or 100)
+    goal_case["target_score"] = target_score
 
     prior_path, prior_payload = _best_prior_run(str(goal_case.get("id") or ""))
     prior_queries = list(accepted_program.get("queries") or [])
@@ -711,6 +729,8 @@ def run_goal_bundle_loop(
             candidate_bundle = list(synthesized["bundle"])
             plan_judge = dict(synthesized["judge_result"])
             harness_state = dict(synthesized["harness_metrics"])
+            routeable_output = dict(synthesized.get("routeable_output") or {})
+            routeable_output["score_gap"] = max(0, target_score - int(plan_judge.get("score", 0) or 0))
             selection = evaluate_acceptance(
                 current_state=bundle_state,
                 candidate_score=int(plan_judge.get("score", 0) or 0),
@@ -744,6 +764,7 @@ def run_goal_bundle_loop(
                 "plan_index": plan_index,
                 "research_bundle": synthesized.get("research_bundle", {}),
                 "search_graph": synthesized.get("search_graph", {}),
+                "routeable_output": routeable_output,
                 "gap_queue": list(synthesized.get("gap_queue") or []),
                 "decision": execution.get("decision", {}),
                 "planning_ops": execution.get("planning_ops", []),
@@ -781,7 +802,7 @@ def run_goal_bundle_loop(
                 "selection": selection,
                 "sample_bundle": _sample_findings(candidate_bundle, limit=6),
                 "rationale": plan_judge.get("rationale", ""),
-                "routeable_output": synthesized.get("routeable_output", {}),
+                "routeable_output": routeable_output,
                 "research_bundle": synthesized.get("research_bundle", {}),
                 "search_graph": synthesized.get("search_graph", {}),
                 "gap_queue": gap_queue_summary(synthesized.get("gap_queue") or []),
@@ -852,9 +873,9 @@ def run_goal_bundle_loop(
         if accepted:
             bundle_state = {
                 "accepted_findings": best_candidate["bundle"],
-                "accepted_queries": list(bundle_state["accepted_queries"]) + [
-                    _normalize_query_spec(query) for query in best_candidate["queries"]
-                ],
+                "accepted_queries": _unique_query_specs(
+                    list(bundle_state["accepted_queries"]) + list(best_candidate["queries"])
+                ),
                 "score": candidate_score,
                 "judge": judge_result.get("judge", ""),
                 "dimension_scores": judge_result.get("dimension_scores", {}),
@@ -999,6 +1020,8 @@ def run_goal_bundle_loop(
             if baseline_best is None or int(run["baseline_score"]) > int(baseline_best["baseline_score"]):
                 baseline_best = run
 
+    artifact_round = _artifact_round(rounds)
+
     return {
         "generated_at": datetime.now().astimezone().isoformat(),
         "goal_id": goal_case.get("id", ""),
@@ -1029,15 +1052,15 @@ def run_goal_bundle_loop(
             "sample_findings": _sample_findings(bundle_state.get("accepted_findings", []), limit=10),
             "rationale": bundle_state.get("rationale", ""),
         },
-        "routeable_output": rounds[-1].get("routeable_output", {}) if rounds else {},
-        "research_bundle": rounds[-1].get("research_bundle", {}) if rounds else {},
-        "search_graph": rounds[-1].get("search_graph", {}) if rounds else {},
+        "routeable_output": artifact_round.get("routeable_output", {}),
+        "research_bundle": artifact_round.get("research_bundle", {}),
+        "search_graph": artifact_round.get("search_graph", {}),
         "research_packet": (
-            ((rounds[-1].get("routeable_output", {}) or {}).get("research_packet", {}))
-            if rounds
+            ((artifact_round.get("routeable_output", {}) or {}).get("research_packet", {}))
+            if artifact_round
             else {}
         ),
-        "deep_steps": rounds[-1].get("deep_steps", []) if rounds else [],
+        "deep_steps": artifact_round.get("deep_steps", []),
         "improvement_vs_baseline": None,
         "rounds": rounds,
     }

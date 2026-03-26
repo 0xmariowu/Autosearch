@@ -374,6 +374,15 @@
         "unresolved",
         "success failure",
         "instance matching"
+      ],
+      "aliases": [
+        "issue pull request pair",
+        "same benchmark instance",
+        "successful and failed runs",
+        "resolved unresolved subset",
+        "verified trajectories",
+        "same task",
+        "same instance trajectory pairing"
       ]
     },
     {
