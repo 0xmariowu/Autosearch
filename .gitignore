@@ -9,3 +9,4 @@ sources/latest-capability.json
 experience/latest-health.json
 20*-daily-*.md
 daily-20*.md
+node_modules/

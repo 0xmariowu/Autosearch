@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev]" 2>/dev/null || pip install -r requirements.txt 2>/dev/null || pip install pytest ruff
+          pip install ruff
+
+      - name: Ruff lint
+        run: ruff check .
+
+      - name: Ruff format check
+        run: ruff format --check .
+
+      - name: Test
+        run: pytest -x -q
+
+  quality:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Lint workflows
+        uses: raven-actions/actionlint@v2
+
+      - name: Check PR size
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          ADDITIONS=$(gh pr view "$PR_NUMBER" --json additions -q '.additions')
+          DELETIONS=$(gh pr view "$PR_NUMBER" --json deletions -q '.deletions')
+          TOTAL=$((ADDITIONS + DELETIONS))
+          if [ "$TOTAL" -gt 500 ]; then
+            gh pr comment "$PR_NUMBER" --body "**PR size warning**: This PR changes $TOTAL lines (+$ADDITIONS/-$DELETIONS). Consider splitting."
+          fi

@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
+
+# Gate: all commits must go through scripts/committer
+if [ -z "$PROJECT_COMMITTER" ]; then
+  echo "error: use scripts/committer — direct git commit is blocked"
+  echo "usage: scripts/committer \"<message>\" <file...>"
+  exit 1
+fi
+
+# Secret detection
+SECRET_PATTERNS='(API_KEY|SECRET_KEY|PRIVATE_KEY|AUTH_TOKEN|PASSWORD)\s*=\s*["\x27][^\s"'\'']+|sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|AIzaSy[a-zA-Z0-9_-]{33}'
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -v -E '(\.example$|\.test\.py$|tests/fixtures/|\.md$)' || true)
+if [ -n "$STAGED_FILES" ]; then
+  MATCHES=$(echo "$STAGED_FILES" | while IFS= read -r f; do grep -nEH "$SECRET_PATTERNS" "$f" 2>/dev/null; done || true)
+  if [ -n "$MATCHES" ]; then
+    echo "error: potential secrets detected in staged files:"
+    echo "$MATCHES"
+    exit 1
+  fi
+fi
+
+# Ruff lint + format on staged Python files
+PY_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.py$' || true)
+if [ -n "$PY_FILES" ]; then
+  echo "$PY_FILES" | xargs ruff check --fix 2>/dev/null || true
+  echo "$PY_FILES" | xargs ruff format 2>/dev/null || true
+  echo "$PY_FILES" | xargs git add
+fi
