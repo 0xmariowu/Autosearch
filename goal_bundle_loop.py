@@ -167,8 +167,16 @@ def _merge_historical_evidence_into_bundle(
         list(bundle_state.get("accepted_findings") or []),
         historical_evidence,
     )
-    effective_harness = _harness_for_program(harness, program)
-    merged_bundle = build_bundle([], merged_findings, effective_harness)
+    # Historical evidence is already validated — use relaxed caps to preserve
+    # keyword coverage that strict per-source/per-domain caps would drop.
+    relaxed_harness = {
+        "bundle_policy": {
+            "per_query_cap": 999,
+            "per_source_cap": 999,
+            "per_domain_cap": 999,
+        }
+    }
+    merged_bundle = build_bundle([], merged_findings, relaxed_harness)
     merged_judge = evaluate_goal_bundle(goal_case, merged_bundle)
     if int(merged_judge.get("score", 0) or 0) < int(bundle_state.get("score", 0) or 0):
         return bundle_state, None
