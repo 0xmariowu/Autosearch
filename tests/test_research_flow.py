@@ -15,6 +15,7 @@ from research.planner import (
     _augment_queries,
     _decomposition_followups,
     _follow_up_queries,
+    _missed_keyword_phrases,
     _repair_terms,
     build_research_plan,
 )
@@ -89,6 +90,25 @@ class _DedupeSearcher:
 
 
 class ResearchFlowTests(unittest.TestCase):
+    def test_missed_keyword_phrases_returns_weakest_dimension_misses(self):
+        phrases = _missed_keyword_phrases(
+            {
+                "dimension_scores": {
+                    "dedupe_quality": 5,
+                    "validation_release": 12,
+                },
+                "dimension_keyword_misses": {
+                    "validation_release": ["release gate", "validation report"],
+                    "dedupe_quality": ["near duplicate detection", "duplicate detection", "near duplicate detection"],
+                },
+            }
+        )
+
+        self.assertEqual(
+            phrases,
+            ["near duplicate detection", "duplicate detection", "release gate", "validation report"],
+        )
+
     def test_repair_terms_uses_dimension_keywords(self):
         repairs = _repair_terms(
             {
@@ -123,6 +143,29 @@ class ResearchFlowTests(unittest.TestCase):
         texts = [query["text"].lower() for query in queries]
         self.assertTrue(any("dedup" in text or "duplicate" in text or "semhash" in text for text in texts))
         self.assertFalse(any("repository" in text or "release issue" in text or "source proof" in text for text in texts))
+
+    def test_follow_up_queries_prioritizes_missed_keywords(self):
+        queries = _follow_up_queries(
+            goal_case=_DedupeSearcher.goal_case,
+            local_evidence_records=[],
+            judge_result={
+                "missing_dimensions": [],
+                "dimension_scores": {"dedupe_quality": 15},
+                "dimension_keyword_misses": {
+                    "dedupe_quality": [
+                        "near duplicate detection",
+                        "duplicate detection",
+                        "fake gold",
+                    ]
+                },
+            },
+            max_queries=4,
+            tried_queries=set(),
+        )
+
+        self.assertEqual(queries[0]["text"], "near duplicate detection implementation")
+        self.assertEqual(queries[1]["text"], "near duplicate detection algorithm comparison")
+        self.assertTrue(any(query["text"].startswith("duplicate detection") for query in queries))
 
     def test_decomposition_followups_dedupe_uses_dedupe_templates(self):
         queries = _decomposition_followups(

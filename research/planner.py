@@ -118,6 +118,27 @@ def _dimension_phrases(goal_case: dict[str, Any], judge_result: dict[str, Any], 
     return phrases
 
 
+def _missed_keyword_phrases(judge_result: dict[str, Any], *, limit: int = 4) -> list[str]:
+    misses = dict(judge_result.get("dimension_keyword_misses") or {})
+    scores = dict(judge_result.get("dimension_scores") or {})
+    if not misses or not scores:
+        return []
+    result: list[str] = []
+    seen: set[str] = set()
+    sorted_dims = sorted(scores.keys(), key=lambda key: int(scores.get(key, 0) or 0))
+    for dim_id in sorted_dims:
+        for keyword in list(misses.get(dim_id) or []):
+            phrase = str(keyword or "").strip()
+            lowered = phrase.lower()
+            if not phrase or lowered in seen:
+                continue
+            seen.add(lowered)
+            result.append(phrase)
+            if len(result) >= limit:
+                return result
+    return result
+
+
 def _is_pair_extract_phrase(text: str) -> bool:
     lowered = str(text or "").strip().lower()
     if not lowered:
@@ -454,7 +475,13 @@ def _follow_up_queries(
 ) -> list[dict[str, Any]]:
     anchors = _anchor_tokens(local_evidence_records, limit=6)
     repairs = _repair_terms(judge_result, goal_case)
-    phrases = _dimension_phrases(goal_case, judge_result, limit=6)
+    missed = _missed_keyword_phrases(judge_result, limit=4)
+    missed_lower = {phrase.lower() for phrase in missed}
+    phrases = missed + [
+        phrase
+        for phrase in (_dimension_phrases(goal_case, judge_result, limit=6) or repairs)
+        if str(phrase or "").strip().lower() not in missed_lower
+    ]
     follow_ups: list[dict[str, Any]] = []
     for phrase in phrases or repairs:
         templates = (
@@ -497,7 +524,13 @@ def _decomposition_followups(
 ) -> list[dict[str, Any]]:
     anchors = _anchor_tokens(local_evidence_records, limit=8)
     repairs = _repair_terms(judge_result, goal_case)
-    phrases = _dimension_phrases(goal_case, judge_result, limit=8)
+    missed = _missed_keyword_phrases(judge_result, limit=4)
+    missed_lower = {phrase.lower() for phrase in missed}
+    phrases = missed + [
+        phrase
+        for phrase in (_dimension_phrases(goal_case, judge_result, limit=8) or repairs)
+        if str(phrase or "").strip().lower() not in missed_lower
+    ]
     queries: list[dict[str, Any]] = []
     for phrase in phrases or repairs:
         patterns = (

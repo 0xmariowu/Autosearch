@@ -704,7 +704,13 @@ def _relevant_context_phrases(
     return phrases
 
 
-def _dimension_phrase_candidates(goal_case: dict[str, Any], dim_id: str, *, limit: int = 4) -> list[str]:
+def _dimension_phrase_candidates(
+    goal_case: dict[str, Any],
+    dim_id: str,
+    *,
+    prioritized_phrases: list[str] | None = None,
+    limit: int = 4,
+) -> list[str]:
     phrases: list[str] = []
     seen: set[str] = set()
     for dimension in list(goal_case.get("dimensions") or []):
@@ -717,22 +723,37 @@ def _dimension_phrase_candidates(goal_case: dict[str, Any], dim_id: str, *, limi
                 continue
             seen.add(lowered)
             phrases.append(phrase)
-            if len(phrases) >= limit:
-                return phrases
-    base_context = phrases[:] or [str(dim_id or "").replace("_", " ").strip()]
+    merged: list[str] = []
+    merged_seen: set[str] = set()
+    for phrase in list(prioritized_phrases or []) + phrases:
+        value = str(phrase or "").strip()
+        lowered = value.lower()
+        if not value or lowered in merged_seen:
+            continue
+        merged_seen.add(lowered)
+        merged.append(value)
+        if len(merged) >= limit:
+            return merged
+    base_context = merged[:] or [str(dim_id or "").replace("_", " ").strip()]
     for phrase in _relevant_context_phrases(goal_case, dim_id, base_phrases=base_context, limit=limit * 2):
         compact = " ".join(_compact_terms(phrase, limit=4)).strip()
         lowered = compact.lower()
-        if not compact or lowered in seen:
+        if not compact or lowered in merged_seen:
             continue
-        seen.add(lowered)
-        phrases.append(compact)
-        if len(phrases) >= limit:
+        merged_seen.add(lowered)
+        merged.append(compact)
+        if len(merged) >= limit:
             break
-    return phrases
+    return merged
 
 
-def _dimension_family_variants(goal_case: dict[str, Any], dim_id: str, *, limit: int = 8) -> list[str]:
+def _dimension_family_variants(
+    goal_case: dict[str, Any],
+    dim_id: str,
+    *,
+    prioritized_phrases: list[str] | None = None,
+    limit: int = 8,
+) -> list[str]:
     variants: list[str] = []
     seen: set[str] = set()
 
@@ -745,7 +766,12 @@ def _dimension_family_variants(goal_case: dict[str, Any], dim_id: str, *, limit:
         variants.append(normalized)
 
     dim_text = str(dim_id or "").replace("_", " ").strip().lower()
-    base_phrases = _dimension_phrase_candidates(goal_case, dim_id, limit=limit)
+    base_phrases = _dimension_phrase_candidates(
+        goal_case,
+        dim_id,
+        prioritized_phrases=prioritized_phrases,
+        limit=limit,
+    )
 
     family_tokens = set(_compact_terms(dim_text, limit=6))
     for phrase in base_phrases:
@@ -848,10 +874,16 @@ def _specialized_dimension_queries(
     dim_id: str,
     *,
     available_providers: list[str],
+    keyword_misses: dict[str, list[str]] | None,
     tried_queries: set[str],
     max_queries: int,
 ) -> list[dict[str, Any]]:
-    phrases = _dimension_family_variants(goal_case, dim_id, limit=10)
+    phrases = _dimension_family_variants(
+        goal_case,
+        dim_id,
+        prioritized_phrases=list((keyword_misses or {}).get(dim_id) or []),
+        limit=10,
+    )
     queries: list[dict[str, Any]] = []
     dim_text = str(dim_id or "").replace("_", " ").strip()
 
@@ -897,6 +929,7 @@ def _evidence_strengthening_queries(
     weak_dimensions: list[str],
     *,
     available_providers: list[str],
+    keyword_misses: dict[str, list[str]] | None,
     tried_queries: set[str],
     max_queries: int,
 ) -> list[dict[str, Any]]:
@@ -923,7 +956,12 @@ def _evidence_strengthening_queries(
 
     for dim_id in list(weak_dimensions or [])[:2]:
         dim_text = str(dim_id or "").replace("_", " ").strip()
-        for phrase in _dimension_family_variants(goal_case, dim_id, limit=6) or [dim_text]:
+        for phrase in _dimension_family_variants(
+            goal_case,
+            dim_id,
+            prioritized_phrases=list((keyword_misses or {}).get(dim_id) or []),
+            limit=6,
+        ) or [dim_text]:
             lowered = phrase.lower()
             platforms: list[dict[str, Any]] = []
             if "github_code" in available_providers:
@@ -1036,6 +1074,7 @@ def _topic_frontier_queries(goal_case: dict[str, Any], limit: int = 2) -> list[d
 def _context_followup_queries(
     goal_case: dict[str, Any],
     *,
+    keyword_misses: dict[str, list[str]] | None,
     weak_dimensions: list[str],
     available_providers: list[str],
     tried_queries: set[str],
@@ -1048,7 +1087,12 @@ def _context_followup_queries(
     for dim_id in list(weak_dimensions or [])[:2]:
         keywords = _dimension_keywords(goal_case, dim_id, limit=3)
         dim_text = dim_id.replace("_", " ")
-        phrase_candidates = _dimension_phrase_candidates(goal_case, dim_id, limit=4)
+        phrase_candidates = _dimension_phrase_candidates(
+            goal_case,
+            dim_id,
+            prioritized_phrases=list((keyword_misses or {}).get(dim_id) or []),
+            limit=4,
+        )
         tokens = set(_compact_terms(" ".join([dim_text] + keywords + phrase_candidates), limit=12))
         if any(token in tokens for token in {"trajectory", "resolved", "unresolved", "success", "failure", "instance", "pair"}):
             templates = [
@@ -1298,6 +1342,7 @@ class HeuristicGoalSearcher:
         current_population_policy = dict(active_program.get("population_policy") or {})
         explore_budget = float(active_program.get("explore_budget", 0.4) or 0.4)
         exploit_budget = float(active_program.get("exploit_budget", 0.6) or 0.6)
+        keyword_misses = dict(judge_result.get("dimension_keyword_misses") or {})
         repair_dimensions = _repair_focus_dimensions(
             self.goal_case,
             active_program,
@@ -1335,6 +1380,7 @@ class HeuristicGoalSearcher:
         weak_dimensions = list(repair_dimensions)
         context_queries = _context_followup_queries(
             self.goal_case,
+            keyword_misses=keyword_misses,
             weak_dimensions=weak_dimensions,
             available_providers=available_providers,
             tried_queries=tried_queries,
@@ -1365,6 +1411,7 @@ class HeuristicGoalSearcher:
                 self.goal_case,
                 dim_id,
                 available_providers=available_providers,
+                keyword_misses=keyword_misses,
                 tried_queries=tried_queries,
                 max_queries=max_queries,
             ):
@@ -1378,12 +1425,18 @@ class HeuristicGoalSearcher:
             self.goal_case,
             weak_dimensions,
             available_providers=available_providers,
+            keyword_misses=keyword_misses,
             tried_queries=tried_queries,
             max_queries=max_queries,
         ) if current_role == "evidence_strengthening" else []
         for dim_id in weak_dimensions:
             keywords = _dimension_keywords(self.goal_case, dim_id, limit=2)
-            keyword_query = " ".join(keywords) or dim_id.replace("_", " ")
+            missed_keywords = [
+                str(item or "").strip()
+                for item in list(keyword_misses.get(dim_id) or [])
+                if str(item or "").strip()
+            ]
+            keyword_query = " ".join((missed_keywords or keywords)[:2]) or dim_id.replace("_", " ")
             for repo_name in anchors["repos"][:2]:
                 spec = _normalize_query_spec({
                     "text": f"{repo_name} {dim_id.replace('_', ' ')} implementation",
@@ -1855,6 +1908,7 @@ class OpenRouterGoalSearcher:
             f"Dimensions: {json.dumps(self.goal_case.get('dimensions', []), ensure_ascii=False)}\n"
             f"Current score: {bundle_state.get('score', 0)}\n"
             f"Current dimension scores: {json.dumps(judge_result.get('dimension_scores', {}), ensure_ascii=False)}\n"
+            f"Dimension keyword misses: {json.dumps(judge_result.get('dimension_keyword_misses', {}), ensure_ascii=False)}\n"
             f"Active program: {json.dumps({k: active_program.get(k) for k in ['explore_budget', 'exploit_budget', 'sampling_policy', 'topic_frontier', 'search_backends', 'acquisition_policy', 'evidence_policy', 'repair_policy', 'population_policy']}, ensure_ascii=False)}\n"
             f"Weakest dimensions: {json.dumps(weak_dimensions, ensure_ascii=False)}\n"
             f"Missing dimensions: {json.dumps(judge_result.get('missing_dimensions', []), ensure_ascii=False)}\n"
@@ -1877,6 +1931,7 @@ class OpenRouterGoalSearcher:
             "Write search-engine-style queries, not code literals or pseudo-code.\n"
             "For github_code, prefer 2-6 plain search terms or short quoted phrases, not full code snippets.\n"
             "Do not repeat stagnant themes from recent rejected rounds unless you materially change the angle.\n"
+            "When dimension keyword misses are provided, prioritize those phrases verbatim in repair queries before broader dimension summaries.\n"
             "At least one plan should target the weakest dimensions directly, and at least one plan should be orthogonal.\n"
             "Do not include explanations outside the JSON."
         )

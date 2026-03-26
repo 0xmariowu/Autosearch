@@ -14,6 +14,37 @@ import goal_judge as gj
 
 
 class GoalJudgeTests(unittest.TestCase):
+    def test_heuristic_bundle_eval_returns_keyword_hits_and_misses(self):
+        goal_case = {
+            "dimensions": [
+                {
+                    "id": "dedupe_quality",
+                    "weight": 20,
+                    "keywords": ["semantic deduplication", "near duplicate detection", "fake gold"],
+                    "aliases": ["duplicate detection"],
+                }
+            ]
+        }
+        findings = [
+            {
+                "title": "Semantic deduplication implementation details",
+                "body": "Production notes for semantic deduplication in a retrieval pipeline.",
+                "url": "https://example.com/dedupe",
+                "source": "github_repos",
+            }
+        ]
+
+        result = gj.evaluate_goal_bundle(goal_case, findings)
+
+        self.assertEqual(
+            result["dimension_keyword_hits"]["dedupe_quality"],
+            ["semantic deduplication"],
+        )
+        self.assertEqual(
+            result["dimension_keyword_misses"]["dedupe_quality"],
+            ["near duplicate detection", "fake gold", "duplicate detection"],
+        )
+
     def test_heuristic_bundle_eval_uses_rubric_when_dimensions_missing(self):
         goal_case = {
             "rubric": [

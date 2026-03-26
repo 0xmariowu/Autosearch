@@ -174,6 +174,19 @@ def _criterion_score(weight: int, keywords: list[str], texts: list[str]) -> tupl
     return round(weight * ratio), hits
 
 
+def _dimension_keywords(dimension: dict[str, Any]) -> list[str]:
+    keywords: list[str] = []
+    seen: set[str] = set()
+    for keyword in list(dimension.get("keywords") or []) + list(dimension.get("aliases") or []):
+        phrase = str(keyword or "").strip()
+        lowered = phrase.lower()
+        if not phrase or lowered in seen:
+            continue
+        seen.add(lowered)
+        keywords.append(phrase)
+    return keywords
+
+
 def _pair_extract_text(item: dict[str, Any]) -> str:
     return " ".join(
         part
@@ -399,11 +412,7 @@ def evaluate_goal_case(goal_case: dict[str, Any], query: str, findings: list[dic
 
 def _heuristic_bundle_dimension_score(dimension: dict[str, Any], findings: list[dict[str, Any]]) -> tuple[int, list[str]]:
     weight = int(dimension.get("weight", 0) or 0)
-    keywords = [
-        str(keyword)
-        for keyword in list(dimension.get("keywords") or []) + list(dimension.get("aliases") or [])
-        if str(keyword).strip()
-    ]
+    keywords = _dimension_keywords(dimension)
     score, hits = _criterion_score(weight, keywords, _finding_texts(findings))
     if str(dimension.get("id") or "") == "pair_extract":
         detail = _pair_extract_detail(findings)
@@ -440,6 +449,22 @@ def _bundle_dimensions(goal_case: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _normalize_bundle_result(result: dict[str, Any], dimensions: list[dict[str, Any]]) -> dict[str, Any]:
+    def _normalize_dimension_keyword_map(raw: Any) -> dict[str, list[str]]:
+        keyword_map = dict(raw or {})
+        normalized_map: dict[str, list[str]] = {}
+        for dimension_id in dimension_ids:
+            phrases: list[str] = []
+            seen: set[str] = set()
+            for item in list(keyword_map.get(dimension_id) or []):
+                phrase = str(item or "").strip()
+                lowered = phrase.lower()
+                if not phrase or lowered in seen:
+                    continue
+                seen.add(lowered)
+                phrases.append(phrase)
+            normalized_map[dimension_id] = phrases
+        return normalized_map
+
     dimension_ids = [str(dimension.get("id") or "").strip() for dimension in dimensions if str(dimension.get("id") or "").strip()]
     dimension_scores = {
         dimension_id: int((result.get("dimension_scores") or {}).get(dimension_id, 0) or 0)
@@ -461,18 +486,29 @@ def _normalize_bundle_result(result: dict[str, Any], dimensions: list[dict[str, 
     normalized["dimension_scores"] = dimension_scores
     normalized["matched_dimensions"] = matched_dimensions
     normalized["missing_dimensions"] = missing_dimensions
+    if "dimension_keyword_hits" in result:
+        normalized["dimension_keyword_hits"] = _normalize_dimension_keyword_map(result.get("dimension_keyword_hits"))
+    if "dimension_keyword_misses" in result:
+        normalized["dimension_keyword_misses"] = _normalize_dimension_keyword_map(result.get("dimension_keyword_misses"))
     return normalized
 
 
 def _heuristic_bundle_eval(goal_case: dict[str, Any], findings: list[dict[str, Any]]) -> dict[str, Any]:
     total = 0
     dimension_scores: dict[str, int] = {}
+    dimension_keyword_hits: dict[str, list[str]] = {}
+    dimension_keyword_misses: dict[str, list[str]] = {}
     missing_dimensions: list[str] = []
     matched_dimensions: list[str] = []
     for dimension in _bundle_dimensions(goal_case):
         dim_id = str(dimension.get("id") or "")
+        keywords = _dimension_keywords(dimension)
         score, hits = _heuristic_bundle_dimension_score(dimension, findings)
+        matched = {str(item or "").strip().lower() for item in hits if str(item or "").strip()}
+        misses = [keyword for keyword in keywords if keyword.lower() not in matched]
         dimension_scores[dim_id] = score
+        dimension_keyword_hits[dim_id] = list(hits)
+        dimension_keyword_misses[dim_id] = misses
         total += score
         if hits:
             matched_dimensions.append(dim_id)
@@ -481,6 +517,8 @@ def _heuristic_bundle_eval(goal_case: dict[str, Any], findings: list[dict[str, A
     return {
         "score": min(100, total),
         "dimension_scores": dimension_scores,
+        "dimension_keyword_hits": dimension_keyword_hits,
+        "dimension_keyword_misses": dimension_keyword_misses,
         "missing_dimensions": missing_dimensions,
         "matched_dimensions": matched_dimensions,
         "rationale": "heuristic bundle evaluation",
@@ -574,6 +612,7 @@ def _bundle_findings(findings: Any) -> list[dict[str, Any]]:
 
 def evaluate_goal_bundle(goal_case: dict[str, Any], findings: Any) -> dict[str, Any]:
     bundle_findings = _bundle_findings(findings)
+    dimensions = _bundle_dimensions(goal_case)
     if os.environ.get("OPENROUTER_API_KEY"):
         if _strict_openrouter_judge():
             result = _openrouter_bundle_eval(goal_case, bundle_findings)
@@ -584,7 +623,11 @@ def evaluate_goal_bundle(goal_case: dict[str, Any], findings: Any) -> dict[str, 
                 result = _heuristic_bundle_eval(goal_case, bundle_findings)
     else:
         result = _heuristic_bundle_eval(goal_case, bundle_findings)
-    if any(str(dimension.get("id") or "") == "pair_extract" for dimension in _bundle_dimensions(goal_case)):
+    if str(result.get("judge") or "") == "heuristic-bundle":
+        result = _normalize_bundle_result(result, dimensions)
+        result["rationale"] = str(result.get("rationale") or "heuristic bundle evaluation")
+        result["judge"] = "heuristic-bundle"
+    if any(str(dimension.get("id") or "") == "pair_extract" for dimension in dimensions):
         result = dict(result)
         result["pair_extract_detail"] = _pair_extract_detail(bundle_findings)
     return result
