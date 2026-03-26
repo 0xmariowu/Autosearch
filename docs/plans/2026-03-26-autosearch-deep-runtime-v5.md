@@ -127,7 +127,7 @@ self.assertIn("research_packet", result["routeable_output"])
 Run:
 
 ```bash
-cd '/Users/dev/Library/Mobile Documents/com~apple~CloudDocs/Dev/autosearch'
+cd '/Users/dev/Projects/autosearch'
 python3 -B -m unittest tests.test_research_flow tests.test_interface -v
 ```
 
@@ -579,11 +579,11 @@ Benchmark output must persist enough information to answer:
 **Step 4: Run real benchmark**
 
 ```bash
-cd '/Users/dev/Library/Mobile Documents/com~apple~CloudDocs/Dev/autosearch'
+cd '/Users/dev/Projects/autosearch'
 KMP_DUPLICATE_LIB_OK=TRUE python3 - <<'PY'
 import json
 from interface import AutoSearchInterface
-client = AutoSearchInterface('/Users/dev/Library/Mobile Documents/com~apple~CloudDocs/Dev/autosearch')
+client = AutoSearchInterface('/Users/dev/Projects/autosearch')
 result = client.run_goal_benchmark(
     [
         'autosearch-goal-judge',

@@ -15,11 +15,11 @@ from typing import Any
 
 
 HOME = Path.home()
-DEV = HOME / "Library/Mobile Documents/com~apple~CloudDocs/Dev"
+
 
 # Support env var overrides (for launchd rsync mode)
 ARMORY_ROOT = Path(os.environ.get(
-    "ARMORY_ROOT", str(DEV / "Armory")))
+    "ARMORY_ROOT", "/Volumes/4TB/Armory"))
 SCOUT_DIR = Path(os.environ.get(
     "SCOUT_DIR", str(ARMORY_ROOT / "scripts/scout")))
 AUTOSEARCH_DIR = Path(__file__).parent

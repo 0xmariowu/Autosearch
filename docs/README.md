@@ -1,7 +1,7 @@
 # autosearch/docs/ — AutoSearch Architecture Docs
 
 > This directory holds broad architecture and methodology docs for AutoSearch.
-> AutoSearch code lives at: `~/Library/Mobile Documents/com~apple~CloudDocs/Dev/autosearch/`
+> AutoSearch code lives at: `~/Projects/autosearch/`
 > Search methodology knowledge lives at: `autosearch/docs/methodology/`
 > Stable operational contracts live at: `autosearch/standards/`
 
