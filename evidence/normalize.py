@@ -35,6 +35,8 @@ def normalize_acquired_document(
         backend=str(getattr(document, "fetch_method", "") or source),
         clean_markdown=str(getattr(document, "clean_markdown", "") or ""),
         fit_markdown=str(getattr(document, "fit_markdown", "") or ""),
+        chunk_scores=list(getattr(document, "chunk_scores", []) or []),
+        selected_chunks=list(getattr(document, "selected_chunks", []) or []),
         references=list(getattr(document, "references", []) or []),
     )
 
@@ -50,6 +52,8 @@ def normalize_evidence_record(record: dict[str, Any]) -> dict[str, Any]:
         backend=str(record.get("backend") or record.get("provider") or record.get("source") or ""),
         clean_markdown=str(record.get("clean_markdown") or ""),
         fit_markdown=str(record.get("fit_markdown") or ""),
+        chunk_scores=list(record.get("chunk_scores") or []),
+        selected_chunks=list(record.get("selected_chunks") or []),
         references=list(record.get("references") or []),
     )
 
@@ -83,6 +87,8 @@ def coerce_evidence_record(item: Any) -> dict[str, Any]:
         backend=str(getattr(item, "backend", "") or getattr(item, "source", "") or ""),
         clean_markdown=str(getattr(item, "clean_markdown", "") or ""),
         fit_markdown=str(getattr(item, "fit_markdown", "") or ""),
+        chunk_scores=list(getattr(item, "chunk_scores", []) or []),
+        selected_chunks=list(getattr(item, "selected_chunks", []) or []),
         references=list(getattr(item, "references", []) or []),
     )
 

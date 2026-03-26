@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import re
+from typing import Any
 
 from embeddings import semantic_similarity as embedding_semantic_similarity
 
@@ -67,13 +68,13 @@ def _paragraph_score(paragraph: str, query_terms: set[str], query: str, index: i
     return (bm25ish + overlap + semantic, edge_bonus, density)
 
 
-def select_relevant_content(text: str, *, query: str = "", max_chars: int = 2400) -> str:
+def rank_relevant_chunks(text: str, *, query: str = "", limit: int = 4) -> list[dict[str, Any]]:
     cleaned = str(text or "").strip()
-    if len(cleaned) <= max_chars:
-        return cleaned
+    if not cleaned:
+        return []
     paragraphs = [item.strip() for item in cleaned.split("\n\n") if item.strip()]
-    if len(paragraphs) <= 4:
-        return cleaned[:max_chars].rsplit(" ", 1)[0].strip() or cleaned[:max_chars].strip()
+    if not paragraphs:
+        return []
     intro = paragraphs[:1]
     conclusion = paragraphs[-1:]
     middle = paragraphs[1:-1]
@@ -87,6 +88,50 @@ def select_relevant_content(text: str, *, query: str = "", max_chars: int = 2400
         key=lambda item: _paragraph_score(item[1], terms, query, item[0], len(paragraphs)),
         reverse=True,
     )
-    selected_middle = [paragraph for _, paragraph in ranked_middle[:3]]
-    selected = "\n\n".join(intro + selected_middle + conclusion)
+    selected: list[dict[str, Any]] = []
+    for index, paragraph in enumerate(intro):
+        selected.append({
+            "index": index,
+            "score": 1.0,
+            "text": paragraph,
+            "kind": "intro",
+        })
+    for index, paragraph in ranked_middle[:limit]:
+        score, edge_bonus, density = _paragraph_score(paragraph, terms, query, index, len(paragraphs))
+        selected.append({
+            "index": index,
+            "score": float(score + edge_bonus + (density / 500.0)),
+            "text": paragraph,
+            "kind": "ranked",
+        })
+    if conclusion:
+        selected.append({
+            "index": len(paragraphs) - 1,
+            "score": 1.0,
+            "text": conclusion[0],
+            "kind": "conclusion",
+        })
+    deduped: list[dict[str, Any]] = []
+    seen_text: set[str] = set()
+    for item in selected:
+        text_value = str(item.get("text") or "").strip()
+        if not text_value or text_value in seen_text:
+            continue
+        deduped.append(item)
+        seen_text.add(text_value)
+    return deduped
+
+
+def select_relevant_content(text: str, *, query: str = "", max_chars: int = 2400) -> str:
+    cleaned = str(text or "").strip()
+    if len(cleaned) <= max_chars:
+        return cleaned
+    ranked = rank_relevant_chunks(cleaned, query=query, limit=3)
+    if not ranked:
+        return cleaned[:max_chars].rsplit(" ", 1)[0].strip() or cleaned[:max_chars].strip()
+    selected = "\n\n".join(
+        str(item.get("text") or "").strip()
+        for item in ranked
+        if str(item.get("text") or "").strip()
+    )
     return selected[:max_chars].rsplit(" ", 1)[0].strip() or selected[:max_chars].strip()

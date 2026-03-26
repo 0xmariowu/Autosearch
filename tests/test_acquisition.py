@@ -43,6 +43,8 @@ class AcquisitionTests(unittest.TestCase):
         self.assertTrue(enriched["acquired"])
         self.assertEqual(enriched["acquired_title"], "Fetched Title")
         self.assertEqual(enriched["acquired_text"], "Clean extracted page text")
+        self.assertIn("chunk_scores", enriched)
+        self.assertIn("selected_chunks", enriched)
 
     def test_search_query_optionally_enriches_page_records(self):
         outcome = PlatformSearchOutcome(

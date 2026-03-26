@@ -6,7 +6,7 @@ import urllib.request
 
 from .crawl4ai_adapter import crawl4ai_available, fetch_with_crawl4ai
 from .document_models import AcquiredDocument
-from .markdown_cleaner import clean_markdown, fit_markdown
+from .markdown_strategy import build_markdown_views
 from .reference_extractor import extract_references
 from .render_pipeline import render_document
 
@@ -55,7 +55,10 @@ def fetch_document(
         if not use_render_fallback:
             raise
         document = render_document(url, timeout=timeout)
-    document.clean_markdown = clean_markdown(document.text)
-    document.fit_markdown = fit_markdown(document.clean_markdown, query=query)
+    markdown_views = build_markdown_views(document.text, query=query)
+    document.clean_markdown = str(markdown_views.get("clean_markdown") or "")
+    document.fit_markdown = str(markdown_views.get("fit_markdown") or "")
+    document.chunk_scores = list(markdown_views.get("chunk_scores") or [])
+    document.selected_chunks = list(markdown_views.get("selected_chunks") or [])
     document.references = extract_references(document.final_url, document.raw_html)
     return document
