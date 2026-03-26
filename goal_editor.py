@@ -542,11 +542,14 @@ def _repair_focus_dimensions(
         if dim_id not in focus:
             focus.append(dim_id)
 
-    stagnation = {
-        str(key): int(value or 0)
-        for key, value in dict(((active_program.get("plateau_state") or {}).get("dimension_stagnation") or {})).items()
-        if str(key).strip()
-    }
+    stagnation = {}
+    for key, value in dict(((active_program.get("plateau_state") or {}).get("dimension_stagnation") or {})).items():
+        if not str(key).strip():
+            continue
+        try:
+            stagnation[str(key)] = int(value or 0)
+        except (ValueError, TypeError):
+            stagnation[str(key)] = 0
     for dim_id, _score in sorted(stagnation.items(), key=lambda item: int(item[1] or 0), reverse=True):
         if not _is_open(dim_id):
             continue
