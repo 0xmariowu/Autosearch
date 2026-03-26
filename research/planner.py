@@ -133,6 +133,23 @@ def _is_pair_extract_phrase(text: str) -> bool:
     return any(token in lowered for token in pair_tokens)
 
 
+def _is_dedupe_phrase(text: str) -> bool:
+    lowered = str(text or "").strip().lower()
+    if not lowered:
+        return False
+    dedupe_tokens = {
+        "dedupe",
+        "dedup",
+        "duplicate",
+        "semhash",
+        "semantic hash",
+        "near duplicate",
+        "fake gold",
+        "similarity",
+    }
+    return any(token in lowered for token in dedupe_tokens)
+
+
 def _pair_followup_templates(*, include_anchor: bool) -> list[str]:
     templates = [
         "{phrase} same task",
@@ -145,6 +162,17 @@ def _pair_followup_templates(*, include_anchor: bool) -> list[str]:
     return templates
 
 
+def _dedupe_followup_templates(*, include_anchor: bool) -> list[str]:
+    templates = [
+        "{phrase} implementation",
+        "{phrase} algorithm comparison",
+        "{phrase} near duplicate detection",
+    ]
+    if include_anchor:
+        templates.append("{anchor} {phrase} code")
+    return templates
+
+
 def _pair_decomposition_templates(*, include_anchor: bool) -> list[str]:
     templates = [
         "{phrase} same benchmark instance",
@@ -154,6 +182,17 @@ def _pair_decomposition_templates(*, include_anchor: bool) -> list[str]:
     ]
     if include_anchor:
         templates.append("{anchor} {phrase} same task")
+    return templates
+
+
+def _dedupe_decomposition_templates(*, include_anchor: bool) -> list[str]:
+    templates = [
+        "{phrase} hash function",
+        "{phrase} similarity threshold",
+        "{phrase} benchmark evaluation",
+    ]
+    if include_anchor:
+        templates.append("{anchor} {phrase} open source")
     return templates
 
 
@@ -300,17 +339,37 @@ def _planning_ops_for_plan(
     return ops
 
 
-def _repair_terms(judge_result: dict[str, Any]) -> list[str]:
+def _repair_terms(judge_result: dict[str, Any], goal_case: dict[str, Any] | None = None) -> list[str]:
+    goal_case = dict(goal_case or {})
+
+    def _repair_label(dim_id: Any) -> str:
+        normalized_id = str(dim_id or "").strip()
+        if not normalized_id:
+            return ""
+        for dimension in list(goal_case.get("dimensions") or []):
+            if str(dimension.get("id") or "").strip() != normalized_id:
+                continue
+            for keyword in list(dimension.get("keywords") or []):
+                phrase = str(keyword or "").strip()
+                if phrase:
+                    return phrase
+            for alias in list(dimension.get("aliases") or []):
+                phrase = str(alias or "").strip()
+                if phrase:
+                    return phrase
+            break
+        return normalized_id.replace("_", " ").strip()
+
     terms: list[str] = []
     for item in list(judge_result.get("missing_dimensions") or [])[:3]:
-        text = str(item or "").replace("_", " ").strip()
+        text = _repair_label(item)
         if text:
             terms.append(text)
     weakest = ""
     scores = dict(judge_result.get("dimension_scores") or {})
     if scores:
         weakest = min(scores.keys(), key=lambda key: int(scores.get(key, 0) or 0))
-    weakest = weakest.replace("_", " ").strip()
+    weakest = _repair_label(weakest)
     if weakest and weakest not in terms:
         terms.insert(0, weakest)
     return terms[:3]
@@ -342,8 +401,8 @@ def _mutation_kind_for_role(role: str) -> str:
     return "mutation"
 
 
-def _branch_subgoal(role: str, judge_result: dict[str, Any]) -> str:
-    repairs = _repair_terms(judge_result)
+def _branch_subgoal(role: str, judge_result: dict[str, Any], goal_case: dict[str, Any] | None = None) -> str:
+    repairs = _repair_terms(judge_result, goal_case)
     if repairs:
         return repairs[0]
     return str(role or "research").replace("_", " ")
@@ -356,6 +415,7 @@ def _node_id(role: str, index: int, depth: int) -> str:
 def _augment_queries(
     queries: list[dict[str, Any]],
     *,
+    goal_case: dict[str, Any] | None,
     local_evidence_records: list[dict[str, Any]] | None,
     judge_result: dict[str, Any],
     tried_queries: set[str],
@@ -363,7 +423,7 @@ def _augment_queries(
 ) -> list[dict[str, Any]]:
     augmented = list(queries)
     anchors = _anchor_tokens(local_evidence_records)
-    repairs = _repair_terms(judge_result)
+    repairs = _repair_terms(judge_result, goal_case)
     for anchor in anchors:
         for repair in repairs:
             query = {"text": f"{anchor} {repair}".strip(), "platforms": []}
@@ -386,13 +446,15 @@ def _follow_up_queries(
     tried_queries: set[str],
 ) -> list[dict[str, Any]]:
     anchors = _anchor_tokens(local_evidence_records, limit=6)
-    repairs = _repair_terms(judge_result)
+    repairs = _repair_terms(judge_result, goal_case)
     phrases = _dimension_phrases(goal_case, judge_result, limit=6)
     follow_ups: list[dict[str, Any]] = []
     for phrase in phrases or repairs:
         templates = (
             _pair_followup_templates(include_anchor=bool(anchors))
             if _is_pair_extract_phrase(phrase)
+            else _dedupe_followup_templates(include_anchor=bool(anchors))
+            if _is_dedupe_phrase(phrase)
             else [
                 "{phrase} repository implementation",
                 "{anchor} {phrase} source proof",
@@ -427,13 +489,15 @@ def _decomposition_followups(
     tried_queries: set[str],
 ) -> list[dict[str, Any]]:
     anchors = _anchor_tokens(local_evidence_records, limit=8)
-    repairs = _repair_terms(judge_result)
+    repairs = _repair_terms(judge_result, goal_case)
     phrases = _dimension_phrases(goal_case, judge_result, limit=8)
     queries: list[dict[str, Any]] = []
     for phrase in phrases or repairs:
         patterns = (
             _pair_decomposition_templates(include_anchor=bool(anchors))
             if _is_pair_extract_phrase(phrase)
+            else _dedupe_decomposition_templates(include_anchor=bool(anchors))
+            if _is_dedupe_phrase(phrase)
             else [
                 "{phrase} repository source",
                 "{phrase} release blocker",
@@ -522,6 +586,7 @@ def build_research_plan(
     for index, plan in enumerate(list(plans or []), start=1):
         queries = _augment_queries(
             list(plan.get("queries") or []),
+            goal_case=goal_case,
             local_evidence_records=local_evidence_records if current_role != "broad_recall" else [],
             judge_result=judge_result,
             tried_queries=tried_queries,
@@ -532,7 +597,7 @@ def build_research_plan(
         if _mutation_kind_for_role(role) in retired_mutations:
             continue
         graph_node = _node_id(role, index, branch_depth + 1)
-        branch_targets = gap_dimensions[:3] or _repair_terms(judge_result)
+        branch_targets = gap_dimensions[:3] or _repair_terms(judge_result, goal_case)
         plan_priority = int(plan.get("branch_priority", 0) or 0)
         program_overrides = dict(plan.get("program_overrides") or {})
         decision = _decision_for_plan(
@@ -559,7 +624,7 @@ def build_research_plan(
             "intents": queries,
             "role": role,
             "branch_type": branch_type,
-            "branch_subgoal": _branch_subgoal(role, judge_result),
+            "branch_subgoal": _branch_subgoal(role, judge_result, goal_case),
             "stage": "repair" if role != "broad_recall" else "breadth",
             "graph_node": graph_node,
             "graph_edges": [
@@ -600,17 +665,17 @@ def build_research_plan(
             "intents": follow_up_candidates[:max_queries],
             "role": "graph_followup",
             "branch_type": "followup",
-            "branch_subgoal": _branch_subgoal("graph_followup", judge_result),
+            "branch_subgoal": _branch_subgoal("graph_followup", judge_result, goal_case),
             "stage": "followup",
             "graph_node": graph_node,
             "graph_edges": [{"from": previous_node, "to": graph_node, "kind": "follow_up"}] if previous_node else [],
-            "branch_targets": gap_dimensions[:3] or _repair_terms(judge_result),
+            "branch_targets": gap_dimensions[:3] or _repair_terms(judge_result, goal_case),
             "program_overrides": followup_overrides,
             "decision": followup_decision.to_dict(),
             "planning_ops": _planning_ops_for_plan(
                 role="graph_followup",
                 branch_type="followup",
-                branch_targets=gap_dimensions[:3] or _repair_terms(judge_result),
+                branch_targets=gap_dimensions[:3] or _repair_terms(judge_result, goal_case),
                 branch_depth=branch_depth + 1,
                 recursive_depth_limit=recursive_depth_limit,
                 decision=followup_decision,
@@ -642,17 +707,17 @@ def build_research_plan(
             "intents": decomposition_candidates[:max_queries],
             "role": "decomposition_followup",
             "branch_type": "followup",
-            "branch_subgoal": _branch_subgoal("decomposition_followup", judge_result),
+            "branch_subgoal": _branch_subgoal("decomposition_followup", judge_result, goal_case),
             "stage": "followup",
             "graph_node": graph_node,
             "graph_edges": [{"from": previous_node, "to": graph_node, "kind": "recursive_follow_up"}] if previous_node else [],
-            "branch_targets": gap_dimensions[:3] or _repair_terms(judge_result),
+            "branch_targets": gap_dimensions[:3] or _repair_terms(judge_result, goal_case),
             "program_overrides": decomposition_overrides,
             "decision": decomposition_decision.to_dict(),
             "planning_ops": _planning_ops_for_plan(
                 role="decomposition_followup",
                 branch_type="followup",
-                branch_targets=gap_dimensions[:3] or _repair_terms(judge_result),
+                branch_targets=gap_dimensions[:3] or _repair_terms(judge_result, goal_case),
                 branch_depth=branch_depth + 2,
                 recursive_depth_limit=recursive_depth_limit,
                 decision=decomposition_decision,

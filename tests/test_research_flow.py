@@ -1,3 +1,4 @@
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -8,9 +9,20 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from goal_editor import GoalSearcher
 from research.executor import execute_research_plan
-from research.planner import build_research_plan
+from research.planner import (
+    _augment_queries,
+    _decomposition_followups,
+    _follow_up_queries,
+    _repair_terms,
+    build_research_plan,
+)
 from research.synthesizer import synthesize_research_round
+
+
+def _load_atoms_goal_case() -> dict:
+    return json.loads((REPO_ROOT / "goal_cases" / "atoms-auto-mining-perfect.json").read_text(encoding="utf-8"))
 
 
 class _FakeSearcher:
@@ -77,6 +89,105 @@ class _DedupeSearcher:
 
 
 class ResearchFlowTests(unittest.TestCase):
+    def test_repair_terms_uses_dimension_keywords(self):
+        repairs = _repair_terms(
+            {
+                "missing_dimensions": [],
+                "dimension_scores": {
+                    "dedupe_quality": 10,
+                    "validation_release": 20,
+                },
+            },
+            _DedupeSearcher.goal_case,
+        )
+        self.assertEqual(repairs[0], "semantic deduplication")
+        self.assertNotIn("dedupe quality", repairs)
+
+    def test_follow_up_queries_dedupe_uses_dedupe_templates(self):
+        queries = _follow_up_queries(
+            goal_case=_DedupeSearcher.goal_case,
+            local_evidence_records=[{
+                "record_type": "evidence",
+                "title": "semhash implementation notes",
+                "url": "https://example.com",
+                "source": "local",
+                "query": "dedupe",
+            }],
+            judge_result={
+                "missing_dimensions": [],
+                "dimension_scores": {"dedupe_quality": 10},
+            },
+            max_queries=6,
+            tried_queries=set(),
+        )
+        texts = [query["text"].lower() for query in queries]
+        self.assertTrue(any("dedup" in text or "duplicate" in text or "semhash" in text for text in texts))
+        self.assertFalse(any("repository" in text or "release issue" in text or "source proof" in text for text in texts))
+
+    def test_decomposition_followups_dedupe_uses_dedupe_templates(self):
+        queries = _decomposition_followups(
+            goal_case=_DedupeSearcher.goal_case,
+            local_evidence_records=[{
+                "record_type": "evidence",
+                "title": "semhash implementation notes",
+                "url": "https://example.com",
+                "source": "local",
+                "query": "dedupe",
+            }],
+            judge_result={
+                "missing_dimensions": [],
+                "dimension_scores": {"dedupe_quality": 10},
+            },
+            max_queries=6,
+            tried_queries=set(),
+        )
+        texts = [query["text"].lower() for query in queries]
+        self.assertTrue(any("dedup" in text or "duplicate" in text or "semhash" in text for text in texts))
+        self.assertFalse(any("repository source" in text or "release blocker" in text or "issue discussion" in text for text in texts))
+
+    def test_follow_up_queries_pair_still_uses_pair_templates(self):
+        queries = _follow_up_queries(
+            goal_case=_PairSearcher.goal_case,
+            local_evidence_records=[{
+                "record_type": "evidence",
+                "title": "same benchmark instance successful and failed runs",
+                "url": "https://example.com",
+                "source": "local",
+                "query": "pair",
+            }],
+            judge_result={
+                "missing_dimensions": [],
+                "dimension_scores": {"pair_extract": 5},
+            },
+            max_queries=6,
+            tried_queries=set(),
+        )
+        texts = [query["text"].lower() for query in queries]
+        self.assertTrue(any("trajectory" in text or "resolved" in text or "same task" in text for text in texts))
+        self.assertFalse(any("repository implementation" in text for text in texts))
+
+    def test_augment_queries_uses_keywords_not_bare_ids(self):
+        queries = _augment_queries(
+            [],
+            goal_case=_DedupeSearcher.goal_case,
+            local_evidence_records=[{
+                "record_type": "evidence",
+                "title": "semhash implementation notes",
+                "url": "https://example.com",
+                "source": "local",
+                "query": "dedupe",
+            }],
+            judge_result={
+                "missing_dimensions": [],
+                "dimension_scores": {"dedupe_quality": 10},
+            },
+            tried_queries=set(),
+            max_queries=3,
+        )
+        texts = [query["text"].lower() for query in queries]
+        self.assertTrue(any("semantic deduplication" in text or "semhash" in text for text in texts))
+        self.assertFalse(any("dedupe quality" in text for text in texts))
+
     def test_planner_returns_intents(self):
         plans = build_research_plan(
             searcher=_FakeSearcher(),
@@ -207,6 +318,71 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertTrue(any(term in followup_text for term in ["semantic deduplication", "dedup", "duplicate", "semhash"]))
         self.assertTrue(any(term in decomposition_text for term in ["semantic deduplication", "dedup", "duplicate", "semhash"]))
         self.assertNotIn("dedupe quality repository source", decomposition_text)
+
+    def test_build_research_plan_with_real_goal_searcher_keeps_dedupe_queries_on_repair_and_followup(self):
+        goal_case = _load_atoms_goal_case()
+        searcher = GoalSearcher(goal_case)
+        judge_result = {
+            "score": 85,
+            "missing_dimensions": [],
+            "matched_dimensions": [
+                "extraction_completeness",
+                "label_separation",
+                "pair_extract",
+                "validation_release",
+            ],
+            "dimension_scores": {
+                "extraction_completeness": 15,
+                "label_separation": 20,
+                "pair_extract": 20,
+                "validation_release": 20,
+                "dedupe_quality": 10,
+            },
+        }
+
+        plans = build_research_plan(
+            searcher=searcher,
+            bundle_state={
+                "accepted_findings": [],
+                "accepted_queries": [],
+                "score": 85,
+                "dimension_scores": dict(judge_result["dimension_scores"]),
+                "missing_dimensions": [],
+                "matched_dimensions": list(judge_result["matched_dimensions"]),
+            },
+            judge_result=judge_result,
+            tried_queries=set(),
+            available_providers=["searxng", "github_repos", "github_issues", "github_code", "huggingface_datasets"],
+            active_program={
+                "mode": "deep",
+                "round_roles": ["dimension_repair"],
+                "current_role": "dimension_repair",
+                "repair_policy": {"target_weak_dimensions": 1},
+                "population_policy": {
+                    "branch_budget_per_round": {"breadth": 1, "repair": 2, "followup": 2, "probe": 1, "research": 1},
+                    "recursive_depth_limit": 4,
+                },
+            },
+            round_history=[{"graph_node": "seed-1"}],
+            plan_count=4,
+            max_queries=4,
+            local_evidence_records=[{
+                "record_type": "evidence",
+                "title": "semantic deduplication and fake-Gold detection for near-duplicate code pairs",
+                "url": "https://example.com",
+                "source": "local",
+                "query": "semantic deduplication",
+            }],
+        )
+
+        repair_followups = [plan for plan in plans if plan["branch_type"] in {"repair", "followup"}]
+        self.assertTrue(repair_followups)
+        for plan in repair_followups:
+            text = " ".join(query["text"] for query in plan["queries"]).lower()
+            self.assertTrue(
+                any(term in text for term in ("dedup", "duplicate", "semhash", "semantic")),
+                plan,
+            )
 
     def test_planner_prefers_gap_queue_dimensions_over_missing_dimensions(self):
         plans = build_research_plan(
