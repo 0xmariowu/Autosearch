@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.request
 from collections import defaultdict
 from typing import Any
@@ -20,6 +21,82 @@ OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_OPENROUTER_MODEL = "google/gemini-3-flash-preview"
 OPENROUTER_REQUEST_TIMEOUT = float(os.environ.get("OPENROUTER_REQUEST_TIMEOUT", "15"))
 OPENROUTER_BUNDLE_TIMEOUT = float(os.environ.get("OPENROUTER_BUNDLE_TIMEOUT", "20"))
+CONCEPT_ALIASES = {
+    "extract": "extraction",
+    "extracts": "extraction",
+    "extracting": "extraction",
+    "extracted": "extraction",
+    "ingest": "extraction",
+    "ingests": "extraction",
+    "ingestion": "extraction",
+    "validate": "validation",
+    "validates": "validation",
+    "validated": "validation",
+    "validating": "validation",
+    "schema": "validation",
+    "schemas": "validation",
+    "check": "validation",
+    "checks": "validation",
+    "checking": "validation",
+    "qa": "validation",
+    "quality": "validation",
+    "label": "validation",
+    "labels": "validation",
+    "labeling": "validation",
+    "after": "after",
+    "later": "after",
+    "defer": "after",
+    "deferred": "after",
+    "subsequent": "after",
+    "then": "after",
+    "separate": "separate",
+    "separated": "separate",
+    "separates": "separate",
+    "distinct": "separate",
+    "different": "separate",
+    "split": "separate",
+    "stage": "separate",
+    "stages": "separate",
+    "pass": "separate",
+    "passes": "separate",
+    "filter": "filter",
+    "filters": "filter",
+    "filtering": "filter",
+    "gate": "filter",
+    "gates": "filter",
+    "postprocessing": "filter",
+    "post-processing": "filter",
+}
+TOKEN_STOP_WORDS = {"and", "the", "with", "from", "into", "that", "this", "then", "until", "later", "after"}
+PAIR_SHARED_UNIT_TERMS = (
+    "same benchmark instance",
+    "same instance",
+    "same task",
+    "same task identifier",
+    "same issue",
+    "same benchmark case",
+)
+PAIR_TRAJECTORY_TERMS = (
+    "trajectory",
+    "trajectories",
+    "trace",
+    "traces",
+    "rollout",
+    "rollouts",
+    "run",
+    "runs",
+    "pair",
+    "pairs",
+)
+PAIR_ARTIFACT_TEXT_TERMS = (
+    "dataset",
+    "repository",
+    "repo",
+    "issue",
+    "pull request",
+    "benchmark release",
+    "artifact",
+)
 
 
 def _strict_openrouter_judge() -> bool:
@@ -36,17 +113,192 @@ def _normalize_text(items: list[dict[str, Any]]) -> str:
     return "\n".join(parts)
 
 
-def _criterion_score(weight: int, keywords: list[str], text: str) -> tuple[int, list[str]]:
-    hits = [keyword for keyword in keywords if keyword.lower() in text]
+def _finding_texts(items: list[dict[str, Any]]) -> list[str]:
+    texts: list[str] = []
+    for item in list(items or []):
+        parts = [
+            str(item.get(key) or "").strip()
+            for key in ("title", "body", "extract", "canonical_text", "fit_markdown", "clean_markdown", "acquired_text")
+        ]
+        text = "\n".join(part for part in parts if part)
+        if text:
+            texts.append(text)
+    return texts
+
+
+def _stem_token(token: str) -> str:
+    normalized = str(token or "").strip().lower()
+    for suffix in ("ing", "ed", "es", "s"):
+        if len(normalized) > len(suffix) + 2 and normalized.endswith(suffix):
+            return normalized[:-len(suffix)]
+    return normalized
+
+
+def _concept_tokens(text: str) -> set[str]:
+    tokens = re.findall(r"[A-Za-z0-9_\-]{2,}", str(text or "").lower())
+    concepts: set[str] = set()
+    for token in tokens:
+        stemmed = _stem_token(token)
+        concept = CONCEPT_ALIASES.get(token) or CONCEPT_ALIASES.get(stemmed) or stemmed
+        if concept and concept not in TOKEN_STOP_WORDS:
+            concepts.add(concept)
+    return concepts
+
+
+def _keyword_match(keyword: str, texts: list[str]) -> bool:
+    normalized_keyword = str(keyword or "").strip().lower()
+    if not normalized_keyword:
+        return False
+    keyword_concepts = _concept_tokens(normalized_keyword)
+    for text in list(texts or []):
+        lowered = str(text or "").lower()
+        if normalized_keyword in lowered:
+            return True
+        if not keyword_concepts:
+            continue
+        overlap = keyword_concepts.intersection(_concept_tokens(lowered))
+        if len(keyword_concepts) == 1 and overlap:
+            return True
+        if len(keyword_concepts) == 2 and len(overlap) == 2:
+            return True
+        if len(keyword_concepts) >= 3 and len(overlap) >= max(2, len(keyword_concepts) - 1):
+            return True
+    return False
+
+
+def _criterion_score(weight: int, keywords: list[str], texts: list[str]) -> tuple[int, list[str]]:
+    hits = [keyword for keyword in keywords if _keyword_match(keyword, texts)]
     if not hits:
         return 0, []
     ratio = min(1.0, len(hits) / max(2, len(keywords) // 2 or 1))
     return round(weight * ratio), hits
 
 
+def _pair_extract_text(item: dict[str, Any]) -> str:
+    return " ".join(
+        part
+        for part in (
+            str(item.get("title") or "").strip(),
+            str(item.get("body") or "").strip(),
+            str(item.get("extract") or "").strip(),
+            str(item.get("canonical_text") or "").strip(),
+            str(item.get("fit_markdown") or "").strip(),
+            str(item.get("clean_markdown") or "").strip(),
+            str(item.get("acquired_text") or "").strip(),
+            str(item.get("query") or "").strip(),
+        )
+        if part
+    ).lower()
+
+
+def _has_pair_shared_unit(text: str) -> bool:
+    return any(term in text for term in PAIR_SHARED_UNIT_TERMS)
+
+
+def _has_pair_dual_outcome(text: str) -> bool:
+    success_side = any(term in text for term in ("successful", "success", "passed", "passing", "resolved"))
+    failure_side = any(term in text for term in ("failed", "failure", "failing", "unresolved"))
+    return success_side and failure_side
+
+
+def _has_pair_trajectory_form(text: str) -> bool:
+    return any(term in text for term in PAIR_TRAJECTORY_TERMS)
+
+
+def _has_pair_artifact_link(item: dict[str, Any], text: str) -> bool:
+    source = str(item.get("source") or "").strip().lower()
+    url = str(item.get("url") or "").strip().lower()
+    if source in {"github_repos", "github_issues", "github_code", "huggingface_datasets"}:
+        return True
+    if "github.com" in url or "huggingface.co" in url:
+        return True
+    return any(term in text for term in PAIR_ARTIFACT_TEXT_TERMS)
+
+
+def _pair_extract_finding_score(item: dict[str, Any]) -> int:
+    text = _pair_extract_text(item)
+    if not text:
+        return 0
+    score = 0
+    if _has_pair_shared_unit(text):
+        score += 3
+    if _has_pair_dual_outcome(text):
+        score += 3
+    if _has_pair_trajectory_form(text):
+        score += 2
+    if _has_pair_artifact_link(item, text):
+        score += 1
+    return score
+
+
+def _pair_extract_detail(findings: list[dict[str, Any]]) -> dict[str, Any]:
+    shared_unit = False
+    dual_outcome = False
+    trajectory_form = False
+    artifact_link = False
+    supporting_urls: list[str] = []
+    matched_terms: list[str] = []
+    seen_urls: set[str] = set()
+    seen_terms: set[str] = set()
+    for item in list(findings or []):
+        text = _pair_extract_text(item)
+        if not text:
+            continue
+        item_shared = _has_pair_shared_unit(text)
+        item_dual = _has_pair_dual_outcome(text)
+        item_trajectory = _has_pair_trajectory_form(text)
+        item_artifact = _has_pair_artifact_link(item, text)
+        shared_unit = shared_unit or item_shared
+        dual_outcome = dual_outcome or item_dual
+        trajectory_form = trajectory_form or item_trajectory
+        artifact_link = artifact_link or item_artifact
+        if item_shared and "shared_unit" not in seen_terms:
+            seen_terms.add("shared_unit")
+            matched_terms.append("shared_unit")
+        if item_dual and "dual_outcome" not in seen_terms:
+            seen_terms.add("dual_outcome")
+            matched_terms.append("dual_outcome")
+        if item_trajectory and "trajectory_form" not in seen_terms:
+            seen_terms.add("trajectory_form")
+            matched_terms.append("trajectory_form")
+        if item_artifact and "artifact_link" not in seen_terms:
+            seen_terms.add("artifact_link")
+            matched_terms.append("artifact_link")
+        url = str(item.get("url") or "").strip()
+        if url and _pair_extract_finding_score(item) >= 5 and url not in seen_urls:
+            seen_urls.add(url)
+            supporting_urls.append(url)
+    return {
+        "shared_unit": shared_unit,
+        "dual_outcome": dual_outcome,
+        "trajectory_form": trajectory_form,
+        "artifact_link": artifact_link,
+        "matched_terms": matched_terms,
+        "supporting_urls": supporting_urls,
+    }
+
+
+def _pair_extract_structural_score(weight: int, detail: dict[str, Any]) -> int:
+    signal_count = sum(
+        1
+        for key in ("shared_unit", "dual_outcome", "trajectory_form", "artifact_link")
+        if bool(detail.get(key))
+    )
+    supporting_count = len(list(detail.get("supporting_urls") or []))
+    if signal_count >= 4:
+        return weight if supporting_count >= 2 else max(weight - 2, 0)
+    if signal_count == 3:
+        return max(weight - 5, 0)
+    if signal_count == 2:
+        return max(weight // 2, 0)
+    if signal_count == 1:
+        return max(weight // 3, 0)
+    return 0
+
+
 class HeuristicGoalJudge:
     def evaluate(self, goal_case: dict[str, Any], query: str, findings: list[dict[str, Any]]) -> dict[str, Any]:
-        text = _normalize_text(findings)
+        texts = _finding_texts(findings)
         total = 0
         criteria_rows: list[dict[str, Any]] = []
         missing_terms: list[str] = []
@@ -54,7 +306,7 @@ class HeuristicGoalJudge:
         for criterion in goal_case.get("rubric", []):
             weight = int(criterion.get("weight", 0) or 0)
             keywords = [str(keyword) for keyword in criterion.get("keywords", []) if str(keyword).strip()]
-            score, hits = _criterion_score(weight, keywords, text)
+            score, hits = _criterion_score(weight, keywords, texts)
             total += score
             criteria_rows.append({
                 "id": criterion.get("id", ""),
@@ -145,10 +397,23 @@ def evaluate_goal_case(goal_case: dict[str, Any], query: str, findings: list[dic
     return HeuristicGoalJudge().evaluate(goal_case, query, findings)
 
 
-def _heuristic_bundle_dimension_score(dimension: dict[str, Any], text: str) -> tuple[int, list[str]]:
+def _heuristic_bundle_dimension_score(dimension: dict[str, Any], findings: list[dict[str, Any]]) -> tuple[int, list[str]]:
     weight = int(dimension.get("weight", 0) or 0)
-    keywords = [str(keyword) for keyword in dimension.get("keywords", []) if str(keyword).strip()]
-    score, hits = _criterion_score(weight, keywords, text)
+    keywords = [
+        str(keyword)
+        for keyword in list(dimension.get("keywords") or []) + list(dimension.get("aliases") or [])
+        if str(keyword).strip()
+    ]
+    score, hits = _criterion_score(weight, keywords, _finding_texts(findings))
+    if str(dimension.get("id") or "") == "pair_extract":
+        detail = _pair_extract_detail(findings)
+        score = max(score, _pair_extract_structural_score(weight, detail))
+        merged_hits: list[str] = []
+        for item in list(hits) + list(detail.get("matched_terms") or []):
+            value = str(item or "").strip()
+            if value and value not in merged_hits:
+                merged_hits.append(value)
+        hits = merged_hits
     return score, hits
 
 
@@ -169,6 +434,7 @@ def _bundle_dimensions(goal_case: dict[str, Any]) -> list[dict[str, Any]]:
             "id": criterion_id,
             "weight": int(criterion.get("weight", 0) or 0),
             "keywords": [str(keyword) for keyword in list(criterion.get("keywords") or []) if str(keyword).strip()],
+            "aliases": [str(keyword) for keyword in list(criterion.get("aliases") or []) if str(keyword).strip()],
         })
     return derived
 
@@ -199,14 +465,13 @@ def _normalize_bundle_result(result: dict[str, Any], dimensions: list[dict[str, 
 
 
 def _heuristic_bundle_eval(goal_case: dict[str, Any], findings: list[dict[str, Any]]) -> dict[str, Any]:
-    text = _normalize_text(findings)
     total = 0
     dimension_scores: dict[str, int] = {}
     missing_dimensions: list[str] = []
     matched_dimensions: list[str] = []
     for dimension in _bundle_dimensions(goal_case):
         dim_id = str(dimension.get("id") or "")
-        score, hits = _heuristic_bundle_dimension_score(dimension, text)
+        score, hits = _heuristic_bundle_dimension_score(dimension, findings)
         dimension_scores[dim_id] = score
         total += score
         if hits:
@@ -311,9 +576,15 @@ def evaluate_goal_bundle(goal_case: dict[str, Any], findings: Any) -> dict[str, 
     bundle_findings = _bundle_findings(findings)
     if os.environ.get("OPENROUTER_API_KEY"):
         if _strict_openrouter_judge():
-            return _openrouter_bundle_eval(goal_case, bundle_findings)
-        try:
-            return _openrouter_bundle_eval(goal_case, bundle_findings)
-        except Exception:
-            pass
-    return _heuristic_bundle_eval(goal_case, bundle_findings)
+            result = _openrouter_bundle_eval(goal_case, bundle_findings)
+        else:
+            try:
+                result = _openrouter_bundle_eval(goal_case, bundle_findings)
+            except Exception:
+                result = _heuristic_bundle_eval(goal_case, bundle_findings)
+    else:
+        result = _heuristic_bundle_eval(goal_case, bundle_findings)
+    if any(str(dimension.get("id") or "") == "pair_extract" for dimension in _bundle_dimensions(goal_case)):
+        result = dict(result)
+        result["pair_extract_detail"] = _pair_extract_detail(bundle_findings)
+    return result

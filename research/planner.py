@@ -26,6 +26,7 @@ GENERIC_ANCHOR_TOKENS = {
     "public",
     "release",
 }
+STRONG_EVIDENCE_CONTENT_TYPES = ["code", "repository", "issue", "reference", "web"]
 
 
 def _current_round_role(active_program: dict[str, Any], round_history: list[dict[str, Any]]) -> str:
@@ -98,7 +99,7 @@ def _dimension_phrases(goal_case: dict[str, Any], judge_result: dict[str, Any], 
         for dim in list(goal_case.get("dimensions") or []):
             if str(dim.get("id") or "") != str(dim_id):
                 continue
-            for keyword in list(dim.get("keywords") or []):
+            for keyword in list(dim.get("keywords") or []) + list(dim.get("aliases") or []):
                 phrase = str(keyword or "").strip()
                 lowered = phrase.lower()
                 if not phrase or lowered in seen:
@@ -110,6 +111,52 @@ def _dimension_phrases(goal_case: dict[str, Any], judge_result: dict[str, Any], 
     return phrases
 
 
+def _is_pair_extract_phrase(text: str) -> bool:
+    lowered = str(text or "").strip().lower()
+    if not lowered:
+        return False
+    pair_tokens = {
+        "pair_extract",
+        "pair extract",
+        "trajectory",
+        "resolved",
+        "unresolved",
+        "success",
+        "failure",
+        "successful",
+        "failed",
+        "instance",
+        "swe-bench",
+        "same task",
+        "verified trajectories",
+    }
+    return any(token in lowered for token in pair_tokens)
+
+
+def _pair_followup_templates(*, include_anchor: bool) -> list[str]:
+    templates = [
+        "{phrase} same task",
+        "{phrase} successful failed runs",
+        "{phrase} resolved unresolved subset",
+        "{phrase} verified trajectories",
+    ]
+    if include_anchor:
+        templates.append("{anchor} {phrase} same benchmark instance")
+    return templates
+
+
+def _pair_decomposition_templates(*, include_anchor: bool) -> list[str]:
+    templates = [
+        "{phrase} same benchmark instance",
+        "{phrase} successful failed runs",
+        "{phrase} resolved unresolved subset",
+        "{phrase} verified trajectories",
+    ]
+    if include_anchor:
+        templates.append("{anchor} {phrase} same task")
+    return templates
+
+
 def _followup_program_overrides(active_program: dict[str, Any]) -> dict[str, Any]:
     current_acquisition = dict(active_program.get("acquisition_policy") or {})
     current_evidence = dict(active_program.get("evidence_policy") or {})
@@ -118,16 +165,25 @@ def _followup_program_overrides(active_program: dict[str, Any]) -> dict[str, Any
         "acquisition_policy": {
             **current_acquisition,
             "acquire_pages": True,
-            "page_fetch_limit": max(int(current_acquisition.get("page_fetch_limit", 2) or 2), 2),
+            "page_fetch_limit": max(int(current_acquisition.get("page_fetch_limit", 2) or 2), 3),
             "use_render_fallback": bool(current_acquisition.get("use_render_fallback", True)),
             "use_crawl4ai_adapter": bool(current_acquisition.get("use_crawl4ai_adapter", True)),
         },
         "evidence_policy": {
             **current_evidence,
-            "preferred_content_types": ["web", "reference"],
+            "preferred_content_types": list(STRONG_EVIDENCE_CONTENT_TYPES),
             "prefer_acquired_text": True,
         },
     }
+
+
+def _merge_preferred_content_types(existing: list[str] | None, extra: list[str] | None) -> list[str]:
+    merged: list[str] = []
+    for item in list(existing or []) + list(extra or []):
+        value = str(item or "").strip()
+        if value and value not in merged:
+            merged.append(value)
+    return merged
 
 
 def _cross_verification_queries(
@@ -191,10 +247,15 @@ def _decision_for_plan(
     ) if cross_verify else []
     if cross_queries:
         evidence_policy["cross_verification_required"] = True
-    if mode_policy.enable_acquisition and branch_type in {"followup", "research"}:
+    if branch_type in {"repair", "followup", "research"}:
+        evidence_policy["preferred_content_types"] = _merge_preferred_content_types(
+            list(evidence_policy.get("preferred_content_types") or []),
+            STRONG_EVIDENCE_CONTENT_TYPES,
+        )
+        evidence_policy["prefer_acquired_text"] = True
+    if branch_type == "repair" or (mode_policy.enable_acquisition and branch_type in {"followup", "research"}):
         acquisition_policy["acquire_pages"] = True
         acquisition_policy["page_fetch_limit"] = max(int(acquisition_policy.get("page_fetch_limit", 2) or 2), 2)
-        evidence_policy["prefer_acquired_text"] = True
     rationale = f"{mode} mode -> {role}"
     missing = list(judge_result.get("missing_dimensions") or [])
     if missing:
@@ -328,12 +389,16 @@ def _follow_up_queries(
     repairs = _repair_terms(judge_result)
     phrases = _dimension_phrases(goal_case, judge_result, limit=6)
     follow_ups: list[dict[str, Any]] = []
-    templates = [
-        "{phrase} implementation",
-        "{anchor} {phrase}",
-        "{phrase} examples",
-    ]
     for phrase in phrases or repairs:
+        templates = (
+            _pair_followup_templates(include_anchor=bool(anchors))
+            if _is_pair_extract_phrase(phrase)
+            else [
+                "{phrase} repository implementation",
+                "{anchor} {phrase} source proof",
+                "{phrase} release issue",
+            ]
+        )
         for template in templates:
             anchor = anchors[0] if anchors else ""
             spec = {"text": template.format(anchor=anchor, phrase=phrase).strip(), "platforms": []}
@@ -365,13 +430,17 @@ def _decomposition_followups(
     repairs = _repair_terms(judge_result)
     phrases = _dimension_phrases(goal_case, judge_result, limit=8)
     queries: list[dict[str, Any]] = []
-    patterns = [
-        "{phrase} implementation details",
-        "{phrase} failure modes",
-        "{phrase} benchmark dataset",
-        "{anchor} {phrase}",
-    ]
     for phrase in phrases or repairs:
+        patterns = (
+            _pair_decomposition_templates(include_anchor=bool(anchors))
+            if _is_pair_extract_phrase(phrase)
+            else [
+                "{phrase} repository source",
+                "{phrase} release blocker",
+                "{phrase} issue discussion",
+                "{anchor} {phrase} implementation proof",
+            ]
+        )
         for anchor in anchors or [""]:
             for pattern in patterns:
                 spec = {"text": pattern.format(anchor=anchor, phrase=phrase).strip(), "platforms": []}

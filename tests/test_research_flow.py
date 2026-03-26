@@ -31,6 +31,51 @@ class _FakeSearcher:
         ]
 
 
+class _PairSearcher:
+    goal_case = {
+        "dimensions": [
+            {
+                "id": "pair_extract",
+                "weight": 20,
+                "keywords": ["SWE-bench", "trajectory", "resolved", "unresolved", "success failure", "instance matching"],
+                "aliases": ["same benchmark instance", "successful and failed runs", "verified trajectories"],
+            },
+        ]
+    }
+
+    def candidate_plans(self, **kwargs):
+        return [
+            {
+                "label": "repair",
+                "queries": [{"text": "same benchmark instance successful and failed runs", "platforms": []}],
+                "program_overrides": {"provider_mix": ["searxng"]},
+                "branch_priority": 4,
+            }
+        ]
+
+
+class _DedupeSearcher:
+    goal_case = {
+        "dimensions": [
+            {
+                "id": "dedupe_quality",
+                "weight": 20,
+                "keywords": ["semantic deduplication", "semantic hashing", "semhash", "near duplicate", "dedup"],
+            },
+        ]
+    }
+
+    def candidate_plans(self, **kwargs):
+        return [
+            {
+                "label": "repair",
+                "queries": [{"text": "semantic deduplication and fake-Gold detection", "platforms": []}],
+                "program_overrides": {"provider_mix": ["searxng"]},
+                "branch_priority": 4,
+            }
+        ]
+
+
 class ResearchFlowTests(unittest.TestCase):
     def test_planner_returns_intents(self):
         plans = build_research_plan(
@@ -80,8 +125,88 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertTrue(any("runtime skip" in query["text"] or "implementation signal" in query["text"] for query in graph_followup["queries"]))
         self.assertTrue(graph_followup["program_overrides"]["acquisition_policy"]["acquire_pages"])
         self.assertTrue(graph_followup["program_overrides"]["evidence_policy"]["prefer_acquired_text"])
+        self.assertIn("code", graph_followup["program_overrides"]["evidence_policy"]["preferred_content_types"])
+        self.assertTrue(any(
+            marker in query["text"]
+            for query in graph_followup["queries"]
+            for marker in ("repository", "issue", "release", "source")
+        ))
         self.assertTrue(graph_followup["decision"]["cross_verify"])
         self.assertTrue(any(op["op"] == "request_cross_check" for op in graph_followup["planning_ops"]))
+
+    def test_planner_makes_repair_branch_evidence_first(self):
+        plans = build_research_plan(
+            searcher=_FakeSearcher(),
+            bundle_state={"accepted_findings": []},
+            judge_result={"missing_dimensions": ["implementation_signal"], "dimension_scores": {"implementation_signal": 5}},
+            tried_queries=set(),
+            available_providers=["searxng"],
+            active_program={"round_roles": ["dimension_repair"], "mode": "balanced"},
+            round_history=[],
+            plan_count=1,
+            max_queries=1,
+        )
+        repair = plans[0]
+        self.assertEqual(repair["branch_type"], "repair")
+        self.assertTrue(repair["decision"]["acquisition_policy"]["acquire_pages"])
+        self.assertTrue(repair["decision"]["evidence_policy"]["prefer_acquired_text"])
+        self.assertIn("code", repair["decision"]["evidence_policy"]["preferred_content_types"])
+        self.assertIn("repository", repair["decision"]["evidence_policy"]["preferred_content_types"])
+
+    def test_planner_pair_extract_followups_use_public_trajectory_language(self):
+        plans = build_research_plan(
+            searcher=_PairSearcher(),
+            bundle_state={"accepted_findings": []},
+            judge_result={"missing_dimensions": [], "dimension_scores": {"pair_extract": 5}},
+            tried_queries=set(),
+            available_providers=["searxng"],
+            active_program={"round_roles": ["dimension_repair"]},
+            round_history=[{"graph_node": "seed-1"}],
+            plan_count=2,
+            max_queries=2,
+            local_evidence_records=[{
+                "record_type": "evidence",
+                "title": "same benchmark instance successful and failed runs",
+                "url": "https://example.com",
+                "source": "local",
+                "query": "pair extract",
+            }],
+        )
+        graph_followup = next(plan for plan in plans if plan["label"] == "graph-followup")
+        graph_decomposition = next(plan for plan in plans if plan["label"] == "graph-decomposition-followup")
+        followup_text = " ".join(query["text"] for query in graph_followup["queries"]).lower()
+        decomposition_text = " ".join(query["text"] for query in graph_decomposition["queries"]).lower()
+        required_terms = {"trajectory", "resolved", "unresolved", "same", "success", "failure"}
+        self.assertTrue(any(term in followup_text for term in required_terms))
+        self.assertTrue(any(term in decomposition_text for term in required_terms))
+        self.assertNotIn("pair extract repository source", decomposition_text)
+
+    def test_planner_dedupe_followups_use_public_dedupe_language(self):
+        plans = build_research_plan(
+            searcher=_DedupeSearcher(),
+            bundle_state={"accepted_findings": []},
+            judge_result={"missing_dimensions": [], "dimension_scores": {"dedupe_quality": 10}},
+            tried_queries=set(),
+            available_providers=["searxng"],
+            active_program={"round_roles": ["dimension_repair"]},
+            round_history=[{"graph_node": "seed-1"}],
+            plan_count=2,
+            max_queries=2,
+            local_evidence_records=[{
+                "record_type": "evidence",
+                "title": "semantic deduplication and fake-Gold detection",
+                "url": "https://example.com",
+                "source": "local",
+                "query": "dedupe",
+            }],
+        )
+        graph_followup = next(plan for plan in plans if plan["label"] == "graph-followup")
+        graph_decomposition = next(plan for plan in plans if plan["label"] == "graph-decomposition-followup")
+        followup_text = " ".join(query["text"] for query in graph_followup["queries"]).lower()
+        decomposition_text = " ".join(query["text"] for query in graph_decomposition["queries"]).lower()
+        self.assertTrue(any(term in followup_text for term in ["semantic deduplication", "dedup", "duplicate", "semhash"]))
+        self.assertTrue(any(term in decomposition_text for term in ["semantic deduplication", "dedup", "duplicate", "semhash"]))
+        self.assertNotIn("dedupe quality repository source", decomposition_text)
 
     def test_planner_prefers_gap_queue_dimensions_over_missing_dimensions(self):
         plans = build_research_plan(
@@ -376,6 +501,60 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertIn("regression", [item["dimension"] for item in result["gap_queue"]])
         self.assertIn("planning_ops_summary", result["routeable_output"])
 
+    def test_synthesizer_uses_effective_target_score_for_routeable_output(self):
+        goal_case = {
+            "target_score": 100,
+            "dimensions": [
+                {"id": "implementation", "weight": 20, "keywords": ["implementation", "code"]},
+            ],
+        }
+        result = synthesize_research_round(
+            goal_case,
+            existing_findings=[],
+            round_findings=[{
+                "record_type": "evidence",
+                "title": "implementation code",
+                "url": "https://example.com",
+                "body": "implementation detail",
+                "source": "searxng",
+                "query": "implementation",
+            }],
+            harness={"bundle_policy": {"per_query_cap": 5, "per_source_cap": 10, "per_domain_cap": 10}},
+            effective_target_score=95,
+        )
+        self.assertEqual(result["routeable_output"]["score_gap"], 75)
+
+    def test_synthesizer_keeps_low_score_pair_extract_open_in_gap_queue(self):
+        goal_case = {
+            "dimensions": [
+                {
+                    "id": "pair_extract",
+                    "weight": 20,
+                    "keywords": ["SWE-bench", "trajectory", "SWE-agent", "SWE-Gym", "resolved", "unresolved", "success failure", "instance matching"],
+                },
+                {"id": "validation_release", "weight": 20, "keywords": ["validation report", "release gate"]},
+            ]
+        }
+        result = synthesize_research_round(
+            goal_case,
+            existing_findings=[],
+            round_findings=[{
+                "record_type": "evidence",
+                "title": "SWE-bench Lite dataset summary",
+                "url": "https://example.com",
+                "body": "Benchmark overview page.",
+                "source": "web",
+                "query": "swe-bench benchmark summary",
+            }],
+            harness={"bundle_policy": {"per_query_cap": 5, "per_source_cap": 10, "per_domain_cap": 10}},
+            gap_queue=[
+                {"gap_id": "gap:pair_extract", "dimension": "pair_extract", "status": "open", "priority": 1},
+                {"gap_id": "gap:validation_release", "dimension": "validation_release", "status": "open", "priority": 2},
+            ],
+        )
+        statuses = {item["dimension"]: item["status"] for item in result["gap_queue"]}
+        self.assertEqual(statuses["pair_extract"], "open")
+
     def test_synthesizer_reports_contradictions_and_consensus(self):
         goal_case = {
             "dimensions": [
@@ -421,6 +600,41 @@ class ResearchFlowTests(unittest.TestCase):
         self.assertIn("searxng", verification["source_dispute_map"])
         self.assertIn("ddgs", verification["source_dispute_map"])
         self.assertTrue(verification["source_dispute_map"]["searxng"]["claims"])
+
+    def test_synthesizer_avoids_self_collision_contradiction_pairs(self):
+        goal_case = {
+            "dimensions": [
+                {"id": "implementation", "weight": 20, "keywords": ["implementation", "verified"]},
+            ]
+        }
+        result = synthesize_research_round(
+            goal_case,
+            existing_findings=[],
+            round_findings=[
+                {
+                    "record_type": "evidence",
+                    "title": "Implementation works well in production. Implementation has a regression issue.",
+                    "url": "https://same.example.com/item",
+                    "body": "This stable implementation succeeds in production. This release has a bug limitation.",
+                    "source": "searxng",
+                    "query": "implementation verified",
+                },
+            ],
+            harness={"bundle_policy": {"per_query_cap": 5, "per_source_cap": 10, "per_domain_cap": 10}},
+            graph_plan={
+                "decision": {"cross_verify": True},
+                "cross_verification": {"verification_query_count": 2},
+                "query_runs": [{"query": "implementation verified"}],
+            },
+        )
+        verification = result["routeable_output"]["cross_verification"]
+        self.assertFalse(
+            any(
+                pair["left_url"] == pair["right_url"]
+                and pair["left_source"] == pair["right_source"]
+                for pair in verification["contradiction_pairs"]
+            ),
+        )
 
 
 if __name__ == "__main__":

@@ -14,6 +14,50 @@ import goal_bundle_loop as gbl
 
 
 class GoalBundleLoopTests(unittest.TestCase):
+    def test_update_gap_queue_keeps_low_score_pair_extract_open(self):
+        goal_case = {
+            "dimensions": [
+                {"id": "pair_extract", "weight": 20, "keywords": ["SWE-bench", "trajectory"]},
+                {"id": "validation_release", "weight": 20, "keywords": ["validation report", "release gate"]},
+            ]
+        }
+        queue = gbl.update_gap_queue(
+            goal_case=goal_case,
+            previous_queue=[],
+            judge_result={
+                "missing_dimensions": [],
+                "matched_dimensions": ["pair_extract", "validation_release"],
+                "dimension_scores": {"pair_extract": 5, "validation_release": 20},
+            },
+            round_index=1,
+        )
+        pair_gap = next(item for item in queue if item["dimension"] == "pair_extract")
+        validation_gap = next(item for item in queue if item["dimension"] == "validation_release")
+        self.assertEqual(pair_gap["status"], "open")
+        self.assertEqual(validation_gap["status"], "satisfied")
+
+    def test_sample_findings_prioritizes_structurally_strong_pair_evidence(self):
+        findings = [
+            {
+                "title": "Weak SWE-Bench trajectory mention",
+                "body": "SWE-agent replay for a SWE-Bench trajectory issue.",
+                "url": "https://example.com/weak",
+                "source": "github_issues",
+                "query": "pair",
+            },
+            {
+                "title": "Verified trajectories include successful and failed runs on the same benchmark instance",
+                "body": "Resolved and unresolved subsets stay aligned to the same task with issue-pull request pairs.",
+                "url": "https://example.com/strong",
+                "source": "github_repos",
+                "query": "pair",
+            },
+        ]
+
+        sample = gbl._sample_findings(findings, limit=1)
+
+        self.assertEqual(sample[0]["url"], "https://example.com/strong")
+
     def test_available_platforms_injects_free_web_search_before_premium(self):
         goal_case = {
             "providers": ["exa", "tavily", "github_repos"],
@@ -467,6 +511,410 @@ class GoalBundleLoopTests(unittest.TestCase):
         self.assertEqual(result["research_packet"]["packet_id"], "packet-1")
         self.assertEqual(result["rounds"][0]["routeable_output"]["research_packet"]["packet_id"], "packet-1")
         self.assertEqual(result["rounds"][0]["search_graph"]["deep_loop"]["steps"][0]["kind"], "search")
+
+    def test_run_goal_bundle_loop_promotes_accepted_round_artifacts_over_later_rounds(self):
+        goal_case = {
+            "id": "goal-artifact-selection",
+            "providers": ["github_repos"],
+            "seed_queries": [],
+            "target_score": 100,
+        }
+        plans = [
+            [
+                {
+                    "label": "accepted-round",
+                    "queries": [{"text": "accepted query", "platforms": []}],
+                    "program_overrides": {},
+                }
+            ],
+            [
+                {
+                    "label": "later-round",
+                    "queries": [{"text": "later query", "platforms": []}],
+                    "program_overrides": {},
+                }
+            ],
+        ]
+        executions = [
+            {
+                "label": "accepted-round",
+                "queries": [{"text": "accepted query", "platforms": []}],
+                "role": "repair",
+                "branch_type": "repair",
+                "branch_subgoal": "accepted",
+                "stage": "repair",
+                "graph_node": "node-1",
+                "graph_edges": [],
+                "branch_targets": ["accepted"],
+                "branch_depth": 1,
+                "decision": {"cross_verify": False},
+                "planning_ops": [],
+                "cross_verification": {"enabled": False, "verification_query_count": 0},
+                "deep_steps": [{"kind": "search", "summary": "accepted-round", "metadata": {"round": 1}}],
+                "local_evidence_hits": 0,
+                "query_keys": ["accepted-query"],
+                "query_runs": [
+                    {
+                        "query": "accepted query",
+                        "query_spec": {"text": "accepted query", "platforms": []},
+                        "baseline_score": 10,
+                        "finding_count": 1,
+                        "sample_findings": [],
+                    }
+                ],
+                "findings": [{"title": "accepted", "url": "https://example.com/accepted", "source": "github_repos", "query": "accepted query"}],
+            },
+            {
+                "label": "later-round",
+                "queries": [{"text": "later query", "platforms": []}],
+                "role": "repair",
+                "branch_type": "repair",
+                "branch_subgoal": "later",
+                "stage": "repair",
+                "graph_node": "node-2",
+                "graph_edges": [],
+                "branch_targets": ["later"],
+                "branch_depth": 1,
+                "decision": {"cross_verify": False},
+                "planning_ops": [],
+                "cross_verification": {"enabled": False, "verification_query_count": 0},
+                "deep_steps": [{"kind": "search", "summary": "later-round", "metadata": {"round": 2}}],
+                "local_evidence_hits": 0,
+                "query_keys": ["later-query"],
+                "query_runs": [
+                    {
+                        "query": "later query",
+                        "query_spec": {"text": "later query", "platforms": []},
+                        "baseline_score": 9,
+                        "finding_count": 1,
+                        "sample_findings": [],
+                    }
+                ],
+                "findings": [{"title": "later", "url": "https://example.com/later", "source": "github_repos", "query": "later query"}],
+            },
+        ]
+        synthesized = [
+            {
+                "bundle": [{"title": "accepted", "url": "https://example.com/accepted", "source": "github_repos", "query": "accepted query"}],
+                "research_bundle": {"bundle_id": "bundle-accepted"},
+                "judge_result": {
+                    "score": 40,
+                    "dimension_scores": {"artifact_signal": 40},
+                    "missing_dimensions": [],
+                    "matched_dimensions": ["artifact_signal"],
+                    "rationale": "accepted",
+                    "judge": "heuristic-bundle",
+                },
+                "harness_metrics": {"total_findings": 1, "new_unique_urls": 1, "novelty_ratio": 1.0, "source_diversity": 1.0, "source_concentration": 1.0, "query_concentration": 1.0},
+                "search_graph": {"deep_loop": {"steps": [{"kind": "search", "summary": "accepted-round"}]}},
+                "repair_hints": {},
+                "gap_queue": [],
+                "routeable_output": {
+                    "goal_id": "goal-artifact-selection",
+                    "research_packet": {"packet_id": "packet-accepted"},
+                    "score_gap": 60,
+                },
+            },
+            {
+                "bundle": [{"title": "later", "url": "https://example.com/later", "source": "github_repos", "query": "later query"}],
+                "research_bundle": {"bundle_id": "bundle-later"},
+                "judge_result": {
+                    "score": 35,
+                    "dimension_scores": {"artifact_signal": 35},
+                    "missing_dimensions": [],
+                    "matched_dimensions": ["artifact_signal"],
+                    "rationale": "later",
+                    "judge": "heuristic-bundle",
+                },
+                "harness_metrics": {"total_findings": 1, "new_unique_urls": 1, "novelty_ratio": 1.0, "source_diversity": 1.0, "source_concentration": 1.0, "query_concentration": 1.0},
+                "search_graph": {"deep_loop": {"steps": [{"kind": "search", "summary": "later-round"}]}},
+                "repair_hints": {},
+                "gap_queue": [],
+                "routeable_output": {
+                    "goal_id": "goal-artifact-selection",
+                    "research_packet": {"packet_id": "packet-later"},
+                    "score_gap": 65,
+                },
+            },
+        ]
+        acceptance = iter([
+            {"accepted": True, "candidate_score": 40, "anti_cheat_failures": [], "anti_cheat_warnings": []},
+            {"accepted": False, "candidate_score": 35, "anti_cheat_failures": [], "anti_cheat_warnings": []},
+        ])
+        build_program_calls = {"count": 0}
+        plan_calls = {"count": 0}
+        execution_calls = {"count": 0}
+        synth_calls = {"count": 0}
+
+        def fake_build_research_plan(**kwargs):
+            index = plan_calls["count"]
+            plan_calls["count"] += 1
+            return plans[index]
+
+        def fake_build_candidate_program(**kwargs):
+            index = build_program_calls["count"]
+            build_program_calls["count"] += 1
+            return {
+                "program_id": f"goal-artifact-selection-r{index + 1}-c1",
+                "parent_program_id": "seed-program",
+                "provider_mix": ["github_repos"],
+                "sampling_policy": {},
+                "queries": plans[index][0]["queries"],
+                "branch_id": f"branch-{index + 1}",
+                "family_id": f"family-{index + 1}",
+                "branch_root_program_id": "seed-program",
+                "branch_depth": 1,
+                "repair_depth": 1,
+                "mutation_kind": "dimension_repair",
+                "current_role": "repair",
+            }
+
+        def fake_execute_research_plan(*args, **kwargs):
+            index = execution_calls["count"]
+            execution_calls["count"] += 1
+            return executions[index]
+
+        def fake_synthesize_research_round(*args, **kwargs):
+            index = synth_calls["count"]
+            synth_calls["count"] += 1
+            return synthesized[index]
+
+        with patch.object(gbl, "refresh_source_capability", return_value={"sources": {}}), \
+             patch.object(gbl, "_available_platforms", return_value=[{"name": "github_repos", "limit": 5}]), \
+             patch.object(gbl, "ensure_harness", return_value={"goal_id": "goal-artifact-selection", "bundle_policy": {}, "anti_cheat": {}}), \
+             patch.object(gbl, "GoalSearcher", return_value=SimpleNamespace(initial_queries=lambda: [], candidate_plans=fake_build_research_plan)), \
+             patch.object(gbl, "load_accepted_program", return_value={"program_id": "seed-program", "queries": [], "sampling_policy": {}, "stop_rules": {}, "plateau_state": {}}), \
+             patch.object(gbl, "_best_prior_run", return_value=(None, None)), \
+             patch.object(gbl, "build_research_plan", side_effect=fake_build_research_plan), \
+             patch.object(gbl, "build_candidate_program", side_effect=fake_build_candidate_program), \
+             patch.object(gbl, "execute_research_plan", side_effect=fake_execute_research_plan), \
+             patch.object(gbl, "synthesize_research_round", side_effect=fake_synthesize_research_round), \
+             patch.object(gbl, "archive_candidate_program"), \
+             patch.object(gbl, "save_population_snapshot"), \
+             patch.object(gbl, "candidate_rank", side_effect=lambda item: int(item.get("score") or item["result"]["score"])), \
+             patch.object(gbl, "evaluate_acceptance", side_effect=acceptance), \
+             patch.object(gbl, "save_accepted_program"):
+            result = gbl.run_goal_bundle_loop(goal_case, max_rounds=2, plan_count_override=1, max_queries_override=1)
+
+        self.assertEqual(result["rounds"][0]["routeable_output"]["research_packet"]["packet_id"], "packet-accepted")
+        self.assertEqual(result["rounds"][1]["routeable_output"]["research_packet"]["packet_id"], "packet-later")
+        self.assertEqual(result["routeable_output"]["research_packet"]["packet_id"], "packet-accepted")
+        self.assertEqual(result["research_packet"]["packet_id"], "packet-accepted")
+        self.assertEqual(result["deep_steps"][0]["summary"], "accepted-round")
+        self.assertEqual(result["rounds"][1]["deep_steps"][0]["summary"], "later-round")
+
+    def test_run_goal_bundle_loop_aligns_routeable_score_gap_with_override_target(self):
+        goal_case = {
+            "id": "goal-score-gap",
+            "providers": ["github_repos"],
+            "seed_queries": [],
+            "target_score": 100,
+        }
+        plan = {
+            "label": "single-round",
+            "queries": [{"text": "single query", "platforms": []}],
+            "program_overrides": {},
+        }
+        execution = {
+            "label": "single-round",
+            "queries": [{"text": "single query", "platforms": []}],
+            "role": "repair",
+            "branch_type": "repair",
+            "branch_subgoal": "single",
+            "stage": "repair",
+            "graph_node": "node-1",
+            "graph_edges": [],
+            "branch_targets": ["single"],
+            "branch_depth": 1,
+            "decision": {"cross_verify": False},
+            "planning_ops": [],
+            "cross_verification": {"enabled": False, "verification_query_count": 0},
+            "deep_steps": [{"kind": "search", "summary": "single-round", "metadata": {"round": 1}}],
+            "local_evidence_hits": 0,
+            "query_keys": ["single-query"],
+            "query_runs": [
+                {
+                    "query": "single query",
+                    "query_spec": {"text": "single query", "platforms": []},
+                    "baseline_score": 10,
+                    "finding_count": 1,
+                    "sample_findings": [],
+                }
+            ],
+            "findings": [{"title": "single", "url": "https://example.com/single", "source": "github_repos", "query": "single query"}],
+        }
+        synthesized = {
+            "bundle": [{"title": "single", "url": "https://example.com/single", "source": "github_repos", "query": "single query"}],
+            "research_bundle": {"bundle_id": "bundle-single"},
+            "judge_result": {
+                "score": 70,
+                "dimension_scores": {"artifact_signal": 70},
+                "missing_dimensions": [],
+                "matched_dimensions": ["artifact_signal"],
+                "rationale": "single",
+                "judge": "heuristic-bundle",
+            },
+            "harness_metrics": {"total_findings": 1, "new_unique_urls": 1, "novelty_ratio": 1.0, "source_diversity": 1.0, "source_concentration": 1.0, "query_concentration": 1.0},
+            "search_graph": {"deep_loop": {"steps": [{"kind": "search", "summary": "single-round"}]}},
+            "repair_hints": {},
+            "gap_queue": [],
+            "routeable_output": {
+                "goal_id": "goal-score-gap",
+                "research_packet": {"packet_id": "packet-single"},
+                "score_gap": 30,
+            },
+        }
+        plan_calls = {"count": 0}
+
+        def fake_candidate_plans(**kwargs):
+            index = plan_calls["count"]
+            plan_calls["count"] += 1
+            return [plan] if index == 0 else []
+
+        with patch.object(gbl, "refresh_source_capability", return_value={"sources": {}}), \
+             patch.object(gbl, "_available_platforms", return_value=[{"name": "github_repos", "limit": 5}]), \
+             patch.object(gbl, "ensure_harness", return_value={"goal_id": "goal-score-gap", "bundle_policy": {}, "anti_cheat": {}}), \
+             patch.object(gbl, "GoalSearcher", return_value=SimpleNamespace(initial_queries=lambda: [], candidate_plans=fake_candidate_plans)), \
+             patch.object(gbl, "load_accepted_program", return_value={"program_id": "seed-program", "queries": [], "sampling_policy": {}, "stop_rules": {}, "plateau_state": {}}), \
+             patch.object(gbl, "_best_prior_run", return_value=(None, None)), \
+             patch.object(gbl, "build_candidate_program", return_value={
+                 "program_id": "goal-score-gap-r1-c1",
+                 "parent_program_id": "seed-program",
+                 "provider_mix": ["github_repos"],
+                 "sampling_policy": {},
+                 "queries": plan["queries"],
+                 "branch_id": "branch-1",
+                 "family_id": "family-1",
+                 "branch_root_program_id": "seed-program",
+                 "branch_depth": 1,
+                 "repair_depth": 1,
+                 "mutation_kind": "dimension_repair",
+                 "current_role": "repair",
+             }), \
+             patch.object(gbl, "execute_research_plan", return_value=execution), \
+             patch.object(gbl, "synthesize_research_round", return_value=synthesized), \
+             patch.object(gbl, "archive_candidate_program"), \
+             patch.object(gbl, "save_population_snapshot"), \
+             patch.object(gbl, "candidate_rank", side_effect=lambda item: int(item.get("score") or item["result"]["score"])), \
+             patch.object(gbl, "evaluate_acceptance", return_value={"accepted": True, "candidate_score": 70, "anti_cheat_failures": [], "anti_cheat_warnings": []}), \
+             patch.object(gbl, "save_accepted_program"):
+            result = gbl.run_goal_bundle_loop(
+                goal_case,
+                max_rounds=1,
+                plan_count_override=1,
+                max_queries_override=1,
+                target_score_override=95,
+            )
+
+        self.assertEqual(result["score_gap"], 25)
+        self.assertEqual(result["routeable_output"]["score_gap"], 25)
+        self.assertEqual(result["score_gap"], result["routeable_output"]["score_gap"])
+
+    def test_run_goal_bundle_loop_dedupes_reaccepted_queries(self):
+        goal_case = {
+            "id": "goal-query-dedupe",
+            "providers": ["github_repos"],
+            "seed_queries": [],
+            "target_score": 100,
+        }
+        plan = {
+            "label": "same-query",
+            "queries": [{"text": "repeat query", "platforms": []}],
+            "program_overrides": {},
+        }
+        execution = {
+            "label": "same-query",
+            "queries": [{"text": "repeat query", "platforms": []}],
+            "role": "repair",
+            "branch_type": "repair",
+            "branch_subgoal": "single",
+            "stage": "repair",
+            "graph_node": "node-1",
+            "graph_edges": [],
+            "branch_targets": ["single"],
+            "branch_depth": 1,
+            "decision": {"cross_verify": False},
+            "planning_ops": [],
+            "cross_verification": {"enabled": False, "verification_query_count": 0},
+            "deep_steps": [{"kind": "search", "summary": "repeat", "metadata": {"round": 1}}],
+            "local_evidence_hits": 0,
+            "query_keys": ["repeat-query"],
+            "query_runs": [
+                {
+                    "query": "repeat query",
+                    "query_spec": {"text": "repeat query", "platforms": []},
+                    "baseline_score": 10,
+                    "finding_count": 1,
+                    "sample_findings": [],
+                }
+            ],
+            "findings": [{"title": "repeat", "url": "https://example.com/repeat", "source": "github_repos", "query": "repeat query"}],
+        }
+        synthesized = {
+            "bundle": [{"title": "repeat", "url": "https://example.com/repeat", "source": "github_repos", "query": "repeat query"}],
+            "research_bundle": {"bundle_id": "bundle-repeat"},
+            "judge_result": {
+                "score": 70,
+                "dimension_scores": {"artifact_signal": 70},
+                "missing_dimensions": [],
+                "matched_dimensions": ["artifact_signal"],
+                "rationale": "repeat",
+                "judge": "heuristic-bundle",
+            },
+            "harness_metrics": {"total_findings": 1, "new_unique_urls": 1, "novelty_ratio": 1.0, "source_diversity": 1.0, "source_concentration": 1.0, "query_concentration": 1.0},
+            "search_graph": {"deep_loop": {"steps": [{"kind": "search", "summary": "repeat"}]}},
+            "repair_hints": {},
+            "gap_queue": [],
+            "routeable_output": {
+                "goal_id": "goal-query-dedupe",
+                "research_packet": {"packet_id": "packet-repeat"},
+                "score_gap": 30,
+            },
+        }
+        plan_calls = {"count": 0}
+
+        def fake_candidate_plans(**kwargs):
+            index = plan_calls["count"]
+            plan_calls["count"] += 1
+            return [plan] if index < 2 else []
+
+        with patch.object(gbl, "refresh_source_capability", return_value={"sources": {}}), \
+             patch.object(gbl, "_available_platforms", return_value=[{"name": "github_repos", "limit": 5}]), \
+             patch.object(gbl, "ensure_harness", return_value={"goal_id": "goal-query-dedupe", "bundle_policy": {}, "anti_cheat": {}}), \
+             patch.object(gbl, "GoalSearcher", return_value=SimpleNamespace(initial_queries=lambda: [], candidate_plans=lambda **kwargs: [])), \
+             patch.object(gbl, "load_accepted_program", return_value={"program_id": "seed-program", "queries": [], "sampling_policy": {}, "stop_rules": {}, "plateau_state": {}}), \
+             patch.object(gbl, "_best_prior_run", return_value=(None, None)), \
+             patch.object(gbl, "build_research_plan", side_effect=fake_candidate_plans), \
+             patch.object(gbl, "build_candidate_program", return_value={
+                 "program_id": "goal-query-dedupe-r1-c1",
+                 "parent_program_id": "seed-program",
+                 "provider_mix": ["github_repos"],
+                 "sampling_policy": {},
+                 "queries": plan["queries"],
+                 "branch_id": "branch-1",
+                 "family_id": "family-1",
+                 "branch_root_program_id": "seed-program",
+                 "branch_depth": 1,
+                 "repair_depth": 1,
+                 "mutation_kind": "dimension_repair",
+                 "current_role": "repair",
+             }), \
+             patch.object(gbl, "execute_research_plan", return_value=execution), \
+             patch.object(gbl, "synthesize_research_round", return_value=synthesized), \
+             patch.object(gbl, "archive_candidate_program"), \
+             patch.object(gbl, "save_population_snapshot"), \
+             patch.object(gbl, "candidate_rank", side_effect=lambda item: int(item.get("score") or item["result"]["score"])), \
+             patch.object(gbl, "evaluate_acceptance", return_value={"accepted": True, "candidate_score": 70, "anti_cheat_failures": [], "anti_cheat_warnings": []}), \
+             patch.object(gbl, "save_accepted_program"):
+            result = gbl.run_goal_bundle_loop(
+                goal_case,
+                max_rounds=2,
+                plan_count_override=1,
+                max_queries_override=1,
+            )
+
+        self.assertEqual(result["bundle_final"]["accepted_query_count"], 1)
+        self.assertEqual(len(result["accepted_program"]["queries"]), 1)
 
 
 if __name__ == "__main__":

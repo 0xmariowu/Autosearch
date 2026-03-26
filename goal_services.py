@@ -10,6 +10,7 @@ from typing import Any
 from acquisition import enrich_evidence_record
 from evidence import build_evidence_record, evidence_content_type
 from engine import PlatformConnector
+from goal_judge import _pair_extract_finding_score
 from query_dedup import dedup_query_specs
 from rerank import rerank_hits
 from search_mesh.provider_policy import (
@@ -320,6 +321,21 @@ def merge_findings(existing: list[dict[str, Any]], incoming: list[dict[str, Any]
 
 
 def sample_findings(items: list[dict[str, Any]], limit: int = 12) -> list[dict[str, Any]]:
+    ranked = list(items or [])
+    if ranked:
+        scores = [_pair_extract_finding_score(item) for item in ranked]
+        if max(scores, default=0) >= 5:
+            ranked = [
+                item
+                for _index, _score, item in sorted(
+                    (
+                        (index, _pair_extract_finding_score(item), item)
+                        for index, item in enumerate(ranked)
+                    ),
+                    key=lambda row: (row[1], -row[0]),
+                    reverse=True,
+                )
+            ]
     return [
         {
             "title": str(item.get("title") or ""),
@@ -328,7 +344,7 @@ def sample_findings(items: list[dict[str, Any]], limit: int = 12) -> list[dict[s
             "query": str(item.get("query") or ""),
             "body": str(item.get("body") or "")[:220],
         }
-        for item in items[:limit]
+        for item in ranked[:limit]
     ]
 
 
