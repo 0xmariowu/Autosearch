@@ -62,6 +62,27 @@ GENERIC_QUERY_TERMS = {
     "different",
     "vocabulary",
 }
+LOW_SIGNAL_CONTEXT_TOKENS = {
+    "data",
+    "dataset",
+    "datasets",
+    "code",
+    "model",
+    "base",
+    "first",
+    "information",
+    "preserve",
+    "checks",
+    "plus",
+    "examples",
+    "implementation",
+    "open",
+    "source",
+    "public",
+    "project",
+    "projects",
+    "extraction",
+}
 
 
 def _normalize_query_spec(query: Any) -> dict[str, Any]:
@@ -186,26 +207,48 @@ def _preferred_content_types_for_queries(queries: list[dict[str, Any]]) -> list[
 def _active_query_templates(
     active_program: dict[str, Any],
     fallback_templates: dict[str, Any],
+    goal_case: dict[str, Any],
 ) -> dict[str, list[Any]]:
+    fallback = {
+        str(key): [
+            spec
+            for spec in (_normalize_query_spec(query) for query in list(value or []))
+            if spec["text"] and _query_matches_dimension(goal_case, str(key), spec)
+        ]
+        for key, value in dict(fallback_templates or {}).items()
+    }
     raw = active_program.get("query_templates")
     if isinstance(raw, dict) and raw:
-        return {str(key): list(value or []) for key, value in raw.items()}
-    return {str(key): list(value or []) for key, value in dict(fallback_templates or {}).items()}
+        merged: dict[str, list[Any]] = {}
+        for dim_id in {str(key) for key in list(raw.keys()) + list(fallback.keys())}:
+            combined: list[dict[str, Any]] = []
+            for source in [list(raw.get(dim_id) or []), list(fallback.get(dim_id) or [])]:
+                for query in source:
+                    spec = _normalize_query_spec(query)
+                    if not spec["text"] or not _query_matches_dimension(goal_case, dim_id, spec):
+                        continue
+                    if spec not in combined:
+                        combined.append(spec)
+            merged[dim_id] = combined
+        return merged
+    return fallback
 
 
 def _active_dimension_strategies(
     active_program: dict[str, Any],
     query_templates: dict[str, list[Any]],
+    goal_case: dict[str, Any],
 ) -> dict[str, dict[str, Any]]:
     raw = dict(active_program.get("dimension_strategies") or {})
     if raw:
         return {
             str(key): {
-                "queries": [
-                    _normalize_query_spec(query)
-                    for query in list((value or {}).get("queries") or [])
-                    if _normalize_query_spec(query)["text"]
-                ],
+                "queries": _merge_dimension_queries(
+                    goal_case,
+                    str(key),
+                    list((value or {}).get("queries") or []),
+                    list(query_templates.get(str(key), []) or []),
+                ),
                 "preferred_providers": [
                     str(provider).strip()
                     for provider in list((value or {}).get("preferred_providers") or [])
@@ -217,9 +260,9 @@ def _active_dimension_strategies(
     return {
         str(key): {
             "queries": [
-                _normalize_query_spec(query)
-                for query in list(value or [])
-                if _normalize_query_spec(query)["text"]
+                spec
+                for spec in (_normalize_query_spec(query) for query in list(value or []))
+                if spec["text"] and _query_matches_dimension(goal_case, str(key), spec)
             ],
             "preferred_providers": [],
         }
@@ -458,10 +501,21 @@ def _dataset_name_from_url(url: str) -> str:
 def _weak_dimensions(goal_case: dict[str, Any], judge_result: dict[str, Any], max_count: int = 2) -> list[str]:
     dimension_scores = judge_result.get("dimension_scores", {}) or {}
     if dimension_scores:
-        return [
+        materially_open = [
             dim_id
-            for dim_id, _score in sorted(dimension_scores.items(), key=lambda item: int(item[1] or 0))[:max_count]
+            for dim_id, score in sorted(dimension_scores.items(), key=lambda item: int(item[1] or 0))
+            if int(score or 0) < _dimension_weight(goal_case, str(dim_id))
         ]
+        thresholded = [
+            dim_id
+            for dim_id, score in sorted(dimension_scores.items(), key=lambda item: int(item[1] or 0))
+            if int(score or 0) < _dimension_close_threshold(goal_case, str(dim_id))
+        ]
+        if thresholded:
+            return thresholded[:max_count]
+        if materially_open:
+            return materially_open[:max_count]
+        return [dim_id for dim_id, _score in sorted(dimension_scores.items(), key=lambda item: int(item[1] or 0))[:max_count]]
     return [str(dim.get("id") or "") for dim in list(goal_case.get("dimensions") or [])[:max_count] if str(dim.get("id") or "")]
 
 
@@ -472,6 +526,18 @@ def _repair_focus_dimensions(
     max_count: int = 2,
 ) -> list[str]:
     focus: list[str] = []
+    current_scores = {
+        str(key): int(value or 0)
+        for key, value in dict(judge_result.get("dimension_scores") or {}).items()
+        if str(key).strip()
+    }
+
+    def _is_open(dim_id: str) -> bool:
+        weight = _dimension_weight(goal_case, dim_id)
+        if weight <= 0:
+            return True
+        return int(current_scores.get(dim_id, 0) or 0) < weight
+
     for dim_id in [str(dim).strip() for dim in list(judge_result.get("missing_dimensions") or []) if str(dim).strip()]:
         if dim_id not in focus:
             focus.append(dim_id)
@@ -482,6 +548,8 @@ def _repair_focus_dimensions(
         if str(key).strip()
     }
     for dim_id, _score in sorted(stagnation.items(), key=lambda item: int(item[1] or 0), reverse=True):
+        if not _is_open(dim_id):
+            continue
         if dim_id not in focus:
             focus.append(dim_id)
         if len(focus) >= max_count:
@@ -498,8 +566,75 @@ def _repair_focus_dimensions(
 def _dimension_keywords(goal_case: dict[str, Any], dim_id: str, limit: int = 2) -> list[str]:
     for dimension in goal_case.get("dimensions", []):
         if str(dimension.get("id") or "") == dim_id:
-            return [str(keyword) for keyword in list(dimension.get("keywords") or [])[:limit] if str(keyword).strip()]
+            values = [
+                str(keyword)
+                for keyword in list(dimension.get("keywords") or []) + list(dimension.get("aliases") or [])
+                if str(keyword).strip()
+            ]
+            return values[:limit]
     return []
+
+
+def _dimension_signal_terms(goal_case: dict[str, Any], dim_id: str) -> set[str]:
+    tokens = set(_compact_terms(str(dim_id or "").replace("_", " "), limit=12))
+    for keyword in _dimension_keywords(goal_case, dim_id, limit=8):
+        tokens.update(_compact_terms(keyword, limit=12))
+    for phrase in _dimension_phrase_candidates(goal_case, dim_id, limit=6):
+        tokens.update(_compact_terms(phrase, limit=12))
+    if any(token in tokens for token in {"trajectory", "resolved", "unresolved", "success", "failure", "instance", "pair", "swe-bench"}):
+        tokens.update({"trajectory", "resolved", "unresolved", "success", "failure", "instance", "pair", "swe-bench"})
+    if any(token in tokens for token in {"validation", "release", "gate", "contract", "schema", "preflight", "publish", "deployment"}):
+        tokens.update({"validation", "release", "gate", "contract", "schema", "preflight", "publish", "deployment"})
+    if any(token in tokens for token in {"dedupe", "dedup", "duplicate", "semantic", "semhash", "fake-gold", "fake", "gold"}):
+        tokens.update({"dedupe", "dedup", "duplicate", "semantic", "semhash", "fake-gold", "fake", "gold"})
+    if any(token in tokens for token in {"extract", "extraction", "row", "rows", "raw", "record", "records"}):
+        tokens.update({"extract", "extraction", "row", "rows", "raw", "record", "records"})
+    return {token for token in tokens if token and token not in GENERIC_QUERY_TERMS}
+
+
+def _query_matches_dimension(goal_case: dict[str, Any], dim_id: str, query: Any) -> bool:
+    spec = _normalize_query_spec(query)
+    if not spec["text"]:
+        return False
+    signal_terms = _dimension_signal_terms(goal_case, dim_id)
+    if not signal_terms:
+        return True
+    parts = [str(spec.get("text") or "")]
+    for platform in list(spec.get("platforms") or []):
+        parts.append(str((platform or {}).get("query") or ""))
+        parts.append(str((platform or {}).get("repo") or ""))
+    query_terms = set(_compact_terms(" ".join(parts), limit=24))
+    return bool(query_terms.intersection(signal_terms))
+
+
+def _merge_dimension_queries(
+    goal_case: dict[str, Any],
+    dim_id: str,
+    primary_queries: list[Any],
+    fallback_queries: list[Any],
+) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    for query in list(primary_queries or []) + list(fallback_queries or []):
+        spec = _normalize_query_spec(query)
+        if not spec["text"] or not _query_matches_dimension(goal_case, dim_id, spec):
+            continue
+        if spec not in merged:
+            merged.append(spec)
+    return merged
+
+
+def _dimension_weight(goal_case: dict[str, Any], dim_id: str) -> int:
+    for dimension in list(goal_case.get("dimensions") or []):
+        if str(dimension.get("id") or "") == dim_id:
+            return max(0, int(dimension.get("weight", 0) or 0))
+    return 0
+
+
+def _dimension_close_threshold(goal_case: dict[str, Any], dim_id: str) -> int:
+    weight = _dimension_weight(goal_case, dim_id)
+    if weight > 0:
+        return max(1, weight // 2)
+    return 1
 
 
 def _context_phrases(goal_case: dict[str, Any], limit: int = 4) -> list[str]:
@@ -537,13 +672,45 @@ def _compact_terms(text: str, *, limit: int = 4) -> list[str]:
     return terms
 
 
+def _relevant_context_phrases(
+    goal_case: dict[str, Any],
+    dim_id: str,
+    *,
+    base_phrases: list[str],
+    limit: int = 4,
+) -> list[str]:
+    dimension_terms = set(_compact_terms(str(dim_id or "").replace("_", " "), limit=8))
+    for phrase in list(base_phrases or []):
+        dimension_terms.update(_compact_terms(phrase, limit=8))
+    if not dimension_terms:
+        return []
+    phrases: list[str] = []
+    seen: set[str] = set()
+    for phrase in _context_phrases(goal_case, limit=limit * 3):
+        compact = " ".join(_compact_terms(phrase, limit=6)).strip()
+        lowered = compact.lower()
+        if not compact or lowered in seen:
+            continue
+        overlap = set(_compact_terms(compact, limit=8)).intersection(dimension_terms)
+        if not overlap:
+            continue
+        strong_overlap = [token for token in overlap if token not in LOW_SIGNAL_CONTEXT_TOKENS]
+        if not strong_overlap and len(overlap) < 2:
+            continue
+        seen.add(lowered)
+        phrases.append(compact)
+        if len(phrases) >= limit:
+            break
+    return phrases
+
+
 def _dimension_phrase_candidates(goal_case: dict[str, Any], dim_id: str, *, limit: int = 4) -> list[str]:
     phrases: list[str] = []
     seen: set[str] = set()
     for dimension in list(goal_case.get("dimensions") or []):
         if str(dimension.get("id") or "") != dim_id:
             continue
-        for keyword in list(dimension.get("keywords") or []):
+        for keyword in list(dimension.get("keywords") or []) + list(dimension.get("aliases") or []):
             phrase = str(keyword or "").strip()
             lowered = phrase.lower()
             if not phrase or lowered in seen:
@@ -552,7 +719,8 @@ def _dimension_phrase_candidates(goal_case: dict[str, Any], dim_id: str, *, limi
             phrases.append(phrase)
             if len(phrases) >= limit:
                 return phrases
-    for phrase in _context_phrases(goal_case, limit=limit * 2):
+    base_context = phrases[:] or [str(dim_id or "").replace("_", " ").strip()]
+    for phrase in _relevant_context_phrases(goal_case, dim_id, base_phrases=base_context, limit=limit * 2):
         compact = " ".join(_compact_terms(phrase, limit=4)).strip()
         lowered = compact.lower()
         if not compact or lowered in seen:
@@ -579,16 +747,28 @@ def _dimension_family_variants(goal_case: dict[str, Any], dim_id: str, *, limit:
     dim_text = str(dim_id or "").replace("_", " ").strip().lower()
     base_phrases = _dimension_phrase_candidates(goal_case, dim_id, limit=limit)
 
-    tokens = set(_compact_terms(dim_text, limit=6))
+    family_tokens = set(_compact_terms(dim_text, limit=6))
     for phrase in base_phrases:
-        tokens.update(_compact_terms(phrase, limit=6))
-    for phrase in _context_phrases(goal_case, limit=6):
+        family_tokens.update(_compact_terms(phrase, limit=6))
+    tokens = set(family_tokens)
+    for phrase in _relevant_context_phrases(goal_case, dim_id, base_phrases=base_phrases, limit=6):
         tokens.update(_compact_terms(phrase, limit=6))
 
-    has_validation = any(token in tokens for token in {"validation", "validate", "validated", "schema", "contract"})
-    has_release = any(token in tokens for token in {"release", "gate", "publish", "deployment", "deploy", "fail-closed", "fail", "closed"})
+    has_validation = any(token in family_tokens for token in {"validation", "validate", "validated", "schema", "contract"})
+    has_release = any(token in family_tokens for token in {"release", "gate", "publish", "deployment", "deploy", "fail-closed", "fail", "closed"})
+    has_pair_extract = any(token in family_tokens for token in {"trajectory", "resolved", "unresolved", "success", "failure", "instance", "matching", "pair", "swe-bench"})
 
-    if has_validation and has_release:
+    if has_pair_extract:
+        for phrase in [
+            "same benchmark instance successful and failed runs",
+            "resolved unresolved subset same benchmark instance",
+            "issue pull request pair same task",
+            "verified trajectories same task",
+            "successful and failed runs same task",
+            "same instance trajectory pairing",
+        ]:
+            _push(phrase)
+    elif has_validation and has_release:
         for phrase in [
             "post-run validation report",
             "fail-closed release gate",
@@ -625,6 +805,44 @@ def _dimension_family_variants(goal_case: dict[str, Any], dim_id: str, *, limit:
     return variants[:limit]
 
 
+def _strategy_queries_for_dimension(
+    strategies: dict[str, dict[str, Any]],
+    dim_id: str,
+    *,
+    tried_queries: set[str],
+    recent_failed_queries: set[str] | None = None,
+    max_queries: int,
+) -> list[dict[str, Any]]:
+    queries: list[dict[str, Any]] = []
+    recent_failed_queries = {str(item or "").strip().lower() for item in list(recent_failed_queries or set()) if str(item or "").strip()}
+    for query in list((strategies.get(dim_id) or {}).get("queries") or []):
+        spec = _normalize_query_spec(query)
+        if not spec["text"]:
+            continue
+        if _query_key(spec) in tried_queries:
+            continue
+        if spec["text"].lower() in recent_failed_queries:
+            continue
+        if spec in queries:
+            continue
+        queries.append(spec)
+        if len(queries) >= max_queries:
+            break
+    return queries
+
+
+def _has_explicit_dimension_queries(
+    goal_case: dict[str, Any],
+    active_program: dict[str, Any],
+    dim_id: str,
+) -> bool:
+    active_templates = dict(active_program.get("query_templates") or {})
+    if list(active_templates.get(dim_id) or []):
+        return True
+    configured = dict(goal_case.get("dimension_queries") or {})
+    return bool(list(configured.get(dim_id) or []))
+
+
 def _specialized_dimension_queries(
     goal_case: dict[str, Any],
     dim_id: str,
@@ -658,6 +876,10 @@ def _specialized_dimension_queries(
         if "github_issues" in available_providers:
             issue_query = phrase
             platforms.append({"name": "github_issues", "query": issue_query, "limit": 5})
+        if "huggingface_datasets" in available_providers and any(
+            token in lowered for token in {"trajectory", "resolved", "unresolved", "pair", "instance", "task", "failed", "successful"}
+        ):
+            platforms.append({"name": "huggingface_datasets", "query": phrase, "limit": 5})
         if "github_repos" in available_providers and any(token in lowered for token in {"contract", "validation", "gate", "preflight"}):
             platforms.append({"name": "github_repos", "query": phrase, "limit": 5, "min_stars": 5})
         _append({"text": f"{dim_text} {phrase}".strip(), "platforms": platforms})
@@ -827,12 +1049,21 @@ def _context_followup_queries(
         keywords = _dimension_keywords(goal_case, dim_id, limit=3)
         dim_text = dim_id.replace("_", " ")
         phrase_candidates = _dimension_phrase_candidates(goal_case, dim_id, limit=4)
-        templates = [
-            "{phrase} implementation",
-            "{phrase} open source",
-            "{phrase} examples",
-            "{phrase} public implementation",
-        ]
+        tokens = set(_compact_terms(" ".join([dim_text] + keywords + phrase_candidates), limit=12))
+        if any(token in tokens for token in {"trajectory", "resolved", "unresolved", "success", "failure", "instance", "pair"}):
+            templates = [
+                "{phrase} same task",
+                "{phrase} successful failed runs",
+                "{phrase} resolved unresolved subset",
+                "{phrase} verified trajectories",
+            ]
+        else:
+            templates = [
+                "{phrase} implementation",
+                "{phrase} open source",
+                "{phrase} examples",
+                "{phrase} public implementation",
+            ]
         for phrase in phrase_candidates:
             compact_phrase = " ".join(_compact_terms(phrase, limit=5)).strip() or phrase
             for template in templates:
@@ -1058,8 +1289,8 @@ class HeuristicGoalSearcher:
         round_history = list(round_history or [])
         active_program = dict(active_program or {})
         current_frontier = _normalize_topic_frontier(active_program.get("topic_frontier") or self.topic_frontier)
-        current_templates = _active_query_templates(active_program, self.dimension_queries)
-        current_strategies = _active_dimension_strategies(active_program, current_templates)
+        current_templates = _active_query_templates(active_program, self.dimension_queries, self.goal_case)
+        current_strategies = _active_dimension_strategies(active_program, current_templates, self.goal_case)
         current_role = _current_round_role(active_program, bundle_state, judge_result, round_history)
         current_acquisition_policy = dict(active_program.get("acquisition_policy") or {})
         current_evidence_policy = dict(active_program.get("evidence_policy") or {})
@@ -1110,7 +1341,26 @@ class HeuristicGoalSearcher:
             max_queries=max_queries,
         )
         specialized_queries: list[dict[str, Any]] = []
-        for dim_id in weak_dimensions[:2]:
+        specialized_dimensions = weak_dimensions[:1] if weak_dimensions else []
+        for dim_id in specialized_dimensions:
+            explicit_strategy_queries: list[dict[str, Any]] = []
+            if _has_explicit_dimension_queries(self.goal_case, active_program, dim_id):
+                explicit_strategy_queries = _strategy_queries_for_dimension(
+                    current_strategies,
+                    dim_id,
+                    tried_queries=tried_queries,
+                    recent_failed_queries=recent_failed_queries,
+                    max_queries=max_queries,
+                )
+            for query in explicit_strategy_queries:
+                if query not in specialized_queries:
+                    specialized_queries.append(query)
+                if len(specialized_queries) >= max_queries:
+                    break
+            if len(specialized_queries) >= max_queries:
+                break
+            if explicit_strategy_queries:
+                break
             for query in _specialized_dimension_queries(
                 self.goal_case,
                 dim_id,
