@@ -7,7 +7,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from goal_editor import GoalSearcher, HeuristicGoalSearcher, _normalize_query_spec
+from goal_editor import GoalSearcher, HeuristicGoalSearcher, _dimension_family_variants, _normalize_query_spec
 from goal_judge import evaluate_goal_bundle
 
 
@@ -321,7 +321,7 @@ class GoalEditorTests(unittest.TestCase):
         )
         labels = [plan["label"] for plan in plans]
         self.assertIn("dimension_repair-specialized-repair", labels)
-        specialized = next(plan for plan in plans if plan["label"] == "dimension_repair-specialized-repair")
+        specialized = next(plan for plan in plans if str(plan["label"]).endswith("specialized-repair"))
         texts = [query["text"] for query in specialized["queries"]]
         self.assertTrue(any("post-run validation report" in text or "fail-closed release gate" in text for text in texts))
         self.assertTrue(specialized["program_overrides"]["evidence_policy"]["prefer_acquired_text"])
@@ -433,6 +433,286 @@ class GoalEditorTests(unittest.TestCase):
             max_queries=1,
         )
         self.assertEqual(plans[0]["queries"][0]["text"], "runtime skip query")
+
+    def test_repair_focus_ignores_closed_stagnant_dimensions(self):
+        goal_case = {
+            "seed_queries": [],
+            "providers": ["github_code", "github_issues", "github_repos", "huggingface_datasets"],
+            "dimensions": [
+                {"id": "validation_release", "weight": 20, "keywords": ["validation report", "release gate", "fail-closed"]},
+                {"id": "dedupe_quality", "weight": 20, "keywords": ["semantic deduplication", "near duplicate", "fake gold"]},
+            ],
+            "dimension_queries": {
+                "validation_release": ["post-run validation report"],
+                "dedupe_quality": ["semantic deduplication and fake-Gold detection for near-duplicate code pairs"],
+            },
+        }
+        searcher = GoalSearcher(goal_case)
+        plans = searcher.candidate_plans(
+            bundle_state={"accepted_findings": [], "score": 85},
+            judge_result={
+                "missing_dimensions": [],
+                "dimension_scores": {
+                    "validation_release": 20,
+                    "dedupe_quality": 10,
+                },
+            },
+            tried_queries=set(),
+            available_providers=["github_code", "github_issues", "github_repos", "huggingface_datasets"],
+            active_program={
+                "current_role": "dimension_repair",
+                "plateau_state": {"dimension_stagnation": {"validation_release": 5, "dedupe_quality": 1}},
+                "query_templates": {
+                    "validation_release": ["post-run validation report"],
+                    "dedupe_quality": ["semantic deduplication and fake-Gold detection for near-duplicate code pairs"],
+                },
+            },
+            plan_count=2,
+            max_queries=2,
+        )
+        specialized = next(plan for plan in plans if str(plan["label"]).endswith("specialized-repair"))
+        specialized_text = " ".join(query["text"] for query in specialized["queries"]).lower()
+        self.assertIn("semantic deduplication", specialized_text)
+        self.assertNotIn("validation report", specialized_text)
+
+    def test_pair_extract_repair_queries_stay_on_public_pair_vocabulary(self):
+        goal_case = {
+            "seed_queries": [],
+            "providers": ["searxng", "ddgs", "github_code", "github_issues", "github_repos", "huggingface_datasets"],
+            "context_notes": "Success and failure trajectory pairing should stay on the same benchmark instance and compare resolved versus unresolved runs.",
+            "dimensions": [
+                {
+                    "id": "pair_extract",
+                    "weight": 20,
+                    "keywords": ["SWE-bench", "trajectory", "resolved", "unresolved", "success failure", "instance matching"],
+                }
+            ],
+            "dimension_queries": {"pair_extract": []},
+        }
+        searcher = GoalSearcher(goal_case)
+        plans = searcher.candidate_plans(
+            bundle_state={"accepted_findings": [], "score": 65},
+            judge_result={"missing_dimensions": [], "dimension_scores": {"pair_extract": 5}},
+            tried_queries=set(),
+            available_providers=["searxng", "ddgs", "github_code", "github_issues", "github_repos", "huggingface_datasets"],
+            active_program={"mode": "balanced", "current_role": "dimension_repair"},
+            plan_count=3,
+            max_queries=3,
+        )
+        labels = [plan["label"] for plan in plans]
+        self.assertIn("dimension_repair-specialized-repair", labels)
+        self.assertIn("dimension_repair-context-followup", labels)
+        specialized = next(plan for plan in plans if str(plan["label"]).endswith("specialized-repair"))
+        context = next(plan for plan in plans if plan["label"] == "dimension_repair-context-followup")
+        specialized_text = " ".join(query["text"] for query in specialized["queries"]).lower()
+        context_text = " ".join(query["text"] for query in context["queries"]).lower()
+        required_terms = {"trajectory", "resolved", "unresolved", "same", "success", "failure"}
+        self.assertTrue(any(term in specialized_text for term in required_terms))
+        self.assertTrue(any(term in context_text for term in required_terms))
+        self.assertNotIn("validation release", specialized_text)
+        self.assertNotIn("data validation", context_text)
+
+    def test_dedupe_quality_specialized_repair_uses_dedupe_templates_not_pair_context(self):
+        goal_case = {
+            "seed_queries": [],
+            "providers": ["searxng", "ddgs", "github_code", "github_issues", "github_repos", "huggingface_datasets"],
+            "context_notes": (
+                "Extraction should preserve raw information first, validation should run after extraction, "
+                "success/failure trajectory pairing matters for SWE-bench-style data, base release must be fail-closed, "
+                "and semantic dedup plus fake-Gold checks are required."
+            ),
+            "dimensions": [
+                {"id": "pair_extract", "weight": 20, "keywords": ["SWE-bench", "trajectory", "resolved", "unresolved"]},
+                {"id": "validation_release", "weight": 20, "keywords": ["validation report", "release gate", "fail-closed"]},
+                {
+                    "id": "dedupe_quality",
+                    "weight": 20,
+                    "keywords": [
+                        "semantic deduplication",
+                        "semantic hashing",
+                        "semhash",
+                        "near duplicate",
+                        "fake gold",
+                        "dedup",
+                    ],
+                },
+            ],
+            "dimension_queries": {
+                "dedupe_quality": [
+                    {
+                        "text": "semantic deduplication and fake-Gold detection for near-duplicate code pairs",
+                        "platforms": [
+                            {"name": "github_repos", "query": "semhash", "limit": 5},
+                            {"name": "github_issues", "query": "dedup", "limit": 5},
+                            {"name": "huggingface_datasets", "query": "semantic dedup", "limit": 5},
+                        ],
+                    },
+                    {
+                        "text": "near duplicate detection and identical pair filtering",
+                        "platforms": [
+                            {"name": "github_code", "query": "\"near duplicate\" dedup", "limit": 5},
+                        ],
+                    },
+                ],
+            },
+        }
+        searcher = GoalSearcher(goal_case)
+        plans = searcher.candidate_plans(
+            bundle_state={"accepted_findings": [], "score": 73},
+            judge_result={
+                "missing_dimensions": [],
+                "dimension_scores": {
+                    "pair_extract": 20,
+                    "validation_release": 20,
+                    "dedupe_quality": 10,
+                },
+            },
+            tried_queries=set(),
+            available_providers=["searxng", "ddgs", "github_code", "github_issues", "github_repos", "huggingface_datasets"],
+            active_program={"mode": "deep", "current_role": "dimension_repair"},
+            plan_count=4,
+            max_queries=4,
+        )
+        specialized = next(plan for plan in plans if str(plan["label"]).endswith("specialized-repair"))
+        specialized_text = " ".join(query["text"] for query in specialized["queries"]).lower()
+        self.assertIn("semantic deduplication", specialized_text)
+        self.assertTrue(any(token in specialized_text for token in ["semhash", "near duplicate", "fake-gold", "dedup"]))
+        self.assertNotIn("same benchmark instance", specialized_text)
+        self.assertNotIn("validation release", specialized_text)
+
+    def test_dedupe_quality_evidence_strengthening_stays_on_public_dedupe_language(self):
+        goal_case = {
+            "seed_queries": [],
+            "providers": ["searxng", "ddgs", "github_code", "github_issues", "github_repos", "huggingface_datasets"],
+            "context_notes": (
+                "Need pair extract with same benchmark instance success and failure trajectories; "
+                "validation release gates matter; dedupe quality depends on semantic deduplication, "
+                "near duplicate filtering, and fake-Gold checks."
+            ),
+            "dimensions": [
+                {"id": "pair_extract", "weight": 20, "keywords": ["same benchmark instance", "successful and failed runs"]},
+                {"id": "validation_release", "weight": 20, "keywords": ["validation report", "release gate"]},
+                {"id": "dedupe_quality", "weight": 20, "keywords": ["semantic deduplication", "near duplicate filtering", "fake-Gold"]},
+            ],
+            "dimension_queries": {
+                "dedupe_quality": [
+                    {"text": "semantic deduplication and fake-Gold detection for near-duplicate code pairs"},
+                    {"text": "near duplicate detection and identical pair filtering"},
+                ],
+            },
+        }
+        searcher = GoalSearcher(goal_case)
+        plans = searcher.candidate_plans(
+            bundle_state={"accepted_findings": [], "score": 73},
+            judge_result={
+                "missing_dimensions": [],
+                "dimension_scores": {
+                    "pair_extract": 20,
+                    "validation_release": 20,
+                    "dedupe_quality": 10,
+                },
+            },
+            tried_queries=set(),
+            available_providers=["searxng", "ddgs", "github_code", "github_issues", "github_repos", "huggingface_datasets"],
+            active_program={"mode": "deep", "current_role": "dimension_repair"},
+            plan_count=4,
+            max_queries=4,
+        )
+        strengthening = next(plan for plan in plans if plan["label"] == "evidence_strengthening-primary")
+        context = next(plan for plan in plans if plan["label"] == "evidence_strengthening-context-followup")
+        strengthening_text = " ".join(query["text"] for query in strengthening["queries"]).lower()
+        context_text = " ".join(query["text"] for query in context["queries"]).lower()
+        self.assertTrue(any(token in strengthening_text for token in ["semantic deduplication", "near duplicate", "fake-gold", "dedup"]))
+        self.assertTrue(any(token in context_text for token in ["semantic deduplication", "near duplicate", "fake-gold", "dedup"]))
+        self.assertNotIn("same benchmark instance", strengthening_text)
+        self.assertNotIn("successful failed runs", context_text)
+        self.assertNotIn("resolved unresolved subset", context_text)
+
+    def test_active_program_filters_misaligned_historical_dedupe_queries(self):
+        goal_case = {
+            "seed_queries": [],
+            "providers": ["searxng", "ddgs", "github_code", "github_issues", "github_repos", "huggingface_datasets"],
+            "context_notes": (
+                "Need pair extract with same benchmark instance success and failure trajectories; "
+                "validation release gates matter; dedupe quality depends on semantic deduplication, "
+                "near duplicate filtering, and fake-Gold checks."
+            ),
+            "dimensions": [
+                {"id": "extraction_completeness", "weight": 20, "keywords": ["direct extraction", "raw rows"]},
+                {"id": "pair_extract", "weight": 20, "keywords": ["same benchmark instance", "successful and failed runs"]},
+                {"id": "validation_release", "weight": 20, "keywords": ["validation report", "release gate"]},
+                {"id": "dedupe_quality", "weight": 20, "keywords": ["semantic deduplication", "near duplicate filtering", "fake-Gold"]},
+            ],
+            "dimension_queries": {
+                "dedupe_quality": [
+                    {"text": "semantic deduplication and fake-Gold detection for near-duplicate code pairs"},
+                    {"text": "near duplicate detection and identical pair filtering"},
+                ],
+            },
+        }
+        polluted = "validation release same benchmark instance successful and failed runs"
+        searcher = GoalSearcher(goal_case)
+        plans = searcher.candidate_plans(
+            bundle_state={"accepted_findings": [], "score": 85},
+            judge_result={
+                "missing_dimensions": [],
+                "dimension_scores": {
+                    "extraction_completeness": 15,
+                    "pair_extract": 20,
+                    "validation_release": 20,
+                    "dedupe_quality": 10,
+                },
+            },
+            tried_queries=set(),
+            available_providers=["searxng", "ddgs", "github_code", "github_issues", "github_repos", "huggingface_datasets"],
+            active_program={
+                "mode": "deep",
+                "current_role": "dimension_repair",
+                "query_templates": {
+                    "dedupe_quality": [polluted],
+                },
+                "dimension_strategies": {
+                    "dedupe_quality": {
+                        "queries": [polluted],
+                        "preferred_providers": ["github_code", "github_issues"],
+                    }
+                },
+            },
+            plan_count=4,
+            max_queries=4,
+        )
+        specialized = next(plan for plan in plans if str(plan["label"]).endswith("specialized-repair"))
+        primary = next(plan for plan in plans if plan["label"] == "evidence_strengthening-primary")
+        specialized_text = " ".join(query["text"] for query in specialized["queries"]).lower()
+        primary_text = " ".join(query["text"] for query in primary["queries"]).lower()
+        self.assertIn("semantic deduplication", specialized_text)
+        self.assertNotIn("validation release", specialized_text)
+        self.assertNotIn("same benchmark instance", specialized_text)
+        self.assertNotIn("validation release", primary_text)
+        self.assertNotIn("same benchmark instance", primary_text)
+
+    def test_context_notes_do_not_change_dimension_family(self):
+        goal_case = {
+            "seed_queries": [],
+            "context_notes": (
+                "Extraction should preserve raw information first, validation should run after extraction, "
+                "success/failure trajectory pairing matters for SWE-bench-style data, base release must be fail-closed, "
+                "and semantic dedup plus fake-Gold checks are required."
+            ),
+            "dimensions": [
+                {"id": "extraction_completeness", "weight": 20, "keywords": ["direct conversion", "before after", "original code", "revised code"]},
+                {"id": "validation_release", "weight": 20, "keywords": ["validation report", "release gate", "fail-closed", "data contract"]},
+                {"id": "pair_extract", "weight": 20, "keywords": ["same benchmark instance", "trajectory", "resolved", "unresolved"]},
+                {"id": "dedupe_quality", "weight": 20, "keywords": ["semantic deduplication", "near duplicate", "fake gold"]},
+            ],
+        }
+        validation_variants = " ".join(_dimension_family_variants(goal_case, "validation_release", limit=8)).lower()
+        extraction_variants = " ".join(_dimension_family_variants(goal_case, "extraction_completeness", limit=8)).lower()
+        self.assertIn("post-run validation report", validation_variants)
+        self.assertNotIn("same benchmark instance", validation_variants)
+        self.assertNotIn("resolved unresolved subset", validation_variants)
+        self.assertNotIn("validation report", extraction_variants)
+        self.assertNotIn("release gate", extraction_variants)
 
     def test_deep_mode_promotes_evidence_strengthening_after_failed_repairs(self):
         goal_case = {
