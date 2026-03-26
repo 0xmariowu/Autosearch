@@ -274,6 +274,47 @@ class GoalRuntimeTests(unittest.TestCase):
             "pair success and failure trajectories on the same swe-bench instance",
         )
 
+    def test_filter_program_templates_keeps_on_dimension_queries(self):
+        goal_case = {
+            "dimensions": [
+                {
+                    "id": "extraction_completeness",
+                    "keywords": [
+                        "original code",
+                        "revised code",
+                        "before after",
+                        "ReviewComments",
+                    ],
+                },
+            ],
+        }
+        program = {
+            "query_templates": {
+                "extraction_completeness": [
+                    {"text": "code review dataset original revised code", "platforms": []},
+                ],
+            },
+            "dimension_strategies": {
+                "extraction_completeness": {
+                    "queries": [
+                        {"text": "code review dataset original revised code", "platforms": []},
+                    ],
+                    "preferred_providers": ["github_repos"],
+                },
+            },
+        }
+
+        filtered = gr._filter_program_templates(program, goal_case)
+
+        self.assertEqual(
+            filtered["query_templates"]["extraction_completeness"],
+            [{"text": "code review dataset original revised code", "platforms": []}],
+        )
+        self.assertEqual(
+            filtered["dimension_strategies"]["extraction_completeness"]["queries"],
+            [{"text": "code review dataset original revised code", "platforms": []}],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
