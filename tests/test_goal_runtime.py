@@ -228,6 +228,52 @@ class GoalRuntimeTests(unittest.TestCase):
         self.assertEqual(program["topic_frontier"][0]["id"], "validation_release")
         self.assertEqual(program["topic_frontier"][0]["queries"], [])
 
+    def test_filter_program_templates_removes_cross_dimension_queries(self):
+        goal_case = {
+            "dimensions": [
+                {
+                    "id": "label_separation",
+                    "keywords": ["label separation", "labeling separate from extraction"],
+                },
+            ],
+        }
+        program = {
+            "query_templates": {
+                "label_separation": [
+                    {"text": "pair success and failure trajectories on the same swe-bench instance", "platforms": []},
+                    {"text": "label separation annotation boundary", "platforms": []},
+                ],
+            },
+            "dimension_strategies": {
+                "label_separation": {
+                    "queries": [
+                        {"text": "pair success and failure trajectories on the same swe-bench instance", "platforms": []},
+                        {"text": "label separation annotation boundary", "platforms": []},
+                    ],
+                    "preferred_providers": ["github_repos"],
+                },
+            },
+        }
+
+        filtered = gr._filter_program_templates(program, goal_case)
+
+        self.assertEqual(
+            filtered["query_templates"]["label_separation"],
+            [{"text": "label separation annotation boundary", "platforms": []}],
+        )
+        self.assertEqual(
+            filtered["dimension_strategies"]["label_separation"]["queries"],
+            [{"text": "label separation annotation boundary", "platforms": []}],
+        )
+        self.assertEqual(
+            filtered["dimension_strategies"]["label_separation"]["preferred_providers"],
+            ["github_repos"],
+        )
+        self.assertEqual(
+            program["query_templates"]["label_separation"][0]["text"],
+            "pair success and failure trajectories on the same swe-bench instance",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from goal_editor import _query_matches_dimension
 from research.mode_policy import apply_mode_policy
 
 
@@ -130,6 +131,33 @@ def _normalize_topic_frontier(frontier: Any) -> list[dict[str, Any]]:
         if topic_id:
             normalized.append({"id": topic_id, "queries": []})
     return normalized
+
+
+def _filter_program_templates(program: dict[str, Any], goal_case: dict[str, Any]) -> dict[str, Any]:
+    filtered = dict(program)
+    raw_templates = dict(program.get("query_templates") or {})
+    filtered["query_templates"] = {
+        str(dim_id): [
+            query
+            for query in list(queries or [])
+            if _query_matches_dimension(goal_case, str(dim_id), query)
+        ]
+        for dim_id, queries in raw_templates.items()
+    }
+
+    raw_strategies = dict(program.get("dimension_strategies") or {})
+    filtered["dimension_strategies"] = {
+        str(dim_id): {
+            **dict(strategy or {}),
+            "queries": [
+                query
+                for query in list((strategy or {}).get("queries") or [])
+                if _query_matches_dimension(goal_case, str(dim_id), query)
+            ],
+        }
+        for dim_id, strategy in raw_strategies.items()
+    }
+    return filtered
 
 
 def default_program(goal_case: dict[str, Any], available_providers: list[str]) -> dict[str, Any]:
@@ -270,6 +298,7 @@ def load_accepted_program(goal_case: dict[str, Any], available_providers: list[s
         else:
             payload.setdefault("mode_policy_overrides", {})
         payload["topic_frontier"] = _normalize_topic_frontier(payload.get("topic_frontier") or [])
+        payload = _filter_program_templates(payload, goal_case)
         return apply_mode_policy(payload)
     return default_program(goal_case, available_providers)
 
