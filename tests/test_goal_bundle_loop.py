@@ -533,6 +533,323 @@ class GoalBundleLoopTests(unittest.TestCase):
         self.assertEqual(promoted["selection"]["reason"], "archive_tie_broken_by_profile_or_program")
         save_mock.assert_called_once()
 
+    def test_run_goal_bundle_loop_warm_start_merges_historical_evidence_without_score_regression(self):
+        goal_case = {
+            "id": "goal-historical-merge",
+            "providers": ["github_repos"],
+            "dimensions": [{"id": "history", "weight": 20, "keywords": ["historical evidence"]}],
+            "target_score": 100,
+        }
+        accepted_program = {
+            "program_id": "seed-program",
+            "queries": [{"text": "seed query", "platforms": []}],
+            "sampling_policy": {},
+            "stop_rules": {},
+            "round_roles": ["broad_recall", "dimension_repair"],
+            "current_role": "broad_recall",
+        }
+
+        class _FakeIndex:
+            def __init__(self, path):
+                self.records = [{
+                    "title": "Historical evidence",
+                    "url": "https://example.com/historical",
+                    "source": "github_repos",
+                    "query": "historical query",
+                    "body": "historical evidence",
+                }]
+
+            def load_all(self):
+                return list(self.records)
+
+            def add(self, records):
+                self.records.extend(list(records or []))
+
+        def fake_judge(_goal_case, bundle):
+            urls = {item["url"] for item in bundle}
+            if "https://example.com/historical" in urls:
+                return {
+                    "score": 80,
+                    "dimension_scores": {"history": 20},
+                    "missing_dimensions": [],
+                    "matched_dimensions": ["history"],
+                    "rationale": "historical evidence preserved",
+                    "judge": "heuristic-bundle",
+                }
+            return {
+                "score": 40,
+                "dimension_scores": {"history": 10},
+                "missing_dimensions": ["history"],
+                "matched_dimensions": [],
+                "rationale": "replay only",
+                "judge": "heuristic-bundle",
+            }
+
+        with patch.object(gbl, "refresh_source_capability", return_value={"sources": {}}), \
+             patch.object(gbl, "_available_platforms", return_value=[{"name": "github_repos", "limit": 5}]), \
+             patch.object(gbl, "ensure_harness", return_value={"goal_id": goal_case["id"], "bundle_policy": {}, "anti_cheat": {}}), \
+             patch.object(gbl, "GoalSearcher", return_value=SimpleNamespace(initial_queries=lambda: [], candidate_plans=lambda **kwargs: [])), \
+             patch.object(gbl, "load_accepted_program", return_value=accepted_program), \
+             patch.object(gbl, "LocalEvidenceIndex", _FakeIndex), \
+             patch.object(gbl, "_best_prior_run", return_value=(None, None)), \
+             patch.object(gbl, "_replay_queries", return_value=(
+                 [{"query": "seed query", "query_spec": {"text": "seed query", "platforms": []}, "baseline_score": 5}],
+                 [{"title": "Replay evidence", "url": "https://example.com/replay", "source": "github_repos", "query": "seed query"}],
+             )), \
+             patch.object(gbl, "build_bundle", side_effect=lambda existing, findings, harness: list(findings)), \
+             patch.object(gbl, "evaluate_goal_bundle", side_effect=fake_judge), \
+             patch.object(
+                 gbl,
+                 "_promote_compatible_archive_candidate",
+                 side_effect=lambda **kwargs: (
+                     kwargs["accepted_program"],
+                     kwargs["bundle_state"],
+                     {
+                         "score": kwargs["bundle_state"]["score"],
+                         "dimension_scores": kwargs["bundle_state"]["dimension_scores"],
+                         "missing_dimensions": kwargs["bundle_state"]["missing_dimensions"],
+                         "matched_dimensions": kwargs["bundle_state"].get("matched_dimensions", []),
+                         "rationale": kwargs["bundle_state"]["rationale"],
+                         "judge": kwargs["bundle_state"]["judge"],
+                     },
+                     None,
+                 ),
+             ):
+            result = gbl.run_goal_bundle_loop(goal_case, max_rounds=0)
+
+        self.assertEqual(result["bundle_final"]["score"], 80)
+        self.assertEqual(result["bundle_final"]["accepted_finding_count"], 2)
+        self.assertEqual(result["warm_start"]["replayed_query_count"], 1)
+
+    def test_run_goal_bundle_loop_tracks_query_keyword_hits_for_accepted_rounds(self):
+        goal_case = {
+            "id": "goal-query-hits",
+            "providers": ["github_repos"],
+            "dimensions": [
+                {"id": "release", "weight": 20, "keywords": ["release gate"]},
+                {"id": "validation", "weight": 20, "keywords": ["validation report"]},
+            ],
+            "target_score": 20,
+        }
+        saved_programs: list[dict] = []
+
+        def fake_build_candidate_program(**kwargs):
+            return {
+                "program_id": "goal-query-hits-r1-c1",
+                "provider_mix": ["github_repos"],
+                "sampling_policy": {},
+                "queries": list(kwargs["queries"]),
+                "current_role": "dimension_repair",
+            }
+
+        def fake_execute(plan, **kwargs):
+            queries = list(plan.get("intents") or [])
+            return {
+                "label": plan.get("label", ""),
+                "queries": queries,
+                "role": "dimension_repair",
+                "branch_type": "repair",
+                "branch_subgoal": "",
+                "stage": "repair",
+                "graph_node": "",
+                "graph_edges": [],
+                "branch_targets": [],
+                "branch_depth": 1,
+                "decision": {},
+                "planning_ops": [],
+                "cross_verification": {"enabled": False, "verification_query_count": 0},
+                "deep_steps": [],
+                "local_evidence_hits": 0,
+                "query_keys": [query["text"] for query in queries],
+                "query_runs": [
+                    {
+                        "query": "release query",
+                        "query_spec": {"text": "release query", "platforms": []},
+                        "baseline_score": 3,
+                        "finding_count": 1,
+                        "sample_findings": [],
+                    },
+                    {
+                        "query": "noise query",
+                        "query_spec": {"text": "noise query", "platforms": []},
+                        "baseline_score": 1,
+                        "finding_count": 1,
+                        "sample_findings": [],
+                    },
+                ],
+                "findings": [
+                    {
+                        "title": "Release gate documentation",
+                        "body": "A release gate also depends on a validation report.",
+                        "url": "https://example.com/release",
+                        "source": "github_repos",
+                        "query": "release query",
+                    },
+                    {
+                        "title": "Unrelated note",
+                        "body": "This does not match the target keywords.",
+                        "url": "https://example.com/noise",
+                        "source": "github_repos",
+                        "query": "noise query",
+                    },
+                ],
+            }
+
+        def fake_synthesize(goal_case, existing_findings, round_findings, harness, graph_plan, gap_queue, planning_ops):
+            return {
+                "bundle": list(round_findings),
+                "judge_result": {
+                    "score": 30,
+                    "dimension_scores": {"release": 15, "validation": 15},
+                    "missing_dimensions": [],
+                    "matched_dimensions": ["release", "validation"],
+                    "rationale": "accepted",
+                    "judge": "heuristic-bundle",
+                },
+                "harness_metrics": {
+                    "total_findings": len(round_findings),
+                    "new_unique_urls": len(round_findings),
+                    "novelty_ratio": 1.0,
+                    "source_diversity": 1.0,
+                    "source_concentration": 1.0,
+                    "query_concentration": 1.0,
+                },
+                "routeable_output": {},
+                "research_bundle": {},
+                "search_graph": {},
+                "gap_queue": [],
+            }
+
+        with patch.object(gbl, "refresh_source_capability", return_value={"sources": {}}), \
+             patch.object(gbl, "_available_platforms", return_value=[{"name": "github_repos", "limit": 5}]), \
+             patch.object(gbl, "ensure_harness", return_value={"goal_id": goal_case["id"], "bundle_policy": {}, "anti_cheat": {}}), \
+             patch.object(
+                 gbl,
+                 "GoalSearcher",
+                 return_value=SimpleNamespace(
+                     initial_queries=lambda: [],
+                     candidate_plans=lambda **kwargs: [
+                         {
+                             "label": "repair",
+                             "queries": [
+                                 {"text": "release query", "platforms": []},
+                                 {"text": "noise query", "platforms": []},
+                             ],
+                             "program_overrides": {"current_role": "dimension_repair"},
+                         }
+                     ],
+                 ),
+             ), \
+             patch.object(
+                 gbl,
+                 "load_accepted_program",
+                 return_value={
+                     "program_id": "seed-program",
+                     "queries": [],
+                     "sampling_policy": {},
+                     "stop_rules": {},
+                     "round_roles": ["dimension_repair"],
+                     "current_role": "dimension_repair",
+                 },
+             ), \
+             patch.object(gbl, "_best_prior_run", return_value=(None, None)), \
+             patch.object(gbl, "build_candidate_program", side_effect=fake_build_candidate_program), \
+             patch.object(gbl, "execute_research_plan", side_effect=fake_execute), \
+             patch.object(gbl, "synthesize_research_round", side_effect=fake_synthesize), \
+             patch.object(gbl, "archive_candidate_program", return_value=Path("/tmp/archive.json")), \
+             patch.object(gbl, "save_population_snapshot", return_value={
+                 "latest": Path("/tmp/latest.json"),
+                 "history": Path("/tmp/history.json"),
+                 "latest_lineage": Path("/tmp/latest-lineage.json"),
+                 "lineage_history": Path("/tmp/lineage-history.json"),
+             }), \
+             patch.object(gbl, "candidate_rank", side_effect=lambda item: int(item.get("score") or item["result"]["score"])), \
+             patch.object(gbl, "evaluate_acceptance", return_value={"accepted": True, "candidate_score": 30, "anti_cheat_failures": [], "anti_cheat_warnings": []}), \
+             patch.object(gbl, "save_accepted_program", side_effect=lambda goal_id, program: saved_programs.append(dict(program))):
+            result = gbl.run_goal_bundle_loop(goal_case, max_rounds=1, plan_count_override=1, max_queries_override=2)
+
+        self.assertEqual(result["bundle_final"]["score"], 30)
+        self.assertTrue(saved_programs)
+        self.assertEqual(
+            saved_programs[-1]["query_keyword_hits"],
+            {"release query": ["release gate", "validation report"]},
+        )
+
+    def test_run_goal_bundle_loop_warm_start_replays_only_queries_with_keyword_hits(self):
+        goal_case = {
+            "id": "goal-query-filter",
+            "providers": ["github_repos"],
+            "dimensions": [{"id": "release", "weight": 20, "keywords": ["release gate"]}],
+            "target_score": 100,
+        }
+        accepted_program = {
+            "program_id": "seed-program",
+            "queries": [
+                {"text": "release query", "platforms": []},
+                {"text": "validation query", "platforms": []},
+                {"text": "discard query", "platforms": []},
+            ],
+            "query_keyword_hits": {
+                "release query": ["release gate"],
+                "validation query": ["validation report"],
+            },
+            "sampling_policy": {},
+            "stop_rules": {},
+            "round_roles": ["broad_recall", "dimension_repair"],
+            "current_role": "broad_recall",
+        }
+        replayed_queries: list[dict] = []
+
+        with patch.object(gbl, "refresh_source_capability", return_value={"sources": {}}), \
+             patch.object(gbl, "_available_platforms", return_value=[{"name": "github_repos", "limit": 5}]), \
+             patch.object(gbl, "ensure_harness", return_value={"goal_id": goal_case["id"], "bundle_policy": {}, "anti_cheat": {}}), \
+             patch.object(gbl, "GoalSearcher", return_value=SimpleNamespace(initial_queries=lambda: [], candidate_plans=lambda **kwargs: [])), \
+             patch.object(gbl, "load_accepted_program", return_value=accepted_program), \
+             patch.object(gbl, "_best_prior_run", return_value=(None, None)), \
+             patch.object(
+                 gbl,
+                 "_replay_queries",
+                 side_effect=lambda queries, platforms, sampling_policy: (
+                     replayed_queries.extend(list(queries)),
+                     [{"query_spec": query, "baseline_score": 3} for query in queries],
+                     [],
+                 )[1:],
+             ), \
+             patch.object(gbl, "build_bundle", side_effect=lambda existing, findings, harness: list(findings)), \
+             patch.object(
+                 gbl,
+                 "evaluate_goal_bundle",
+                 return_value={
+                     "score": 0,
+                     "dimension_scores": {"release": 0},
+                     "missing_dimensions": ["release"],
+                     "matched_dimensions": [],
+                     "rationale": "warm start",
+                     "judge": "heuristic-bundle",
+                 },
+             ), \
+             patch.object(
+                 gbl,
+                 "_promote_compatible_archive_candidate",
+                 side_effect=lambda **kwargs: (
+                     kwargs["accepted_program"],
+                     kwargs["bundle_state"],
+                     {
+                         "score": kwargs["bundle_state"]["score"],
+                         "dimension_scores": kwargs["bundle_state"]["dimension_scores"],
+                         "missing_dimensions": kwargs["bundle_state"]["missing_dimensions"],
+                         "matched_dimensions": kwargs["bundle_state"].get("matched_dimensions", []),
+                         "rationale": kwargs["bundle_state"]["rationale"],
+                         "judge": kwargs["bundle_state"]["judge"],
+                     },
+                     None,
+                 ),
+             ):
+            result = gbl.run_goal_bundle_loop(goal_case, max_rounds=0)
+
+        self.assertEqual([query["text"] for query in replayed_queries], ["release query", "validation query"])
+        self.assertEqual(result["warm_start"]["replayed_query_count"], 2)
+
     def test_run_goal_bundle_loop_first_round_uses_candidate_plans_when_seed_queries_missing(self):
         goal_case = {
             "id": "goal-rubric-only",
@@ -581,36 +898,131 @@ class GoalBundleLoopTests(unittest.TestCase):
         self.assertIn("deep_steps", result)
         self.assertIn("deep_steps", result["rounds"][0])
 
-    def test_run_goal_bundle_loop_reports_plateau_state(self):
+    def test_run_goal_bundle_loop_rotates_strategy_on_plateau_instead_of_stopping(self):
         goal_case = {
             "id": "goal-plateau",
             "providers": ["github_repos"],
-            "seed_queries": ["seed"],
             "target_score": 100,
-            "plateau_rounds": 1,
+            "dimensions": [{"id": "gap", "weight": 20, "keywords": ["gap"]}],
         }
+        built_roles: list[str] = []
+
+        def fake_build_candidate_program(**kwargs):
+            current_role = str(kwargs["parent_program"].get("current_role") or "broad_recall")
+            built_roles.append(current_role)
+            return {
+                "program_id": f"goal-plateau-r{kwargs['round_index']}-c{kwargs['candidate_index']}",
+                "provider_mix": ["github_repos"],
+                "sampling_policy": {},
+                "queries": list(kwargs["queries"]),
+                "current_role": current_role,
+            }
+
+        def fake_execute(plan, **kwargs):
+            queries = list(plan.get("intents") or [])
+            return {
+                "label": plan.get("label", ""),
+                "queries": queries,
+                "role": str(plan.get("role") or ""),
+                "branch_type": "repair",
+                "branch_subgoal": "",
+                "stage": "repair",
+                "graph_node": "",
+                "graph_edges": [],
+                "branch_targets": [],
+                "branch_depth": 1,
+                "decision": {},
+                "planning_ops": [],
+                "cross_verification": {"enabled": False, "verification_query_count": 0},
+                "deep_steps": [],
+                "local_evidence_hits": 0,
+                "query_keys": [query["text"] for query in queries],
+                "query_runs": [
+                    {
+                        "query": queries[0]["text"],
+                        "query_spec": queries[0],
+                        "baseline_score": 1,
+                        "finding_count": 1,
+                        "sample_findings": [],
+                    }
+                ],
+                "findings": [{"title": queries[0]["text"], "url": f"https://example.com/{queries[0]['text']}", "source": "github_repos", "query": queries[0]["text"]}],
+            }
+
+        def fake_synthesize(goal_case, existing_findings, round_findings, harness, graph_plan, gap_queue, planning_ops):
+            return {
+                "bundle": list(round_findings),
+                "judge_result": {
+                    "score": 10,
+                    "dimension_scores": {"gap": 10},
+                    "missing_dimensions": ["gap"],
+                    "matched_dimensions": [],
+                    "rationale": "plateau",
+                    "judge": "heuristic-bundle",
+                },
+                "harness_metrics": {
+                    "total_findings": len(round_findings),
+                    "new_unique_urls": len(round_findings),
+                    "novelty_ratio": 1.0,
+                    "source_diversity": 1.0,
+                    "source_concentration": 1.0,
+                    "query_concentration": 1.0,
+                },
+                "routeable_output": {},
+                "research_bundle": {},
+                "search_graph": {},
+                "gap_queue": [],
+            }
+
         with patch.object(gbl, "refresh_source_capability", return_value={"sources": {}}), \
              patch.object(gbl, "_available_platforms", return_value=[{"name": "github_repos", "limit": 5}]), \
              patch.object(gbl, "ensure_harness", return_value={"goal_id": "goal-plateau", "bundle_policy": {}, "anti_cheat": {}}), \
-             patch.object(gbl, "GoalSearcher") as searcher_cls, \
-             patch.object(gbl, "load_accepted_program", return_value={"program_id": "seed-program", "queries": [], "sampling_policy": {}, "stop_rules": {"plateau_rounds": 1}, "plateau_state": {}}), \
+             patch.object(gbl, "GoalSearcher", return_value=SimpleNamespace(initial_queries=lambda: [], candidate_plans=lambda **kwargs: [])), \
+             patch.object(
+                 gbl,
+                 "load_accepted_program",
+                 return_value={
+                     "program_id": "seed-program",
+                     "queries": [],
+                     "sampling_policy": {},
+                     "stop_rules": {"plateau_rounds": 1},
+                     "plateau_state": {},
+                     "round_roles": ["broad_recall", "dimension_repair", "orthogonal_probe"],
+                     "current_role": "broad_recall",
+                 },
+             ), \
              patch.object(gbl, "_best_prior_run", return_value=(None, None)), \
-             patch.object(gbl, "_search_query", return_value={"query": "seed", "query_spec": {"text": "seed", "platforms": []}, "baseline_score": 1, "findings": [{"title": "x", "url": "u", "source": "github_repos", "query": "seed"}]}), \
-             patch.object(gbl, "build_candidate_program", return_value={"program_id": "goal-plateau-r1-c1", "provider_mix": ["github_repos"], "sampling_policy": {}, "queries": [{"text": "seed", "platforms": []}], "current_role": "broad_recall"}), \
+             patch.object(
+                 gbl,
+                 "build_research_plan",
+                 side_effect=lambda **kwargs: [
+                     {
+                         "label": kwargs["active_program"]["current_role"],
+                         "queries": [{"text": kwargs["active_program"]["current_role"], "platforms": []}],
+                         "program_overrides": {"current_role": kwargs["active_program"]["current_role"]},
+                     }
+                 ],
+             ), \
+             patch.object(gbl, "build_candidate_program", side_effect=fake_build_candidate_program), \
+             patch.object(gbl, "execute_research_plan", side_effect=fake_execute), \
+             patch.object(gbl, "synthesize_research_round", side_effect=fake_synthesize), \
              patch.object(gbl, "archive_candidate_program"), \
              patch.object(gbl, "save_population_snapshot"), \
              patch.object(gbl, "candidate_rank", side_effect=lambda item: int(item.get("score") or 0)), \
              patch.object(gbl, "evaluate_acceptance", return_value={"accepted": False, "candidate_score": 10, "anti_cheat_failures": [], "anti_cheat_warnings": []}), \
-             patch.object(gbl, "build_bundle", return_value=[{"title": "x", "url": "u", "source": "github_repos", "query": "seed"}]), \
-             patch.object(gbl, "bundle_metrics", return_value={"total_findings": 1, "new_unique_urls": 1, "novelty_ratio": 1.0, "source_diversity": 1.0, "source_concentration": 1.0, "query_concentration": 1.0}), \
-             patch.object(gbl, "evaluate_goal_bundle", return_value={"score": 10, "dimension_scores": {"gap": 10}, "missing_dimensions": ["gap"], "matched_dimensions": [], "rationale": "plateau", "judge": "heuristic-bundle"}), \
              patch.object(gbl, "save_accepted_program"):
-            searcher_cls.return_value = SimpleNamespace(
-                initial_queries=lambda: [{"text": "seed", "platforms": []}],
-                candidate_plans=lambda **kwargs: [],
+            result = gbl.run_goal_bundle_loop(
+                goal_case,
+                max_rounds=2,
+                plan_count_override=1,
+                max_queries_override=1,
+                plateau_rounds_override=1,
             )
-            result = gbl.run_goal_bundle_loop(goal_case, max_rounds=2, plan_count_override=1, max_queries_override=1)
-        self.assertEqual(result["stop_reason"], "plateau_detected")
+        self.assertEqual(result["stop_reason"], "max_rounds_reached")
+        self.assertEqual(len(result["rounds"]), 2)
+        self.assertEqual([round_item["round_role"] for round_item in result["rounds"]], ["broad_recall", "dimension_repair"])
+        self.assertEqual(built_roles, ["broad_recall", "dimension_repair"])
+        self.assertEqual(result["accepted_program"]["current_role"], "orthogonal_probe")
         self.assertIn("stagnant_rounds", result["plateau_state"])
 
     def test_run_goal_bundle_loop_accepts_target_and_plateau_overrides(self):

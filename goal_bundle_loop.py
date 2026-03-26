@@ -13,7 +13,7 @@ from evaluation_harness import build_bundle, bundle_metrics
 from evidence.normalize import coerce_evidence_records
 from evidence_index import LocalEvidenceIndex
 from goal_editor import GoalSearcher
-from goal_judge import evaluate_goal_bundle
+from goal_judge import _bundle_dimensions, _finding_texts, _keyword_match, evaluate_goal_bundle
 from goal_runtime import (
     archive_candidate_program,
     build_candidate_program,
@@ -136,6 +136,102 @@ def _harness_for_program(harness: dict[str, Any], program: dict[str, Any]) -> di
         bundle_policy["per_domain_cap"] = int(sampling_policy.get("bundle_per_domain_cap") or bundle_policy.get("per_domain_cap", 18))
     effective["bundle_policy"] = bundle_policy
     return effective
+
+
+def _round_roles_for_program(program: dict[str, Any]) -> list[str]:
+    roles: list[str] = []
+    for role in list(program.get("round_roles") or []):
+        value = str(role or "").strip()
+        if value and value not in roles:
+            roles.append(value)
+    current_role = str(program.get("current_role") or "").strip()
+    if current_role and current_role not in roles:
+        roles.append(current_role)
+    if roles:
+        return roles
+    return ["broad_recall", "dimension_repair", "orthogonal_probe"]
+
+
+def _merge_historical_evidence_into_bundle(
+    *,
+    goal_case: dict[str, Any],
+    bundle_state: dict[str, Any],
+    harness: dict[str, Any],
+    program: dict[str, Any],
+    index: LocalEvidenceIndex,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    historical_evidence = _normalized_findings(index.load_all())
+    if not historical_evidence:
+        return bundle_state, None
+    merged_findings = _merge_findings(
+        list(bundle_state.get("accepted_findings") or []),
+        historical_evidence,
+    )
+    effective_harness = _harness_for_program(harness, program)
+    merged_bundle = build_bundle([], merged_findings, effective_harness)
+    merged_judge = evaluate_goal_bundle(goal_case, merged_bundle)
+    if int(merged_judge.get("score", 0) or 0) < int(bundle_state.get("score", 0) or 0):
+        return bundle_state, None
+    return {
+        "accepted_findings": _normalized_findings(merged_bundle),
+        "accepted_queries": list(bundle_state.get("accepted_queries") or []),
+        "score": int(merged_judge.get("score", 0) or 0),
+        "judge": merged_judge.get("judge", ""),
+        "dimension_scores": merged_judge.get("dimension_scores", {}),
+        "missing_dimensions": merged_judge.get("missing_dimensions", []),
+        "rationale": merged_judge.get("rationale", ""),
+        "matched_dimensions": merged_judge.get("matched_dimensions", []),
+    }, merged_judge
+
+
+def _update_query_keyword_hits(
+    *,
+    goal_case: dict[str, Any],
+    query_keyword_map: dict[str, list[str]] | None,
+    query_runs: list[dict[str, Any]],
+    findings: list[dict[str, Any]],
+) -> dict[str, list[str]]:
+    updated: dict[str, list[str]] = {
+        str(query).strip(): [
+            str(keyword).strip()
+            for keyword in list(keywords or [])
+            if str(keyword).strip()
+        ]
+        for query, keywords in dict(query_keyword_map or {}).items()
+        if str(query).strip()
+    }
+    findings_by_query: dict[str, list[dict[str, Any]]] = {}
+    for finding in list(findings or []):
+        query_text = str(finding.get("query") or "").strip()
+        if not query_text:
+            continue
+        findings_by_query.setdefault(query_text, []).append(finding)
+    for qrun in list(query_runs or []):
+        query_text = _normalize_query_spec(qrun.get("query_spec") or qrun.get("query") or {}).get("text") or ""
+        if not query_text:
+            continue
+        q_findings = findings_by_query.get(query_text) or []
+        if not q_findings:
+            continue
+        q_texts = _finding_texts(q_findings)
+        q_hits: list[str] = []
+        for dimension in _bundle_dimensions(goal_case):
+            dimension_terms: list[str] = []
+            for keyword in list(dimension.get("keywords") or []) + list(dimension.get("aliases") or []):
+                phrase = str(keyword or "").strip()
+                if phrase and phrase not in dimension_terms and _keyword_match(phrase, q_texts):
+                    dimension_terms.append(phrase)
+            for phrase in dimension_terms:
+                if phrase not in q_hits:
+                    q_hits.append(phrase)
+        if not q_hits:
+            continue
+        merged_hits = list(updated.get(query_text) or [])
+        for hit in q_hits:
+            if hit not in merged_hits:
+                merged_hits.append(hit)
+        updated[query_text] = merged_hits
+    return updated
 
 
 def _update_plateau_state(
@@ -484,6 +580,19 @@ def run_goal_bundle_loop(
             accepted_program["queries"] = list(prior_queries)
             accepted_program["score"] = prior_score
             accepted_program["dimension_scores"] = dict(((prior_payload.get("bundle_final") or {}).get("dimension_scores") or {}))
+    query_keyword_map = {
+        str(query).strip(): list(keywords or [])
+        for query, keywords in dict(accepted_program.get("query_keyword_hits") or {}).items()
+        if str(query).strip()
+    }
+    if query_keyword_map and prior_queries:
+        effective_queries = [
+            query
+            for query in prior_queries
+            if (_normalize_query_spec(query).get("text") or "") in query_keyword_map
+        ]
+        if effective_queries:
+            prior_queries = effective_queries
     if prior_queries:
         if prior_queries:
             effective_harness = _harness_for_program(harness, accepted_program)
@@ -508,6 +617,17 @@ def run_goal_bundle_loop(
             accepted_program["score"] = bundle_state["score"]
             accepted_program["dimension_scores"] = dict(bundle_state["dimension_scores"])
             index.add(list(bundle_state["accepted_findings"]))
+            bundle_state, merged_judge = _merge_historical_evidence_into_bundle(
+                goal_case=goal_case,
+                bundle_state=bundle_state,
+                harness=harness,
+                program=accepted_program,
+                index=index,
+            )
+            if merged_judge is not None:
+                judge_result = merged_judge
+                accepted_program["score"] = bundle_state["score"]
+                accepted_program["dimension_scores"] = dict(bundle_state["dimension_scores"])
             for query in prior_queries:
                 tried_queries.add(_query_key(query))
             warm_start = {
@@ -525,6 +645,17 @@ def run_goal_bundle_loop(
                 platforms=platforms,
             )
             if promoted:
+                bundle_state, merged_judge = _merge_historical_evidence_into_bundle(
+                    goal_case=goal_case,
+                    bundle_state=bundle_state,
+                    harness=harness,
+                    program=accepted_program,
+                    index=index,
+                )
+                if merged_judge is not None:
+                    judge_result = merged_judge
+                    accepted_program["score"] = bundle_state["score"]
+                    accepted_program["dimension_scores"] = dict(bundle_state["dimension_scores"])
                 for query in accepted_program.get("queries", []):
                     tried_queries.add(_query_key(query))
                 warm_start = {
@@ -909,6 +1040,24 @@ def run_goal_bundle_loop(
                 ),
                 "accepted_at": datetime.now().astimezone().isoformat(),
             }
+            bundle_state, merged_judge = _merge_historical_evidence_into_bundle(
+                goal_case=goal_case,
+                bundle_state=bundle_state,
+                harness=harness,
+                program=accepted_program,
+                index=index,
+            )
+            if merged_judge is not None:
+                judge_result = merged_judge
+                accepted_program["score"] = bundle_state["score"]
+                accepted_program["dimension_scores"] = dict(bundle_state["dimension_scores"])
+            accepted_program["query_keyword_hits"] = _update_query_keyword_hits(
+                goal_case=goal_case,
+                query_keyword_map=dict(accepted_program.get("query_keyword_hits") or {}),
+                query_runs=list(best_candidate.get("query_runs") or []),
+                findings=list(best_candidate.get("round_findings") or []),
+            )
+            accepted_program["_strategies_exhausted"] = 0
             save_accepted_program(str(goal_case.get("id") or "goal"), accepted_program)
             index.add(list(bundle_state["accepted_findings"]))
             no_improvement_rounds = 0
@@ -1013,8 +1162,20 @@ def run_goal_bundle_loop(
             stop_reason = "budget_exhausted"
             break
         if no_improvement_rounds >= plateau_rounds_limit:
-            stop_reason = "plateau_detected"
-            break
+            round_roles = _round_roles_for_program(accepted_program)
+            strategies_tried = int(accepted_program.get("_strategies_exhausted", 0) or 0) + 1
+            if strategies_tried >= len(round_roles):
+                accepted_program["_strategies_exhausted"] = strategies_tried
+                stop_reason = "all_strategies_exhausted"
+                break
+            current_role = str(accepted_program.get("current_role") or "").strip()
+            try:
+                role_index = round_roles.index(current_role)
+            except ValueError:
+                role_index = 0
+            accepted_program["current_role"] = round_roles[(role_index + 1) % len(round_roles)]
+            accepted_program["_strategies_exhausted"] = strategies_tried
+            no_improvement_rounds = 0
 
     baseline_best = None
     for round_item in rounds:
