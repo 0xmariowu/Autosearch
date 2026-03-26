@@ -10,7 +10,7 @@ import importlib.util
 from typing import Any
 
 from .document_models import AcquiredDocument
-from .markdown_cleaner import clean_markdown, fit_markdown
+from .markdown_strategy import build_markdown_views
 
 
 def crawl4ai_available() -> bool:
@@ -32,7 +32,7 @@ def fetch_with_crawl4ai(url: str, *, timeout: int = 10) -> AcquiredDocument:
         raise RuntimeError("crawl4ai crawler missing run/crawl method")
     result = runner(str(url or "").strip(), timeout=timeout)
     markdown = str(getattr(result, "markdown", "") or getattr(result, "clean_markdown", "") or "")
-    fit = str(getattr(result, "fit_markdown", "") or fit_markdown(markdown))
+    fit = str(getattr(result, "fit_markdown", "") or "")
     html = str(getattr(result, "html", "") or getattr(result, "raw_html", "") or "")
     final_url = str(getattr(result, "url", "") or getattr(result, "final_url", "") or url)
     title = str(getattr(result, "title", "") or "").strip()
@@ -55,8 +55,11 @@ def fetch_with_crawl4ai(url: str, *, timeout: int = 10) -> AcquiredDocument:
         final_url=document.final_url,
         fetch_method=document.fetch_method,
     ).document_id
-    document.clean_markdown = markdown or clean_markdown(text)
-    document.fit_markdown = fit or fit_markdown(document.clean_markdown)
+    markdown_views = build_markdown_views(markdown or text, query="")
+    document.clean_markdown = str(markdown or markdown_views.get("clean_markdown") or "")
+    document.fit_markdown = str(fit or markdown_views.get("fit_markdown") or "")
+    document.chunk_scores = list(markdown_views.get("chunk_scores") or [])
+    document.selected_chunks = list(markdown_views.get("selected_chunks") or [])
     references = getattr(result, "references", None)
     if isinstance(references, list):
         document.references = list(references)

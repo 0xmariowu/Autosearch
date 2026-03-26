@@ -68,6 +68,8 @@ def build_evidence_record(
     backend: str = "",
     clean_markdown: str = "",
     fit_markdown: str = "",
+    chunk_scores: list[dict[str, Any]] | None = None,
+    selected_chunks: list[str] | None = None,
     references: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     clean_title = clean_text(title, limit=240)
@@ -108,5 +110,7 @@ def build_evidence_record(
         "canonical_text": canonical_text,
         "clean_markdown": str(clean_markdown or ""),
         "fit_markdown": str(fit_markdown or ""),
+        "chunk_scores": list(chunk_scores or []),
+        "selected_chunks": list(selected_chunks or []),
         "references": list(references or []),
     }

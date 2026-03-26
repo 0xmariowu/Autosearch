@@ -75,6 +75,8 @@ class AcquiredDocument:
     raw_html_path: str = ""
     clean_markdown: str = ""
     fit_markdown: str = ""
+    chunk_scores: list[dict[str, object]] = field(default_factory=list)
+    selected_chunks: list[str] = field(default_factory=list)
     references: list[dict[str, str]] = field(default_factory=list)
     metadata: dict[str, str] = field(default_factory=dict)
     used_render_fallback: bool = False

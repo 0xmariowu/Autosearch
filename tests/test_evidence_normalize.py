@@ -39,10 +39,14 @@ class EvidenceNormalizeTests(unittest.TestCase):
             text="Visible text",
             clean_markdown="Visible text",
             fit_markdown="Visible text",
+            chunk_scores=[{"index": 0, "score": 1.0, "text": "Visible text"}],
+            selected_chunks=["Visible text"],
             references=[{"url": "https://example.com/ref"}],
         )
         record = normalize_acquired_document(document, source="searxng", query="research page")
         self.assertEqual(record["fit_markdown"], "Visible text")
+        self.assertEqual(record["chunk_scores"][0]["index"], 0)
+        self.assertEqual(record["selected_chunks"][0], "Visible text")
         self.assertEqual(record["references"][0]["url"], "https://example.com/ref")
         self.assertEqual(record["backend"], "http_fetch")
         self.assertEqual(record["doc_quality"], "high")

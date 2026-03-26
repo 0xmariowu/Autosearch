@@ -9,9 +9,11 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from acquisition import AcquiredDocument
+from acquisition.chunking import chunk_document
 from acquisition.content_filter import select_relevant_content
 from acquisition.crawl4ai_adapter import fetch_with_crawl4ai
 from acquisition.fetch_pipeline import fetch_document
+from acquisition.markdown_strategy import build_markdown_views
 from acquisition.render_pipeline import render_document
 
 
@@ -41,6 +43,8 @@ class AcquisitionPipelineTests(unittest.TestCase):
         self.assertEqual(document.title, "Eval Harness")
         self.assertIn("Planner executor synthesizer", document.clean_markdown)
         self.assertTrue(document.fit_markdown)
+        self.assertTrue(document.chunk_scores)
+        self.assertTrue(document.selected_chunks)
         self.assertEqual(document.references[0]["url"], "https://example.com/docs")
 
     def test_fetch_document_can_use_render_fallback(self):
@@ -102,6 +106,7 @@ class AcquisitionPipelineTests(unittest.TestCase):
         self.assertEqual(document.metadata["pipeline"], "crawl4ai")
         self.assertEqual(document.title, "Crawl4AI")
         self.assertTrue(document.fit_markdown)
+        self.assertTrue(document.chunk_scores)
         self.assertEqual(document.references[0]["url"], "https://example.com/ref")
 
     def test_query_aware_content_filter_keeps_relevant_middle_paragraph(self):
@@ -125,6 +130,28 @@ class AcquisitionPipelineTests(unittest.TestCase):
         ])
         selected = select_relevant_content(text, query="release gate validation", max_chars=350)
         self.assertIn("release gate blocks rollout", selected)
+
+    def test_chunk_document_ranks_query_aligned_chunks(self):
+        text = "\n\n".join([
+            "Intro paragraph about systems.",
+            "This page has many details. The release gate blocks rollout on failed validation. Extra filler follows. Another sentence about unrelated UI polish.",
+            "Final note about evaluation.",
+        ])
+        chunks = chunk_document(text, query="release gate validation", limit=3)
+        self.assertTrue(chunks)
+        self.assertIn("release gate blocks rollout", chunks[1]["text"])
+
+    def test_build_markdown_views_returns_chunk_scores(self):
+        text = "\n\n".join([
+            "Intro paragraph about systems.",
+            "This page has many details. The release gate blocks rollout on failed validation. Extra filler follows. Another sentence about unrelated UI polish.",
+            "Final note about evaluation.",
+        ])
+        views = build_markdown_views(text, query="release gate validation", max_chars=350)
+        self.assertIn("clean_markdown", views)
+        self.assertIn("fit_markdown", views)
+        self.assertTrue(views["chunk_scores"])
+        self.assertTrue(views["selected_chunks"])
 
 
 if __name__ == "__main__":

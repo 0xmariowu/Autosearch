@@ -11,15 +11,19 @@ Stable local boundary for:
 from .document_models import AcquiredDocument
 from .crawl4ai_adapter import crawl4ai_available, fetch_with_crawl4ai
 from .content_filter import select_relevant_content
+from .chunking import chunk_document
 from .fetch_pipeline import fetch_document, fetch_page
 from .markdown_cleaner import clean_markdown, fit_markdown
+from .markdown_strategy import build_markdown_views
 from .reference_extractor import extract_references
 from .render_pipeline import render_document
 
 __all__ = [
     "AcquiredDocument",
     "clean_markdown",
+    "chunk_document",
     "crawl4ai_available",
+    "build_markdown_views",
     "enrich_evidence_record",
     "extract_references",
     "extract_visible_text",
@@ -66,8 +70,11 @@ def enrich_evidence_record(
                     content_type=page.get("content_type", ""),
                     final_url=page.get("final_url", page["url"]),
                 )
-                document.clean_markdown = clean_markdown(document.text)
-                document.fit_markdown = fit_markdown(document.clean_markdown, query=query or str(record.get("query") or ""))
+                markdown_views = build_markdown_views(document.text, query=query or str(record.get("query") or ""))
+                document.clean_markdown = str(markdown_views.get("clean_markdown") or "")
+                document.fit_markdown = str(markdown_views.get("fit_markdown") or "")
+                document.chunk_scores = list(markdown_views.get("chunk_scores") or [])
+                document.selected_chunks = list(markdown_views.get("selected_chunks") or [])
                 document.references = extract_references(document.final_url, document.raw_html)
             else:
                 document = AcquiredDocument(
@@ -78,8 +85,11 @@ def enrich_evidence_record(
                     text=str(page.get("text") or ""),
                     raw_html=str(page.get("raw_html") or ""),
                 )
-                document.clean_markdown = clean_markdown(document.text)
-                document.fit_markdown = fit_markdown(document.clean_markdown, query=query or str(record.get("query") or ""))
+                markdown_views = build_markdown_views(document.text, query=query or str(record.get("query") or ""))
+                document.clean_markdown = str(markdown_views.get("clean_markdown") or "")
+                document.fit_markdown = str(markdown_views.get("fit_markdown") or "")
+                document.chunk_scores = list(markdown_views.get("chunk_scores") or [])
+                document.selected_chunks = list(markdown_views.get("selected_chunks") or [])
                 document.references = list(page.get("references") or [])
     except Exception as exc:
         if not use_render_fallback:
@@ -88,8 +98,11 @@ def enrich_evidence_record(
             return enriched
         try:
             document = render_document(url, timeout=timeout)
-            document.clean_markdown = clean_markdown(document.text)
-            document.fit_markdown = fit_markdown(document.clean_markdown, query=query or str(record.get("query") or ""))
+            markdown_views = build_markdown_views(document.text, query=query or str(record.get("query") or ""))
+            document.clean_markdown = str(markdown_views.get("clean_markdown") or "")
+            document.fit_markdown = str(markdown_views.get("fit_markdown") or "")
+            document.chunk_scores = list(markdown_views.get("chunk_scores") or [])
+            document.selected_chunks = list(markdown_views.get("selected_chunks") or [])
             document.references = extract_references(document.final_url, document.raw_html)
         except Exception as render_exc:
             enriched["acquired"] = False
@@ -101,5 +114,7 @@ def enrich_evidence_record(
     enriched["acquired_content_type"] = document.content_type
     enriched["clean_markdown"] = document.clean_markdown
     enriched["fit_markdown"] = document.fit_markdown
+    enriched["chunk_scores"] = list(document.chunk_scores)
+    enriched["selected_chunks"] = list(document.selected_chunks)
     enriched["references"] = list(document.references)
     return enriched

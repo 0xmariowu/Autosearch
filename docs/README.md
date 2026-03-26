@@ -14,6 +14,7 @@
 | `2026-03-25-competitor-improvements-v2.md` | research | active | V2 FINAL: 25 improvements from 16 repos, with implementation details, code references, Python ports, execution roadmap |
 | `plans/2026-03-25-autosearch-super-search-v3.md` | plan | active | V3: mode/registry/cross-verification/watch super-search plan |
 | `plans/2026-03-25-autosearch-super-search-v4.md` | plan | active | V4: 1:1 competitor-port implementation spec with exact runtime objects, files, and acceptance criteria |
+| `plans/2026-03-26-autosearch-deep-runtime-v5.md` | plan | active | V5: execution-grade deep-runtime plan mapped to source repo files and AutoSearch implementation tasks |
 
 ## Related
 
