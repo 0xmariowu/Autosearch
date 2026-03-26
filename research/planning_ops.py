@@ -5,6 +5,22 @@ from __future__ import annotations
 from typing import Any
 
 
+def _normalize_topic_frontier(frontier: list[Any] | None) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    for item in list(frontier or []):
+        if isinstance(item, dict):
+            topic_id = str(item.get("id") or item.get("topic_id") or item.get("label") or "").strip()
+            topic = dict(item)
+            if topic_id:
+                topic["id"] = topic_id
+            normalized.append(topic)
+            continue
+        topic_id = str(item or "").strip()
+        if topic_id:
+            normalized.append({"id": topic_id, "queries": []})
+    return normalized
+
+
 def apply_planning_ops(program: dict[str, Any], ops: list[dict[str, Any]] | None) -> dict[str, Any]:
     updated = dict(program or {})
     if not ops:
@@ -32,9 +48,10 @@ def apply_planning_ops(program: dict[str, Any], ops: list[dict[str, Any]] | None
             updated["plan_count"] = max(int(updated.get("plan_count", 1) or 1) + increment, 1)
             updated["max_queries"] = max(int(updated.get("max_queries", 1) or 1) + increment, 1)
         elif kind == "add_branch":
-            frontier = list(updated.get("topic_frontier") or [])
-            if target and target not in frontier:
-                frontier.append(target)
+            frontier = _normalize_topic_frontier(updated.get("topic_frontier") or [])
+            frontier_ids = {str((item or {}).get("id") or "").strip() for item in frontier}
+            if target and target not in frontier_ids:
+                frontier.append({"id": target, "queries": []})
             updated["topic_frontier"] = frontier
             round_roles = list(updated.get("round_roles") or [])
             role = str((op or {}).get("role") or "").strip()
