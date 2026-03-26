@@ -65,17 +65,38 @@ from interface import AutoSearchInterface
 
 client = AutoSearchInterface("/path/to/autosearch")
 health = client.doctor()
-result = client.run_goal_case("atoms-auto-mining-perfect", max_rounds=1)
+result = client.run_goal_case("atoms-auto-mining-perfect", mode="deep", max_rounds=1)
+print(result.get("research_packet", {}).get("packet_id"))
 ```
 
 ### Integration Guide
 
 Use the smallest entry point that matches your need:
 
+- If you want to discover the API product itself:
+  `AutoSearchInterface.api_info()`
+  `AutoSearchInterface.api_method(...)`
 - If you just want to call search:
   `AutoSearchInterface.run_search_task(...)`
+- If you want goal-scoped query execution without running the full loop:
+  `AutoSearchInterface.search_goal_query(...)`
+- If you want to replay multiple normalized queries through the same goal-scoped search stack:
+  `AutoSearchInterface.replay_goal_queries(...)`
 - If you have a fixed goal plus fixed judge and want explicit `搜索员 + 打分员` roles:
   `AutoSearchInterface.build_searcher_judge_session(...)`
+- If you want planner / executor / synthesizer phases separately:
+  `AutoSearchInterface.build_research_plan(...)`
+  `AutoSearchInterface.execute_research_plan(...)`
+  `AutoSearchInterface.synthesize_research_round(...)`
+- If you only want acquisition / chunking / evidence normalization helpers:
+  `AutoSearchInterface.fetch_document(...)`
+  `AutoSearchInterface.enrich_record(...)`
+  `AutoSearchInterface.build_markdown_views(...)`
+  `AutoSearchInterface.chunk_document(...)`
+  `AutoSearchInterface.normalize_*` / `coerce_*`
+- If you already have a bundle and only want routeable artifacts:
+  `AutoSearchInterface.build_routeable_output(...)`
+  `AutoSearchInterface.build_research_packet(...)`
 - If you want to run the full goal loop directly:
   `AutoSearchInterface.run_goal_case(...)`
 - If you want the simplest “push this goal toward a target score” entry:
@@ -114,8 +135,10 @@ Current runtime default:
 - Search results are normalized into evidence records before bundle scoring. Legacy fields (`title`, `url`, `body`, `source`, `query`) remain stable; new fields such as `domain`, `content_type`, `snippet`, and `canonical_text` are additive.
 - Cheap rerank now happens before bundle scoring: URL dedup and lexical/hybrid relevance ranking trim the candidate set before expensive judge evaluation.
 - Optional local acquisition is available through sampling policy flags such as `acquire_pages` and `page_fetch_limit`, which enrich top findings with `acquired_text` without changing the default lightweight path.
+- When acquisition is enabled, enriched evidence can also carry additive markdown/chunking fields such as `fit_markdown`, `chunk_scores`, and `selected_chunks`.
 - Accepted evidence is also persisted into a local goal-scoped evidence index so later repair rounds can reuse local evidence before hitting the open web again.
-- Research synthesis now produces a `routeable_output` summary with route groups, citations, missing dimensions, and score gap metadata.
+- Deep-mode execution now records real `search` / `read` / `reason` traces in `deep_steps`, and research synthesis emits both `routeable_output` and a routeable `research_packet`.
+- Research synthesis now produces a `routeable_output` summary with route groups, citations, missing dimensions, score gap metadata, and deep-loop context.
 - Goal watches are supported as a first-class scheduling abstraction. A watch can pin its own goal, mode, budget, threshold, and cadence without sharing a single global daily profile.
 
 Cross-goal benchmark example:
@@ -163,12 +186,61 @@ summary = client.optimize_goals(
 
 ### Stable Return Shapes
 
+Public API product note:
+
+- Dict-returning public methods now include additive `_api` metadata.
+- `_api` is the standardized compatibility envelope and includes:
+  - `name`
+  - `version`
+  - `revision`
+  - `method`
+  - `stability`
+  - `result_kind`
+  - `doc_path`
+- Current product version:
+  - `autosearch-public-api`
+  - `v1alpha1`
+
+`api_info()`
+
+- Returns product metadata and the public method catalog.
+- Stable keys to rely on:
+  - `api_name`
+  - `api_version`
+  - `contract_revision`
+  - `doc_path`
+  - `methods`
+
+`api_method(name)`
+
+- Returns one public method contract summary.
+- Stable keys to rely on:
+  - `method`
+  - `stability`
+  - `result_kind`
+  - `summary`
+  - `doc_path`
+
 `doctor()`
 
 - Returns the capability report produced by `source_capability.py`.
 - Stable fields to rely on:
   - top-level provider/source availability state
   - per-provider decision data used for skip / priority
+
+`goal_capability_report(goal_case)` / `goal_platforms(goal_case)`
+
+- Return the capability report and effective platform configs for a resolved goal case.
+- Use these when another project wants the same provider gating the goal loop would use without starting a run.
+- Stable resource fields:
+  - `goal_capability_report(...)["capability_report"]`
+  - `goal_platforms(...)["platforms"]`
+
+`normalize_query(query)`
+
+- Returns the stable query-spec shape:
+  - `normalize_query(query)["query_spec"]["text"]`
+  - `normalize_query(query)["query_spec"]["platforms"]`
 
 `run_search_task(...)`
 
@@ -185,25 +257,102 @@ summary = client.optimize_goals(
   - callers should treat the method signature in `interface.py` as the stable API
   - callers should not depend on raw `EngineConfig` internals beyond the exposed arguments
 
+`search_goal_query(...)`
+
+- Executes one normalized query against the goal-scoped provider set.
+- Stable keys to rely on:
+  - `query`
+  - `query_spec`
+  - `baseline_score`
+  - `findings`
+  - `partial_results`
+  - `timed_out_providers`
+
+`replay_goal_queries(...)`
+
+- Replays multiple normalized queries through the goal-scoped provider set.
+- Stable keys to rely on:
+  - `queries`
+  - `query_runs`
+  - `findings`
+
 `run_goal_case(...)`
 
 - Returns the full goal-loop result payload.
 - Stable keys to rely on:
+  - `generated_at`
   - `goal_id`
+  - `problem`
   - `target_score`
   - `plateau_rounds_limit`
   - `providers_used`
   - `judge_model`
+  - `evaluation_harness`
   - `accepted_program`
   - `stop_reason`
   - `plateau_state`
   - optional `practical_ceiling`
   - `goal_reached`
   - `score_gap`
+  - `budget_policy`
+  - `gap_queue`
+  - `diary_summary`
+  - `warm_start`
+  - optional `baseline_best`
   - `bundle_final`
-  - optional `routeable_output`
+  - `routeable_output`
+  - `research_bundle`
+  - `search_graph`
+  - top-level `research_packet`
+  - top-level `deep_steps`
   - `rounds`
   - optional `run_path` when `persist_run=True`
+- Return-shape note:
+  - top-level `research_packet` is promoted from `routeable_output.research_packet` for callers that want a stable direct access path
+  - top-level `deep_steps` reflects the accepted final round when deep execution is enabled
+  - `search_graph` may include `deep_loop` metadata in deep mode
+- `bundle_final` stable fields:
+  - `score`
+  - `dimension_scores`
+  - `missing_dimensions`
+  - `matched_dimensions`
+  - `accepted_query_count`
+  - `accepted_finding_count`
+  - `sample_findings`
+  - `rationale`
+- `routeable_output` stable fields:
+  - `goal_id`
+  - `goal_title`
+  - `score`
+  - `score_gap`
+  - `matched_dimensions`
+  - `missing_dimensions`
+  - `weakest_dimension`
+  - `routes`
+  - `next_actions`
+  - `citations`
+  - `keywords`
+  - `handoff_packets`
+  - `research_packet`
+  - `graph_handoff`
+  - `planning_ops_summary`
+  - `gap_queue`
+  - `cross_verification`
+- `research_packet` stable fields:
+  - `packet_id`
+  - `goal_id`
+  - `query`
+  - `mode`
+  - `score`
+  - `citations`
+  - `claims`
+  - `contradictions`
+  - `next_actions`
+  - `evidence_refs`
+- `deep_steps` stable item fields:
+  - `kind`
+  - `summary`
+  - `metadata`
 - Stable tuning arguments:
   - optional `mode`
   - `max_rounds`
@@ -240,13 +389,19 @@ summary = client.optimize_goals(
 
 - Returns a benchmark summary payload for multiple goal cases.
 - When `mode` is supplied, the interface applies it through temporary goal payloads and cleans them up after the benchmark run.
+- Input note:
+  - `goals` currently accepts goal ids or goal-case file paths
+  - inline dict goal cases are not accepted by `run_goal_benchmark(...)`
+- Result note:
+  - default return is the summary `payload`
+  - pass `include_results=True` to receive `{payload, results}`
 - Stable keys to rely on:
   - `generated_at`
   - `max_rounds`
   - `plan_count`
   - `max_queries`
-  - optional `target_score`
-  - optional `plateau_rounds`
+  - `target_score`
+  - `plateau_rounds`
   - `goals`
 - Each `goals[*]` item guarantees:
   - `goal_id`
@@ -275,20 +430,26 @@ summary = client.optimize_goals(
   - `watch_id`
   - `goal_id`
   - `mode`
+  - `frequency`
+  - `run_at`
   - `target_score`
+  - `success_threshold`
   - `goal_reached`
   - `final_score`
   - `score_gap`
-  - `stop_reason`
+  - `stop_policy`
+  - `provider_preferences`
+  - `budget`
+  - `scheduler_summary`
+  - `result`
 
 `run_watches(...)`
 
 - Runs multiple independent watches and returns an aggregate payload.
 - Stable top-level fields:
   - `watch_count`
+  - `reached_count`
   - `results`
-  - `providers_used`
-  - `accepted_program_id`
 
 `build_searcher_judge_session(...)`
 
@@ -299,6 +460,48 @@ summary = client.optimize_goals(
   - `judge_bundle()`
   - `run_searcher_round()`
 
+`build_research_plan(...)`
+
+- Returns normalized planner output for one round.
+- Stable plan item fields to rely on:
+  - `build_research_plan(...)["plans"]`
+  - `label`
+  - `queries`
+  - `intents`
+  - `role`
+  - `branch_type`
+  - `branch_subgoal`
+  - `graph_node`
+  - `graph_edges`
+  - `branch_targets`
+  - `program_overrides`
+  - `decision`
+  - `planning_ops`
+
+`execute_research_plan(...)`
+
+- Executes one planner output against the goal-scoped provider set.
+- Stable keys to rely on:
+  - `label`
+  - `query_runs`
+  - `findings`
+  - `cross_verification`
+  - `deep_steps`
+  - `query_keys`
+
+`synthesize_research_round(...)`
+
+- Synthesizes bundle, judge result, graph, gap queue, and routeable outputs for one round.
+- Stable keys to rely on:
+  - `bundle`
+  - `research_bundle`
+  - `judge_result`
+  - `harness_metrics`
+  - `search_graph`
+  - `repair_hints`
+  - `gap_queue`
+  - `routeable_output`
+
 `run_searcher_round(...)`
 
 - Stable top-level keys:
@@ -307,15 +510,62 @@ summary = client.optimize_goals(
   - `capability_report`
 - Each `plans[*]` item guarantees:
   - `label`
+  - optional `program_overrides`
   - `queries`
   - `query_runs`
   - `finding_count`
   - `judge_result`
-  - optional `program_overrides`
-  - optional `routeable_output`
 - Execution notes:
   - `program_overrides.provider_mix` is applied during search execution
   - `program_overrides.sampling_policy` is applied during per-query sampling and bundle construction
+
+`fetch_document(...)` / `enrich_record(...)`
+
+- Expose the acquisition pipeline without requiring a goal loop.
+- Use these when another project wants acquired text, markdown, references, and chunk-ranking fields for one URL / record.
+- Stable resource fields:
+  - `fetch_document(...)["document"]`
+  - `enrich_record(...)` returns the enriched record plus `_api`
+
+`build_markdown_views(...)` / `chunk_document(...)`
+
+- Expose the Crawl4AI-style chunk ranking and compact markdown shaping helpers directly.
+- Stable resource fields:
+  - `build_markdown_views(...)` returns the markdown view payload plus `_api`
+  - `chunk_document(...)["chunks"]`
+
+`normalize_result_record(...)` / `normalize_acquired_document(...)` / `normalize_evidence_record(...)` / `coerce_evidence_record(...)` / `coerce_evidence_records(...)`
+
+- Expose the stable evidence-normalization boundary for callers that already have their own search or crawl layer.
+- Stable resource fields:
+  - singular methods return `["record"]`
+  - plural coercion returns `["records"]`
+
+`build_routeable_output(...)` / `build_research_packet(...)`
+
+- Build routeable handoff artifacts from a bundle and judge result without rerunning the full goal loop.
+
+### Evidence Enrichment Contract
+
+- Search findings remain backward-compatible around the classic fields:
+  - `title`
+  - `url`
+  - `body`
+  - `source`
+  - `query`
+- Evidence normalization may also add these stable additive fields:
+  - `domain`
+  - `content_type`
+  - `snippet`
+  - `canonical_text`
+  - `clean_markdown`
+  - `fit_markdown`
+  - `chunk_scores`
+  - `selected_chunks`
+  - `references`
+- Chunking note:
+  - `chunk_scores` is an ordered list of query-ranked chunk metadata
+  - `selected_chunks` is the subset of chunk text chosen for the fitted markdown view
 
 ### Maintenance Note
 
