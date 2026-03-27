@@ -59,26 +59,107 @@ def commit_generation(task_spec, generation, prompt, scores, evidence_count):
 
 
 def check_stagnation(population, window=3):
-    """AVO Supervisor: detect stagnation in score trajectory."""
+    """AVO Supervisor: detect stagnation + diagnose + suggest redirects (Section 3.3)."""
     if len(population) < window:
-        return False, ""
+        return False, "", []
     recent = population[-window:]
     scores = [p.get("scores", {}).get("total", 0) for p in recent]
 
-    # No improvement in last N generations (< 1%)
+    stagnant = False
+    reason = ""
+
     if scores and max(scores) <= min(scores) * 1.01:
-        return (
-            True,
-            f"Scores flat for {window} generations: {[round(s, 3) for s in scores]}",
+        stagnant = True
+        reason = f"Scores flat for {window} generations: {[round(s, 3) for s in scores]}"
+    if len(scores) >= 2 and all(scores[i] <= scores[i - 1] for i in range(1, len(scores))):
+        stagnant = True
+        reason = f"Scores declining: {[round(s, 3) for s in scores]}"
+
+    if not stagnant:
+        return False, "", []
+
+    # Diagnose WHY — analyze per-dimension scores across recent generations
+    dims = {"quantity_score": [], "diversity": [], "relevance": [], "efficiency": []}
+    for p in recent:
+        s = p.get("scores", {})
+        for dim in dims:
+            dims[dim].append(s.get(dim, 0))
+    avg_dims = {dim: sum(vals) / max(len(vals), 1) for dim, vals in dims.items()}
+    weakest = min(avg_dims, key=avg_dims.get)
+
+    suggestions = [f"Weakest dimension: {weakest} (avg={avg_dims[weakest]:.2f})"]
+    if avg_dims.get("quantity_score", 0) < 0.5:
+        suggestions.append("Use search_and_process + deep_discover for more URLs")
+    if avg_dims.get("diversity", 0) < 0.6:
+        suggestions.append("Use search_all across ALL providers, not just GitHub")
+    if avg_dims.get("efficiency", 0) < 0.3:
+        suggestions.append("Minimize think/processing steps, maximize search steps")
+    suggestions.append("Try persona_expand for completely different query angles")
+    suggestions.append("Reframe topic: 'AI agent' → 'autonomous AI tools' or 'LLM orchestration'")
+
+    return True, reason, suggestions
+
+
+def supervise_with_llm(population, knowledge, task_spec):
+    """AVO Supervisor Agent: LLM-based trajectory analysis and redirect (Section 3.3)."""
+    import os
+    import urllib.request
+
+    api_key = os.environ.get("OPENROUTER_API_KEY", "")
+    if not api_key or len(population) < 3:
+        return None
+
+    trajectory = []
+    for p in population[-5:]:
+        s = p.get("scores", {})
+        trajectory.append(
+            f"Gen {p.get('generation', '?')}: total={s.get('total', 0):.3f} "
+            f"urls={s.get('unique_urls', 0)} div={s.get('diversity', 0):.2f} "
+            f"eff={s.get('efficiency', 0):.2f}"
         )
 
-    # Scores declining
-    if len(scores) >= 2 and all(
-        scores[i] <= scores[i - 1] for i in range(1, len(scores))
-    ):
-        return True, f"Scores declining: {[round(s, 3) for s in scores]}"
+    prompt = f"""You are the AVO Supervisor Agent. The search system is stagnating.
 
-    return False, ""
+Task: {task_spec}
+
+Evolution trajectory (recent):
+{chr(10).join(trajectory)}
+
+Available capabilities:
+{knowledge[:1000]}
+
+Analyze:
+1. WHY is progress stalling? (which dimensions are weak?)
+2. What SPECIFIC new strategy should the agent try?
+
+Generate a NEW orchestrator prompt that takes a completely different approach.
+Include {{manifest}} placeholder for capabilities list.
+Return ONLY the prompt text."""
+
+    payload = json.dumps({
+        "model": os.environ.get("OPENROUTER_ORCHESTRATOR_MODEL", "google/gemini-2.5-flash"),
+        "max_tokens": 1500,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.9,
+    }).encode()
+
+    req = urllib.request.Request(
+        "https://openrouter.ai/api/v1/chat/completions",
+        data=payload,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            result = json.loads(resp.read())
+        content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+        if content and len(content) > 50:
+            if "{manifest}" not in content:
+                content += "\n\n## Available Capabilities\n{manifest}"
+            return content
+    except Exception:
+        pass
+    return None
 
 
 def run_avo(
@@ -141,23 +222,47 @@ def run_avo(
             file=sys.stderr,
         )
 
-        # 2. RUN: Execute orchestrator with evolved prompt
-        result = run_task(
-            task_spec,
-            max_steps=steps_per_gen,
-            model=model,
-            system_prompt=new_prompt,
-            task_id=f"avo-gen{gen + 1}",
-        )
+        # 2. RUN + DIAGNOSE LOOP (AVO Section 3.2: edit-evaluate-diagnose cycle)
+        # Try up to max_retries times within one generation
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            result = run_task(
+                task_spec,
+                max_steps=steps_per_gen,
+                model=model,
+                system_prompt=new_prompt,
+                task_id=f"avo-gen{gen + 1}-try{attempt}",
+            )
 
-        # Accumulate evidence across generations
-        for item in result.get("evidence", []):
-            if isinstance(item, dict) and item.get("url"):
-                url = item["url"]
-                if url not in {e.get("url", "") for e in cumulative_evidence}:
-                    cumulative_evidence.append(item)
+            # Accumulate evidence across generations
+            for item in result.get("evidence", []):
+                if isinstance(item, dict) and item.get("url"):
+                    url = item["url"]
+                    if url not in {e.get("url", "") for e in cumulative_evidence}:
+                        cumulative_evidence.append(item)
 
-        # 3. EVALUATE: Score using cumulative evidence (not just this generation)
+            # Quick score to decide if retry is needed
+            this_gen_urls = len(result.get("evidence", []))
+
+            # If this attempt found very few new URLs and we have retries left, diagnose and retry
+            if this_gen_urls < 5 and attempt < max_retries:
+                print(
+                    f"[AVO] Gen {gen + 1} attempt {attempt + 1}: only {this_gen_urls} URLs — diagnosing...",
+                    file=sys.stderr,
+                )
+                # Diagnose: mutate prompt to fix the issue
+                redirect_result = dispatch(
+                    "avo_vary", None,
+                    population=population, knowledge=knowledge,
+                    task_spec=task_spec, use_llm=False,
+                )
+                retry_prompt = redirect_result.get("prompt")
+                if retry_prompt:
+                    new_prompt = retry_prompt
+                continue
+            break
+
+        # 3. EVALUATE: Score using cumulative evidence
         score_input = dict(result)
         score_input["evidence"] = cumulative_evidence
         score_input["steps_used"] = sum(p.get("scores", {}).get("steps_used", steps_per_gen) for p in population) + result.get("steps_used", steps_per_gen)
@@ -184,25 +289,31 @@ def run_avo(
 
         # 5. SUPERVISE: Check stagnation (AVO Section 3.3)
         if gen >= 2:
-            stagnant, reason = check_stagnation(population)
+            stagnant, reason, suggestions = check_stagnation(population)
             if stagnant:
                 print(f"[AVO] Supervisor: STAGNATION — {reason}", file=sys.stderr)
-                print(
-                    "[AVO] Supervisor: forcing template variation for diversity",
-                    file=sys.stderr,
-                )
-                # Force template variation to break out of local optimum
-                redirect_result = dispatch(
-                    "avo_vary",
-                    None,
-                    population=population,
-                    knowledge=knowledge,
-                    task_spec=task_spec,
-                    use_llm=False,
-                )
-                redirect_prompt = redirect_result.get("prompt")
+                for s in suggestions:
+                    print(f"[AVO] Supervisor: → {s}", file=sys.stderr)
+
+                # Try LLM-based supervisor redirect first (AVO's "reviews overall trajectory")
+                redirect_prompt = supervise_with_llm(population, knowledge, task_spec)
                 if redirect_prompt:
+                    print("[AVO] Supervisor: LLM generated new redirect strategy", file=sys.stderr)
                     best_prompt = redirect_prompt
+                else:
+                    # Fallback: template variation
+                    print("[AVO] Supervisor: using template variation fallback", file=sys.stderr)
+                    redirect_result = dispatch(
+                        "avo_vary",
+                        None,
+                        population=population,
+                        knowledge=knowledge,
+                        task_spec=task_spec,
+                        use_llm=False,
+                    )
+                    fallback_prompt = redirect_result.get("prompt")
+                    if fallback_prompt:
+                        best_prompt = fallback_prompt
 
     # Summary
     print(
