@@ -370,27 +370,33 @@ class GoalJudgeTests(unittest.TestCase):
         ]
         findings = []
         for i in range(10):
-            findings.append({
-                "title": f"alpha doc {i}",
-                "url": f"https://a.com/{i}",
-                "body": "alpha content",
+            findings.append(
+                {
+                    "title": f"alpha doc {i}",
+                    "url": f"https://a.com/{i}",
+                    "body": "alpha content",
+                    "source": "github_repos",
+                    "query": "q1",
+                }
+            )
+        findings.append(
+            {
+                "title": "beta doc",
+                "url": "https://b.com/0",
+                "body": "beta content",
                 "source": "github_repos",
-                "query": "q1",
-            })
-        findings.append({
-            "title": "beta doc",
-            "url": "https://b.com/0",
-            "body": "beta content",
-            "source": "github_repos",
-            "query": "q2",
-        })
-        findings.append({
-            "title": "gamma doc",
-            "url": "https://c.com/0",
-            "body": "gamma content",
-            "source": "github_repos",
-            "query": "q3",
-        })
+                "query": "q2",
+            }
+        )
+        findings.append(
+            {
+                "title": "gamma doc",
+                "url": "https://c.com/0",
+                "body": "gamma content",
+                "source": "github_repos",
+                "query": "q3",
+            }
+        )
         sample = gj._dimension_aware_bundle_sample(findings, dimensions, limit=9)
         urls = [item["url"] for item in sample]
         self.assertIn("https://b.com/0", urls)

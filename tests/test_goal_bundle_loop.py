@@ -1245,7 +1245,6 @@ class GoalBundleLoopTests(unittest.TestCase):
         )
         self.assertEqual(result["warm_start"]["replayed_query_count"], 2)
 
-
     def test_run_goal_bundle_loop_rotates_strategy_on_plateau_instead_of_stopping(self):
         goal_case = {
             "id": "goal-plateau",
@@ -1440,8 +1439,6 @@ class GoalBundleLoopTests(unittest.TestCase):
         self.assertEqual(built_roles, ["broad_recall", "dimension_repair"])
         self.assertEqual(result["accepted_program"]["current_role"], "orthogonal_probe")
         self.assertIn("stagnant_rounds", result["plateau_state"])
-
-
 
     def test_run_goal_bundle_loop_promotes_accepted_round_artifacts_over_later_rounds(
         self,

@@ -683,9 +683,7 @@ def _rich_entry(item: dict[str, Any]) -> dict[str, str]:
     return entry
 
 
-def _dimension_keyword_hits(
-    item: dict[str, Any], dimension: dict[str, Any]
-) -> int:
+def _dimension_keyword_hits(item: dict[str, Any], dimension: dict[str, Any]) -> int:
     """Count how many dimension keywords an evidence item matches."""
     keywords = _dimension_keywords(dimension)
     if not keywords:
@@ -718,10 +716,7 @@ def _dimension_aware_bundle_sample(
     for dim in dimensions:
         if len(sample) >= limit:
             break
-        scored = [
-            (item, _dimension_keyword_hits(item, dim))
-            for item in findings
-        ]
+        scored = [(item, _dimension_keyword_hits(item, dim)) for item in findings]
         scored.sort(key=lambda x: x[1], reverse=True)
         count = 0
         for item, hits in scored:

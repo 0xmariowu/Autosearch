@@ -97,9 +97,7 @@ def enrich_and_rebuild(
     return enriched
 
 
-def save_evidence_index(
-    path: Path, records: list[dict[str, Any]]
-) -> None:
+def save_evidence_index(path: Path, records: list[dict[str, Any]]) -> None:
     """Write records back to evidence-index.jsonl atomically."""
     import os
 
@@ -140,15 +138,10 @@ def main() -> None:
         warn(f"No evidence records found for {args.goal_case}")
         sys.exit(1)
 
-    unenriched = [
-        (i, r) for i, r in enumerate(records) if not r.get("acquired")
-    ]
+    unenriched = [(i, r) for i, r in enumerate(records) if not r.get("acquired")]
     log(f"Total: {len(records)}, unenriched: {len(unenriched)}")
 
-    scored = [
-        (i, r, keyword_coverage_score(r, dimensions))
-        for i, r in unenriched
-    ]
+    scored = [(i, r, keyword_coverage_score(r, dimensions)) for i, r in unenriched]
     scored.sort(key=lambda x: x[2], reverse=True)
 
     candidates = scored[: args.limit]
@@ -177,7 +170,9 @@ def main() -> None:
             warn(f"  [{idx + 1}/{len(candidates)}] FAIL: {title} — {e}")
 
     save_evidence_index(index_path, records)
-    log(f"\nDone: {enriched_count} enriched, {failed_count} failed, saved to {index_path}")
+    log(
+        f"\nDone: {enriched_count} enriched, {failed_count} failed, saved to {index_path}"
+    )
 
 
 if __name__ == "__main__":
