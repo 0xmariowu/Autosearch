@@ -161,6 +161,18 @@ def run_task(
 
     # Build tool definitions from capabilities
     cap_tools = manifest_json()
+    # Only expose commonly-used tools to LLM to reduce schema size and prevent 400 errors
+    # Full set: 38 tools → filtered to ~16 tools the orchestrator actually needs
+    _ORCHESTRATOR_TOOLS = {
+        "search_web", "search_github", "search_social", "search_semantic",
+        "search_web_broad", "search_arxiv", "search_datasets",
+        "search_all", "search_and_process",
+        "consensus_score", "dedup_results", "content_merge",
+        "persona_expand", "learnings_extract", "think",
+        "check_health", "deep_discover", "quality_filter",
+        "export_results",
+    }
+    cap_tools = [t for t in cap_tools if t["name"] in _ORCHESTRATOR_TOOLS]
     # Add terminate tool (OpenManus pattern)
     cap_tools.append(
         {
