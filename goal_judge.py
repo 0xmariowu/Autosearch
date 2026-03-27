@@ -654,7 +654,7 @@ def _bundle_sample(
             for rich_key in ("fit_markdown", "clean_markdown", "acquired_text"):
                 rich_val = str(item.get(rich_key) or "").strip()
                 if rich_val:
-                    entry["content"] = rich_val[:1500]
+                    entry["content"] = rich_val[:3000]
                     break
             sample.append(entry)
             added = True

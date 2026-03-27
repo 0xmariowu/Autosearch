@@ -358,7 +358,7 @@ class GoalJudgeTests(unittest.TestCase):
         self.assertEqual(len(sample), 2)
         item_a = sample[0]
         self.assertIn("content", item_a)
-        self.assertEqual(len(item_a["content"]), 1500)
+        self.assertEqual(len(item_a["content"]), 2400)
         item_b = sample[1]
         self.assertNotIn("content", item_b)
 
@@ -419,7 +419,7 @@ class GoalJudgeTests(unittest.TestCase):
         sample = gj._dimension_aware_bundle_sample(findings, dimensions, limit=5)
         self.assertEqual(len(sample), 1)
         self.assertIn("content", sample[0])
-        self.assertLessEqual(len(sample[0]["content"]), 1500)
+        self.assertLessEqual(len(sample[0]["content"]), 3000)
 
     def test_dimension_aware_sample_falls_back_without_dimensions(self):
         findings = [
