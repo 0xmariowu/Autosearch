@@ -9,8 +9,8 @@ from typing import Any
 from .classify import clean_text, evidence_content_type, evidence_domain
 
 
-def _evidence_id(url: str, title: str, query: str) -> str:
-    raw = f"{url}\n{title}\n{query}".encode("utf-8", errors="ignore")
+def _evidence_id(url: str, title: str, query: str, source: str = "") -> str:
+    raw = f"{url}\n{title}\n{query}\n{source}".encode("utf-8", errors="ignore")
     return hashlib.sha1(raw).hexdigest()[:16]
 
 
@@ -90,7 +90,10 @@ def build_evidence_record(
     return {
         "record_type": "evidence",
         "evidence_id": _evidence_id(
-            str(url or "").strip(), clean_title, str(query or "").strip()
+            str(url or "").strip(),
+            clean_title,
+            str(query or "").strip(),
+            str(source or "").strip(),
         ),
         "title": clean_title,
         "url": str(url or "").strip(),

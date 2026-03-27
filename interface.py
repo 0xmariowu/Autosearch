@@ -834,6 +834,32 @@ class AutoSearchInterface:
             ),
         )
 
+    def run_orchestrated(
+        self,
+        task_spec: str,
+        *,
+        max_steps: int = 50,
+        budget: dict[str, Any] | None = None,
+        mode: str = "balanced",
+        model: str = "",
+        dry_run: bool = False,
+    ) -> dict[str, Any]:
+        """Run an AI-orchestrated search task using the capabilities system.
+
+        The orchestrator reads capability descriptions, uses LLM to plan and
+        execute search steps, and returns collected evidence with learnings.
+        """
+        from orchestrator import run_task
+
+        return run_task(
+            task_spec,
+            max_steps=max_steps,
+            budget=budget,
+            mode=mode,
+            model=model,
+            dry_run=dry_run,
+        )
+
 
 def default_interface() -> AutoSearchInterface:
     """Return an AutoSearchInterface rooted at the repository base dir."""
