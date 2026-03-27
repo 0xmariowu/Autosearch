@@ -41,7 +41,7 @@ def run(hits, **context):
             source = h.get("provider", h.get("source", ""))
             score = h.get("score_hint", 0)
             domain = h.get("domain", "")
-            lines.append(f'"{title}",{url},{source},{score},{domain}')
+            lines.append(f'"{title}","{url}","{source}",{score},"{domain}"')
         content = "\n".join(lines)
 
     elif fmt == "jsonl":

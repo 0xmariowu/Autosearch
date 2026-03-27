@@ -129,6 +129,10 @@ def main():
 
     args = parser.parse_args()
 
+    if args.evolve and args.orchestrated:
+        print("Error: --evolve and --orchestrated are mutually exclusive", file=sys.stderr)
+        sys.exit(1)
+
     # --- AVO Evolution mode ---
     if args.evolve:
         if not args.task_spec:

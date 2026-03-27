@@ -117,8 +117,10 @@ def available_capabilities(
                 health = mod.health_check()
                 if health.get("status") == "off":
                     continue
-        except Exception:
+        except ImportError:
             continue
+        except Exception:
+            pass  # health_check raised unexpectedly — include capability anyway
         result.append(cap)
     return result
 

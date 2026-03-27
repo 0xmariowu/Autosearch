@@ -37,14 +37,16 @@ def run(hits, **context):
             url_providers[url].add(provider)
 
     # Boost scores
+    boosted = set()
     for hit in hits:
         url = str(hit.get("url") or "").strip()
         providers = url_providers.get(url, set())
         hit["consensus_count"] = len(providers)
         hit["providers"] = sorted(providers)
-        # Multiply score_hint by consensus count (SearXNG pattern: weight *= len(positions))
-        original_score = int(hit.get("score_hint", 0) or 0)
-        hit["score_hint"] = original_score * max(1, len(providers))
+        if url and url not in boosted:
+            original_score = int(hit.get("score_hint", 0) or 0)
+            hit["score_hint"] = original_score * max(1, len(providers))
+            boosted.add(url)
 
     return hits
 
