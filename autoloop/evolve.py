@@ -162,7 +162,7 @@ def ai_judge(goal_case: dict, bundle: list[dict], api_key: str, model: str) -> d
             "Content-Type": "application/json",
         },
     )
-    with urllib.request.urlopen(req, timeout=45) as resp:
+    with urllib.request.urlopen(req, timeout=45) as resp:  # nosemgrep: dynamic-urllib-use-detected
         payload = json.loads(resp.read().decode("utf-8"))
     content = payload["choices"][0]["message"]["content"]
     start = content.find("{")

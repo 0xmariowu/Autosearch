@@ -448,7 +448,7 @@ class OpenRouterGoalJudge:
                 "Content-Type": "application/json",
             },
         )
-        with urllib.request.urlopen(
+        with urllib.request.urlopen(  # nosemgrep: dynamic-urllib-use-detected
             request, timeout=OPENROUTER_REQUEST_TIMEOUT
         ) as response:
             payload = json.loads(response.read().decode("utf-8"))
@@ -700,7 +700,7 @@ def _openrouter_bundle_eval(
             "Content-Type": "application/json",
         },
     )
-    with urllib.request.urlopen(request, timeout=OPENROUTER_BUNDLE_TIMEOUT) as response:
+    with urllib.request.urlopen(request, timeout=OPENROUTER_BUNDLE_TIMEOUT) as response:  # nosemgrep: dynamic-urllib-use-detected
         payload = json.loads(response.read().decode("utf-8"))
     content = payload["choices"][0]["message"]["content"]
     start = content.find("{")

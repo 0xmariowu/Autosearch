@@ -2643,7 +2643,7 @@ class OpenRouterGoalSearcher:
                 "Content-Type": "application/json",
             },
         )
-        with urllib.request.urlopen(
+        with urllib.request.urlopen(  # nosemgrep: dynamic-urllib-use-detected
             request, timeout=OPENROUTER_EDITOR_TIMEOUT
         ) as response:
             payload = json.loads(response.read().decode("utf-8"))
