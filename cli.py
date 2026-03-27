@@ -93,8 +93,94 @@ def main():
         default="claude-haiku-4-5-20251001",
         help="Anthropic model for LLM evaluation",
     )
+    parser.add_argument(
+        "--orchestrated",
+        action="store_true",
+        default=False,
+        help="Use AI orchestrator mode: pass first positional arg as task_spec",
+    )
+    parser.add_argument(
+        "task_spec",
+        nargs="?",
+        default=None,
+        help="Task description for orchestrator mode (positional)",
+    )
+    parser.add_argument(
+        "--max-steps",
+        type=int,
+        default=None,
+        help="Maximum orchestrator steps (defaults to --max-rounds value)",
+    )
+    parser.add_argument(
+        "--resume",
+        type=str,
+        default="",
+        help="Resume from checkpoint file or task ID",
+    )
+    parser.add_argument(
+        "--evolve", action="store_true", default=False, help="Run AVO evolution mode"
+    )
+    parser.add_argument(
+        "--generations", type=int, default=5, help="AVO generations (default: 5)"
+    )
+    parser.add_argument(
+        "--steps-per-gen", type=int, default=None, help="Steps per AVO generation"
+    )
 
     args = parser.parse_args()
+
+    # --- AVO Evolution mode ---
+    if args.evolve:
+        if not args.task_spec:
+            print(
+                "Error: --evolve requires a positional task_spec argument",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        try:
+            from avo import run_avo
+        except ImportError as exc:
+            print(f"Error: cannot import avo: {exc}", file=sys.stderr)
+            sys.exit(1)
+        result = run_avo(
+            args.task_spec,
+            max_generations=args.generations,
+            steps_per_gen=args.steps_per_gen
+            if args.steps_per_gen
+            else (args.max_steps if args.max_steps else 15),
+            model=args.llm_model,
+        )
+        print("\n--- AVO Evolution Result ---")
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        sys.exit(0)
+
+    # --- Orchestrated mode ---
+    if args.orchestrated:
+        if not args.task_spec:
+            print(
+                "Error: --orchestrated requires a positional task_spec argument",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        try:
+            from orchestrator import run_task
+        except ImportError as exc:
+            print(f"Error: cannot import orchestrator: {exc}", file=sys.stderr)
+            sys.exit(1)
+        max_steps = args.max_steps if args.max_steps is not None else args.max_rounds
+        try:
+            result = run_task(
+                args.task_spec,
+                max_steps=max_steps,
+                model=args.llm_model,
+                resume_from=args.resume,
+            )
+        except Exception as exc:
+            print(f"Error: orchestrator failed: {exc}", file=sys.stderr)
+            sys.exit(1)
+        print("\n--- Orchestrated Result ---")
+        print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
+        sys.exit(0)
 
     # Build config from file or CLI args
     if args.config:

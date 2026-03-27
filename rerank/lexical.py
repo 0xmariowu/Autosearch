@@ -4,10 +4,35 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 
 from search_mesh.models import SearchHit
 
+_TRACKING_PARAMS = {
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "utm_term",
+    "utm_content",
+    "fbclid",
+    "gclid",
+    "gclsrc",
+    "dclid",
+    "msclkid",
+    "ref",
+    "ref_src",
+    "ref_url",
+    "mc_cid",
+    "mc_eid",
+    "oly_enc_id",
+    "oly_anon_id",
+    "_ga",
+    "_gl",
+    "_hsenc",
+    "_hsmi",
+    "vero_id",
+    "mkt_tok",
+}
 
 STOP_WORDS = {
     "the",
@@ -38,7 +63,19 @@ def normalize_url(url: str) -> str:
         return ""
     parts = urlsplit(raw)
     path = parts.path.rstrip("/")
-    return urlunsplit((parts.scheme.lower(), parts.netloc.lower(), path, "", ""))
+    # Strip only known tracking params; preserve all others
+    if parts.query:
+        filtered = {
+            k: v
+            for k, v in parse_qs(parts.query, keep_blank_values=True).items()
+            if k.lower() not in _TRACKING_PARAMS
+        }
+        cleaned_query = urlencode(filtered, doseq=True) if filtered else ""
+    else:
+        cleaned_query = ""
+    return urlunsplit(
+        (parts.scheme.lower(), parts.netloc.lower(), path, cleaned_query, "")
+    )
 
 
 def hit_domain(hit: SearchHit) -> str:
