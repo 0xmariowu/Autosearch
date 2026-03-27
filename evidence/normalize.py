@@ -15,7 +15,9 @@ def normalize_result_record(result: Any, query: str) -> dict[str, Any]:
         source=str(getattr(result, "source", "") or ""),
         query=query,
         query_family=str(getattr(result, "query_family", "") or "unknown"),
-        backend=str(getattr(result, "backend", "") or getattr(result, "source", "") or ""),
+        backend=str(
+            getattr(result, "backend", "") or getattr(result, "source", "") or ""
+        ),
     )
 
 
@@ -27,7 +29,9 @@ def normalize_acquired_document(
 ) -> dict[str, Any]:
     return build_evidence_record(
         title=str(getattr(document, "title", "") or ""),
-        url=str(getattr(document, "final_url", "") or getattr(document, "url", "") or ""),
+        url=str(
+            getattr(document, "final_url", "") or getattr(document, "url", "") or ""
+        ),
         body=str(getattr(document, "text", "") or ""),
         source=source,
         query=query,
@@ -45,11 +49,21 @@ def normalize_evidence_record(record: dict[str, Any]) -> dict[str, Any]:
     return build_evidence_record(
         title=str(record.get("title") or ""),
         url=str(record.get("url") or ""),
-        body=str(record.get("body") or record.get("snippet") or record.get("canonical_text") or ""),
+        body=str(
+            record.get("body")
+            or record.get("snippet")
+            or record.get("canonical_text")
+            or ""
+        ),
         source=str(record.get("source") or record.get("provider") or ""),
         query=str(record.get("query") or ""),
         query_family=str(record.get("query_family") or "unknown"),
-        backend=str(record.get("backend") or record.get("provider") or record.get("source") or ""),
+        backend=str(
+            record.get("backend")
+            or record.get("provider")
+            or record.get("source")
+            or ""
+        ),
         clean_markdown=str(record.get("clean_markdown") or ""),
         fit_markdown=str(record.get("fit_markdown") or ""),
         chunk_scores=list(record.get("chunk_scores") or []),
@@ -81,7 +95,9 @@ def coerce_evidence_record(item: Any) -> dict[str, Any]:
         title=str(getattr(item, "title", "") or ""),
         url=str(getattr(item, "url", "") or ""),
         body=str(getattr(item, "body", "") or getattr(item, "snippet", "") or ""),
-        source=str(getattr(item, "source", "") or getattr(item, "provider", "") or "unknown"),
+        source=str(
+            getattr(item, "source", "") or getattr(item, "provider", "") or "unknown"
+        ),
         query=str(getattr(item, "query", "") or ""),
         query_family=str(getattr(item, "query_family", "") or "unknown"),
         backend=str(getattr(item, "backend", "") or getattr(item, "source", "") or ""),

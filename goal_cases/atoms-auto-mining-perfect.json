@@ -1,7 +1,6 @@
 {
   "id": "atoms-auto-mining-perfect",
   "project": "atoms",
-  "judge_model": "google/gemini-3-flash-preview",
   "problem": "How can the atoms automatic mining system become much closer to perfect: extract rows as directly and completely as possible, keep validation and labeling separate from extraction, pair success and failure trajectories on the same benchmark instance, enforce post-run validation and fail-closed release gates, and reduce near-duplicate or fake-Gold errors?",
   "target_score": 100,
   "providers": [
@@ -495,6 +494,14 @@
             "query": "ReviewComments dataset"
           }
         ]
+      },
+      {
+        "text": "review comment dataset with original and revised code before and after changes",
+        "platforms": []
+      },
+      {
+        "text": "ReviewComments dataset actionability of code review feedback",
+        "platforms": []
       }
     ],
     "label_separation": [
@@ -541,6 +548,14 @@
             "query": "\"schema validation\" pipeline"
           }
         ]
+      },
+      {
+        "text": "great expectations pandera data validation quality gate",
+        "platforms": []
+      },
+      {
+        "text": "quality gate validation after extraction pipeline",
+        "platforms": []
       }
     ],
     "pair_extract": [
@@ -585,14 +600,13 @@
             "limit": 5,
             "min_stars": 100,
             "query": "OpenHands"
-            }
-          ,
+          },
           {
             "name": "github_code",
             "limit": 5,
             "query": "\"resolved\" unresolved trajectory"
-            }
-          ]
+          }
+        ]
       },
       {
         "text": "SWE-Gym and SWE-bench verified agent trajectories",
@@ -626,6 +640,14 @@
             "query": "\"SWE-Gym\" trajectory"
           }
         ]
+      },
+      {
+        "text": "swe-bench resolved and unresolved trajectory instances",
+        "platforms": []
+      },
+      {
+        "text": "success failure pair matching on same benchmark instance",
+        "platforms": []
       }
     ],
     "validation_release": [
@@ -659,13 +681,13 @@
             "repo": "anthropics/claude-code",
             "limit": 5,
             "query": "doctor"
-            },
+          },
           {
             "name": "github_code",
             "limit": 5,
             "query": "\"smoke test\" release"
-            }
-          ]
+          }
+        ]
       },
       {
         "text": "data contracts and fail closed validation gates",
@@ -692,6 +714,14 @@
             "query": "\"data contract\" validation"
           }
         ]
+      },
+      {
+        "text": "data contract validation report before release gate",
+        "platforms": []
+      },
+      {
+        "text": "smoke test fail-closed release validation",
+        "platforms": []
       }
     ],
     "dedupe_quality": [
@@ -740,13 +770,13 @@
             "name": "huggingface_datasets",
             "limit": 5,
             "query": "semantic dedup"
-            },
+          },
           {
             "name": "github_code",
             "limit": 5,
             "query": "\"near duplicate\" dedup"
-            }
-          ]
+          }
+        ]
       },
       {
         "text": "text dedup and semantic hashing for near duplicate datasets",
@@ -780,7 +810,30 @@
             "query": "\"semantic hashing\" dedup"
           }
         ]
+      },
+      {
+        "text": "near duplicate detection and fake gold filtering",
+        "platforms": []
+      },
+      {
+        "text": "duplicate detection similarity matching dedup pipeline",
+        "platforms": []
       }
     ]
+  },
+  "acquisition_policy": {
+    "acquire_pages": true,
+    "page_fetch_limit": 3,
+    "use_render_fallback": false
+  },
+  "evidence_policy": {
+    "preferred_content_types": [
+      "code",
+      "repository",
+      "issue",
+      "reference",
+      "web"
+    ],
+    "prefer_acquired_text": true
   }
 }

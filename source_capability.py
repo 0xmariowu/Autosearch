@@ -107,7 +107,9 @@ def _read_global_mcp_servers() -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
-def _run_command(command: list[str], timeout: int = 5) -> subprocess.CompletedProcess[str] | None:
+def _run_command(
+    command: list[str], timeout: int = 5
+) -> subprocess.CompletedProcess[str] | None:
     try:
         return subprocess.run(
             command,
@@ -157,52 +159,98 @@ def _tier_name(value: Any) -> str:
 def _check_github_cli(source: dict[str, Any]) -> dict[str, Any]:
     gh = shutil.which("gh")
     if not gh:
-        return _status(source, status="off", message="gh CLI not installed", available=False)
+        return _status(
+            source, status="off", message="gh CLI not installed", available=False
+        )
     result = _run_command([gh, "auth", "status"])
     if result is None:
-        return _status(source, status="warn", message="gh auth status check failed", available=True)
+        return _status(
+            source, status="warn", message="gh auth status check failed", available=True
+        )
     if result.returncode == 0:
-        return _status(source, status="ok", message="gh CLI authenticated", available=True)
-    return _status(source, status="off", message="gh CLI installed but not authenticated", available=False)
+        return _status(
+            source, status="ok", message="gh CLI authenticated", available=True
+        )
+    return _status(
+        source,
+        status="off",
+        message="gh CLI installed but not authenticated",
+        available=False,
+    )
 
 
 def _check_xreach_cli(source: dict[str, Any]) -> dict[str, Any]:
     xreach = shutil.which("xreach")
     if not xreach:
-        return _status(source, status="off", message="xreach CLI not installed", available=False)
+        return _status(
+            source, status="off", message="xreach CLI not installed", available=False
+        )
     result = _run_command([xreach, "auth", "check"], timeout=10)
     if result is None:
-        return _status(source, status="warn", message="xreach auth check failed", available=True)
+        return _status(
+            source, status="warn", message="xreach auth check failed", available=True
+        )
     if result.returncode == 0:
-        return _status(source, status="ok", message="xreach authenticated", available=True)
-    return _status(source, status="off", message="xreach installed but not authenticated", available=False)
+        return _status(
+            source, status="ok", message="xreach authenticated", available=True
+        )
+    return _status(
+        source,
+        status="off",
+        message="xreach installed but not authenticated",
+        available=False,
+    )
 
 
 def _check_exa_mcporter(source: dict[str, Any]) -> dict[str, Any]:
     mcporter = shutil.which("mcporter")
     if not mcporter:
-        return _status(source, status="off", message="mcporter not installed", available=False)
+        return _status(
+            source, status="off", message="mcporter not installed", available=False
+        )
     version = _run_command([mcporter, "--version"])
     if version is None or version.returncode != 0:
-        return _status(source, status="off", message="mcporter not working", available=False)
+        return _status(
+            source, status="off", message="mcporter not working", available=False
+        )
     config = _run_command([mcporter, "config", "list"])
-    config_text = ((config.stdout if config else "") or "") + ((config.stderr if config else "") or "")
+    config_text = ((config.stdout if config else "") or "") + (
+        (config.stderr if config else "") or ""
+    )
     if "exa" in config_text.lower():
-        return _status(source, status="ok", message="mcporter Exa connector configured", available=True)
-    return _status(source, status="off", message="mcporter installed but Exa connector missing", available=False)
+        return _status(
+            source,
+            status="ok",
+            message="mcporter Exa connector configured",
+            available=True,
+        )
+    return _status(
+        source,
+        status="off",
+        message="mcporter installed but Exa connector missing",
+        available=False,
+    )
 
 
 def _check_tavily_api(source: dict[str, Any]) -> dict[str, Any]:
     api_key = str(__import__("os").environ.get("TAVILY_API_KEY", "")).strip()
     if api_key.startswith("tvly-") and len(api_key) > 20:
-        return _status(source, status="ok", message="Tavily API key configured", available=True)
-    return _status(source, status="off", message="Tavily API key missing", available=False)
+        return _status(
+            source, status="ok", message="Tavily API key configured", available=True
+        )
+    return _status(
+        source, status="off", message="Tavily API key missing", available=False
+    )
 
 
 def _check_ddgs_local(source: dict[str, Any]) -> dict[str, Any]:
     if importlib.util.find_spec("ddgs") is not None:
-        return _status(source, status="ok", message="ddgs Python package installed", available=True)
-    return _status(source, status="off", message="ddgs Python package missing", available=False)
+        return _status(
+            source, status="ok", message="ddgs Python package installed", available=True
+        )
+    return _status(
+        source, status="off", message="ddgs Python package missing", available=False
+    )
 
 
 def _check_searxng_http(source: dict[str, Any]) -> dict[str, Any]:
@@ -215,22 +263,44 @@ def _check_searxng_http(source: dict[str, Any]) -> dict[str, Any]:
         with urllib.request.urlopen(request, timeout=4) as response:
             code = getattr(response, "status", 200)
     except Exception:
-        return _status(source, status="off", message=f"SearXNG endpoint unreachable at {base_url}", available=False)
+        return _status(
+            source,
+            status="off",
+            message=f"SearXNG endpoint unreachable at {base_url}",
+            available=False,
+        )
     if code == 200:
-        return _status(source, status="ok", message=f"SearXNG reachable at {base_url}", available=True)
-    return _status(source, status="warn", message=f"SearXNG returned HTTP {code}", available=False)
+        return _status(
+            source,
+            status="ok",
+            message=f"SearXNG reachable at {base_url}",
+            available=True,
+        )
+    return _status(
+        source, status="warn", message=f"SearXNG returned HTTP {code}", available=False
+    )
 
 
 def _check_alphaxiv_mcp(source: dict[str, Any]) -> dict[str, Any]:
     servers = _read_global_mcp_servers()
     server = servers.get("alphaxiv")
     if not isinstance(server, dict):
-        return _status(source, status="off", message="alphaxiv MCP not configured in ~/.mcp.json", available=False)
+        return _status(
+            source,
+            status="off",
+            message="alphaxiv MCP not configured in ~/.mcp.json",
+            available=False,
+        )
 
     url = str(server.get("url") or "")
     server_type = str(server.get("type") or "")
     if "alphaxiv" not in url or server_type != "sse":
-        return _status(source, status="warn", message="alphaxiv MCP config looks incomplete", available=False)
+        return _status(
+            source,
+            status="warn",
+            message="alphaxiv MCP config looks incomplete",
+            available=False,
+        )
 
     try:
         request = urllib.request.Request(url, method="HEAD")
@@ -239,8 +309,18 @@ def _check_alphaxiv_mcp(source: dict[str, Any]) -> dict[str, Any]:
     except Exception as exc:
         code = getattr(exc, "code", None)
     if code in (200, 401, 405):
-        return _status(source, status="ok", message="alphaxiv MCP configured and endpoint reachable", available=True)
-    return _status(source, status="warn", message="alphaxiv MCP configured but endpoint check failed", available=False)
+        return _status(
+            source,
+            status="ok",
+            message="alphaxiv MCP configured and endpoint reachable",
+            available=True,
+        )
+    return _status(
+        source,
+        status="warn",
+        message="alphaxiv MCP configured but endpoint check failed",
+        available=False,
+    )
 
 
 def _check_huggingface_public(source: dict[str, Any]) -> dict[str, Any]:
@@ -251,13 +331,28 @@ def _check_huggingface_public(source: dict[str, Any]) -> dict[str, Any]:
         )
         with urllib.request.urlopen(request, timeout=8):
             pass
-        return _status(source, status="ok", message="Hugging Face public API reachable", available=True)
+        return _status(
+            source,
+            status="ok",
+            message="Hugging Face public API reachable",
+            available=True,
+        )
     except Exception:
-        return _status(source, status="warn", message="Hugging Face API check failed", available=False)
+        return _status(
+            source,
+            status="warn",
+            message="Hugging Face API check failed",
+            available=False,
+        )
 
 
 def _check_web_reader(source: dict[str, Any]) -> dict[str, Any]:
-    return _status(source, status="ok", message="web reader is stateless and available", available=True)
+    return _status(
+        source,
+        status="ok",
+        message="web reader is stateless and available",
+        available=True,
+    )
 
 
 CHECKERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
@@ -276,7 +371,9 @@ CHECKERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
 def check_source(source: dict[str, Any]) -> dict[str, Any]:
     checker = CHECKERS.get(str(source.get("check") or ""))
     if not checker:
-        return _status(source, status="warn", message="no checker implemented", available=False)
+        return _status(
+            source, status="warn", message="no checker implemented", available=False
+        )
     return checker(source)
 
 
@@ -317,7 +414,9 @@ def build_source_capability_report(
         result.setdefault("kind", source.get("kind", "source"))
         result.setdefault("family", source.get("family", ""))
         result.setdefault("tier", _tier_name(source.get("tier")))
-        result.setdefault("tier_priority", TIER_PRIORITY.get(_tier_name(source.get("tier")), 9))
+        result.setdefault(
+            "tier_priority", TIER_PRIORITY.get(_tier_name(source.get("tier")), 9)
+        )
         result.setdefault("runtime_enabled", bool(source.get("runtime_enabled")))
         result.setdefault("backend", source.get("backend", ""))
         result.setdefault("check", source.get("check", ""))
@@ -345,15 +444,19 @@ def build_source_capability_report(
     }
 
 
-def refresh_source_capability(selected_names: list[str] | None = None) -> dict[str, Any]:
+def refresh_source_capability(
+    selected_names: list[str] | None = None,
+) -> dict[str, Any]:
     ensure_source_files()
-    report = build_source_capability_report(load_source_catalog(), selected_names=selected_names)
+    report = build_source_capability_report(
+        load_source_catalog(), selected_names=selected_names
+    )
     write_json(LATEST_CAPABILITY_PATH, report)
     return report
 
 
 def get_source_decision(report: dict[str, Any], source_name: str) -> dict[str, Any]:
-    source = ((report.get("sources") or {}).get(source_name) or {})
+    source = (report.get("sources") or {}).get(source_name) or {}
     status = str(source.get("status") or "ok")
     available = bool(source.get("available", True))
     runtime_enabled = bool(source.get("runtime_enabled", True))
@@ -381,7 +484,9 @@ def format_source_capability_report(report: dict[str, Any]) -> str:
         status = str(entry.get("status") or "warn").upper()
         runtime = "runtime" if entry.get("runtime_enabled") else "optional"
         tier_name = str(entry.get("tier") or "")
-        lines.append(f"[{status}] {name} ({runtime}, {tier_name}) — {entry.get('message', '')}")
+        lines.append(
+            f"[{status}] {name} ({runtime}, {tier_name}) — {entry.get('message', '')}"
+        )
     summary = report.get("summary") or {}
     lines.append("")
     free_active = list(summary.get("free_active") or [])
@@ -390,7 +495,9 @@ def format_source_capability_report(report: dict[str, Any]) -> str:
     if free_active:
         lines.append("Active free-first path: " + ", ".join(free_active))
     if specialized_active:
-        lines.append("Active specialized free providers: " + ", ".join(specialized_active))
+        lines.append(
+            "Active specialized free providers: " + ", ".join(specialized_active)
+        )
     if premium_available:
         lines.append("Premium fallback available: " + ", ".join(premium_available))
     lines.append(

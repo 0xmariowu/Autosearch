@@ -10,9 +10,28 @@ from embeddings import semantic_similarity as embedding_semantic_similarity
 
 
 STOP_WORDS = {
-    "the", "and", "for", "with", "that", "this", "from", "into", "after", "before",
-    "what", "when", "where", "which", "about", "have", "has", "will", "your", "using",
-    "implementation", "guide",
+    "the",
+    "and",
+    "for",
+    "with",
+    "that",
+    "this",
+    "from",
+    "into",
+    "after",
+    "before",
+    "what",
+    "when",
+    "where",
+    "which",
+    "about",
+    "have",
+    "has",
+    "will",
+    "your",
+    "using",
+    "implementation",
+    "guide",
 }
 
 
@@ -44,7 +63,7 @@ def _char_ngrams(text: str, n: int = 3) -> list[str]:
     cleaned = re.sub(r"\s+", " ", str(text or "").lower()).strip()
     if len(cleaned) < n:
         return [cleaned] if cleaned else []
-    return [cleaned[index:index + n] for index in range(0, len(cleaned) - n + 1)]
+    return [cleaned[index : index + n] for index in range(0, len(cleaned) - n + 1)]
 
 
 def _cosine_from_terms(left_terms: list[str], right_terms: list[str]) -> float:
@@ -68,7 +87,12 @@ def semantic_query_similarity(left: str, right: str) -> float:
     right_terms = set(query_terms(right))
     overlap = len(left_terms & right_terms) / max(len(left_terms | right_terms), 1)
     embedding_score = embedding_semantic_similarity(left, right)
-    return (0.35 * token_cosine) + (0.2 * char_cosine) + (0.15 * overlap) + (0.3 * embedding_score)
+    return (
+        (0.35 * token_cosine)
+        + (0.2 * char_cosine)
+        + (0.15 * overlap)
+        + (0.3 * embedding_score)
+    )
 
 
 def dedup_query_specs(
@@ -84,7 +108,10 @@ def dedup_query_specs(
             continue
         duplicate = False
         for previous in seen_texts:
-            if text == previous or semantic_query_similarity(text, previous) >= threshold:
+            if (
+                text == previous
+                or semantic_query_similarity(text, previous) >= threshold
+            ):
                 duplicate = True
                 break
         if duplicate:

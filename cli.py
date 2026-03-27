@@ -50,35 +50,47 @@ def main():
         description="AutoSearch — self-evolving search engine",
     )
     parser.add_argument(
-        "--config", type=str,
+        "--config",
+        type=str,
         help="Path to JSON config file with genes, platforms, target_spec",
     )
     parser.add_argument(
-        "--genes", type=str,
+        "--genes",
+        type=str,
         help='JSON string: {"entity":["X"],"pain_verb":["Y"],...}',
     )
     parser.add_argument(
-        "--target", type=str,
+        "--target",
+        type=str,
         help="Target spec: what does a useful finding look like?",
     )
     parser.add_argument(
-        "--platforms", type=str,
+        "--platforms",
+        type=str,
         help="Comma-separated: reddit:sub,hn,exa,github_issues,twitter_exa",
     )
     parser.add_argument(
-        "--task-name", type=str, default="autosearch",
+        "--task-name",
+        type=str,
+        default="autosearch",
         help="Task name for session doc filename",
     )
     parser.add_argument(
-        "--output", type=str, default="/tmp/autosearch-findings.jsonl",
+        "--output",
+        type=str,
+        default="/tmp/autosearch-findings.jsonl",
         help="Output JSONL path for harvested findings",
     )
     parser.add_argument(
-        "--max-rounds", type=int, default=15,
+        "--max-rounds",
+        type=int,
+        default=15,
         help="Maximum exploration rounds",
     )
     parser.add_argument(
-        "--llm-model", type=str, default="claude-haiku-4-5-20251001",
+        "--llm-model",
+        type=str,
+        default="claude-haiku-4-5-20251001",
         help="Anthropic model for LLM evaluation",
     )
 
@@ -88,23 +100,20 @@ def main():
     if args.config:
         config_path = Path(args.config)
         if not config_path.exists():
-            print(f"Error: config file not found: {args.config}",
-                  file=sys.stderr)
+            print(f"Error: config file not found: {args.config}", file=sys.stderr)
             sys.exit(1)
         try:
             with open(config_path) as f:
                 cfg = json.load(f)
         except json.JSONDecodeError as e:
-            print(f"Error: invalid JSON in {args.config}: {e}",
-                  file=sys.stderr)
+            print(f"Error: invalid JSON in {args.config}: {e}", file=sys.stderr)
             sys.exit(1)
         config = EngineConfig(
             genes=cfg.get("genes", {}),
             platforms=cfg.get("platforms", []),
             target_spec=cfg.get("target_spec", ""),
             task_name=cfg.get("task_name", "autosearch"),
-            output_path=cfg.get("output_path",
-                                "/tmp/autosearch-findings.jsonl"),
+            output_path=cfg.get("output_path", "/tmp/autosearch-findings.jsonl"),
             max_rounds=cfg.get("max_rounds", 15),
             llm_model=cfg.get("llm_model", "claude-haiku-4-5-20251001"),
             capability_report=load_source_capability_report(),
@@ -113,8 +122,7 @@ def main():
         try:
             genes = json.loads(args.genes)
         except json.JSONDecodeError as e:
-            print(f"Error: --genes is not valid JSON: {e}",
-                  file=sys.stderr)
+            print(f"Error: --genes is not valid JSON: {e}", file=sys.stderr)
             sys.exit(1)
         config = EngineConfig(
             genes=genes,
@@ -128,15 +136,16 @@ def main():
         )
     else:
         parser.print_help()
-        print("\nError: provide --config or (--genes + --target + --platforms)",
-              file=sys.stderr)
+        print(
+            "\nError: provide --config or (--genes + --target + --platforms)",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # Validate
     non_empty_genes = [k for k, v in config.genes.items() if v]
     if len(non_empty_genes) < 2:
-        print("Error: genes must have at least 2 non-empty categories",
-              file=sys.stderr)
+        print("Error: genes must have at least 2 non-empty categories", file=sys.stderr)
         sys.exit(1)
     if not config.platforms:
         print("Error: at least one platform required", file=sys.stderr)
@@ -150,7 +159,7 @@ def main():
     engine = Engine(config, base_dir)
     summary = engine.run()
 
-    print(f"\n--- Summary ---")
+    print("\n--- Summary ---")
     print(json.dumps(summary, indent=2, ensure_ascii=False))
 
 

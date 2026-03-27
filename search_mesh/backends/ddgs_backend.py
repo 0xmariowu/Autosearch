@@ -15,10 +15,14 @@ class DDGSBackend(SearchProvider):
     supports_cross_verification = True
     supports_acquisition_hints = True
 
-    def transform_query(self, provider_name: str, query: str, context: dict | None = None) -> str:
+    def transform_query(
+        self, provider_name: str, query: str, context: dict | None = None
+    ) -> str:
         return str(query or "").strip()
 
-    def search(self, platform: dict[str, Any], query: str, *, query_family: str = "unknown"):
+    def search(
+        self, platform: dict[str, Any], query: str, *, query_family: str = "unknown"
+    ):
         outcome = PlatformConnector._ddgs(platform, query)
         return batch_from_legacy_results(
             str(platform.get("name") or "ddgs"),

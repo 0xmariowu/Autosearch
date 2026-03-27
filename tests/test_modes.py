@@ -27,20 +27,24 @@ class ModePolicyTests(unittest.TestCase):
         self.assertGreaterEqual(policy.branch_budget_per_round["repair"], 3)
 
     def test_default_program_applies_mode_policy(self):
-        program = default_program({"id": "goal-a", "mode": "deep"}, ["searxng", "github_repos"])
+        program = default_program(
+            {"id": "goal-a", "mode": "deep"}, ["searxng", "github_repos"]
+        )
         self.assertEqual(program["mode"], "deep")
         self.assertTrue(program["acquisition_policy"]["acquire_pages"])
         self.assertGreaterEqual(program["plan_count"], 5)
 
     def test_apply_mode_policy_preserves_overrides(self):
-        updated = apply_mode_policy({
-            "mode": "balanced",
-            "acquisition_policy": {"acquire_pages": True, "page_fetch_limit": 4},
-            "sampling_policy": {},
-            "evidence_policy": {},
-            "repair_policy": {},
-            "population_policy": {},
-        })
+        updated = apply_mode_policy(
+            {
+                "mode": "balanced",
+                "acquisition_policy": {"acquire_pages": True, "page_fetch_limit": 4},
+                "sampling_policy": {},
+                "evidence_policy": {},
+                "repair_policy": {},
+                "population_policy": {},
+            }
+        )
         self.assertTrue(updated["acquisition_policy"]["acquire_pages"])
         self.assertGreaterEqual(updated["acquisition_policy"]["page_fetch_limit"], 4)
         self.assertIn("branch_budget_per_round", updated["population_policy"])

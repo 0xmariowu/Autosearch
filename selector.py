@@ -10,7 +10,9 @@ def _dimension_profile(payload: dict[str, Any]) -> tuple[int, ...]:
     return tuple(sorted(int(value or 0) for value in scores.values()))
 
 
-def _program_change_fields(current_program: dict[str, Any] | None, candidate_program: dict[str, Any] | None) -> list[str]:
+def _program_change_fields(
+    current_program: dict[str, Any] | None, candidate_program: dict[str, Any] | None
+) -> list[str]:
     current_program = dict(current_program or {})
     candidate_program = dict(candidate_program or {})
     changed: list[str] = []
@@ -33,7 +35,9 @@ def _program_change_fields(current_program: dict[str, Any] | None, candidate_pro
     return changed
 
 
-def _provider_specialization_score(current_program: dict[str, Any] | None, candidate_program: dict[str, Any] | None) -> int:
+def _provider_specialization_score(
+    current_program: dict[str, Any] | None, candidate_program: dict[str, Any] | None
+) -> int:
     current_mix = list((current_program or {}).get("provider_mix") or [])
     candidate_mix = list((candidate_program or {}).get("provider_mix") or [])
     if not candidate_mix:
@@ -41,7 +45,9 @@ def _provider_specialization_score(current_program: dict[str, Any] | None, candi
     return max(0, len(current_mix) - len(candidate_mix))
 
 
-def _branch_evolution_score(current_program: dict[str, Any] | None, candidate_program: dict[str, Any] | None) -> tuple[int, int]:
+def _branch_evolution_score(
+    current_program: dict[str, Any] | None, candidate_program: dict[str, Any] | None
+) -> tuple[int, int]:
     current_program = dict(current_program or {})
     candidate_program = dict(candidate_program or {})
     current_branch = str(current_program.get("branch_id") or "")
@@ -51,13 +57,17 @@ def _branch_evolution_score(current_program: dict[str, Any] | None, candidate_pr
     return branch_novelty, repair_depth
 
 
-def _family_novelty(current_program: dict[str, Any] | None, candidate_program: dict[str, Any] | None) -> int:
+def _family_novelty(
+    current_program: dict[str, Any] | None, candidate_program: dict[str, Any] | None
+) -> int:
     current_family = str((current_program or {}).get("family_id") or "")
     candidate_family = str((candidate_program or {}).get("family_id") or "")
     return int(bool(candidate_family and candidate_family != current_family))
 
 
-def _evolution_feedback(current_program: dict[str, Any] | None, candidate_program: dict[str, Any] | None) -> tuple[int, int]:
+def _evolution_feedback(
+    current_program: dict[str, Any] | None, candidate_program: dict[str, Any] | None
+) -> tuple[int, int]:
     stats = dict((current_program or {}).get("evolution_stats") or {})
     mutation_acceptance = dict(stats.get("mutation_acceptance") or {})
     mutation_rejection_streaks = dict(stats.get("mutation_rejection_streaks") or {})
@@ -74,7 +84,9 @@ def _evolution_feedback(current_program: dict[str, Any] | None, candidate_progra
     candidate_program = dict(candidate_program or {})
     mutation_kind = str(candidate_program.get("mutation_kind") or "")
     family_id = str(candidate_program.get("family_id") or "")
-    acceptance_score = int(mutation_acceptance.get(mutation_kind, 0) or 0) - int(mutation_rejection_streaks.get(mutation_kind, 0) or 0)
+    acceptance_score = int(mutation_acceptance.get(mutation_kind, 0) or 0) - int(
+        mutation_rejection_streaks.get(mutation_kind, 0) or 0
+    )
     retirement_penalty = 0
     if mutation_kind and mutation_kind in retired_mutations:
         retirement_penalty += 2
@@ -96,9 +108,13 @@ def _dimension_improvements(
             current_dimensions.keys(),
             key=lambda key: int(current_dimensions.get(key, 0) or 0),
         )
-        weakest_delta = int(candidate_dimensions.get(weakest_dim, 0) or 0) - int(current_dimensions.get(weakest_dim, 0) or 0)
+        weakest_delta = int(candidate_dimensions.get(weakest_dim, 0) or 0) - int(
+            current_dimensions.get(weakest_dim, 0) or 0
+        )
     for dim_id in set(current_dimensions) | set(candidate_dimensions):
-        if int(candidate_dimensions.get(dim_id, 0) or 0) > int(current_dimensions.get(dim_id, 0) or 0):
+        if int(candidate_dimensions.get(dim_id, 0) or 0) > int(
+            current_dimensions.get(dim_id, 0) or 0
+        ):
             improved.append(str(dim_id))
     return sorted(improved), int(weakest_delta)
 
@@ -114,7 +130,13 @@ def _repair_alignment_score(
         score += 2
     if improved_dimensions:
         score += 1
-    for field in ("repair_policy", "evidence_policy", "acquisition_policy", "search_backends", "backend_roles"):
+    for field in (
+        "repair_policy",
+        "evidence_policy",
+        "acquisition_policy",
+        "search_backends",
+        "backend_roles",
+    ):
         if field in program_change_fields:
             score += 1
     if "population_policy" in program_change_fields:
@@ -137,15 +159,25 @@ def evaluate_acceptance(
     hard_failures: list[str] = []
     warnings: list[str] = []
 
-    if int(candidate_metrics.get("new_unique_urls", 0) or 0) < int(anti.get("min_new_unique_urls", 1) or 1):
+    if int(candidate_metrics.get("new_unique_urls", 0) or 0) < int(
+        anti.get("min_new_unique_urls", 1) or 1
+    ):
         hard_failures.append("no_new_unique_urls")
-    if float(candidate_metrics.get("novelty_ratio", 0.0) or 0.0) < float(anti.get("min_novelty_ratio", 0.01) or 0.01):
+    if float(candidate_metrics.get("novelty_ratio", 0.0) or 0.0) < float(
+        anti.get("min_novelty_ratio", 0.01) or 0.01
+    ):
         hard_failures.append("novelty_too_low")
-    if float(candidate_metrics.get("source_diversity", 0.0) or 0.0) < float(anti.get("min_source_diversity", 0.15) or 0.15):
+    if float(candidate_metrics.get("source_diversity", 0.0) or 0.0) < float(
+        anti.get("min_source_diversity", 0.15) or 0.15
+    ):
         warnings.append("source_diversity_too_low")
-    if float(candidate_metrics.get("source_concentration", 1.0) or 1.0) > float(anti.get("max_source_concentration", 0.82) or 0.82):
+    if float(candidate_metrics.get("source_concentration", 1.0) or 1.0) > float(
+        anti.get("max_source_concentration", 0.82) or 0.82
+    ):
         warnings.append("source_concentration_too_high")
-    if float(candidate_metrics.get("query_concentration", 1.0) or 1.0) > float(anti.get("max_query_concentration", 0.70) or 0.70):
+    if float(candidate_metrics.get("query_concentration", 1.0) or 1.0) > float(
+        anti.get("max_query_concentration", 0.70) or 0.70
+    ):
         warnings.append("query_concentration_too_high")
 
     current_score = int(current_state.get("score", 0) or 0)
@@ -155,14 +187,20 @@ def evaluate_acceptance(
     new_unique_urls = int(candidate_metrics.get("new_unique_urls", 0) or 0)
     program_change_fields = _program_change_fields(current_program, candidate_program)
     program_changed = bool(program_change_fields)
-    provider_specialization = _provider_specialization_score(current_program, candidate_program)
-    branch_novelty, repair_depth = _branch_evolution_score(current_program, candidate_program)
+    provider_specialization = _provider_specialization_score(
+        current_program, candidate_program
+    )
+    branch_novelty, repair_depth = _branch_evolution_score(
+        current_program, candidate_program
+    )
     family_novelty = _family_novelty(current_program, candidate_program)
     improved_dimensions, weakest_dimension_delta = _dimension_improvements(
         current_state.get("dimension_scores"),
         candidate_dimensions,
     )
-    evolution_acceptance_score, retirement_penalty = _evolution_feedback(current_program, candidate_program)
+    evolution_acceptance_score, retirement_penalty = _evolution_feedback(
+        current_program, candidate_program
+    )
     repair_alignment = _repair_alignment_score(
         program_change_fields,
         improved_dimensions=improved_dimensions,
@@ -179,8 +217,16 @@ def evaluate_acceptance(
     if improved_score and not hard_failures:
         accepted = True
         reason = "score_improved"
-    elif candidate_score == current_score and not hard_failures and materially_new and (
-        improved_profile or improved_findings or program_changed or bool(improved_dimensions)
+    elif (
+        candidate_score == current_score
+        and not hard_failures
+        and materially_new
+        and (
+            improved_profile
+            or improved_findings
+            or program_changed
+            or bool(improved_dimensions)
+        )
     ):
         accepted = True
         reason = "tie_broken_by_profile_novelty_or_program"
@@ -211,7 +257,9 @@ def evaluate_acceptance(
     }
 
 
-def candidate_rank(candidate: dict[str, Any]) -> tuple[int, int, int, int, int, int, int, int, int, int]:
+def candidate_rank(
+    candidate: dict[str, Any],
+) -> tuple[int, int, int, int, int, int, int, int, int, int]:
     dimension_scores = candidate.get("dimension_scores") or {}
     balance = tuple(sorted(int(score or 0) for score in dimension_scores.values()))
     metrics = candidate.get("harness_metrics") or {}

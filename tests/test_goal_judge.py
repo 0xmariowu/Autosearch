@@ -14,16 +14,67 @@ import goal_judge as gj
 
 
 class GoalJudgeTests(unittest.TestCase):
-    def test_heuristic_bundle_eval_uses_rubric_when_dimensions_missing(self):
+    def test_heuristic_bundle_eval_returns_keyword_hits_and_misses(self):
         goal_case = {
-            "rubric": [
-                {"id": "provider_skip", "weight": 35, "keywords": ["skip unavailable provider", "provider cooldown"]},
-                {"id": "doctor", "weight": 35, "keywords": ["doctor report", "capability check"]},
+            "dimensions": [
+                {
+                    "id": "dedupe_quality",
+                    "weight": 20,
+                    "keywords": [
+                        "semantic deduplication",
+                        "near duplicate detection",
+                        "fake gold",
+                    ],
+                    "aliases": ["duplicate detection"],
+                }
             ]
         }
         findings = [
-            {"title": "Provider cooldown and skip unavailable provider", "url": "u1", "source": "github_issues"},
-            {"title": "Doctor report for capability check", "url": "u2", "source": "github_repos"},
+            {
+                "title": "Semantic deduplication implementation details",
+                "body": "Production notes for semantic deduplication in a retrieval pipeline.",
+                "url": "https://example.com/dedupe",
+                "source": "github_repos",
+            }
+        ]
+
+        result = gj.evaluate_goal_bundle(goal_case, findings)
+
+        self.assertEqual(
+            result["dimension_keyword_hits"]["dedupe_quality"],
+            ["semantic deduplication"],
+        )
+        self.assertEqual(
+            result["dimension_keyword_misses"]["dedupe_quality"],
+            ["near duplicate detection", "fake gold", "duplicate detection"],
+        )
+
+    def test_heuristic_bundle_eval_uses_rubric_when_dimensions_missing(self):
+        goal_case = {
+            "rubric": [
+                {
+                    "id": "provider_skip",
+                    "weight": 35,
+                    "keywords": ["skip unavailable provider", "provider cooldown"],
+                },
+                {
+                    "id": "doctor",
+                    "weight": 35,
+                    "keywords": ["doctor report", "capability check"],
+                },
+            ]
+        }
+        findings = [
+            {
+                "title": "Provider cooldown and skip unavailable provider",
+                "url": "u1",
+                "source": "github_issues",
+            },
+            {
+                "title": "Doctor report for capability check",
+                "url": "u2",
+                "source": "github_repos",
+            },
         ]
         result = gj.evaluate_goal_bundle(goal_case, findings)
         self.assertGreaterEqual(result["score"], 35)
@@ -53,7 +104,9 @@ class GoalJudgeTests(unittest.TestCase):
         self.assertIn("judge", result["matched_terms"])
         self.assertEqual(result["judge"], "heuristic")
 
-    def test_heuristic_bundle_does_not_under_score_semantic_cross_project_evidence(self):
+    def test_heuristic_bundle_does_not_under_score_semantic_cross_project_evidence(
+        self,
+    ):
         goal_case = {
             "dimensions": [
                 {
@@ -171,7 +224,9 @@ class GoalJudgeTests(unittest.TestCase):
         self.assertTrue(detail.get("dual_outcome"))
         self.assertTrue(detail.get("trajectory_form"))
         self.assertTrue(detail.get("artifact_link"))
-        self.assertIn("https://example.com/pair-proof", list(detail.get("supporting_urls") or []))
+        self.assertIn(
+            "https://example.com/pair-proof", list(detail.get("supporting_urls") or [])
+        )
 
     def test_pair_extract_structural_signals_raise_score_beyond_token_floor(self):
         goal_case = {
@@ -218,18 +273,32 @@ class GoalJudgeTests(unittest.TestCase):
         self.assertGreaterEqual(result["dimension_scores"]["pair_extract"], 16)
 
     def test_openrouter_bundle_eval_does_not_silently_fallback_in_strict_mode(self):
-        with patch.dict("os.environ", {"OPENROUTER_API_KEY": "x", "OPENROUTER_STRICT_JUDGE": "1"}, clear=False):
-            with patch.object(gj, "_openrouter_bundle_eval", side_effect=RuntimeError("timeout")):
+        with patch.dict(
+            "os.environ",
+            {"OPENROUTER_API_KEY": "x", "OPENROUTER_STRICT_JUDGE": "1"},
+            clear=False,
+        ):
+            with patch.object(
+                gj, "_openrouter_bundle_eval", side_effect=RuntimeError("timeout")
+            ):
                 with self.assertRaises(RuntimeError):
                     gj.evaluate_goal_bundle({"dimensions": []}, [])
 
     def test_openrouter_bundle_eval_can_fallback_when_strict_mode_disabled(self):
-        with patch.dict("os.environ", {"OPENROUTER_API_KEY": "x", "OPENROUTER_STRICT_JUDGE": "0"}, clear=False):
-            with patch.object(gj, "_openrouter_bundle_eval", side_effect=RuntimeError("timeout")):
+        with patch.dict(
+            "os.environ",
+            {"OPENROUTER_API_KEY": "x", "OPENROUTER_STRICT_JUDGE": "0"},
+            clear=False,
+        ):
+            with patch.object(
+                gj, "_openrouter_bundle_eval", side_effect=RuntimeError("timeout")
+            ):
                 result = gj.evaluate_goal_bundle({"dimensions": []}, [])
         self.assertEqual(result["judge"], "heuristic-bundle")
 
-    def test_openrouter_bundle_eval_uses_rubric_dimensions_when_explicit_dimensions_missing(self):
+    def test_openrouter_bundle_eval_uses_rubric_dimensions_when_explicit_dimensions_missing(
+        self,
+    ):
         goal_case = {
             "problem": "doctor loop",
             "rubric": [
@@ -251,8 +320,13 @@ class GoalJudgeTests(unittest.TestCase):
                 ).read()
 
         with patch.dict("os.environ", {"OPENROUTER_API_KEY": "x"}, clear=False):
-            with patch.object(gj.urllib.request, "urlopen", return_value=_FakeResponse()) as mocked:
-                result = gj.evaluate_goal_bundle(goal_case, [{"title": "doctor health report", "url": "u", "source": "exa"}])
+            with patch.object(
+                gj.urllib.request, "urlopen", return_value=_FakeResponse()
+            ) as mocked:
+                result = gj.evaluate_goal_bundle(
+                    goal_case,
+                    [{"title": "doctor health report", "url": "u", "source": "exa"}],
+                )
 
         request = mocked.call_args.args[0]
         prompt = json.loads(request.data.decode("utf-8"))["messages"][0]["content"]
@@ -277,6 +351,7 @@ class GoalJudgeTests(unittest.TestCase):
         }
         result = gj.evaluate_goal_bundle(goal_case, bundle)
         self.assertIn("doctor", result["dimension_scores"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -14,7 +14,9 @@ class SearchBackend(Protocol):
 
     provider_names: tuple[str, ...]
 
-    def search(self, platform: dict[str, Any], query: str, *, query_family: str = "unknown") -> SearchHitBatch:
+    def search(
+        self, platform: dict[str, Any], query: str, *, query_family: str = "unknown"
+    ) -> SearchHitBatch:
         """Execute a search for a single configured provider."""
 
 
@@ -31,12 +33,18 @@ class SearchProvider:
 
     def family_for(self, provider_name: str) -> str:
         name = str(provider_name or "").strip()
-        return str(self.provider_families.get(name) or self.provider_family or "generic").strip()
+        return str(
+            self.provider_families.get(name) or self.provider_family or "generic"
+        ).strip()
 
-    def transform_query(self, provider_name: str, query: str, context: dict[str, Any] | None = None) -> str:
+    def transform_query(
+        self, provider_name: str, query: str, context: dict[str, Any] | None = None
+    ) -> str:
         return str(query or "").strip()
 
-    def search(self, platform: dict[str, Any], query: str, *, query_family: str = "unknown") -> SearchHitBatch:
+    def search(
+        self, platform: dict[str, Any], query: str, *, query_family: str = "unknown"
+    ) -> SearchHitBatch:
         raise NotImplementedError
 
 
@@ -53,7 +61,9 @@ def quote_entities(query: str, entities: list[str] | None = None) -> str:
 def extract_entities(query: str) -> list[str]:
     text = str(query or "").strip()
     entities: list[str] = []
-    for match in re.findall(r"\b[A-Z][A-Za-z0-9_\-]+(?:\s+[A-Z][A-Za-z0-9_\-]+)*\b", text):
+    for match in re.findall(
+        r"\b[A-Z][A-Za-z0-9_\-]+(?:\s+[A-Z][A-Za-z0-9_\-]+)*\b", text
+    ):
         clean = str(match or "").strip()
         if clean and clean not in entities:
             entities.append(clean)
