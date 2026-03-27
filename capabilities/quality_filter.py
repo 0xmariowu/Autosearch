@@ -43,6 +43,11 @@ _SKIP_PATTERNS = [
 ]
 
 
+def _domain_match(domain, domain_set):
+    """Exact domain match: domain == d or domain ends with .d"""
+    return any(domain == d or domain.endswith("." + d) for d in domain_set)
+
+
 def run(hits, **context):
     if not hits or not isinstance(hits, list):
         return []
@@ -73,11 +78,11 @@ def run(hits, **context):
             domain = ""
 
         # Skip low value domains
-        if any(lv in domain for lv in _LOW_VALUE_DOMAINS):
+        if _domain_match(domain, _LOW_VALUE_DOMAINS):
             continue
 
         # Classify quality
-        is_high = any(hv in domain for hv in _HIGH_VALUE_DOMAINS)
+        is_high = _domain_match(domain, _HIGH_VALUE_DOMAINS)
         hit["domain"] = domain
         hit["quality_tier"] = "high" if is_high else "medium"
         filtered.append(hit)

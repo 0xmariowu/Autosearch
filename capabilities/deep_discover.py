@@ -105,6 +105,8 @@ def run(hits, **context):
                 parts = parsed.path.strip("/").split("/")
                 if len(parts) >= 2:
                     owner, repo = parts[0], parts[1]
+                    if not owner or not repo:
+                        continue
                     found_links = _extract_github_readme_links(owner, repo)
         except Exception:
             pass

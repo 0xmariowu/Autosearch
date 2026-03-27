@@ -305,7 +305,8 @@ def run_task(
             print(
                 f"[orchestrator] LLM call failed at step {step}: {exc}", file=sys.stderr
             )
-            break
+            # Continue instead of break — transient API errors shouldn't kill the loop
+            continue
 
         tool_call = _extract_tool_call(response)
         text = _extract_text(response)
@@ -349,6 +350,12 @@ def run_task(
         cap_name = tool_call["name"]
         cap_input = tool_call["input"].get("input")
         cap_context = tool_call["input"].get("context", {})
+        # Fallback: if LLM didn't nest under "input" key, use the raw input
+        if cap_input is None and "input" not in tool_call["input"]:
+            cap_input = tool_call["input"].get("query") or tool_call["input"]
+            if isinstance(cap_input, dict):
+                cap_context.update(cap_input)
+                cap_input = cap_context.pop("query", cap_context.pop("input", None))
 
         # Inject accumulated learnings into context
         if all_learnings:
@@ -458,6 +465,9 @@ def run_task(
                 m for m in messages[:2] if m.get("role") in ("system", "user")
             ]
             recent = messages[-16:]
+            # Ensure we don't strand an orphaned tool message
+            while recent and recent[0].get("role") == "tool":
+                recent = recent[1:]
             # Build compression summary
             old_count = len(messages) - len(system_msgs) - len(recent)
             compression_note = {
