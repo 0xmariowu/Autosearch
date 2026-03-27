@@ -46,6 +46,21 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev]" 2>/dev/null || pip install -r requirements.txt 2>/dev/null || true
+          pip install pip-audit
+
+      - name: Security audit
+        run: pip-audit || true
+
+      - name: Lint workflows
+        uses: raven-actions/actionlint@v2
+
       - name: Check PR size
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
