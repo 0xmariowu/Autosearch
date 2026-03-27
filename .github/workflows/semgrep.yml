@@ -15,8 +15,15 @@ jobs:
       image: semgrep/semgrep
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Run Semgrep
-        run: semgrep scan --config auto --error
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            semgrep scan --config auto --error --baseline-commit ${{ github.event.pull_request.base.sha }}
+          else
+            semgrep scan --config auto
+          fi
         env:
           SEMGREP_RULES: p/default
