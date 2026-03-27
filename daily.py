@@ -16,7 +16,9 @@ Usage:
 
 import argparse
 import json
+import os
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -194,6 +196,18 @@ def extract_query_family_maps(
 
 
 def main():
+    # Optional: use orchestrator mode
+    if os.environ.get("AUTOSEARCH_USE_ORCHESTRATOR", "").strip().lower() in ("1", "true", "yes"):
+        from orchestrator import run_task
+        task_spec = "Daily discovery: find new AI repositories, tools, and articles across all configured topics"
+        result = run_task(task_spec, max_steps=30)
+        # Write results to standard daily output path
+        output_path = f"/tmp/autosearch-daily-orchestrated-{time.strftime('%Y%m%d')}.json"
+        with open(output_path, "w") as f:
+            json.dump(result, f, indent=2, default=str)
+        print(f"Orchestrated daily run: {result.get('collected_count', 0)} items -> {output_path}")
+        sys.exit(0)
+
     parser = argparse.ArgumentParser(
         description="AutoSearch Daily — scheduled discovery run",
     )
