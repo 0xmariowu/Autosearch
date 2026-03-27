@@ -106,6 +106,7 @@ def run_avo(
         (p.get("scores", {}).get("total", 0) for p in population), default=0
     )
     best_prompt = SYSTEM_PROMPT
+    cumulative_evidence: list[dict] = []
 
     print(
         f"[AVO] Starting evolution: {max_generations} generations, {steps_per_gen} steps each",
@@ -149,14 +150,24 @@ def run_avo(
             task_id=f"avo-gen{gen + 1}",
         )
 
-        # 3. EVALUATE: Score the result
-        scores = dispatch("avo_score", result, target_count=100)
+        # Accumulate evidence across generations
+        for item in result.get("evidence", []):
+            if isinstance(item, dict) and item.get("url"):
+                url = item["url"]
+                if url not in {e.get("url", "") for e in cumulative_evidence}:
+                    cumulative_evidence.append(item)
+
+        # 3. EVALUATE: Score using cumulative evidence (not just this generation)
+        score_input = dict(result)
+        score_input["evidence"] = cumulative_evidence
+        score_input["steps_used"] = sum(p.get("scores", {}).get("steps_used", steps_per_gen) for p in population) + result.get("steps_used", steps_per_gen)
+        scores = dispatch("avo_score", score_input, target_count=100)
         gen_time = time.time() - gen_start
 
         print(
             f"[AVO] Gen {gen + 1}: total={scores['total']:.4f} "
-            f"(urls={scores['unique_urls']}, div={scores['diversity']:.2f}, "
-            f"eff={scores['efficiency']:.2f}) [{gen_time:.1f}s]",
+            f"(urls={scores['unique_urls']}, cumulative={len(cumulative_evidence)}, "
+            f"div={scores['diversity']:.2f}, eff={scores['efficiency']:.2f}) [{gen_time:.1f}s]",
             file=sys.stderr,
         )
 
@@ -200,12 +211,21 @@ def run_avo(
     print(f"[AVO] Best score: {best_score:.4f}", file=sys.stderr)
     print(f"[AVO] Population size: {len(population)}", file=sys.stderr)
 
+    # Save best evolved prompt for future use
+    best_prompt_path = Path(__file__).parent / "sources" / "evolved-prompt.txt"
+    best_prompt_path.parent.mkdir(parents=True, exist_ok=True)
+    if best_prompt and best_score > 0:
+        best_prompt_path.write_text(best_prompt)
+        print(f"[AVO] Best prompt saved to {best_prompt_path}", file=sys.stderr)
+
     return {
         "status": "avo_complete",
         "generations": max_generations,
         "best_score": best_score,
         "population_size": len(population),
         "best_prompt_excerpt": best_prompt[:500] if best_prompt else "",
+        "cumulative_evidence": len(cumulative_evidence),
+        "cumulative_urls": [e.get("url", "") for e in cumulative_evidence[:20]],
         "score_trajectory": [
             {
                 "gen": p.get("generation", "?"),

@@ -184,7 +184,18 @@ def run_task(
     )
 
     # Use custom prompt if provided (AVO evolution), otherwise default
-    base_prompt = system_prompt if system_prompt else SYSTEM_PROMPT
+    if system_prompt:
+        base_prompt = system_prompt
+    else:
+        # Use AVO-evolved prompt if available, otherwise default
+        evolved_path = Path(__file__).parent / "sources" / "evolved-prompt.txt"
+        if evolved_path.exists():
+            try:
+                base_prompt = evolved_path.read_text()
+            except Exception:
+                base_prompt = SYSTEM_PROMPT
+        else:
+            base_prompt = SYSTEM_PROMPT
     # Build initial messages
     system_msg = base_prompt.format(manifest=manifest_text())
     task_msg = TASK_PROMPT.format(
@@ -393,7 +404,19 @@ def run_task(
         tool_result_content = f"{result_summary}\n\n{progress}"
 
         # Add to conversation (OpenAI tool-use message format)
-        assistant_msg = response.get("choices", [{}])[0].get("message", {})
+        # Clean assistant message: strip null fields and index from tool_calls
+        # to avoid 400 errors with some models
+        raw_msg = response.get("choices", [{}])[0].get("message", {})
+        assistant_msg = {"role": "assistant"}
+        if raw_msg.get("content"):
+            assistant_msg["content"] = raw_msg["content"]
+        else:
+            assistant_msg["content"] = ""
+        if raw_msg.get("tool_calls"):
+            assistant_msg["tool_calls"] = [
+                {"id": tc.get("id", ""), "type": "function", "function": tc.get("function", {})}
+                for tc in raw_msg["tool_calls"]
+            ]
         messages.append(assistant_msg)
         messages.append(
             {
