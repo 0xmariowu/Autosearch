@@ -35,10 +35,16 @@ class RerankTests(unittest.TestCase):
             score_hint=score_hint,
         )
 
-    def test_normalize_url_removes_trailing_slash_and_query(self):
+    def test_normalize_url_removes_trailing_slash_preserves_non_tracking_params(self):
+        # Non-tracking query params are preserved (fix: only tracking params stripped)
         self.assertEqual(
             normalize_url("https://example.com/a/?x=1"),
-            "https://example.com/a",
+            "https://example.com/a?x=1",
+        )
+        # Tracking params are stripped
+        self.assertEqual(
+            normalize_url("https://example.com/a/?utm_source=test&x=1"),
+            "https://example.com/a?x=1",
         )
 
     def test_dedup_hits_removes_duplicate_urls(self):

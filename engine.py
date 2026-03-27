@@ -216,10 +216,27 @@ Rules:
             with urllib.request.urlopen(req, timeout=30) as r:
                 resp = json.loads(r.read())
             text = resp.get("content", [{}])[0].get("text", "")
+            # Strategy 1: try raw JSON extraction
             start = text.find("{")
             end = text.rfind("}") + 1
             if start >= 0 and end > start:
                 return json.loads(text[start:end])
+            # Strategy 2: strip markdown code fences and retry
+            stripped = re.sub(r"```(?:json)?\s*", "", text).strip().rstrip("`")
+            start = stripped.find("{")
+            end = stripped.rfind("}") + 1
+            if start >= 0 and end > start:
+                return json.loads(stripped[start:end])
+            # Strategy 3: regex for JSON object
+            match = re.search(r"\{[^{}]*\}", text)
+            if match:
+                return json.loads(match.group())
+            import sys
+
+            print(
+                f"    [LLM] Could not extract JSON from response ({len(text)} chars)",
+                file=sys.stderr,
+            )
             return None
         except Exception as e:
             print(f"    [LLM] Error: {e}")
@@ -314,14 +331,15 @@ class PlatformConnector:
                 "reddit",
                 [
                     SearchResult(
-                        title=p["data"].get("title", ""),
-                        url="https://www.reddit.com" + p["data"].get("permalink", ""),
-                        eng=p["data"].get("score", 0)
-                        + p["data"].get("num_comments", 0),
+                        title=p.get("data", {}).get("title", ""),
+                        url="https://www.reddit.com"
+                        + p.get("data", {}).get("permalink", ""),
+                        eng=p.get("data", {}).get("score", 0)
+                        + p.get("data", {}).get("num_comments", 0),
                         created=datetime.fromtimestamp(
-                            p["data"].get("created_utc", 0)
+                            p.get("data", {}).get("created_utc", 0)
                         ).strftime("%Y-%m-%d"),
-                        body=p["data"].get("selftext", "")[:500],
+                        body=p.get("data", {}).get("selftext", "")[:500],
                         source="reddit",
                     )
                     for p in data.get("data", {}).get("children", [])
@@ -523,13 +541,16 @@ class PlatformConnector:
                 title = str(item.get("title") or "").strip()
                 if not url and not title:
                     continue
-                score = item.get("score", 0) or 0
+                try:
+                    score = int(float(item.get("score", 0) or 0) * 100)
+                except (TypeError, ValueError):
+                    score = 0
                 body = str(item.get("content") or item.get("raw_content") or "")[:500]
                 results.append(
                     SearchResult(
                         title=title,
                         url=url,
-                        eng=int(float(score) * 100),
+                        eng=score,
                         body=body,
                         source="tavily",
                     )
@@ -737,7 +758,7 @@ class PlatformConnector:
                 "github_repos",
                 [
                     SearchResult(
-                        title=f"{r['owner']['login']}/{r['name']}",
+                        title=f"{r.get('owner', {}).get('login', 'unknown')}/{r.get('name', '')}",
                         url=r.get("url", ""),
                         eng=r.get("stargazersCount", 0),
                         created=r.get("createdAt", "")[:10],
