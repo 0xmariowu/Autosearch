@@ -177,7 +177,9 @@ def _merge_historical_evidence_into_bundle(
         }
     }
     merged_bundle = build_bundle([], merged_findings, relaxed_harness)
-    merged_judge = evaluate_goal_bundle(goal_case, merged_bundle)
+    # Use heuristic for internal merge decisions — fast, deterministic, no API calls.
+    from goal_judge import _heuristic_bundle_eval
+    merged_judge = _heuristic_bundle_eval(goal_case, merged_bundle)
     if int(merged_judge.get("score", 0) or 0) < int(bundle_state.get("score", 0) or 0):
         return bundle_state, None
     return {

@@ -1,7 +1,6 @@
 {
   "id": "atoms-auto-mining-perfect",
   "project": "atoms",
-  "judge_model": "google/gemini-3-flash-preview",
   "problem": "How can the atoms automatic mining system become much closer to perfect: extract rows as directly and completely as possible, keep validation and labeling separate from extraction, pair success and failure trajectories on the same benchmark instance, enforce post-run validation and fail-closed release gates, and reduce near-duplicate or fake-Gold errors?",
   "target_score": 100,
   "providers": [
@@ -601,14 +600,13 @@
             "limit": 5,
             "min_stars": 100,
             "query": "OpenHands"
-            }
-          ,
+          },
           {
             "name": "github_code",
             "limit": 5,
             "query": "\"resolved\" unresolved trajectory"
-            }
-          ]
+          }
+        ]
       },
       {
         "text": "SWE-Gym and SWE-bench verified agent trajectories",
@@ -683,13 +681,13 @@
             "repo": "anthropics/claude-code",
             "limit": 5,
             "query": "doctor"
-            },
+          },
           {
             "name": "github_code",
             "limit": 5,
             "query": "\"smoke test\" release"
-            }
-          ]
+          }
+        ]
       },
       {
         "text": "data contracts and fail closed validation gates",
@@ -772,13 +770,13 @@
             "name": "huggingface_datasets",
             "limit": 5,
             "query": "semantic dedup"
-            },
+          },
           {
             "name": "github_code",
             "limit": 5,
             "query": "\"near duplicate\" dedup"
-            }
-          ]
+          }
+        ]
       },
       {
         "text": "text dedup and semantic hashing for near duplicate datasets",
@@ -822,5 +820,20 @@
         "platforms": []
       }
     ]
+  },
+  "acquisition_policy": {
+    "acquire_pages": true,
+    "page_fetch_limit": 3,
+    "use_render_fallback": false
+  },
+  "evidence_policy": {
+    "preferred_content_types": [
+      "code",
+      "repository",
+      "issue",
+      "reference",
+      "web"
+    ],
+    "prefer_acquired_text": true
   }
 }
