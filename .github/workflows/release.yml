@@ -1,0 +1,112 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Validate tag format
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid tag format: $TAG (expected vX.Y.Z)"
+            exit 1
+          fi
+
+      - name: Validate tag matches source version
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Try package.json
+          if [ -f package.json ]; then
+            PKG_VERSION=$(node -p "require('./package.json').version" 2>/dev/null || echo "")
+            if [ -n "$PKG_VERSION" ] && [ "$PKG_VERSION" != "undefined" ]; then
+              if [ "$VERSION" != "$PKG_VERSION" ]; then
+                echo "::error::Tag v$VERSION does not match package.json version $PKG_VERSION"
+                exit 1
+              fi
+              echo "Validated: tag matches package.json ($VERSION)"
+              exit 0
+            fi
+          fi
+
+          # Try pyproject.toml
+          if [ -f pyproject.toml ]; then
+            PY_VERSION=$(python3 -c "
+          import tomllib
+          with open('pyproject.toml', 'rb') as f:
+              d = tomllib.load(f)
+          print(d.get('project', {}).get('version', ''))
+          " 2>/dev/null || echo "")
+            if [ -n "$PY_VERSION" ]; then
+              if [ "$VERSION" != "$PY_VERSION" ]; then
+                echo "::error::Tag v$VERSION does not match pyproject.toml version $PY_VERSION"
+                exit 1
+              fi
+              echo "Validated: tag matches pyproject.toml ($VERSION)"
+              exit 0
+            fi
+          fi
+
+          echo "::warning::No version file found — skipping version match validation"
+
+      - name: Extract changelog
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # Escape dots for awk regex (1.2.3 -> 1\.2\.3)
+          SAFE_VERSION=$(echo "$VERSION" | sed 's/\./\\./g')
+          NOTES=""
+          if [ -f CHANGELOG.md ]; then
+            # Match "## X.Y.Z" optionally followed by space+anything (date, dash, etc.) or end of line
+            NOTES=$(awk "/^## ${SAFE_VERSION}([[:space:]]|$)/{found=1; next} /^## [0-9]/{if(found) exit} found" CHANGELOG.md | awk 'NF{p=1} p')
+          fi
+          if [ -n "$NOTES" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "$NOTES" > /tmp/release-notes.md
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          REPO_NAME="${{ github.event.repository.name }}"
+          if [ "${{ steps.changelog.outputs.found }}" == "true" ]; then
+            gh release create "$TAG" --title "${REPO_NAME} ${VERSION}" --notes-file /tmp/release-notes.md
+          else
+            gh release create "$TAG" --title "${REPO_NAME} ${VERSION}" --generate-notes
+          fi
+
+      - name: Summary
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          {
+            echo "## Released ${VERSION}"
+            echo "- GitHub Release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${TAG}"
+          } >> "$GITHUB_STEP_SUMMARY"
