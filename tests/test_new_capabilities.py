@@ -3,13 +3,13 @@
 try:
     import pytest
 except ImportError:
-    import unittest
     pytest = None
 
 
 class TestConsensusScore:
     def test_multi_provider_boost(self):
         from capabilities.consensus_score import run
+
         hits = [
             {"url": "a.com", "score_hint": 10, "provider": "ddgs"},
             {"url": "a.com", "score_hint": 10, "provider": "searxng"},
@@ -21,15 +21,27 @@ class TestConsensusScore:
 
     def test_empty_input(self):
         from capabilities.consensus_score import run
+
         assert run([]) == []
 
 
 class TestContentMerge:
     def test_merges_duplicates(self):
         from capabilities.content_merge import run
+
         hits = [
-            {"url": "https://a.com", "title": "Short", "snippet": "First", "provider": "x"},
-            {"url": "https://a.com/", "title": "Longer Title", "snippet": "Second", "provider": "y"},
+            {
+                "url": "https://a.com",
+                "title": "Short",
+                "snippet": "First",
+                "provider": "x",
+            },
+            {
+                "url": "https://a.com/",
+                "title": "Longer Title",
+                "snippet": "Second",
+                "provider": "y",
+            },
         ]
         result = run(hits)
         assert len(result) == 1
@@ -38,6 +50,7 @@ class TestContentMerge:
 
     def test_no_duplicates_passthrough(self):
         from capabilities.content_merge import run
+
         hits = [
             {"url": "https://a.com", "title": "A", "snippet": "a", "provider": "x"},
             {"url": "https://b.com", "title": "B", "snippet": "b", "provider": "y"},
@@ -51,13 +64,17 @@ class TestBackendHealth:
         from capabilities.backend_health import run, _STATE_PATH
         from pathlib import Path
         import tempfile
+
         original = _STATE_PATH
         # Use temp file
         import capabilities.backend_health as mod
+
         mod._STATE_PATH = Path(tempfile.mktemp(suffix=".json"))
         try:
             for _ in range(3):
-                run(None, action="record_error", backend="test_be", error_type="timeout")
+                run(
+                    None, action="record_error", backend="test_be", error_type="timeout"
+                )
             report = run(None, action="check")
             assert report["test_be"]["suspended"]
             # Recovery
@@ -70,10 +87,11 @@ class TestBackendHealth:
 
 class TestCacheResults:
     def test_store_and_retrieve(self):
-        from capabilities.cache_results import run, _DB_PATH
+        from capabilities.cache_results import run
         from pathlib import Path
         import tempfile
         import capabilities.cache_results as mod
+
         original = mod._DB_PATH
         mod._DB_PATH = Path(tempfile.mktemp(suffix=".sqlite"))
         try:
@@ -92,6 +110,7 @@ class TestFreshnessCheck:
     def test_fresh_and_stale(self):
         from capabilities.freshness_check import run
         from datetime import datetime
+
         today = datetime.now().strftime("%Y-%m-%d")
         hits = [
             {"title": "A", "created": today},
@@ -105,6 +124,7 @@ class TestFreshnessCheck:
 class TestPersonaExpand:
     def test_returns_7_queries(self):
         from capabilities.persona_expand import run
+
         result = run("AI agent framework")
         assert len(result) == 7
         personas = {r["persona"] for r in result}
@@ -114,6 +134,7 @@ class TestPersonaExpand:
 class TestStuckDetect:
     def test_detects_stuck(self):
         from capabilities.stuck_detect import run
+
         history = [
             {"urls": ["a", "b"], "new_count": 2},
             {"urls": ["a", "b"], "new_count": 0},
@@ -124,6 +145,7 @@ class TestStuckDetect:
 
     def test_not_stuck(self):
         from capabilities.stuck_detect import run
+
         history = [
             {"urls": ["a"], "new_count": 5},
             {"urls": ["b", "c"], "new_count": 8},
@@ -135,6 +157,7 @@ class TestStuckDetect:
 class TestBeastMode:
     def test_deduplicates_and_summarizes(self):
         from capabilities.beast_mode import run
+
         evidence = [
             {"title": "A", "url": "a.com", "score_hint": 30},
             {"title": "B", "url": "b.com", "score_hint": 10},
@@ -148,6 +171,7 @@ class TestBeastMode:
 class TestBreadthControl:
     def test_halving(self):
         from capabilities.breadth_control import run
+
         r0 = run(None, initial_breadth=8, current_depth=0)
         r1 = run(None, initial_breadth=8, current_depth=1)
         r2 = run(None, initial_breadth=8, current_depth=2)
@@ -159,6 +183,7 @@ class TestBreadthControl:
 class TestLearningsExtract:
     def test_extracts_learnings(self):
         from capabilities.learnings_extract import run
+
         hits = [
             {"title": "Framework X", "url": "https://x.com", "snippet": "A great tool"},
             {"title": "Framework Y", "url": "https://y.com", "snippet": "Another tool"},
@@ -166,4 +191,3 @@ class TestLearningsExtract:
         result = run(hits, query="AI framework")
         assert isinstance(result, list)
         assert len(result) > 0
-

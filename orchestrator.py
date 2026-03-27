@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import sys
-import time
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -21,14 +20,18 @@ def _to_openai_tools(tools: list[dict]) -> list[dict]:
     """Convert capability tool definitions to OpenAI function-calling format."""
     openai_tools = []
     for tool in tools:
-        openai_tools.append({
-            "type": "function",
-            "function": {
-                "name": tool["name"],
-                "description": tool.get("description", ""),
-                "parameters": tool.get("input_schema", {"type": "object", "properties": {}}),
-            },
-        })
+        openai_tools.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": tool["name"],
+                    "description": tool.get("description", ""),
+                    "parameters": tool.get(
+                        "input_schema", {"type": "object", "properties": {}}
+                    ),
+                },
+            }
+        )
     return openai_tools
 
 
@@ -39,15 +42,19 @@ def _call_llm(messages: list[dict], tools: list[dict], model: str = "") -> dict:
         raise RuntimeError("OPENROUTER_API_KEY not set")
 
     if not model:
-        model = os.environ.get("OPENROUTER_ORCHESTRATOR_MODEL", DEFAULT_ORCHESTRATOR_MODEL)
+        model = os.environ.get(
+            "OPENROUTER_ORCHESTRATOR_MODEL", DEFAULT_ORCHESTRATOR_MODEL
+        )
 
-    payload = json.dumps({
-        "model": model,
-        "max_tokens": 2048,
-        "messages": messages,
-        "tools": _to_openai_tools(tools),
-        "temperature": 0.3,
-    }).encode()
+    payload = json.dumps(
+        {
+            "model": model,
+            "max_tokens": 2048,
+            "messages": messages,
+            "tools": _to_openai_tools(tools),
+            "temperature": 0.3,
+        }
+    ).encode()
 
     req = urllib.request.Request(
         OPENROUTER_API_URL,
@@ -101,7 +108,9 @@ def _summarize_result(result: Any, max_items: int = 8) -> str:
             else:
                 summary_items.append(f"  - {str(item)[:100]}")
         text = "\n".join(summary_items)
-        return f"Returned {count} items:\n{text}" + (f"\n  ... and {count - max_items} more" if count > max_items else "")
+        return f"Returned {count} items:\n{text}" + (
+            f"\n  ... and {count - max_items} more" if count > max_items else ""
+        )
     elif isinstance(result, dict):
         # Special handling for health reports — summarize source statuses
         if "sources" in result and isinstance(result["sources"], dict):
@@ -142,23 +151,36 @@ def run_task(
     Returns:
         dict with: status, summary, collected_count, evidence, learnings
     """
-    from orchestrator_prompts import SYSTEM_PROMPT, TASK_PROMPT, PROGRESS_TEMPLATE, STUCK_NUDGE
+    from orchestrator_prompts import (
+        SYSTEM_PROMPT,
+        TASK_PROMPT,
+        PROGRESS_TEMPLATE,
+        STUCK_NUDGE,
+    )
 
     # Build tool definitions from capabilities
     cap_tools = manifest_json()
     # Add terminate tool (OpenManus pattern)
-    cap_tools.append({
-        "name": "terminate",
-        "description": "Call when the task is complete or budget exhausted. Provide a summary of findings.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "summary": {"type": "string", "description": "Summary of what was found"},
-                "collected_count": {"type": "integer", "description": "Number of items collected"},
+    cap_tools.append(
+        {
+            "name": "terminate",
+            "description": "Call when the task is complete or budget exhausted. Provide a summary of findings.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "summary": {
+                        "type": "string",
+                        "description": "Summary of what was found",
+                    },
+                    "collected_count": {
+                        "type": "integer",
+                        "description": "Number of items collected",
+                    },
+                },
+                "required": ["summary"],
             },
-            "required": ["summary"],
-        },
-    })
+        }
+    )
 
     # Build initial messages
     system_msg = SYSTEM_PROMPT.format(manifest=manifest_text())
@@ -183,7 +205,10 @@ def run_task(
         historical = dispatch("learnings_persist", None, action="load", max_load=15)
         if isinstance(historical, list) and historical:
             all_learnings.extend(historical)
-            print(f"[orchestrator] Loaded {len(historical)} historical learnings", file=sys.stderr)
+            print(
+                f"[orchestrator] Loaded {len(historical)} historical learnings",
+                file=sys.stderr,
+            )
     except Exception:
         pass
     # Rebuild task prompt with historical learnings if any were loaded
@@ -193,7 +218,8 @@ def run_task(
             mode=mode,
             max_steps=max_steps,
             budget_status="unlimited" if not budget else json.dumps(budget),
-            learnings_context="Historical learnings from past sessions:\n" + "\n".join(f"- {l}" for l in all_learnings[:10]),
+            learnings_context="Historical learnings from past sessions:\n"
+            + "\n".join(f"- {l}" for l in all_learnings[:10]),
         )
         messages[-1] = {"role": "user", "content": task_msg}
     step_history: list[dict] = []
@@ -201,6 +227,7 @@ def run_task(
     # Generate task_id
     if not task_id:
         import hashlib
+
         task_id = hashlib.sha1(task_spec.encode()).hexdigest()[:8]
     checkpoint_dir = Path("sources/checkpoints")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -208,7 +235,9 @@ def run_task(
 
     # Resume from checkpoint if requested
     if resume_from:
-        _resume_path = Path(resume_from) if Path(resume_from).exists() else checkpoint_path
+        _resume_path = (
+            Path(resume_from) if Path(resume_from).exists() else checkpoint_path
+        )
         if _resume_path.exists():
             try:
                 saved = json.loads(_resume_path.read_text())
@@ -216,7 +245,10 @@ def run_task(
                 all_learnings = saved.get("learnings", [])
                 step_history = saved.get("step_history", [])
                 start_step = saved.get("steps_used", 0)
-                print(f"[orchestrator] Resumed from checkpoint: {len(all_evidence)} evidence, step {start_step}", file=sys.stderr)
+                print(
+                    f"[orchestrator] Resumed from checkpoint: {len(all_evidence)} evidence, step {start_step}",
+                    file=sys.stderr,
+                )
             except Exception:
                 start_step = 0
         else:
@@ -244,7 +276,9 @@ def run_task(
         try:
             response = _call_llm(messages, cap_tools, model=model)
         except Exception as exc:
-            print(f"[orchestrator] LLM call failed at step {step}: {exc}", file=sys.stderr)
+            print(
+                f"[orchestrator] LLM call failed at step {step}: {exc}", file=sys.stderr
+            )
             break
 
         tool_call = _extract_tool_call(response)
@@ -254,7 +288,12 @@ def run_task(
         if not tool_call:
             if text:
                 messages.append({"role": "assistant", "content": text})
-                messages.append({"role": "user", "content": "Please call a capability or terminate."})
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "Please call a capability or terminate.",
+                    }
+                )
                 continue
             break
 
@@ -263,7 +302,12 @@ def run_task(
             # Save learnings for future sessions
             if all_learnings:
                 try:
-                    dispatch("learnings_persist", all_learnings, action="save", task_spec=task_spec)
+                    dispatch(
+                        "learnings_persist",
+                        all_learnings,
+                        action="save",
+                        task_spec=task_spec,
+                    )
                 except Exception:
                     pass
             return {
@@ -284,13 +328,17 @@ def run_task(
         if all_learnings:
             cap_context.setdefault("learnings", all_learnings)
 
-        print(f"[orchestrator] Step {step + 1}/{max_steps}: {cap_name}", file=sys.stderr)
+        print(
+            f"[orchestrator] Step {step + 1}/{max_steps}: {cap_name}", file=sys.stderr
+        )
 
         try:
             result = dispatch(cap_name, cap_input, **cap_context)
         except Exception as exc:
             result = {"error": str(exc)}
-            print(f"[orchestrator] Capability {cap_name} failed: {exc}", file=sys.stderr)
+            print(
+                f"[orchestrator] Capability {cap_name} failed: {exc}", file=sys.stderr
+            )
 
         # Track evidence (anything with URLs)
         if isinstance(result, list):
@@ -309,7 +357,9 @@ def run_task(
             "step": step + 1,
             "capability": cap_name,
             "new_count": len(result) if isinstance(result, list) else 0,
-            "urls": [item.get("url", "") for item in result[:5]] if isinstance(result, list) and result and isinstance(result[0], dict) else [],
+            "urls": [item.get("url", "") for item in result[:5]]
+            if isinstance(result, list) and result and isinstance(result[0], dict)
+            else [],
         }
         step_history.append(step_record)
 
@@ -342,11 +392,13 @@ def run_task(
         # Add to conversation (OpenAI tool-use message format)
         assistant_msg = response.get("choices", [{}])[0].get("message", {})
         messages.append(assistant_msg)
-        messages.append({
-            "role": "tool",
-            "tool_call_id": tool_call["id"],
-            "content": tool_result_content,
-        })
+        messages.append(
+            {
+                "role": "tool",
+                "tool_call_id": tool_call["id"],
+                "content": tool_result_content,
+            }
+        )
 
         # Check stuck (every 3 steps)
         if len(step_history) >= 3 and len(step_history) % 3 == 0:
@@ -364,7 +416,9 @@ def run_task(
         # Compress old messages when conversation grows too long
         if len(messages) > 24:
             # Keep system message + last 16 messages
-            system_msgs = [m for m in messages[:2] if m.get("role") in ("system", "user")]
+            system_msgs = [
+                m for m in messages[:2] if m.get("role") in ("system", "user")
+            ]
             recent = messages[-16:]
             # Build compression summary
             old_count = len(messages) - len(system_msgs) - len(recent)
@@ -379,11 +433,15 @@ def run_task(
     # Save learnings for future sessions
     if all_learnings:
         try:
-            dispatch("learnings_persist", all_learnings, action="save", task_spec=task_spec)
+            dispatch(
+                "learnings_persist", all_learnings, action="save", task_spec=task_spec
+            )
         except Exception:
             pass
     try:
-        beast_result = dispatch("beast_mode", all_evidence, learnings=all_learnings, task_spec=task_spec)
+        beast_result = dispatch(
+            "beast_mode", all_evidence, learnings=all_learnings, task_spec=task_spec
+        )
         return {
             "status": "beast_mode",
             "summary": beast_result.get("summary", ""),

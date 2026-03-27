@@ -10,7 +10,7 @@ output_type = "scores"
 
 
 def run(evidence, **context):
-    from goal_judge import evaluate_goal_bundle, _bundle_findings
+    from goal_judge import evaluate_goal_bundle
 
     goal_case = context.get("goal_case") or {}
     result = evaluate_goal_bundle(goal_case, evidence)
@@ -26,4 +26,5 @@ def health_check():
 
 def test():
     from goal_judge import evaluate_goal_bundle, _bundle_findings  # noqa: F401
+
     return "ok"

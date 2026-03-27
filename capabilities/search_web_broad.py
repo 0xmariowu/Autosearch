@@ -22,13 +22,16 @@ input_schema = {
 
 def run(query, **context):
     from search_mesh.router import search_platform
+
     limit = context.get("limit", 50)
     providers = ["searxng", "ddgs", "exa", "tavily"]
 
     all_hits = []
     for name_str in providers:
         try:
-            batch = search_platform({"name": name_str}, str(query), query_family="broad")
+            batch = search_platform(
+                {"name": name_str}, str(query), query_family="broad"
+            )
             all_hits.extend(batch.to_hit_dicts())
         except Exception:
             continue
@@ -37,4 +40,5 @@ def run(query, **context):
 
 def test():
     from search_mesh.router import search_platform  # noqa: F401
+
     return "ok"

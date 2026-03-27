@@ -13,8 +13,16 @@ input_schema = {
         "context": {
             "type": "object",
             "properties": {
-                "limit": {"type": "integer", "description": "Max results to return", "default": 20},
-                "query_family": {"type": "string", "description": "Query family label", "default": "unknown"},
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results to return",
+                    "default": 20,
+                },
+                "query_family": {
+                    "type": "string",
+                    "description": "Query family label",
+                    "default": "unknown",
+                },
             },
         },
     },
@@ -24,11 +32,14 @@ input_schema = {
 
 def run(query, **context):
     from search_mesh.router import search_platform
+
     limit = context.get("limit", 20)
     query_family = context.get("query_family", "unknown")
 
     try:
-        batch = search_platform({"name": "huggingface_datasets"}, str(query), query_family=query_family)
+        batch = search_platform(
+            {"name": "huggingface_datasets"}, str(query), query_family=query_family
+        )
         return batch.to_hit_dicts()[:limit]
     except Exception:
         return []
@@ -36,4 +47,5 @@ def run(query, **context):
 
 def test():
     from search_mesh.router import search_platform  # noqa: F401
+
     return "ok"

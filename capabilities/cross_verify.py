@@ -26,21 +26,31 @@ input_schema = {
 
 def run(evidence, **context):
     if not evidence or not isinstance(evidence, list):
-        return {"contradictions": [], "consensus": [], "analysis": "No evidence to verify."}
+        return {
+            "contradictions": [],
+            "consensus": [],
+            "analysis": "No evidence to verify.",
+        }
 
     evidence = [e for e in evidence if isinstance(e, dict)]
     if len(evidence) < 2:
-        return {"contradictions": [], "consensus": [], "analysis": "Need at least 2 pieces of evidence to cross-verify."}
+        return {
+            "contradictions": [],
+            "consensus": [],
+            "analysis": "Need at least 2 pieces of evidence to cross-verify.",
+        }
 
     # Try full synthesizer
     try:
-        from research.synthesizer import _align_claims, _cross_verification_summary
+        from research.synthesizer import _align_claims
 
         claim_alignment = _align_claims(evidence)
         return {
             "contradictions": list(claim_alignment.get("contradiction_clusters") or []),
             "consensus": list(claim_alignment.get("aligned_claims") or []),
-            "contradiction_detected": bool(claim_alignment.get("contradiction_detected")),
+            "contradiction_detected": bool(
+                claim_alignment.get("contradiction_detected")
+            ),
             "stance_counts": dict(claim_alignment.get("stance_counts") or {}),
             "source_dispute_map": dict(claim_alignment.get("source_dispute_map") or {}),
             "analysis": f"Analyzed {len(evidence)} items. Contradiction detected: {claim_alignment.get('contradiction_detected', False)}.",

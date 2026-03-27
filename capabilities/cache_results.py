@@ -72,6 +72,7 @@ def run(input_data, **context):
 
 def test():
     import tempfile
+
     global _DB_PATH
     original = _DB_PATH
     _DB_PATH = Path(tempfile.mktemp(suffix=".sqlite"))

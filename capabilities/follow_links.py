@@ -1,7 +1,9 @@
 """Extract outbound links from fetched documents."""
 
 name = "follow_links"
-description = "Extract reference URLs from document HTML for link-following and crawl expansion."
+description = (
+    "Extract reference URLs from document HTML for link-following and crawl expansion."
+)
 when = "When you have fetched documents and need to discover linked pages for deeper exploration."
 input_type = "documents"
 output_type = "urls"

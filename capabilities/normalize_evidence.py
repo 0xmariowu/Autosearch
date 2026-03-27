@@ -20,13 +20,17 @@ def run(input, **context):
 def test():
     from evidence import coerce_evidence_records
 
-    records = coerce_evidence_records([{
-        "title": "Test Page",
-        "url": "https://example.com",
-        "body": "Some content here",
-        "source": "test",
-        "query": "test query",
-    }])
+    records = coerce_evidence_records(
+        [
+            {
+                "title": "Test Page",
+                "url": "https://example.com",
+                "body": "Some content here",
+                "source": "test",
+                "query": "test query",
+            }
+        ]
+    )
     assert len(records) == 1
     assert records[0]["record_type"] == "evidence"
     assert records[0]["title"] == "Test Page"

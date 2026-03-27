@@ -90,7 +90,9 @@ def build_evidence_record(
     return {
         "record_type": "evidence",
         "evidence_id": _evidence_id(
-            str(url or "").strip(), clean_title, str(query or "").strip(),
+            str(url or "").strip(),
+            clean_title,
+            str(query or "").strip(),
             str(source or "").strip(),
         ),
         "title": clean_title,

@@ -33,4 +33,5 @@ def run(research_context, **context):
 
 def test():
     from research import build_research_plan  # noqa: F401
+
     return "ok"

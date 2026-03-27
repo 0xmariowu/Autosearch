@@ -3,9 +3,15 @@
 try:
     import pytest
 except ImportError:
-    import unittest
     pytest = None
-from capabilities import load_manifest, dispatch, manifest_text, manifest_json, run_all_tests, available_capabilities
+from capabilities import (
+    load_manifest,
+    dispatch,
+    manifest_text,
+    manifest_json,
+    run_all_tests,
+    available_capabilities,
+)
 
 
 def test_load_manifest_returns_list():
@@ -21,7 +27,7 @@ def test_manifest_entries_have_required_fields():
         assert "when" in cap
         assert "input_type" in cap
         assert "output_type" in cap
-        assert cap["name"], f"Empty name in capability"
+        assert cap["name"], "Empty name in capability"
         assert cap["description"], f"Empty description for {cap['name']}"
 
 
@@ -60,7 +66,9 @@ def test_dispatch_unknown_raises():
 
 def test_run_all_tests_all_pass():
     results = run_all_tests()
-    failures = {k: v for k, v in results.items() if isinstance(v, str) and v.startswith("FAIL")}
+    failures = {
+        k: v for k, v in results.items() if isinstance(v, str) and v.startswith("FAIL")
+    }
     assert not failures, f"Failed tests: {failures}"
 
 
@@ -70,4 +78,3 @@ def test_available_capabilities_filters():
     # All available should have no LOAD ERROR
     for cap in available:
         assert "LOAD ERROR" not in cap.get("description", "")
-

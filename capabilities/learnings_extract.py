@@ -17,7 +17,10 @@ input_schema = {
         "context": {
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "The query that produced these hits"},
+                "query": {
+                    "type": "string",
+                    "description": "The query that produced these hits",
+                },
             },
         },
     },
@@ -37,6 +40,7 @@ def _extract_from_hits(hits, query=""):
 
         # Extract domain insight
         from urllib.parse import urlparse
+
         try:
             domain = urlparse(url).netloc
         except Exception:
@@ -55,7 +59,9 @@ def _extract_from_hits(hits, query=""):
 
     # Add meta-learnings
     if seen_domains:
-        learnings.append(f"Found results from {len(seen_domains)} unique domains: {', '.join(sorted(seen_domains)[:5])}")
+        learnings.append(
+            f"Found results from {len(seen_domains)} unique domains: {', '.join(sorted(seen_domains)[:5])}"
+        )
 
     return learnings[:10]  # cap at 10
 
@@ -108,11 +114,13 @@ Extract 5-10 concise, information-dense learnings. Each learning should be a sin
 
 Return JSON array of strings: ["learning 1", "learning 2", ...]"""
 
-    payload = _json.dumps({
-        "model": "claude-haiku-4-5-20251001",
-        "max_tokens": 512,
-        "messages": [{"role": "user", "content": prompt}],
-    }).encode()
+    payload = _json.dumps(
+        {
+            "model": "claude-haiku-4-5-20251001",
+            "max_tokens": 512,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+    ).encode()
 
     req = urllib.request.Request(
         "https://api.anthropic.com/v1/messages",
@@ -138,9 +146,21 @@ Return JSON array of strings: ["learning 1", "learning 2", ...]"""
 
 def test():
     sample_hits = [
-        {"title": "LangChain Agent Framework", "url": "https://github.com/langchain-ai/langchain", "snippet": "Build context-aware reasoning applications"},
-        {"title": "AutoGPT", "url": "https://github.com/Significant-Gravitas/AutoGPT", "snippet": "Autonomous AI agent platform"},
-        {"title": "CrewAI", "url": "https://github.com/crewAIInc/crewAI", "snippet": "Framework for orchestrating AI agents"},
+        {
+            "title": "LangChain Agent Framework",
+            "url": "https://github.com/langchain-ai/langchain",
+            "snippet": "Build context-aware reasoning applications",
+        },
+        {
+            "title": "AutoGPT",
+            "url": "https://github.com/Significant-Gravitas/AutoGPT",
+            "snippet": "Autonomous AI agent platform",
+        },
+        {
+            "title": "CrewAI",
+            "url": "https://github.com/crewAIInc/crewAI",
+            "snippet": "Framework for orchestrating AI agents",
+        },
     ]
     result = run(sample_hits, query="AI agent framework")
     assert isinstance(result, list)

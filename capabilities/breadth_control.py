@@ -33,7 +33,7 @@ def run(input_data, **context):
         "initial_breadth": initial_breadth,
         "total_estimated_queries": total_queries,
         "breadth_schedule": [
-            {"depth": d, "breadth": math.ceil(initial_breadth / (2 ** d))}
+            {"depth": d, "breadth": math.ceil(initial_breadth / (2**d))}
             for d in range(max_depth + 1)
         ],
     }

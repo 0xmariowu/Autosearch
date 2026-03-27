@@ -24,12 +24,14 @@ def run(hits, **context):
         for h in hits
     ]
 
-    payload = json.dumps({
-        "model": "jina-reranker-v2-base-multilingual",
-        "query": str(query),
-        "documents": documents,
-        "top_n": min(top_n, len(documents)),
-    }).encode()
+    payload = json.dumps(
+        {
+            "model": "jina-reranker-v2-base-multilingual",
+            "query": str(query),
+            "documents": documents,
+            "top_n": min(top_n, len(documents)),
+        }
+    ).encode()
 
     req = urllib.request.Request(
         "https://api.jina.ai/v1/rerank",

@@ -62,7 +62,9 @@ def run(hits, **context):
                 seen_snippets.add(s)
                 snippet_parts.append(s)
         # Collect all providers
-        all_providers = sorted({str(h.get("provider") or "") for h in group if h.get("provider")})
+        all_providers = sorted(
+            {str(h.get("provider") or "") for h in group if h.get("provider")}
+        )
 
         # Use first hit as base, update fields
         base = dict(group[0])
@@ -79,10 +81,30 @@ def run(hits, **context):
 
 def test():
     sample = [
-        {"url": "https://A.com/", "title": "Short", "snippet": "First snippet", "provider": "ddgs"},
-        {"url": "https://a.com", "title": "Longer Title Here", "snippet": "Second snippet", "provider": "searxng"},
-        {"url": "https://a.com", "title": "A", "snippet": "First snippet", "provider": "exa"},  # duplicate snippet
-        {"url": "https://b.com", "title": "B", "snippet": "Only one", "provider": "ddgs"},
+        {
+            "url": "https://A.com/",
+            "title": "Short",
+            "snippet": "First snippet",
+            "provider": "ddgs",
+        },
+        {
+            "url": "https://a.com",
+            "title": "Longer Title Here",
+            "snippet": "Second snippet",
+            "provider": "searxng",
+        },
+        {
+            "url": "https://a.com",
+            "title": "A",
+            "snippet": "First snippet",
+            "provider": "exa",
+        },  # duplicate snippet
+        {
+            "url": "https://b.com",
+            "title": "B",
+            "snippet": "Only one",
+            "provider": "ddgs",
+        },
     ]
     result = run(sample)
     assert len(result) == 2, f"Expected 2, got {len(result)}"

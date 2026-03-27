@@ -9,7 +9,10 @@ output_type = "queries"
 input_schema = {
     "type": "object",
     "properties": {
-        "input": {"type": "string", "description": "Original search query to expand into 7 personas"},
+        "input": {
+            "type": "string",
+            "description": "Original search query to expand into 7 personas",
+        },
     },
     "required": ["input"],
 }
@@ -57,13 +60,41 @@ def _template_expand(query):
     """Fallback: generate queries using templates (no LLM needed)."""
     q = str(query).strip()
     return [
-        {"query": f"{q} problems limitations failures", "persona": "skeptic", "research_goal": f"Find counter-evidence and edge cases for: {q}"},
-        {"query": f"{q} benchmark comparison data", "persona": "analyst", "research_goal": f"Find precise data and measurements for: {q}"},
-        {"query": f"{q} history evolution origin", "persona": "historian", "research_goal": f"Find how {q} evolved over time"},
-        {"query": f"{q} vs alternatives comparison", "persona": "comparator", "research_goal": f"Find alternatives and trade-offs for: {q}"},
-        {"query": f"{q} 2026 latest new", "persona": "temporal", "research_goal": f"Find the most recent information about: {q}"},
-        {"query": q, "persona": "globalizer", "research_goal": f"Search in the most authoritative language for: {q}"},
-        {"query": f"why {q} is wrong problems criticism", "persona": "contrarian", "research_goal": f"Find opposing views on: {q}"},
+        {
+            "query": f"{q} problems limitations failures",
+            "persona": "skeptic",
+            "research_goal": f"Find counter-evidence and edge cases for: {q}",
+        },
+        {
+            "query": f"{q} benchmark comparison data",
+            "persona": "analyst",
+            "research_goal": f"Find precise data and measurements for: {q}",
+        },
+        {
+            "query": f"{q} history evolution origin",
+            "persona": "historian",
+            "research_goal": f"Find how {q} evolved over time",
+        },
+        {
+            "query": f"{q} vs alternatives comparison",
+            "persona": "comparator",
+            "research_goal": f"Find alternatives and trade-offs for: {q}",
+        },
+        {
+            "query": f"{q} 2026 latest new",
+            "persona": "temporal",
+            "research_goal": f"Find the most recent information about: {q}",
+        },
+        {
+            "query": q,
+            "persona": "globalizer",
+            "research_goal": f"Search in the most authoritative language for: {q}",
+        },
+        {
+            "query": f"why {q} is wrong problems criticism",
+            "persona": "contrarian",
+            "research_goal": f"Find opposing views on: {q}",
+        },
     ]
 
 
@@ -99,11 +130,13 @@ Generate 7 alternative search queries, one for each cognitive persona:
 
 Return JSON array: [{{"query": "...", "persona": "skeptic|analyst|historian|comparator|temporal|globalizer|contrarian", "research_goal": "..."}}]"""
 
-    payload = _json.dumps({
-        "model": "claude-haiku-4-5-20251001",
-        "max_tokens": 1024,
-        "messages": [{"role": "user", "content": prompt}],
-    }).encode()
+    payload = _json.dumps(
+        {
+            "model": "claude-haiku-4-5-20251001",
+            "max_tokens": 1024,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+    ).encode()
 
     req = urllib.request.Request(
         "https://api.anthropic.com/v1/messages",
@@ -123,7 +156,14 @@ Return JSON array: [{{"query": "...", "persona": "skeptic|analyst|historian|comp
     end = text.rfind("]") + 1
     if start >= 0 and end > start:
         queries = _json.loads(text[start:end])
-        return [{"query": q["query"], "persona": q.get("persona", ""), "research_goal": q.get("research_goal", "")} for q in queries]
+        return [
+            {
+                "query": q["query"],
+                "persona": q.get("persona", ""),
+                "research_goal": q.get("research_goal", ""),
+            }
+            for q in queries
+        ]
 
     return _template_expand(query)
 

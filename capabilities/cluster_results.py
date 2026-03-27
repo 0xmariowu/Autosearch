@@ -74,16 +74,27 @@ def run(hits, **context):
     # Add unclustered as "other"
     unclustered = [h for i, h in enumerate(hits) if i not in assigned]
     if unclustered:
-        clusters.append({"label": "other", "count": len(unclustered), "hits": unclustered})
+        clusters.append(
+            {"label": "other", "count": len(unclustered), "hits": unclustered}
+        )
 
     return {"clusters": clusters, "total": len(hits), "cluster_count": len(clusters)}
 
 
 def test():
     hits = [
-        {"title": "Python web framework Flask", "snippet": "Flask is a micro web framework"},
-        {"title": "Django web framework", "snippet": "Django is a full-stack web framework"},
-        {"title": "Machine learning with PyTorch", "snippet": "Deep learning framework"},
+        {
+            "title": "Python web framework Flask",
+            "snippet": "Flask is a micro web framework",
+        },
+        {
+            "title": "Django web framework",
+            "snippet": "Django is a full-stack web framework",
+        },
+        {
+            "title": "Machine learning with PyTorch",
+            "snippet": "Deep learning framework",
+        },
         {"title": "TensorFlow ML framework", "snippet": "Machine learning platform"},
     ]
     result = run(hits, max_clusters=3, similarity_threshold=0.3)

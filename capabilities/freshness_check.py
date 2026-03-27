@@ -17,7 +17,19 @@ input_schema = {
         "context": {
             "type": "object",
             "properties": {
-                "category": {"type": "string", "enum": ["financial", "breaking_news", "technology", "software", "science", "historical", "default"], "default": "default"},
+                "category": {
+                    "type": "string",
+                    "enum": [
+                        "financial",
+                        "breaking_news",
+                        "technology",
+                        "software",
+                        "science",
+                        "historical",
+                        "default",
+                    ],
+                    "default": "default",
+                },
             },
         },
     },
@@ -28,7 +40,7 @@ from datetime import datetime, timedelta
 
 # Copied from Jina node-deepresearch QUESTION_FRESHNESS table
 _MAX_AGE_DAYS = {
-    "financial": 0.1,         # ~2.4 hours
+    "financial": 0.1,  # ~2.4 hours
     "breaking_news": 1,
     "current_events": 3,
     "technology": 14,
@@ -37,7 +49,7 @@ _MAX_AGE_DAYS = {
     "legal": 90,
     "medical": 180,
     "educational": 365,
-    "historical": 36500,      # ~100 years (effectively no limit)
+    "historical": 36500,  # ~100 years (effectively no limit)
     "factual": 36500,
     "default": 365,
 }

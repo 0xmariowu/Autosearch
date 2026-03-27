@@ -14,10 +14,10 @@ _STATE_PATH = Path(__file__).parent.parent / "sources" / "health-state.json"
 
 # Suspension durations in seconds (copied from SearXNG)
 _SUSPENSION_DURATIONS = {
-    "timeout": 300,         # 5 minutes
-    "rate_limit": 3600,     # 1 hour
-    "auth_error": 86400,    # 24 hours
-    "unknown_error": 600,   # 10 minutes
+    "timeout": 300,  # 5 minutes
+    "rate_limit": 3600,  # 1 hour
+    "auth_error": 86400,  # 24 hours
+    "unknown_error": 600,  # 10 minutes
 }
 _MAX_CONSECUTIVE_ERRORS = 3
 
@@ -37,7 +37,9 @@ def _save_state(state):
 
 
 def run(input_data, **context):
-    action = context.get("action", "check")  # check | record_error | record_success | reset
+    action = context.get(
+        "action", "check"
+    )  # check | record_error | record_success | reset
     backend = context.get("backend", "")
     error_type = context.get("error_type", "unknown_error")
 
@@ -74,7 +76,9 @@ def run(input_data, **context):
             "errors": entry.get("errors", 0),
             "suspended": is_suspended,
             "suspended_until": suspended_until if is_suspended else 0,
-            "recovery_in_seconds": max(0, int(suspended_until - now)) if is_suspended else 0,
+            "recovery_in_seconds": max(0, int(suspended_until - now))
+            if is_suspended
+            else 0,
         }
 
     return report
@@ -82,13 +86,19 @@ def run(input_data, **context):
 
 def test():
     import tempfile
+
     global _STATE_PATH
     original = _STATE_PATH
     _STATE_PATH = Path(tempfile.mktemp(suffix=".json"))
     try:
         # Record 3 errors -> should suspend
         for _ in range(3):
-            run(None, action="record_error", backend="test_backend", error_type="timeout")
+            run(
+                None,
+                action="record_error",
+                backend="test_backend",
+                error_type="timeout",
+            )
         report = run(None, action="check")
         assert report["test_backend"]["suspended"], "Should be suspended after 3 errors"
         assert report["test_backend"]["errors"] == 3
@@ -96,7 +106,9 @@ def test():
         # Record success -> should clear
         run(None, action="record_success", backend="test_backend")
         report = run(None, action="check")
-        assert not report["test_backend"]["suspended"], "Should not be suspended after success"
+        assert not report["test_backend"]["suspended"], (
+            "Should not be suspended after success"
+        )
 
         return "ok"
     finally:

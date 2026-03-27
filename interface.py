@@ -850,6 +850,7 @@ class AutoSearchInterface:
         execute search steps, and returns collected evidence with learnings.
         """
         from orchestrator import run_task
+
         return run_task(
             task_spec,
             max_steps=max_steps,

@@ -43,8 +43,8 @@ def run(input_data, **context):
     if len(url_sets) >= 2:
         overlap_ratios = []
         for i in range(1, len(url_sets)):
-            if url_sets[i] and url_sets[i-1]:
-                overlap = len(url_sets[i] & url_sets[i-1]) / max(len(url_sets[i]), 1)
+            if url_sets[i] and url_sets[i - 1]:
+                overlap = len(url_sets[i] & url_sets[i - 1]) / max(len(url_sets[i]), 1)
                 overlap_ratios.append(overlap)
         avg_overlap = sum(overlap_ratios) / max(len(overlap_ratios), 1)
     else:
@@ -52,13 +52,19 @@ def run(input_data, **context):
 
     # Check 2: Discovery rate declining
     discovery_rates = [r.get("new_count", r.get("discovery_rate", 0)) for r in recent]
-    declining = all(
-        discovery_rates[i] <= discovery_rates[i-1]
-        for i in range(1, len(discovery_rates))
-    ) if len(discovery_rates) >= 2 else False
+    declining = (
+        all(
+            discovery_rates[i] <= discovery_rates[i - 1]
+            for i in range(1, len(discovery_rates))
+        )
+        if len(discovery_rates) >= 2
+        else False
+    )
 
     # Check 3: Zero new results
-    zero_rounds = sum(1 for r in recent if (r.get("new_count", r.get("discovery_rate", 1))) == 0)
+    zero_rounds = sum(
+        1 for r in recent if (r.get("new_count", r.get("discovery_rate", 1))) == 0
+    )
 
     # Determine if stuck
     stuck = False
@@ -68,17 +74,23 @@ def run(input_data, **context):
     if avg_overlap > 0.7:
         stuck = True
         confidence = max(confidence, avg_overlap)
-        suggestions.append("High URL overlap between rounds — try completely different query terms")
+        suggestions.append(
+            "High URL overlap between rounds — try completely different query terms"
+        )
 
     if declining and len(discovery_rates) >= 3:
         stuck = True
         confidence = max(confidence, 0.8)
-        suggestions.append("Discovery rate declining — try different platforms or use persona_expand for diverse queries")
+        suggestions.append(
+            "Discovery rate declining — try different platforms or use persona_expand for diverse queries"
+        )
 
     if zero_rounds >= 2:
         stuck = True
         confidence = max(confidence, 0.9)
-        suggestions.append("Multiple rounds with zero new results — escalate to crawl_page + follow_links on existing high-quality results")
+        suggestions.append(
+            "Multiple rounds with zero new results — escalate to crawl_page + follow_links on existing high-quality results"
+        )
 
     if not suggestions:
         suggestions.append("Not stuck — continue current strategy")

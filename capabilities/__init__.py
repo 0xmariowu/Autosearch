@@ -29,21 +29,25 @@ def load_manifest(force: bool = False) -> list[dict[str, str]]:
             continue
         try:
             mod = _load_module(file.stem)
-            manifest.append({
-                "name": getattr(mod, "name", file.stem),
-                "description": getattr(mod, "description", ""),
-                "when": getattr(mod, "when", ""),
-                "input_type": getattr(mod, "input_type", "any"),
-                "output_type": getattr(mod, "output_type", "any"),
-            })
+            manifest.append(
+                {
+                    "name": getattr(mod, "name", file.stem),
+                    "description": getattr(mod, "description", ""),
+                    "when": getattr(mod, "when", ""),
+                    "input_type": getattr(mod, "input_type", "any"),
+                    "output_type": getattr(mod, "output_type", "any"),
+                }
+            )
         except Exception as exc:
-            manifest.append({
-                "name": file.stem,
-                "description": f"LOAD ERROR: {exc}",
-                "when": "",
-                "input_type": "any",
-                "output_type": "any",
-            })
+            manifest.append(
+                {
+                    "name": file.stem,
+                    "description": f"LOAD ERROR: {exc}",
+                    "when": "",
+                    "input_type": "any",
+                    "output_type": "any",
+                }
+            )
     _MANIFEST_CACHE = manifest
     return list(manifest)
 
@@ -58,7 +62,9 @@ def manifest_text() -> str:
     """Generate AI-readable manifest for LLM prompt injection."""
     lines = []
     for cap in load_manifest():
-        lines.append(f"- **{cap['name']}** ({cap['input_type']} -> {cap['output_type']})")
+        lines.append(
+            f"- **{cap['name']}** ({cap['input_type']} -> {cap['output_type']})"
+        )
         lines.append(f"  {cap['description']}")
         lines.append(f"  Use when: {cap['when']}")
     return "\n".join(lines)
@@ -82,19 +88,26 @@ def manifest_json() -> list[dict[str, Any]]:
                 "type": "object",
                 "properties": {
                     "input": {"description": f"Input type: {cap['input_type']}"},
-                    "context": {"description": "Additional parameters", "type": "object"},
+                    "context": {
+                        "description": "Additional parameters",
+                        "type": "object",
+                    },
                 },
             }
 
-        tools.append({
-            "name": cap["name"],
-            "description": f"{cap['description']} Use when: {cap['when']}",
-            "input_schema": schema,
-        })
+        tools.append(
+            {
+                "name": cap["name"],
+                "description": f"{cap['description']} Use when: {cap['when']}",
+                "input_schema": schema,
+            }
+        )
     return tools
 
 
-def available_capabilities(context: dict[str, Any] | None = None) -> list[dict[str, str]]:
+def available_capabilities(
+    context: dict[str, Any] | None = None,
+) -> list[dict[str, str]]:
     """Return only capabilities whose health_check passes."""
     result = []
     for cap in load_manifest():

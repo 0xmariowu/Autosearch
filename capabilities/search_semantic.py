@@ -13,8 +13,16 @@ input_schema = {
         "context": {
             "type": "object",
             "properties": {
-                "limit": {"type": "integer", "description": "Max results to return", "default": 20},
-                "query_family": {"type": "string", "description": "Query family label", "default": "unknown"},
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results to return",
+                    "default": 20,
+                },
+                "query_family": {
+                    "type": "string",
+                    "description": "Query family label",
+                    "default": "unknown",
+                },
             },
         },
     },
@@ -24,6 +32,7 @@ input_schema = {
 
 def run(query, **context):
     from search_mesh.router import search_platform
+
     limit = context.get("limit", 20)
     query_family = context.get("query_family", "unknown")
     providers = [{"name": "exa"}, {"name": "tavily"}]
@@ -40,9 +49,11 @@ def run(query, **context):
 
 def health_check():
     import os
+
     checks = {}
     # Check Exa via mcporter
     import shutil
+
     if shutil.which("mcporter"):
         checks["exa"] = "ok"
     else:
@@ -53,10 +64,14 @@ def health_check():
     else:
         checks["tavily"] = "off"
     if any(v == "ok" for v in checks.values()):
-        return {"status": "ok", "message": f"exa={checks.get('exa','off')}, tavily={checks.get('tavily','off')}"}
+        return {
+            "status": "ok",
+            "message": f"exa={checks.get('exa', 'off')}, tavily={checks.get('tavily', 'off')}",
+        }
     return {"status": "off", "message": "No premium providers available"}
 
 
 def test():
     from search_mesh.router import search_platform  # noqa: F401
+
     return "ok"

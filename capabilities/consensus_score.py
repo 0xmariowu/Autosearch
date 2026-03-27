@@ -26,7 +26,7 @@ def run(hits, **context):
     hits = [h for h in hits if isinstance(h, dict)]
     if not hits:
         return []
-    from collections import Counter, defaultdict
+    from collections import defaultdict
 
     # Track which providers found each URL
     url_providers = defaultdict(set)
@@ -56,7 +56,9 @@ def test():
         {"url": "https://b.com", "score_hint": 20, "provider": "ddgs", "title": "B"},
     ]
     result = run(sample)
-    assert result[0]["consensus_count"] == 2, f"Expected 2, got {result[0]['consensus_count']}"
+    assert result[0]["consensus_count"] == 2, (
+        f"Expected 2, got {result[0]['consensus_count']}"
+    )
     assert result[0]["score_hint"] == 20, f"Expected 20, got {result[0]['score_hint']}"
     assert result[2]["consensus_count"] == 1
     assert result[2]["score_hint"] == 20

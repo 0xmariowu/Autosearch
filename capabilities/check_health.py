@@ -16,4 +16,5 @@ def run(provider_names=None, **context):
 
 def test():
     from source_capability import refresh_source_capability  # noqa: F401
+
     return "ok"

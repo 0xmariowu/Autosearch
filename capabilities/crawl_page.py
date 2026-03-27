@@ -16,14 +16,16 @@ def run(input, **context):
     for url in urls:
         try:
             doc = fetch_document(str(url).strip(), query=query)
-            results.append({
-                "url": doc.url,
-                "final_url": doc.final_url,
-                "title": doc.title,
-                "text": doc.text,
-                "markdown": doc.clean_markdown or doc.text,
-                "html": doc.raw_html,
-            })
+            results.append(
+                {
+                    "url": doc.url,
+                    "final_url": doc.final_url,
+                    "title": doc.title,
+                    "text": doc.text,
+                    "markdown": doc.clean_markdown or doc.text,
+                    "html": doc.raw_html,
+                }
+            )
         except Exception as exc:
             results.append({"url": str(url).strip(), "error": str(exc)})
     return results

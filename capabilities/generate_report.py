@@ -54,7 +54,13 @@ def run(evidence, **context):
             sections[source] = []
         sections[source].append(item)
 
-    report_lines = [f"# Research Report", f"", f"Query: {query}", f"Total evidence: {len(evidence)}", ""]
+    report_lines = [
+        "# Research Report",
+        "",
+        f"Query: {query}",
+        f"Total evidence: {len(evidence)}",
+        "",
+    ]
     for section_name, items in sections.items():
         report_lines.append(f"## {section_name} ({len(items)} items)")
         for item in items[:10]:
@@ -63,7 +69,11 @@ def run(evidence, **context):
             report_lines.append(f"- [{title}]({url})")
         report_lines.append("")
 
-    return {"report": "\n".join(report_lines), "sections": list(sections.keys()), "total": len(evidence)}
+    return {
+        "report": "\n".join(report_lines),
+        "sections": list(sections.keys()),
+        "total": len(evidence),
+    }
 
 
 def test():

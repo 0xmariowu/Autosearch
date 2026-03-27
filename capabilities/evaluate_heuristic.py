@@ -8,7 +8,7 @@ output_type = "scores"
 
 
 def run(evidence, **context):
-    from goal_judge import evaluate_goal_bundle, _heuristic_bundle_eval, _bundle_findings
+    from goal_judge import _heuristic_bundle_eval, _bundle_findings
 
     goal_case = context.get("goal_case") or {}
     findings = _bundle_findings(evidence)
@@ -17,5 +17,10 @@ def run(evidence, **context):
 
 
 def test():
-    from goal_judge import evaluate_goal_bundle, _heuristic_bundle_eval, _bundle_findings  # noqa: F401
+    from goal_judge import (
+        evaluate_goal_bundle,
+        _heuristic_bundle_eval,
+        _bundle_findings,
+    )  # noqa: F401
+
     return "ok"

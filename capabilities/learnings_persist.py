@@ -14,9 +14,20 @@ input_schema = {
         "context": {
             "type": "object",
             "properties": {
-                "action": {"type": "string", "enum": ["save", "load"], "default": "load"},
-                "task_spec": {"type": "string", "description": "Task description for tagging saved learnings"},
-                "max_load": {"type": "integer", "description": "Max historical learnings to load", "default": 20},
+                "action": {
+                    "type": "string",
+                    "enum": ["save", "load"],
+                    "default": "load",
+                },
+                "task_spec": {
+                    "type": "string",
+                    "description": "Task description for tagging saved learnings",
+                },
+                "max_load": {
+                    "type": "integer",
+                    "description": "Max historical learnings to load",
+                    "default": 20,
+                },
             },
         },
     },
@@ -89,6 +100,7 @@ def _load_learnings(max_load):
 def test():
     # Test save/load cycle with temp file
     import tempfile
+
     global _PATTERNS_PATH
     original = _PATTERNS_PATH
     _PATTERNS_PATH = Path(tempfile.mktemp(suffix=".jsonl"))

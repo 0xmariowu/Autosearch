@@ -2,7 +2,9 @@
 
 name = "search_arxiv"
 description = "Search arXiv for academic papers and preprints. Uses Exa semantic search with site:arxiv.org filter for high-quality paper discovery."
-when = "When looking for academic papers, research publications, or scientific preprints."
+when = (
+    "When looking for academic papers, research publications, or scientific preprints."
+)
 input_type = "query"
 output_type = "hits"
 input_schema = {
@@ -22,8 +24,11 @@ input_schema = {
 
 def run(query, **context):
     from search_mesh.router import search_platform
+
     limit = context.get("limit", 10)
-    query_str = f"site:arxiv.org {query}" if "arxiv" not in str(query).lower() else str(query)
+    query_str = (
+        f"site:arxiv.org {query}" if "arxiv" not in str(query).lower() else str(query)
+    )
 
     # Try exa first (semantic search)
     try:
@@ -44,4 +49,5 @@ def run(query, **context):
 
 def test():
     from search_mesh.router import search_platform  # noqa: F401
+
     return "ok"

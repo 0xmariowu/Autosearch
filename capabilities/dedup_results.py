@@ -3,7 +3,9 @@
 from search_mesh.models import SearchHit
 
 name = "dedup_results"
-description = "Remove duplicate hits by normalized URL and optionally cap results per domain."
+description = (
+    "Remove duplicate hits by normalized URL and optionally cap results per domain."
+)
 when = "When you have search hits that may contain duplicates from multiple providers."
 input_type = "hits"
 output_type = "hits"

@@ -232,7 +232,11 @@ Rules:
             if match:
                 return json.loads(match.group())
             import sys
-            print(f"    [LLM] Could not extract JSON from response ({len(text)} chars)", file=sys.stderr)
+
+            print(
+                f"    [LLM] Could not extract JSON from response ({len(text)} chars)",
+                file=sys.stderr,
+            )
             return None
         except Exception as e:
             print(f"    [LLM] Error: {e}")
@@ -328,7 +332,8 @@ class PlatformConnector:
                 [
                     SearchResult(
                         title=p.get("data", {}).get("title", ""),
-                        url="https://www.reddit.com" + p.get("data", {}).get("permalink", ""),
+                        url="https://www.reddit.com"
+                        + p.get("data", {}).get("permalink", ""),
                         eng=p.get("data", {}).get("score", 0)
                         + p.get("data", {}).get("num_comments", 0),
                         created=datetime.fromtimestamp(

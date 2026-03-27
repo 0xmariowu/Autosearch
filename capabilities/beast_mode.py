@@ -34,7 +34,7 @@ def run(evidence, **context):
     # Deduplicate evidence by URL
     seen_urls = set()
     unique_evidence = []
-    for item in (evidence or []):
+    for item in evidence or []:
         url = str(item.get("url") or "").strip()
         if url and url in seen_urls:
             continue
@@ -51,12 +51,12 @@ def run(evidence, **context):
     # Build summary
     top_items = unique_evidence[:20]
     summary_lines = [
-        f"## Beast Mode Summary",
-        f"",
+        "## Beast Mode Summary",
+        "",
         f"Task: {task_spec}",
         f"Total evidence collected: {collected_count}",
         f"Unique items: {len(unique_evidence)}",
-        f"",
+        "",
     ]
 
     if learnings:
@@ -89,6 +89,8 @@ def test():
     ]
     result = run(evidence, learnings=["learning 1"], task_spec="test task")
     assert result["status"] == "beast_mode"
-    assert result["unique_count"] == 2, f"Expected 2 unique, got {result['unique_count']}"
+    assert result["unique_count"] == 2, (
+        f"Expected 2 unique, got {result['unique_count']}"
+    )
     assert "learning 1" in result["learnings"]
     return "ok"

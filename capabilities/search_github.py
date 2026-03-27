@@ -13,9 +13,21 @@ input_schema = {
         "context": {
             "type": "object",
             "properties": {
-                "limit": {"type": "integer", "description": "Max results to return", "default": 20},
-                "query_family": {"type": "string", "description": "Query family label", "default": "unknown"},
-                "search_type": {"type": "string", "enum": ["repos", "issues", "code", "all"], "default": "all"},
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results to return",
+                    "default": 20,
+                },
+                "query_family": {
+                    "type": "string",
+                    "description": "Query family label",
+                    "default": "unknown",
+                },
+                "search_type": {
+                    "type": "string",
+                    "enum": ["repos", "issues", "code", "all"],
+                    "default": "all",
+                },
             },
         },
     },
@@ -25,6 +37,7 @@ input_schema = {
 
 def run(query, **context):
     from search_mesh.router import search_platform
+
     search_type = context.get("search_type", "all")
     limit = context.get("limit", 20)
     query_family = context.get("query_family", "unknown")
@@ -35,7 +48,11 @@ def run(query, **context):
         "code": {"name": "github_code"},
     }
     if search_type != "all":
-        providers = {search_type: providers[search_type]} if search_type in providers else providers
+        providers = (
+            {search_type: providers[search_type]}
+            if search_type in providers
+            else providers
+        )
 
     all_hits = []
     for p in providers.values():
@@ -49,10 +66,12 @@ def run(query, **context):
 
 def health_check():
     import shutil
+
     gh = shutil.which("gh")
     if not gh:
         return {"status": "off", "message": "gh CLI not installed"}
     import subprocess
+
     result = subprocess.run([gh, "auth", "status"], capture_output=True, timeout=5)
     if result.returncode == 0:
         return {"status": "ok", "message": "gh CLI authenticated"}
@@ -61,4 +80,5 @@ def health_check():
 
 def test():
     from search_mesh.router import search_platform  # noqa: F401
+
     return "ok"
