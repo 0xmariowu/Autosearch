@@ -30,16 +30,22 @@ from evidence_index import LocalEvidenceIndex
 from goal_judge import (
     _bundle_dimensions,
     _bundle_sample,
-    _finding_texts,
-    _keyword_match,
     _normalize_bundle_result,
 )
 from goal_services import normalize_query_spec, search_query
-from search_mesh.provider_policy import available_platforms as policy_available_platforms
+from search_mesh.provider_policy import (
+    available_platforms as policy_available_platforms,
+)
 from source_capability import refresh_source_capability
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-RELAXED_HARNESS = {"bundle_policy": {"per_query_cap": 999, "per_source_cap": 999, "per_domain_cap": 999}}
+RELAXED_HARNESS = {
+    "bundle_policy": {
+        "per_query_cap": 999,
+        "per_source_cap": 999,
+        "per_domain_cap": 999,
+    }
+}
 
 # Colors
 GREEN = "\033[0;32m"
@@ -59,11 +65,21 @@ def warn(msg: str) -> None:
 
 
 def load_goal_case() -> dict:
-    return json.loads((REPO_ROOT / "goal_cases" / "atoms-auto-mining-perfect.json").read_text(encoding="utf-8"))
+    return json.loads(
+        (REPO_ROOT / "goal_cases" / "atoms-auto-mining-perfect.json").read_text(
+            encoding="utf-8"
+        )
+    )
 
 
 def get_index() -> LocalEvidenceIndex:
-    return LocalEvidenceIndex(REPO_ROOT / "goal_cases" / "runtime" / "atoms-auto-mining-perfect" / "evidence-index.jsonl")
+    return LocalEvidenceIndex(
+        REPO_ROOT
+        / "goal_cases"
+        / "runtime"
+        / "atoms-auto-mining-perfect"
+        / "evidence-index.jsonl"
+    )
 
 
 def ai_judge(goal_case: dict, bundle: list[dict], api_key: str, model: str) -> dict:
@@ -131,15 +147,20 @@ def ai_judge(goal_case: dict, bundle: list[dict], api_key: str, model: str) -> d
         "Only include dimensions with score < 18 in dimension_gaps."
     )
 
-    body = json.dumps({
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0,
-    }).encode("utf-8")
+    body = json.dumps(
+        {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0,
+        }
+    ).encode("utf-8")
     req = urllib.request.Request(
         OPENROUTER_API_URL,
         data=body,
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
     )
     with urllib.request.urlopen(req, timeout=45) as resp:
         payload = json.loads(resp.read().decode("utf-8"))
@@ -162,7 +183,9 @@ def search_for_gaps(
     for query_text in gap_queries:
         spec = normalize_query_spec({"text": query_text, "platforms": []})
         try:
-            result = search_query(spec, platforms, sampling_policy={"bundle_per_query_cap": 10})
+            result = search_query(
+                spec, platforms, sampling_policy={"bundle_per_query_cap": 10}
+            )
         except Exception:
             continue
         findings = coerce_evidence_records(result.get("findings", []))
@@ -204,7 +227,7 @@ def evolve(
     best_score = 0
 
     for round_idx in range(1, max_rounds + 1):
-        log(f"\n{'='*60}")
+        log(f"\n{'=' * 60}")
         log(f"ROUND {round_idx}/{max_rounds}")
 
         # Build bundle from all accumulated evidence
@@ -229,14 +252,16 @@ def evolve(
             status = f"{GREEN}✓{NC}" if ds >= 18 else f"{RED}gap{NC}"
             log(f"  {dim_id}: {ds}/20 {status}")
 
-        results_log.append({
-            "round": round_idx,
-            "score": score,
-            "dimension_scores": dim_scores,
-            "gaps_found": {k: len(v) for k, v in gaps.items()},
-            "evidence_count": len(findings),
-            "timestamp": datetime.now().isoformat(),
-        })
+        results_log.append(
+            {
+                "round": round_idx,
+                "score": score,
+                "dimension_scores": dim_scores,
+                "gaps_found": {k: len(v) for k, v in gaps.items()},
+                "evidence_count": len(findings),
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
 
         if score > best_score:
             best_score = score
@@ -249,7 +274,9 @@ def evolve(
 
         # No gaps identified — AI thinks everything is fine but score is low
         if not gaps:
-            warn("No dimension_gaps returned but score < target. Retrying with different prompt angle.")
+            warn(
+                "No dimension_gaps returned but score < target. Retrying with different prompt angle."
+            )
             # Generate our own gap queries from low-scoring dimensions
             for dim_id, ds in sorted(dim_scores.items(), key=lambda x: x[1]):
                 if ds < 18:
@@ -260,7 +287,8 @@ def evolve(
                             break
                     if dim_keywords:
                         gaps[dim_id] = [
-                            f"{kw} open source implementation github" for kw in dim_keywords[:2]
+                            f"{kw} open source implementation github"
+                            for kw in dim_keywords[:2]
                         ]
             if not gaps:
                 warn("Cannot generate gap queries. Stopping.")
@@ -287,8 +315,8 @@ def evolve(
                         break
 
     # Final summary
-    log(f"\n{'='*60}")
-    log(f"EVOLUTION COMPLETE")
+    log(f"\n{'=' * 60}")
+    log("EVOLUTION COMPLETE")
     log(f"Rounds: {len(results_log)}")
     log(f"Best score: {best_score}")
     log(f"Score trajectory: {[r['score'] for r in results_log]}")
@@ -303,6 +331,7 @@ def evolve(
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="Evolve — AI judge driven evolution")
     parser.add_argument("--target", type=int, default=90)
     parser.add_argument("--max-rounds", type=int, default=8)

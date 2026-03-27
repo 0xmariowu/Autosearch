@@ -14,7 +14,11 @@ def run_watch(
     resolve_goal_case: Callable[[Any], dict[str, Any]],
     optimize_goal: Callable[..., dict[str, Any]],
 ) -> dict[str, Any]:
-    model = watch if isinstance(watch, GoalWatch) else GoalWatch.from_mapping(dict(watch or {}))
+    model = (
+        watch
+        if isinstance(watch, GoalWatch)
+        else GoalWatch.from_mapping(dict(watch or {}))
+    )
     goal_case = dict(resolve_goal_case(model.goal_id))
     goal_case["mode"] = model.mode
     if model.provider_preferences:
@@ -38,15 +42,20 @@ def run_watch(
         "run_at": datetime.now().astimezone().isoformat(),
         "target_score": int(model.target_score or 100),
         "success_threshold": int(model.success_threshold or model.target_score),
-        "goal_reached": final_score >= int(model.success_threshold or model.target_score),
-        "score_gap": max(int(model.success_threshold or model.target_score) - final_score, 0),
+        "goal_reached": final_score
+        >= int(model.success_threshold or model.target_score),
+        "score_gap": max(
+            int(model.success_threshold or model.target_score) - final_score, 0
+        ),
         "stop_policy": dict(model.stop_rules or {}),
         "provider_preferences": list(model.provider_preferences or []),
         "budget": budget,
         "scheduler_summary": {
             "frequency": model.frequency,
             "plateau_rounds": int(model.plateau_rounds or 3),
-            "should_run_again": not (final_score >= int(model.success_threshold or model.target_score)),
+            "should_run_again": not (
+                final_score >= int(model.success_threshold or model.target_score)
+            ),
         },
         "final_score": final_score,
         "result": result,

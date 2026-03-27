@@ -21,7 +21,6 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -34,14 +33,17 @@ from goal_judge import (
     _finding_texts,
     _heuristic_bundle_dimension_score,
     _keyword_match,
-    evaluate_goal_bundle,
 )
 from goal_services import normalize_query_spec, search_query
-from search_mesh.provider_policy import available_platforms as policy_available_platforms
+from search_mesh.provider_policy import (
+    available_platforms as policy_available_platforms,
+)
 from source_capability import refresh_source_capability
 
 
-HARNESS = {"bundle_policy": {"per_query_cap": 5, "per_source_cap": 18, "per_domain_cap": 18}}
+HARNESS = {
+    "bundle_policy": {"per_query_cap": 5, "per_source_cap": 18, "per_domain_cap": 18}
+}
 
 
 def load_goal_case(goal_case_id: str = "atoms-auto-mining-perfect") -> dict:
@@ -61,14 +63,20 @@ def get_index(goal_case_id: str = "atoms-auto-mining-perfect") -> LocalEvidenceI
     return LocalEvidenceIndex(index_dir / "evidence-index.jsonl")
 
 
-def current_keyword_state(goal_case: dict, index: LocalEvidenceIndex) -> dict[str, dict]:
+def current_keyword_state(
+    goal_case: dict, index: LocalEvidenceIndex
+) -> dict[str, dict]:
     findings = index.load_all()
     bundle = build_bundle([], findings, HARNESS)
     texts = _finding_texts(bundle)
     state = {}
     for dim in goal_case.get("dimensions", []):
         dim_id = dim["id"]
-        keywords = [str(kw) for kw in list(dim.get("keywords", [])) + list(dim.get("aliases", [])) if str(kw).strip()]
+        keywords = [
+            str(kw)
+            for kw in list(dim.get("keywords", [])) + list(dim.get("aliases", []))
+            if str(kw).strip()
+        ]
         weight = int(dim.get("weight", 20))
         need = max(2, len(keywords) // 2)
         hits = [kw for kw in keywords if _keyword_match(kw, texts)]
@@ -149,7 +157,9 @@ def search_for_keyword(
     for query_text in queries:
         spec = normalize_query_spec({"text": query_text, "platforms": []})
         try:
-            result = search_query(spec, platforms, sampling_policy={"bundle_per_query_cap": 5})
+            result = search_query(
+                spec, platforms, sampling_policy={"bundle_per_query_cap": 5}
+            )
         except Exception:
             continue
         findings = coerce_evidence_records(list(result.get("findings", [])))
@@ -174,8 +184,11 @@ def hunt_dimension(
     if dim_state["gap"] <= 0:
         return {"dim_id": dim_id, "status": "already_full", "score": dim_state["score"]}
 
-    print(f"\n{'='*60}", file=sys.stderr)
-    print(f"HUNTING: {dim_id} ({dim_state['score']}/{dim_state['weight']})", file=sys.stderr)
+    print(f"\n{'=' * 60}", file=sys.stderr)
+    print(
+        f"HUNTING: {dim_id} ({dim_state['score']}/{dim_state['weight']})",
+        file=sys.stderr,
+    )
     print(f"  need {dim_state['gap']} more keyword(s)", file=sys.stderr)
     print(f"  hits:   {dim_state['hits']}", file=sys.stderr)
     print(f"  misses: {dim_state['misses']}", file=sys.stderr)
@@ -185,12 +198,16 @@ def hunt_dimension(
 
     for keyword in dim_state["misses"]:
         if dim_state["gap"] - len(keywords_found) <= 0:
-            print(f"  gap filled, skipping remaining keywords", file=sys.stderr)
+            print("  gap filled, skipping remaining keywords", file=sys.stderr)
             break
 
         found = False
         for attempt in range(max_attempts):
-            print(f"  [{keyword}] attempt {attempt+1}/{max_attempts}...", file=sys.stderr, end=" ")
+            print(
+                f"  [{keyword}] attempt {attempt + 1}/{max_attempts}...",
+                file=sys.stderr,
+                end=" ",
+            )
             matched = search_for_keyword(keyword, dim_id, platforms, attempt)
             if matched:
                 added = index.add(matched)
@@ -199,7 +216,7 @@ def hunt_dimension(
                 found = True
                 break
             else:
-                print(f"miss", file=sys.stderr)
+                print("miss", file=sys.stderr)
 
         if not found:
             keywords_failed.append(keyword)
@@ -220,7 +237,12 @@ def hunt_dimension(
     }
 
 
-def hunt_all(goal_case: dict, max_attempts: int = 5, target_dims: list[str] | None = None, goal_case_id: str = "atoms-auto-mining-perfect") -> dict:
+def hunt_all(
+    goal_case: dict,
+    max_attempts: int = 5,
+    target_dims: list[str] | None = None,
+    goal_case_id: str = "atoms-auto-mining-perfect",
+) -> dict:
     """Run dimension hunters for all weak dimensions."""
     index = get_index(goal_case_id)
     capability_report = refresh_source_capability(goal_case.get("providers"))
@@ -244,7 +266,10 @@ def hunt_all(goal_case: dict, max_attempts: int = 5, target_dims: list[str] | No
 
     print(f"\nDimension Hunter — {len(weak_dims)} dimension(s) to fix", file=sys.stderr)
     for dim_id, info in weak_dims:
-        print(f"  {dim_id}: {info['score']}/{info['weight']} (gap={info['gap']})", file=sys.stderr)
+        print(
+            f"  {dim_id}: {info['score']}/{info['weight']} (gap={info['gap']})",
+            file=sys.stderr,
+        )
 
     results = []
     for dim_id, _ in weak_dims:
@@ -255,7 +280,7 @@ def hunt_all(goal_case: dict, max_attempts: int = 5, target_dims: list[str] | No
     final_state = current_keyword_state(goal_case, index)
     total_score = sum(info["score"] for info in final_state.values())
 
-    print(f"\n{'='*60}", file=sys.stderr)
+    print(f"\n{'=' * 60}", file=sys.stderr)
     print(f"FINAL SCORE: {total_score}/100", file=sys.stderr)
     for dim_id, info in sorted(final_state.items(), key=lambda x: x[1]["score"]):
         status = "✅" if info["gap"] <= 0 else f"gap={info['gap']}"
@@ -270,16 +295,30 @@ def hunt_all(goal_case: dict, max_attempts: int = 5, target_dims: list[str] | No
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Dimension Hunter — per-dimension keyword search")
-    parser.add_argument("dimensions", nargs="*", help="Specific dimensions to hunt (default: all weak)")
-    parser.add_argument("--goal-case", default="atoms-auto-mining-perfect", help="Goal case ID")
-    parser.add_argument("--max-attempts", type=int, default=5, help="Max search attempts per keyword")
+
+    parser = argparse.ArgumentParser(
+        description="Dimension Hunter — per-dimension keyword search"
+    )
+    parser.add_argument(
+        "dimensions", nargs="*", help="Specific dimensions to hunt (default: all weak)"
+    )
+    parser.add_argument(
+        "--goal-case", default="atoms-auto-mining-perfect", help="Goal case ID"
+    )
+    parser.add_argument(
+        "--max-attempts", type=int, default=5, help="Max search attempts per keyword"
+    )
     args = parser.parse_args()
 
     goal_case = load_goal_case(args.goal_case)
     goal_case_id = str(goal_case.get("id") or args.goal_case)
     target_dims = args.dimensions or None
-    result = hunt_all(goal_case, max_attempts=args.max_attempts, target_dims=target_dims, goal_case_id=goal_case_id)
+    result = hunt_all(
+        goal_case,
+        max_attempts=args.max_attempts,
+        target_dims=target_dims,
+        goal_case_id=goal_case_id,
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 

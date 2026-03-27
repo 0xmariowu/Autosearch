@@ -33,7 +33,14 @@ QUERIES = [
 ]
 
 # Providers — which search backends to use
-PROVIDERS = ["searxng", "ddgs", "github_repos", "github_issues", "github_code", "huggingface_datasets"]
+PROVIDERS = [
+    "searxng",
+    "ddgs",
+    "github_repos",
+    "github_issues",
+    "github_code",
+    "huggingface_datasets",
+]
 
 # Max results per query per provider
 PER_QUERY_CAP = 5

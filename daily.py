@@ -16,8 +16,6 @@ Usage:
 
 import argparse
 import json
-import os
-import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -65,8 +63,7 @@ def load_queries_data(queries_path: Path) -> dict:
         with open(queries_path) as f:
             return json.load(f)
     except json.JSONDecodeError as e:
-        print(f"Error: invalid JSON in {queries_path}: {e}",
-              file=sys.stderr)
+        print(f"Error: invalid JSON in {queries_path}: {e}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -103,13 +100,34 @@ def extract_genes(data: dict) -> dict:
     contexts: set[str] = set()
 
     entity_indicators = {
-        "claude", "llm", "mcp", "ai", "openai", "anthropic", "gpt",
-        "cursor", "copilot", "aider", "codex",
+        "claude",
+        "llm",
+        "mcp",
+        "ai",
+        "openai",
+        "anthropic",
+        "gpt",
+        "cursor",
+        "copilot",
+        "aider",
+        "codex",
     }
     context_indicators = {
-        "2025", "2026", "production", "typescript", "python", "best",
-        "practices", "techniques", "advanced", "new", "comparison",
-        "tips", "recommendation", "release", "launch",
+        "2025",
+        "2026",
+        "production",
+        "typescript",
+        "python",
+        "best",
+        "practices",
+        "techniques",
+        "advanced",
+        "new",
+        "comparison",
+        "tips",
+        "recommendation",
+        "release",
+        "launch",
     }
 
     for w in all_words:
@@ -154,7 +172,9 @@ def extract_seed_queries(data: dict) -> list[str]:
     return seeds
 
 
-def extract_query_family_maps(data: dict) -> tuple[dict[str, str], dict[str, list[str]]]:
+def extract_query_family_maps(
+    data: dict,
+) -> tuple[dict[str, str], dict[str, list[str]]]:
     """Build exact-query and word-vote maps for query family inference."""
     query_family_map: dict[str, str] = {}
     word_map: dict[str, list[str]] = {}
@@ -178,29 +198,33 @@ def main():
         description="AutoSearch Daily — scheduled discovery run",
     )
     parser.add_argument(
-        "--queries", type=str,
-        help="Path to queries.json "
-             "(default: Armory/scripts/scout/queries.json)",
+        "--queries",
+        type=str,
+        help="Path to queries.json (default: Armory/scripts/scout/queries.json)",
     )
     parser.add_argument(
-        "--output", type=str,
-        help="Output JSONL path "
-             "(default: /tmp/autosearch-daily-YYYY-MM-DD.jsonl)",
+        "--output",
+        type=str,
+        help="Output JSONL path (default: /tmp/autosearch-daily-YYYY-MM-DD.jsonl)",
     )
     parser.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="Show config and genes without running",
     )
     parser.add_argument(
-        "--skip-health-check", action="store_true",
+        "--skip-health-check",
+        action="store_true",
         help="Skip platform pre-flight checks",
     )
     parser.add_argument(
-        "--max-rounds", type=int,
+        "--max-rounds",
+        type=int,
         help="Override round count for smoke tests or shorter runs",
     )
     parser.add_argument(
-        "--queries-per-round", type=int,
+        "--queries-per-round",
+        type=int,
         help="Override queries per round for smoke tests or shorter runs",
     )
     args = parser.parse_args()
@@ -215,8 +239,7 @@ def main():
         queries_path = Path("/Volumes/4TB/Armory/scripts/scout/queries.json")
 
     if not queries_path.exists():
-        print(f"Error: queries file not found: {queries_path}",
-              file=sys.stderr)
+        print(f"Error: queries file not found: {queries_path}", file=sys.stderr)
         sys.exit(1)
 
     # Load once, extract both genes and seeds from same data
@@ -282,11 +305,13 @@ def main():
         print(f"\nPlatforms ({len(DAILY_PLATFORMS)}):")
         for p in DAILY_PLATFORMS:
             print(f"  {p['name']}")
-        print(f"\nGenes:")
+        print("\nGenes:")
         for cat, words in genes.items():
-            print(f"  {cat}: {len(words)} words"
-                  f" — {', '.join(words[:8])}"
-                  f"{'...' if len(words) > 8 else ''}")
+            print(
+                f"  {cat}: {len(words)} words"
+                f" — {', '.join(words[:8])}"
+                f"{'...' if len(words) > 8 else ''}"
+            )
         print(f"\nSeed queries: {len(seed_queries)}")
         for q in seed_queries[:10]:
             print(f"  {q}")
@@ -329,16 +354,20 @@ def main():
     summary["control_plane"] = str(CONTROL_PLANE_PATH)
     summary["experience_events"] = len(engine.search_events)
     summary["cooldown_providers"] = (
-        (((experience.get("health") or {}).get("aspects") or {}).get("search") or {})
-        .get("cooldown_providers", [])
-    )
+        ((experience.get("health") or {}).get("aspects") or {}).get("search") or {}
+    ).get("cooldown_providers", [])
     summary["unavailable_providers"] = [
-        p["name"] for p in DAILY_PLATFORMS
-        if get_source_decision(capability_report, str(p.get("name") or ""))["should_skip"]
+        p["name"]
+        for p in DAILY_PLATFORMS
+        if get_source_decision(capability_report, str(p.get("name") or ""))[
+            "should_skip"
+        ]
     ]
-    summary["top_runtime_providers"] = ((control_plane.get("runtime") or {}).get("top_providers") or [])
+    summary["top_runtime_providers"] = (control_plane.get("runtime") or {}).get(
+        "top_providers"
+    ) or []
 
-    print(f"\n--- Daily Summary ---")
+    print("\n--- Daily Summary ---")
     print(json.dumps(summary, indent=2, ensure_ascii=False))
     print(f"\nFindings: {output_path}")
 

@@ -38,9 +38,15 @@ class QueryFamilyTests(unittest.TestCase):
             REPO_ROOT,
         )
 
-        self.assertEqual(engine._query_family_for_query("AI coding agent"), "coding-agent")
-        self.assertEqual(engine._query_family_for_query("best coding tool"), "coding-agent")
-        self.assertEqual(engine._query_family_for_query("protocol server patterns"), "mcp")
+        self.assertEqual(
+            engine._query_family_for_query("AI coding agent"), "coding-agent"
+        )
+        self.assertEqual(
+            engine._query_family_for_query("best coding tool"), "coding-agent"
+        )
+        self.assertEqual(
+            engine._query_family_for_query("protocol server patterns"), "mcp"
+        )
 
 
 if __name__ == "__main__":

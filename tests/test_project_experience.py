@@ -45,8 +45,12 @@ class ProjectExperienceTests(unittest.TestCase):
         search_policy = policy["aspects"]["search"]
 
         self.assertEqual(search_policy["providers"]["exa"]["status"], "preferred")
-        self.assertEqual(search_policy["providers"]["xreach_auth_error"]["status"], "cooldown")
-        self.assertEqual(search_policy["providers"]["twitter_xreach"]["status"], "cooldown")
+        self.assertEqual(
+            search_policy["providers"]["xreach_auth_error"]["status"], "cooldown"
+        )
+        self.assertEqual(
+            search_policy["providers"]["twitter_xreach"]["status"], "cooldown"
+        )
         self.assertIn(
             "exa",
             search_policy["query_families"]["coding-agent"]["preferred_providers"],
@@ -74,7 +78,9 @@ class ProjectExperienceTests(unittest.TestCase):
         policy = pe.build_project_experience_policy(index)
         decision = pe.get_provider_decision(policy, "github_repos", "mcp")
 
-        self.assertEqual(policy["aspects"]["search"]["providers"]["github_repos"]["status"], "active")
+        self.assertEqual(
+            policy["aspects"]["search"]["providers"]["github_repos"]["status"], "active"
+        )
         self.assertFalse(decision["should_skip"])
         self.assertEqual(decision["status"], "active")
 

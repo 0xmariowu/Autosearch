@@ -102,7 +102,10 @@ def ensure_experience_files() -> None:
     if not EXPERIENCE_LEDGER_PATH.exists():
         EXPERIENCE_LEDGER_PATH.write_text("", encoding="utf-8")
     if not EXPERIENCE_INDEX_PATH.exists():
-        write_json(EXPERIENCE_INDEX_PATH, {"generated_at": None, "recent_run_ids": [], "aspects": {}})
+        write_json(
+            EXPERIENCE_INDEX_PATH,
+            {"generated_at": None, "recent_run_ids": [], "aspects": {}},
+        )
     if not EXPERIENCE_POLICY_PATH.exists():
         write_json(EXPERIENCE_POLICY_PATH, _default_policy())
     if not EXPERIENCE_HEALTH_PATH.exists():
@@ -180,7 +183,9 @@ def _merge_stats(target: dict[str, int], source: dict[str, Any]) -> None:
         target[key] = int(target.get(key, 0)) + int(source.get(key, 0) or 0)
 
 
-def _recent_events(events: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[str]]:
+def _recent_events(
+    events: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[str]]:
     run_ids: list[str] = []
     seen: set[str] = set()
     for event in events:
@@ -192,7 +197,9 @@ def _recent_events(events: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], 
     if not recent_run_ids:
         return [], []
     allowed = set(recent_run_ids)
-    recent_events = [event for event in events if str(event.get("run_id") or "") in allowed]
+    recent_events = [
+        event for event in events if str(event.get("run_id") or "") in allowed
+    ]
     return recent_events, recent_run_ids
 
 
@@ -261,7 +268,9 @@ def build_project_experience_index(events: list[dict[str, Any]]) -> dict[str, An
         for canonical_provider in canonical_providers_for(provider):
             if canonical_provider in CANONICAL_PROVIDERS:
                 _merge_stats(canonical_provider_stats[canonical_provider], event)
-                _merge_stats(query_family_stats[query_family][canonical_provider], event)
+                _merge_stats(
+                    query_family_stats[query_family][canonical_provider], event
+                )
 
     providers = {
         provider: _finalize_provider_record(provider, stats)
@@ -293,7 +302,7 @@ def build_project_experience_index(events: list[dict[str, Any]]) -> dict[str, An
 
 
 def build_project_experience_policy(index: dict[str, Any]) -> dict[str, Any]:
-    search_index = (((index or {}).get("aspects") or {}).get(SEARCH_ASPECT) or {})
+    search_index = ((index or {}).get("aspects") or {}).get(SEARCH_ASPECT) or {}
     canonical_providers = search_index.get("canonical_providers") or {}
     raw_providers = search_index.get("providers") or {}
     query_family_stats = search_index.get("query_families") or {}
@@ -347,8 +356,8 @@ def summarize_search_experience_for_health(
     index: dict[str, Any],
     policy: dict[str, Any],
 ) -> dict[str, Any]:
-    search_index = (((index or {}).get("aspects") or {}).get(SEARCH_ASPECT) or {})
-    search_policy = (((policy or {}).get("aspects") or {}).get(SEARCH_ASPECT) or {})
+    search_index = ((index or {}).get("aspects") or {}).get(SEARCH_ASPECT) or {}
+    search_policy = ((policy or {}).get("aspects") or {}).get(SEARCH_ASPECT) or {}
     providers = search_policy.get("providers") or {}
     query_families = search_policy.get("query_families") or {}
 
@@ -358,7 +367,11 @@ def summarize_search_experience_for_health(
         if provider in CANONICAL_PROVIDERS
     }
     cooldown_providers = sorted(
-        [provider for provider, record in canonical_provider_rows.items() if record.get("status") == "cooldown"]
+        [
+            provider
+            for provider, record in canonical_provider_rows.items()
+            if record.get("status") == "cooldown"
+        ]
     )
     top_providers = [
         provider
@@ -388,7 +401,9 @@ def summarize_search_experience_for_health(
     }
 
 
-def refresh_project_experience(new_events: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+def refresh_project_experience(
+    new_events: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     ensure_experience_files()
     if new_events:
         append_jsonl(EXPERIENCE_LEDGER_PATH, new_events)
@@ -414,7 +429,7 @@ def get_provider_decision(
 ) -> dict[str, Any]:
     provider = normalize_provider(provider)
     query_family = query_family or "unknown"
-    search_policy = (((policy or {}).get("aspects") or {}).get(SEARCH_ASPECT) or {})
+    search_policy = ((policy or {}).get("aspects") or {}).get(SEARCH_ASPECT) or {}
     provider_policy = (search_policy.get("providers") or {}).get(provider) or {
         "status": "active",
         "reason": "no experience yet",
@@ -434,11 +449,19 @@ def get_provider_decision(
     if family_cooldown or provider_status == "cooldown":
         status = "cooldown"
         priority = 99
-        reason = "query-family cooldown" if family_cooldown else str(provider_policy.get("reason") or "")
+        reason = (
+            "query-family cooldown"
+            if family_cooldown
+            else str(provider_policy.get("reason") or "")
+        )
     elif family_preferred or provider_status == "preferred":
         status = "preferred"
         priority = 0 if family_preferred else 1
-        reason = "query-family preferred provider" if family_preferred else str(provider_policy.get("reason") or "")
+        reason = (
+            "query-family preferred provider"
+            if family_preferred
+            else str(provider_policy.get("reason") or "")
+        )
     else:
         status = "active"
         priority = 10

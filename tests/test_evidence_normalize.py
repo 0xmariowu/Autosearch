@@ -9,7 +9,11 @@ if str(REPO_ROOT) not in sys.path:
 
 from acquisition import AcquiredDocument
 from evidence.legacy_adapter import normalize_legacy_finding
-from evidence.normalize import coerce_evidence_records, normalize_acquired_document, normalize_result_record
+from evidence.normalize import (
+    coerce_evidence_records,
+    normalize_acquired_document,
+    normalize_result_record,
+)
 from engine import SearchResult
 
 
@@ -43,7 +47,9 @@ class EvidenceNormalizeTests(unittest.TestCase):
             selected_chunks=["Visible text"],
             references=[{"url": "https://example.com/ref"}],
         )
-        record = normalize_acquired_document(document, source="searxng", query="research page")
+        record = normalize_acquired_document(
+            document, source="searxng", query="research page"
+        )
         self.assertEqual(record["fit_markdown"], "Visible text")
         self.assertEqual(record["chunk_scores"][0]["index"], 0)
         self.assertEqual(record["selected_chunks"][0], "Visible text")
@@ -52,34 +58,38 @@ class EvidenceNormalizeTests(unittest.TestCase):
         self.assertEqual(record["doc_quality"], "high")
 
     def test_normalize_legacy_finding_keeps_old_shapes_working(self):
-        record = normalize_legacy_finding({
-            "title": "legacy",
-            "url": "https://example.com",
-            "body": "legacy body",
-            "source": "searxng",
-            "query": "legacy query",
-        })
+        record = normalize_legacy_finding(
+            {
+                "title": "legacy",
+                "url": "https://example.com",
+                "body": "legacy body",
+                "source": "searxng",
+                "query": "legacy query",
+            }
+        )
         self.assertEqual(record["record_type"], "evidence")
         self.assertEqual(record["query"], "legacy query")
         self.assertTrue(record["evidence_id"])
 
     def test_coerce_evidence_records_normalizes_mixed_shapes(self):
-        records = coerce_evidence_records([
-            {
-                "record_type": "evidence",
-                "title": "Native",
-                "url": "https://example.com/native",
-                "source": "searxng",
-                "query": "native",
-            },
-            {
-                "title": "Legacy",
-                "url": "https://example.com/legacy",
-                "body": "legacy body",
-                "source": "ddgs",
-                "query": "legacy",
-            },
-        ])
+        records = coerce_evidence_records(
+            [
+                {
+                    "record_type": "evidence",
+                    "title": "Native",
+                    "url": "https://example.com/native",
+                    "source": "searxng",
+                    "query": "native",
+                },
+                {
+                    "title": "Legacy",
+                    "url": "https://example.com/legacy",
+                    "body": "legacy body",
+                    "source": "ddgs",
+                    "query": "legacy",
+                },
+            ]
+        )
         self.assertEqual(len(records), 2)
         self.assertTrue(all(record["record_type"] == "evidence" for record in records))
         self.assertEqual(records[1]["backend"], "ddgs")

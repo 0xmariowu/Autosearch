@@ -87,24 +87,30 @@ def build_control_plane(
             }
             runtime_rows.append(row)
         else:
-            research_rows.append({
-                "name": name,
-                "kind": str(source.get("kind") or ""),
-                "family": str(source.get("family") or ""),
-                "available": capability["available"],
-                "status": capability["status"],
-                "message": capability.get("message", ""),
-            })
+            research_rows.append(
+                {
+                    "name": name,
+                    "kind": str(source.get("kind") or ""),
+                    "family": str(source.get("family") or ""),
+                    "available": capability["available"],
+                    "status": capability["status"],
+                    "message": capability.get("message", ""),
+                }
+            )
 
-    runtime_rows.sort(key=lambda row: (row["priority"][0], row["priority"][1], row["name"]))
+    runtime_rows.sort(
+        key=lambda row: (row["priority"][0], row["priority"][1], row["name"])
+    )
 
-    search_policy = ((experience_policy.get("aspects") or {}).get("search") or {})
+    search_policy = (experience_policy.get("aspects") or {}).get("search") or {}
     for family, policy in sorted((search_policy.get("query_families") or {}).items()):
-        query_family_rows.append({
-            "name": family,
-            "preferred_providers": list(policy.get("preferred_providers") or []),
-            "cooldown_providers": list(policy.get("cooldown_providers") or []),
-        })
+        query_family_rows.append(
+            {
+                "name": family,
+                "preferred_providers": list(policy.get("preferred_providers") or []),
+                "cooldown_providers": list(policy.get("cooldown_providers") or []),
+            }
+        )
 
     return {
         "generated_at": datetime.now().astimezone().isoformat(),
@@ -112,8 +118,12 @@ def build_control_plane(
         "objective": target_spec,
         "runtime": {
             "providers": runtime_rows,
-            "top_providers": [row["name"] for row in runtime_rows if not row["should_skip"]][:5],
-            "skipped_providers": [row["name"] for row in runtime_rows if row["should_skip"]],
+            "top_providers": [
+                row["name"] for row in runtime_rows if not row["should_skip"]
+            ][:5],
+            "skipped_providers": [
+                row["name"] for row in runtime_rows if row["should_skip"]
+            ],
         },
         "research_sources": research_rows,
         "query_families": query_family_rows,

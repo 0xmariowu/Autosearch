@@ -5,7 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 
-def summarize_diary(entries: list[dict[str, Any]] | None, *, limit: int = 5) -> list[str]:
+def summarize_diary(
+    entries: list[dict[str, Any]] | None, *, limit: int = 5
+) -> list[str]:
     summary: list[str] = []
     for item in list(entries or [])[-limit:]:
         round_index = int(item.get("round_index", 0) or 0)
@@ -40,7 +42,9 @@ def build_diary_entry(
         "weakest_dimension": (
             min(
                 sorted((judge_result.get("dimension_scores") or {}).keys()),
-                key=lambda key: int((judge_result.get("dimension_scores") or {}).get(key, 0) or 0),
+                key=lambda key: int(
+                    (judge_result.get("dimension_scores") or {}).get(key, 0) or 0
+                ),
             )
             if (judge_result.get("dimension_scores") or {})
             else ""

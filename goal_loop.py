@@ -23,7 +23,9 @@ def load_goal_case(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _available_platforms(goal_case: dict[str, Any], capability_report: dict[str, Any]) -> list[dict[str, Any]]:
+def _available_platforms(
+    goal_case: dict[str, Any], capability_report: dict[str, Any]
+) -> list[dict[str, Any]]:
     platforms: list[dict[str, Any]] = []
     for name in goal_case.get("providers", []):
         decision = get_source_decision(capability_report, name)
@@ -40,7 +42,9 @@ def _available_platforms(goal_case: dict[str, Any], capability_report: dict[str,
     return platforms
 
 
-def _search_query(query: str, platforms: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
+def _search_query(
+    query: str, platforms: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], int]:
     findings: list[dict[str, Any]] = []
     baseline = 0
     scorer = Scorer()
@@ -51,16 +55,20 @@ def _search_query(query: str, platforms: list[dict[str, Any]]) -> tuple[list[dic
     _, raw_score, new_results = scorer.score_results(all_results)
     baseline = raw_score
     for result in new_results[:15]:
-        findings.append({
-            "title": result.title,
-            "url": result.url,
-            "body": result.body,
-            "source": result.source,
-        })
+        findings.append(
+            {
+                "title": result.title,
+                "url": result.url,
+                "body": result.body,
+                "source": result.source,
+            }
+        )
     return findings, baseline
 
 
-def _mutate_queries(best_query: str, evaluation: dict[str, Any], goal_case: dict[str, Any]) -> list[str]:
+def _mutate_queries(
+    best_query: str, evaluation: dict[str, Any], goal_case: dict[str, Any]
+) -> list[str]:
     mutations: list[str] = []
     for term in evaluation.get("missing_terms", [])[:3]:
         mutations.append(f"{best_query} {term}".strip())
@@ -76,7 +84,9 @@ def _mutate_queries(best_query: str, evaluation: dict[str, Any], goal_case: dict
     return deduped[:5]
 
 
-def run_goal_loop(goal_case: dict[str, Any], max_rounds: int, force_all_rounds: bool = False) -> dict[str, Any]:
+def run_goal_loop(
+    goal_case: dict[str, Any], max_rounds: int, force_all_rounds: bool = False
+) -> dict[str, Any]:
     capability_report = refresh_source_capability(goal_case.get("providers"))
     platforms = _available_platforms(goal_case, capability_report)
     rounds: list[dict[str, Any]] = []
@@ -122,9 +132,15 @@ def run_goal_loop(goal_case: dict[str, Any], max_rounds: int, force_all_rounds: 
         if not round_runs:
             break
         top = round_runs[0]
-        if (not force_all_rounds) and top["goal_score"] >= int(goal_case.get("target_score", 100) or 100):
+        if (not force_all_rounds) and top["goal_score"] >= int(
+            goal_case.get("target_score", 100) or 100
+        ):
             break
-        if (not force_all_rounds) and round_index > 1 and top["goal_score"] <= previous_best_score:
+        if (
+            (not force_all_rounds)
+            and round_index > 1
+            and top["goal_score"] <= previous_best_score
+        ):
             break
         queries = _mutate_queries(top["query"], top, goal_case)
         if not queries:
@@ -165,10 +181,17 @@ def main() -> None:
     args = parser.parse_args()
 
     goal_case = load_goal_case(Path(args.goal))
-    result = run_goal_loop(goal_case, args.max_rounds, force_all_rounds=args.force_all_rounds)
+    result = run_goal_loop(
+        goal_case, args.max_rounds, force_all_rounds=args.force_all_rounds
+    )
     GOAL_RUNS_ROOT.mkdir(parents=True, exist_ok=True)
-    run_path = GOAL_RUNS_ROOT / f"{datetime.now().strftime('%Y-%m-%d-%H%M%S')}-{goal_case.get('id', 'goal')}.json"
-    run_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    run_path = (
+        GOAL_RUNS_ROOT
+        / f"{datetime.now().strftime('%Y-%m-%d-%H%M%S')}-{goal_case.get('id', 'goal')}.json"
+    )
+    run_path.write_text(
+        json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     print(f"\nRun: {run_path}")
 

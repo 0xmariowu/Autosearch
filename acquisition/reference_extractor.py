@@ -9,7 +9,9 @@ from urllib.parse import urljoin
 _HREF_RE = re.compile(r"""href=["']([^"']+)["']""", re.IGNORECASE)
 
 
-def extract_references(base_url: str, raw_html: str, *, limit: int = 20) -> list[dict[str, str]]:
+def extract_references(
+    base_url: str, raw_html: str, *, limit: int = 20
+) -> list[dict[str, str]]:
     seen: set[str] = set()
     refs: list[dict[str, str]] = []
     for match in _HREF_RE.finditer(str(raw_html or "")):

@@ -10,7 +10,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from engine import Engine, EngineConfig, PlatformConnector, PlatformSearchOutcome, SearchResult
+from engine import (
+    Engine,
+    EngineConfig,
+    PlatformConnector,
+    PlatformSearchOutcome,
+    SearchResult,
+)
 import source_capability as sc
 
 
@@ -30,7 +36,9 @@ class SourceCapabilityTests(unittest.TestCase):
         """
         with patch("engine.subprocess.run") as run:
             run.return_value = SimpleNamespace(returncode=0, stdout=payload, stderr="")
-            result = PlatformConnector._github_code({"name": "github_code", "limit": 5}, "fail-closed")
+            result = PlatformConnector._github_code(
+                {"name": "github_code", "limit": 5}, "fail-closed"
+            )
         self.assertEqual(result.provider, "github_code")
         self.assertEqual(len(result.results), 1)
         self.assertEqual(result.results[0].title, "example/project:docs/release.md")
@@ -47,6 +55,7 @@ class SourceCapabilityTests(unittest.TestCase):
                 }
             ]
         }
+
         class FakeResponse:
             def read(self):
                 return __import__("json").dumps(payload).encode("utf-8")
@@ -57,9 +66,17 @@ class SourceCapabilityTests(unittest.TestCase):
             def __exit__(self, exc_type, exc, tb):
                 return False
 
-        with patch.dict("os.environ", {"TAVILY_API_KEY": "tvly-demo-key-1234567890"}, clear=False), \
-             patch("engine.urllib.request.urlopen", return_value=FakeResponse()):
-            result = PlatformConnector._tavily({"name": "tavily", "limit": 5}, "provider doctor")
+        with (
+            patch.dict(
+                "os.environ",
+                {"TAVILY_API_KEY": "tvly-demo-key-1234567890"},
+                clear=False,
+            ),
+            patch("engine.urllib.request.urlopen", return_value=FakeResponse()),
+        ):
+            result = PlatformConnector._tavily(
+                {"name": "tavily", "limit": 5}, "provider doctor"
+            )
         self.assertEqual(result.provider, "tavily")
         self.assertEqual(len(result.results), 1)
         self.assertEqual(result.results[0].url, "https://example.com/provider-doctor")
@@ -88,7 +105,9 @@ class SourceCapabilityTests(unittest.TestCase):
                 return False
 
         with patch("engine.urllib.request.urlopen", return_value=FakeResponse()):
-            result = PlatformConnector._searxng({"name": "searxng", "limit": 5}, "search orchestration")
+            result = PlatformConnector._searxng(
+                {"name": "searxng", "limit": 5}, "search orchestration"
+            )
 
         self.assertEqual(result.provider, "searxng")
         self.assertEqual(len(result.results), 1)
@@ -113,7 +132,9 @@ class SourceCapabilityTests(unittest.TestCase):
 
         fake_module = types.SimpleNamespace(DDGS=FakeDDGS)
         with patch.dict(sys.modules, {"ddgs": fake_module}):
-            result = PlatformConnector._ddgs({"name": "ddgs", "limit": 5}, "meta search")
+            result = PlatformConnector._ddgs(
+                {"name": "ddgs", "limit": 5}, "meta search"
+            )
 
         self.assertEqual(result.provider, "ddgs")
         self.assertEqual(len(result.results), 1)
@@ -121,26 +142,30 @@ class SourceCapabilityTests(unittest.TestCase):
 
     def test_tavily_capability_requires_api_key(self):
         with patch.dict("os.environ", {}, clear=True):
-            status = sc.check_source({
-                "name": "tavily",
-                "kind": "provider",
-                "runtime_enabled": True,
-                "tier": 0,
-                "backend": "Tavily Search API",
-                "check": "tavily_api",
-            })
+            status = sc.check_source(
+                {
+                    "name": "tavily",
+                    "kind": "provider",
+                    "runtime_enabled": True,
+                    "tier": 0,
+                    "backend": "Tavily Search API",
+                    "check": "tavily_api",
+                }
+            )
         self.assertFalse(status["available"])
 
     def test_ddgs_capability_requires_installed_package(self):
         with patch("source_capability.importlib.util.find_spec", return_value=None):
-            status = sc.check_source({
-                "name": "ddgs",
-                "kind": "provider",
-                "runtime_enabled": True,
-                "tier": 0,
-                "backend": "Local ddgs Python package",
-                "check": "ddgs_local",
-            })
+            status = sc.check_source(
+                {
+                    "name": "ddgs",
+                    "kind": "provider",
+                    "runtime_enabled": True,
+                    "tier": 0,
+                    "backend": "Local ddgs Python package",
+                    "check": "ddgs_local",
+                }
+            )
         self.assertFalse(status["available"])
 
     def test_searxng_capability_reports_reachable_endpoint(self):
@@ -153,16 +178,22 @@ class SourceCapabilityTests(unittest.TestCase):
             def __exit__(self, exc_type, exc, tb):
                 return False
 
-        with patch.dict("os.environ", {"SEARXNG_URL": "http://127.0.0.1:8888"}), \
-             patch("source_capability.urllib.request.urlopen", return_value=FakeResponse()):
-            status = sc.check_source({
-                "name": "searxng",
-                "kind": "provider",
-                "runtime_enabled": True,
-                "tier": 0,
-                "backend": "Local SearXNG HTTP",
-                "check": "searxng_http",
-            })
+        with (
+            patch.dict("os.environ", {"SEARXNG_URL": "http://127.0.0.1:8888"}),
+            patch(
+                "source_capability.urllib.request.urlopen", return_value=FakeResponse()
+            ),
+        ):
+            status = sc.check_source(
+                {
+                    "name": "searxng",
+                    "kind": "provider",
+                    "runtime_enabled": True,
+                    "tier": 0,
+                    "backend": "Local SearXNG HTTP",
+                    "check": "searxng_http",
+                }
+            )
         self.assertTrue(status["available"])
         self.assertEqual(status["status"], "ok")
 
@@ -237,7 +268,9 @@ class SourceCapabilityTests(unittest.TestCase):
         with patch("engine.PlatformConnector.search") as search:
             search.return_value = PlatformSearchOutcome(
                 provider="exa",
-                results=[SearchResult(title="A", url="https://example.com", source="exa")],
+                results=[
+                    SearchResult(title="A", url="https://example.com", source="exa")
+                ],
             )
             results = engine._search_all_platforms("paper search", "mcp")
 
@@ -249,8 +282,18 @@ class SourceCapabilityTests(unittest.TestCase):
     def test_source_decision_priority_prefers_lower_tier_when_available(self):
         report = {
             "sources": {
-                "searxng": {"status": "ok", "available": True, "runtime_enabled": True, "tier": "free_default"},
-                "exa": {"status": "ok", "available": True, "runtime_enabled": True, "tier": "premium_fallback"},
+                "searxng": {
+                    "status": "ok",
+                    "available": True,
+                    "runtime_enabled": True,
+                    "tier": "free_default",
+                },
+                "exa": {
+                    "status": "ok",
+                    "available": True,
+                    "runtime_enabled": True,
+                    "tier": "premium_fallback",
+                },
             }
         }
         searxng = sc.get_source_decision(report, "searxng")
@@ -260,9 +303,27 @@ class SourceCapabilityTests(unittest.TestCase):
     def test_format_report_surfaces_free_path_before_premium_fallback(self):
         report = {
             "sources": {
-                "searxng": {"status": "ok", "available": True, "runtime_enabled": True, "tier": "free_default", "message": "ready"},
-                "github_repos": {"status": "ok", "available": True, "runtime_enabled": True, "tier": "specialized_free", "message": "ready"},
-                "exa": {"status": "ok", "available": True, "runtime_enabled": True, "tier": "premium_fallback", "message": "ready"},
+                "searxng": {
+                    "status": "ok",
+                    "available": True,
+                    "runtime_enabled": True,
+                    "tier": "free_default",
+                    "message": "ready",
+                },
+                "github_repos": {
+                    "status": "ok",
+                    "available": True,
+                    "runtime_enabled": True,
+                    "tier": "specialized_free",
+                    "message": "ready",
+                },
+                "exa": {
+                    "status": "ok",
+                    "available": True,
+                    "runtime_enabled": True,
+                    "tier": "premium_fallback",
+                    "message": "ready",
+                },
             },
             "summary": {
                 "ok": 3,
