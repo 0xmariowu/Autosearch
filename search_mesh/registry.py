@@ -12,8 +12,30 @@ if TYPE_CHECKING:
 _PROVIDERS: dict[str, "SearchProvider"] = {}
 
 _CLASSIFICATION_HINTS: dict[str, tuple[str, ...]] = {
-    "code": ("repo", "repository", "sdk", "library", "tool", "package", "source", "implementation", "code", "patch", "diff"),
-    "discussion": ("issue", "bug", "failure", "incident", "discussion", "postmortem", "reddit", "hacker news", "hn"),
+    "code": (
+        "repo",
+        "repository",
+        "sdk",
+        "library",
+        "tool",
+        "package",
+        "source",
+        "implementation",
+        "code",
+        "patch",
+        "diff",
+    ),
+    "discussion": (
+        "issue",
+        "bug",
+        "failure",
+        "incident",
+        "discussion",
+        "postmortem",
+        "reddit",
+        "hacker news",
+        "hn",
+    ),
     "dataset": ("dataset", "benchmark", "eval set", "corpus", "trajectory"),
     "social": ("tweet", "twitter", "xreach", "social", "thread"),
     "academic": ("paper", "arxiv", "academic", "citation", "study"),
@@ -91,7 +113,10 @@ def provider_names_for_classification(classification: str) -> list[str]:
     matched: list[str] = []
     for name, provider in _PROVIDERS.items():
         family = str(provider.family_for(name) or "").strip().lower()
-        roles = {str(item or "").strip().lower() for item in set(getattr(provider, "roles", set()))}
+        roles = {
+            str(item or "").strip().lower()
+            for item in set(getattr(provider, "roles", set()))
+        }
         if desired == "breadth":
             if "breadth" in roles:
                 matched.append(name)
@@ -100,10 +125,14 @@ def provider_names_for_classification(classification: str) -> list[str]:
             if "verification" in roles:
                 matched.append(name)
             continue
-        if desired == "code" and (family in {"code_host", "source_code"} or "code" in roles):
+        if desired == "code" and (
+            family in {"code_host", "source_code"} or "code" in roles
+        ):
             matched.append(name)
             continue
-        if desired == "discussion" and (family == "discussion" or "discussion" in roles):
+        if desired == "discussion" and (
+            family == "discussion" or "discussion" in roles
+        ):
             matched.append(name)
             continue
         if desired == "dataset" and (family == "dataset" or "datasets" in roles):

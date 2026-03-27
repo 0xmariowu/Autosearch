@@ -11,7 +11,11 @@ if str(REPO_ROOT) not in sys.path:
 from engine import PlatformSearchOutcome, SearchResult
 from search_mesh.compat import to_legacy_search_results
 from search_mesh.models import SearchHitBatch
-from search_mesh.provider_policy import available_platforms, default_platform_config, goal_provider_names
+from search_mesh.provider_policy import (
+    available_platforms,
+    default_platform_config,
+    goal_provider_names,
+)
 from search_mesh.registry import (
     classify_query,
     get_provider,
@@ -75,9 +79,24 @@ class SearchMeshTests(unittest.TestCase):
     def test_available_platforms_respects_capability_report(self):
         capability_report = {
             "sources": {
-                "searxng": {"status": "ok", "available": True, "runtime_enabled": True, "tier": 0},
-                "ddgs": {"status": "ok", "available": True, "runtime_enabled": True, "tier": 0},
-                "exa": {"status": "off", "available": False, "runtime_enabled": True, "tier": 3},
+                "searxng": {
+                    "status": "ok",
+                    "available": True,
+                    "runtime_enabled": True,
+                    "tier": 0,
+                },
+                "ddgs": {
+                    "status": "ok",
+                    "available": True,
+                    "runtime_enabled": True,
+                    "tier": 0,
+                },
+                "exa": {
+                    "status": "off",
+                    "available": False,
+                    "runtime_enabled": True,
+                    "tier": 3,
+                },
             }
         }
         platforms = available_platforms({"providers": ["exa"]}, capability_report)
@@ -103,32 +122,48 @@ class SearchMeshTests(unittest.TestCase):
 
     def test_provider_registry_filters_by_role(self):
         providers = providers_for_role("breadth")
-        self.assertTrue(any("searxng" in provider.provider_names for provider in providers))
+        self.assertTrue(
+            any("searxng" in provider.provider_names for provider in providers)
+        )
 
     def test_provider_registry_supports_classification_gating(self):
-        self.assertEqual(classify_query("repo implementation patch", plan_role=""), "code")
+        self.assertEqual(
+            classify_query("repo implementation patch", plan_role=""), "code"
+        )
         self.assertIn("github_code", provider_names_for_classification("code"))
         self.assertIn("reddit", provider_names_for_classification("discussion"))
 
     def test_search_platform_dispatches_to_wrapped_backend(self):
-        with patch("search_mesh.backends.github_backend.PlatformConnector._github_code") as search:
+        with patch(
+            "search_mesh.backends.github_backend.PlatformConnector._github_code"
+        ) as search:
             search.return_value = PlatformSearchOutcome(
                 provider="github_code",
-                results=[SearchResult(title="hit", url="https://example.com", source="github_code")],
+                results=[
+                    SearchResult(
+                        title="hit", url="https://example.com", source="github_code"
+                    )
+                ],
             )
-            outcome = search_platform({"name": "github_code", "limit": 5}, "release gate")
+            outcome = search_platform(
+                {"name": "github_code", "limit": 5}, "release gate"
+            )
         self.assertIsInstance(outcome, SearchHitBatch)
         self.assertEqual(outcome.provider, "github_code")
         self.assertEqual(len(outcome.hits), 1)
         self.assertEqual(outcome.hits[0].title, "hit")
 
     def test_search_platform_applies_provider_query_transform(self):
-        with patch("search_mesh.backends.github_backend.PlatformConnector._github_repos") as search:
+        with patch(
+            "search_mesh.backends.github_backend.PlatformConnector._github_repos"
+        ) as search:
             search.return_value = PlatformSearchOutcome(
                 provider="github_repos",
                 results=[],
             )
-            search_platform({"name": "github_repos", "limit": 5}, "OpenManus agent runtime")
+            search_platform(
+                {"name": "github_repos", "limit": 5}, "OpenManus agent runtime"
+            )
         forwarded_query = search.call_args.args[1]
         self.assertIn("stars:>20", forwarded_query)
 

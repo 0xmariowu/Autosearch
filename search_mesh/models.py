@@ -83,6 +83,7 @@ class SearchHit:
             score_hint=int(payload.get("score_hint", payload.get("eng", 0)) or 0),
         )
 
+
 @dataclass
 class SearchHitBatch:
     provider: str

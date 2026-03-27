@@ -14,8 +14,6 @@ from goal_judge import _pair_extract_finding_score
 from query_dedup import dedup_query_specs
 from rerank import rerank_hits
 from search_mesh.provider_policy import (
-    FREE_BREADTH_PROVIDERS,
-    PREMIUM_BREADTH_PROVIDERS,
     available_platforms as policy_available_platforms,
     default_platform_config,
     goal_provider_names,
@@ -35,6 +33,8 @@ __all__ = [
     "sample_findings",
     "search_query",
 ]
+
+
 def _goal_provider_names(goal_case: dict[str, Any]) -> list[str]:
     return goal_provider_names(goal_case)
 
@@ -57,7 +57,9 @@ def query_text(query: Any) -> str:
     return normalize_query_spec(query).get("text", "")
 
 
-def available_platforms(goal_case: dict[str, Any], capability_report: dict[str, Any]) -> list[dict[str, Any]]:
+def available_platforms(
+    goal_case: dict[str, Any], capability_report: dict[str, Any]
+) -> list[dict[str, Any]]:
     return policy_available_platforms(goal_case, capability_report)
 
 
@@ -65,15 +67,29 @@ def platforms_for_provider_mix(
     platforms: list[dict[str, Any]],
     provider_mix: list[str] | None,
 ) -> list[dict[str, Any]]:
-    allowed = [str(name or "").strip() for name in list(provider_mix or []) if str(name or "").strip()]
+    allowed = [
+        str(name or "").strip()
+        for name in list(provider_mix or [])
+        if str(name or "").strip()
+    ]
     if not allowed:
         return [dict(platform) for platform in platforms]
-    return [dict(platform) for platform in platforms if str(platform.get("name") or "") in allowed]
+    return [
+        dict(platform)
+        for platform in platforms
+        if str(platform.get("name") or "") in allowed
+    ]
 
 
-def restrict_query_to_provider_mix(query: Any, provider_mix: list[str] | None) -> dict[str, Any]:
+def restrict_query_to_provider_mix(
+    query: Any, provider_mix: list[str] | None
+) -> dict[str, Any]:
     spec = normalize_query_spec(query)
-    allowed = {str(name or "").strip() for name in list(provider_mix or []) if str(name or "").strip()}
+    allowed = {
+        str(name or "").strip()
+        for name in list(provider_mix or [])
+        if str(name or "").strip()
+    }
     if not allowed or not spec.get("platforms"):
         return spec
     spec["platforms"] = [
@@ -84,7 +100,9 @@ def restrict_query_to_provider_mix(query: Any, provider_mix: list[str] | None) -
     return spec
 
 
-def _query_platforms(query: Any, default_platforms: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _query_platforms(
+    query: Any, default_platforms: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     spec = normalize_query_spec(query)
     if spec["platforms"]:
         return [dict(item) for item in spec["platforms"] if item.get("name")]
@@ -95,17 +113,25 @@ def _query_terms(text: str) -> set[str]:
     return {term for term in text.lower().split() if len(term) >= 4}
 
 
-def _result_relevance(query: str, result: Any, preferred_content_types: list[str] | None = None) -> tuple[int, int]:
+def _result_relevance(
+    query: str, result: Any, preferred_content_types: list[str] | None = None
+) -> tuple[int, int]:
     terms = _query_terms(query)
-    haystack = " ".join([
-        str(getattr(result, "title", "") or ""),
-        str(getattr(result, "body", "") or ""),
-        str(getattr(result, "url", "") or ""),
-        str(getattr(result, "source", "") or ""),
-    ]).lower()
+    haystack = " ".join(
+        [
+            str(getattr(result, "title", "") or ""),
+            str(getattr(result, "body", "") or ""),
+            str(getattr(result, "url", "") or ""),
+            str(getattr(result, "source", "") or ""),
+        ]
+    ).lower()
     overlap = sum(1 for term in terms if term in haystack)
     bonus = 0
-    preferred = {str(item or "").strip() for item in list(preferred_content_types or []) if str(item or "").strip()}
+    preferred = {
+        str(item or "").strip()
+        for item in list(preferred_content_types or [])
+        if str(item or "").strip()
+    }
     if preferred:
         content_type = evidence_content_type(
             str(getattr(result, "source", "") or ""),
@@ -116,17 +142,25 @@ def _result_relevance(query: str, result: Any, preferred_content_types: list[str
     return overlap + bonus, int(getattr(result, "eng", 0) or 0)
 
 
-def _hit_relevance(query: str, hit: SearchHit, preferred_content_types: list[str] | None = None) -> tuple[int, int]:
+def _hit_relevance(
+    query: str, hit: SearchHit, preferred_content_types: list[str] | None = None
+) -> tuple[int, int]:
     terms = _query_terms(query)
-    haystack = " ".join([
-        str(hit.title or ""),
-        str(hit.snippet or ""),
-        str(hit.url or ""),
-        str(hit.source or ""),
-    ]).lower()
+    haystack = " ".join(
+        [
+            str(hit.title or ""),
+            str(hit.snippet or ""),
+            str(hit.url or ""),
+            str(hit.source or ""),
+        ]
+    ).lower()
     overlap = sum(1 for term in terms if term in haystack)
     bonus = 0
-    preferred = {str(item or "").strip() for item in list(preferred_content_types or []) if str(item or "").strip()}
+    preferred = {
+        str(item or "").strip()
+        for item in list(preferred_content_types or [])
+        if str(item or "").strip()
+    }
     if preferred:
         content_type = evidence_content_type(str(hit.source or ""), str(hit.url or ""))
         if content_type in preferred:
@@ -151,15 +185,23 @@ def _sampling_config(sampling_policy: dict[str, Any] | None) -> dict[str, Any]:
     bundle_cap = int(policy.get("bundle_per_query_cap", 5) or 5)
     return {
         "rank_by_relevance": bool(policy.get("rank_by_relevance", True)),
-        "per_query_findings_cap": int(policy.get("per_query_findings_cap", max(bundle_cap * 3, 5)) or max(bundle_cap * 3, 5)),
+        "per_query_findings_cap": int(
+            policy.get("per_query_findings_cap", max(bundle_cap * 3, 5))
+            or max(bundle_cap * 3, 5)
+        ),
         "bundle_per_query_cap": bundle_cap,
         "acquire_pages": bool(policy.get("acquire_pages", False)),
         "page_fetch_limit": int(policy.get("page_fetch_limit", 2) or 2),
         "use_render_fallback": bool(policy.get("use_render_fallback", False)),
         "use_crawl4ai_adapter": bool(policy.get("use_crawl4ai_adapter", False)),
-        "rerank_profile": str(policy.get("rerank_profile") or ("hybrid" if bool(policy.get("rank_by_relevance", True)) else "none")),
+        "rerank_profile": str(
+            policy.get("rerank_profile")
+            or ("hybrid" if bool(policy.get("rank_by_relevance", True)) else "none")
+        ),
         "domain_cap": int(policy.get("domain_cap", 0) or 0),
-        "provider_timeout_seconds": int(policy.get("provider_timeout_seconds", 10) or 10),
+        "provider_timeout_seconds": int(
+            policy.get("provider_timeout_seconds", 10) or 10
+        ),
         "parallel_provider_limit": int(policy.get("parallel_provider_limit", 6) or 6),
         "preferred_content_types": [
             str(item or "").strip()
@@ -171,7 +213,9 @@ def _sampling_config(sampling_policy: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
-def _platform_batch(platform: dict[str, Any], platform_query: str, preferred_content_types: list[str]) -> SearchHitBatch:
+def _platform_batch(
+    platform: dict[str, Any], platform_query: str, preferred_content_types: list[str]
+) -> SearchHitBatch:
     platform_config = dict(platform)
     platform_config.pop("query", None)
     if "limit" not in platform_config and platform_config.get("name"):
@@ -183,14 +227,20 @@ def _platform_batch(platform: dict[str, Any], platform_query: str, preferred_con
     if "unittest.mock" in str(type(platform_search)):
         outcome = platform_search(platform_config, platform_query)
         return SearchHitBatch.from_hit_dicts(
-            provider=str(getattr(outcome, "provider", "") or platform_config.get("name") or ""),
+            provider=str(
+                getattr(outcome, "provider", "") or platform_config.get("name") or ""
+            ),
             query=platform_query,
             items=[
                 {
                     "title": str(getattr(result, "title", "") or ""),
                     "url": str(getattr(result, "url", "") or ""),
                     "body": str(getattr(result, "body", "") or ""),
-                    "source": str(getattr(result, "source", "") or platform_config.get("name") or ""),
+                    "source": str(
+                        getattr(result, "source", "")
+                        or platform_config.get("name")
+                        or ""
+                    ),
                     "eng": int(getattr(result, "eng", 0) or 0),
                 }
                 for result in list(getattr(outcome, "results", []) or [])
@@ -205,7 +255,9 @@ def _platform_batch(platform: dict[str, Any], platform_query: str, preferred_con
     )
 
 
-def _enrich_record(record: dict[str, Any], *, query: str, **kwargs: Any) -> dict[str, Any]:
+def _enrich_record(
+    record: dict[str, Any], *, query: str, **kwargs: Any
+) -> dict[str, Any]:
     try:
         return enrich_evidence_record(record, query=query, **kwargs)
     except TypeError as exc:
@@ -225,7 +277,9 @@ def search_query(
     all_hits: list[SearchHit] = []
     findings: list[dict[str, Any]] = []
     timed_out_providers: list[str] = []
-    max_workers = max(1, min(len(platforms), int(sampling["parallel_provider_limit"] or 1)))
+    max_workers = max(
+        1, min(len(platforms), int(sampling["parallel_provider_limit"] or 1))
+    )
     executor = ThreadPoolExecutor(max_workers=max_workers)
     try:
         futures = {
@@ -237,7 +291,9 @@ def search_query(
             ): str(platform.get("name") or "")
             for platform in platforms
         }
-        done, pending = wait(futures.keys(), timeout=float(sampling["provider_timeout_seconds"]))
+        done, pending = wait(
+            futures.keys(), timeout=float(sampling["provider_timeout_seconds"])
+        )
         for future in done:
             try:
                 batch = future.result()
@@ -263,7 +319,11 @@ def search_query(
         if _hit_relevance(query_str, hit, sampling["preferred_content_types"])[0] > 0
     ]
     selected_hits = positive_ranked or ranked_hits
-    raw_score = sum(max(int(hit.score_hint or 0), 0) + max(_hit_relevance(query_str, hit, sampling["preferred_content_types"])[0], 0) for hit in selected_hits)
+    raw_score = sum(
+        max(int(hit.score_hint or 0), 0)
+        + max(_hit_relevance(query_str, hit, sampling["preferred_content_types"])[0], 0)
+        for hit in selected_hits
+    )
     for index, hit in enumerate(selected_hits[: sampling["per_query_findings_cap"]]):
         record = _build_evidence_record_from_hit(hit)
         if sampling["acquire_pages"] and index < sampling["page_fetch_limit"]:
@@ -285,7 +345,9 @@ def search_query(
                 )
             if sampling["prefer_acquired_text"] and record.get("acquired_text"):
                 record = build_evidence_record(
-                    title=str(record.get("acquired_title") or record.get("title") or ""),
+                    title=str(
+                        record.get("acquired_title") or record.get("title") or ""
+                    ),
                     url=str(record.get("url") or ""),
                     body=str(record.get("acquired_text") or ""),
                     source=str(record.get("source") or ""),
@@ -307,7 +369,9 @@ def search_query(
     }
 
 
-def merge_findings(existing: list[dict[str, Any]], incoming: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def merge_findings(
+    existing: list[dict[str, Any]], incoming: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     merged: list[dict[str, Any]] = []
     seen: set[str] = set()
     for item in list(existing) + list(incoming):
@@ -320,7 +384,9 @@ def merge_findings(existing: list[dict[str, Any]], incoming: list[dict[str, Any]
     return merged
 
 
-def sample_findings(items: list[dict[str, Any]], limit: int = 12) -> list[dict[str, Any]]:
+def sample_findings(
+    items: list[dict[str, Any]], limit: int = 12
+) -> list[dict[str, Any]]:
     ranked = list(items or [])
     if ranked:
         scores = [_pair_extract_finding_score(item) for item in ranked]
@@ -361,12 +427,14 @@ def replay_queries(
     )
     for query in deduped_queries:
         run = search_query(query, platforms, sampling_policy=sampling_policy)
-        query_runs.append({
-            "query": run["query"],
-            "query_spec": run["query_spec"],
-            "baseline_score": run["baseline_score"],
-            "finding_count": len(run["findings"]),
-            "sample_findings": sample_findings(run["findings"], limit=5),
-        })
+        query_runs.append(
+            {
+                "query": run["query"],
+                "query_spec": run["query_spec"],
+                "baseline_score": run["baseline_score"],
+                "finding_count": len(run["findings"]),
+                "sample_findings": sample_findings(run["findings"], limit=5),
+            }
+        )
         findings.extend(run["findings"])
     return query_runs, merge_findings([], findings)

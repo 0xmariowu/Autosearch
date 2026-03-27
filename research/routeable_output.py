@@ -36,12 +36,14 @@ def build_routeable_output(
     }
     citations: list[str] = []
     for record in list(bundle or []):
-        route_groups[_route_kind(record)].append({
-            "title": str(record.get("title") or ""),
-            "url": str(record.get("url") or ""),
-            "source": str(record.get("source") or ""),
-            "content_type": str(record.get("content_type") or ""),
-        })
+        route_groups[_route_kind(record)].append(
+            {
+                "title": str(record.get("title") or ""),
+                "url": str(record.get("url") or ""),
+                "source": str(record.get("source") or ""),
+                "content_type": str(record.get("content_type") or ""),
+            }
+        )
         url = str(record.get("url") or "").strip()
         if url and url not in citations:
             citations.append(url)
@@ -57,22 +59,30 @@ def build_routeable_output(
     for route_name, items in route_groups.items():
         if not items:
             continue
-        handoff_packets.append({
-            "route": route_name,
-            "goal_id": str(goal_case.get("id") or ""),
-            "target": route_name,
-            "priority_dimension": weakest_dimension,
-            "evidence_count": len(items),
-            "top_items": items[:5],
-            "next_action": "review_and_route" if route_name != "implementation" else "inspect_for_reuse",
-        })
-    next_actions = [
-        {
-            "type": "repair",
-            "dimension": weakest_dimension,
-            "mode": str(repair_hints.get("next_branch_mode") or "repair"),
-        }
-    ] if weakest_dimension else []
+        handoff_packets.append(
+            {
+                "route": route_name,
+                "goal_id": str(goal_case.get("id") or ""),
+                "target": route_name,
+                "priority_dimension": weakest_dimension,
+                "evidence_count": len(items),
+                "top_items": items[:5],
+                "next_action": "review_and_route"
+                if route_name != "implementation"
+                else "inspect_for_reuse",
+            }
+        )
+    next_actions = (
+        [
+            {
+                "type": "repair",
+                "dimension": weakest_dimension,
+                "mode": str(repair_hints.get("next_branch_mode") or "repair"),
+            }
+        ]
+        if weakest_dimension
+        else []
+    )
     research_packet = build_research_packet(
         goal_case=goal_case,
         bundle=bundle,
@@ -108,16 +118,30 @@ def build_routeable_output(
         "gap_queue": list(repair_hints.get("gap_queue") or []),
         "cross_verification": {
             "enabled": bool(cross_verification.get("enabled")),
-            "verification_queries": int(cross_verification.get("verification_queries", 0) or 0),
+            "verification_queries": int(
+                cross_verification.get("verification_queries", 0) or 0
+            ),
             "provider_count": int(cross_verification.get("provider_count", 0) or 0),
             "domain_count": int(cross_verification.get("domain_count", 0) or 0),
-            "consensus_strength": str(cross_verification.get("consensus_strength") or ""),
-            "contradiction_detected": bool(cross_verification.get("contradiction_detected", False)),
+            "consensus_strength": str(
+                cross_verification.get("consensus_strength") or ""
+            ),
+            "contradiction_detected": bool(
+                cross_verification.get("contradiction_detected", False)
+            ),
             "stance_counts": dict(cross_verification.get("stance_counts") or {}),
-            "contradiction_signals": list(cross_verification.get("contradiction_signals") or []),
-            "contradiction_pairs": list(cross_verification.get("contradiction_pairs") or []),
+            "contradiction_signals": list(
+                cross_verification.get("contradiction_signals") or []
+            ),
+            "contradiction_pairs": list(
+                cross_verification.get("contradiction_pairs") or []
+            ),
             "claim_alignment": list(cross_verification.get("claim_alignment") or []),
-            "contradiction_clusters": list(cross_verification.get("contradiction_clusters") or []),
-            "source_dispute_map": dict(cross_verification.get("source_dispute_map") or {}),
+            "contradiction_clusters": list(
+                cross_verification.get("contradiction_clusters") or []
+            ),
+            "source_dispute_map": dict(
+                cross_verification.get("source_dispute_map") or {}
+            ),
         },
     }

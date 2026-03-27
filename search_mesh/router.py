@@ -51,4 +51,6 @@ def search_platform(
         **dict(context or {}),
     }
     transformed_query = route.backend.transform_query(name, query, effective_context)
-    return route.backend.search(dict(platform), transformed_query, query_family=query_family)
+    return route.backend.search(
+        dict(platform), transformed_query, query_family=query_family
+    )

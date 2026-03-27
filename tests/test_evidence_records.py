@@ -51,7 +51,9 @@ class EvidenceRecordTests(unittest.TestCase):
 
     def test_evidence_content_type_detects_dataset_urls(self):
         self.assertEqual(
-            evidence_content_type("huggingface_datasets", "https://huggingface.co/datasets/example/data"),
+            evidence_content_type(
+                "huggingface_datasets", "https://huggingface.co/datasets/example/data"
+            ),
             "dataset",
         )
 

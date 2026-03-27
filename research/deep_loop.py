@@ -57,19 +57,30 @@ def build_deep_loop_state(
     queries = [
         str(item.get("query") or item.get("query_spec", {}).get("text") or "").strip()
         for item in query_runs
-        if str(item.get("query") or item.get("query_spec", {}).get("text") or "").strip()
+        if str(
+            item.get("query") or item.get("query_spec", {}).get("text") or ""
+        ).strip()
     ]
     read_count = sum(
         1
         for item in list(bundle or [])
-        if bool(item.get("extract")) or bool(item.get("body")) or bool(item.get("clean_markdown"))
+        if bool(item.get("extract"))
+        or bool(item.get("body"))
+        or bool(item.get("clean_markdown"))
     )
-    missing = [str(item).strip() for item in list(judge_result.get("missing_dimensions") or []) if str(item).strip()]
+    missing = [
+        str(item).strip()
+        for item in list(judge_result.get("missing_dimensions") or [])
+        if str(item).strip()
+    ]
     steps = [
         DeepLoopStep(
             kind="search",
             summary=f"searched {len(query_runs)} queries",
-            metadata={"queries": queries[:8], "cross_verify": bool(decision.get("cross_verify"))},
+            metadata={
+                "queries": queries[:8],
+                "cross_verify": bool(decision.get("cross_verify")),
+            },
         ),
         DeepLoopStep(
             kind="read",

@@ -13,7 +13,11 @@ from selector import evaluate_acceptance
 class SelectorTests(unittest.TestCase):
     def test_selector_accepts_real_score_gain_with_novelty(self):
         decision = evaluate_acceptance(
-            current_state={"score": 80, "accepted_findings": [{}] * 10, "dimension_scores": {"a": 10, "b": 10}},
+            current_state={
+                "score": 80,
+                "accepted_findings": [{}] * 10,
+                "dimension_scores": {"a": 10, "b": 10},
+            },
             candidate_score=84,
             candidate_dimensions={"a": 12, "b": 12},
             candidate_metrics={
@@ -39,7 +43,11 @@ class SelectorTests(unittest.TestCase):
 
     def test_selector_rejects_score_gain_without_new_information(self):
         decision = evaluate_acceptance(
-            current_state={"score": 80, "accepted_findings": [{}] * 10, "dimension_scores": {"a": 10, "b": 10}},
+            current_state={
+                "score": 80,
+                "accepted_findings": [{}] * 10,
+                "dimension_scores": {"a": 10, "b": 10},
+            },
             candidate_score=84,
             candidate_dimensions={"a": 12, "b": 12},
             candidate_metrics={
@@ -89,13 +97,20 @@ class SelectorTests(unittest.TestCase):
                 }
             },
             candidate_finding_count=36,
-            current_program={"provider_mix": ["github_repos", "github_issues", "twitter_xreach"]},
-            candidate_program={"provider_mix": ["github_issues"], "sampling_policy": {"bundle_per_query_cap": 3}},
+            current_program={
+                "provider_mix": ["github_repos", "github_issues", "twitter_xreach"]
+            },
+            candidate_program={
+                "provider_mix": ["github_issues"],
+                "sampling_policy": {"bundle_per_query_cap": 3},
+            },
         )
         self.assertTrue(decision["accepted"])
         self.assertEqual(decision["anti_cheat_failures"], [])
         self.assertIn("source_diversity_too_low", decision["anti_cheat_warnings"])
-        self.assertEqual(decision["reason"], "tie_broken_by_profile_novelty_or_program_with_warnings")
+        self.assertEqual(
+            decision["reason"], "tie_broken_by_profile_novelty_or_program_with_warnings"
+        )
         self.assertTrue(decision["program_changed"])
         self.assertIn("provider_mix", decision["program_change_fields"])
 
@@ -125,8 +140,14 @@ class SelectorTests(unittest.TestCase):
                 }
             },
             candidate_finding_count=20,
-            current_program={"search_backends": ["exa"], "acquisition_policy": {"acquire_pages": False}},
-            candidate_program={"search_backends": ["searxng"], "acquisition_policy": {"acquire_pages": True}},
+            current_program={
+                "search_backends": ["exa"],
+                "acquisition_policy": {"acquire_pages": False},
+            },
+            candidate_program={
+                "search_backends": ["searxng"],
+                "acquisition_policy": {"acquire_pages": True},
+            },
         )
         self.assertTrue(decision["program_changed"])
         self.assertIn("search_backends", decision["program_change_fields"])
@@ -189,7 +210,9 @@ class SelectorTests(unittest.TestCase):
                 }
             },
             candidate_finding_count=20,
-            current_program={"provider_mix": ["github_repos", "github_issues", "twitter_xreach"]},
+            current_program={
+                "provider_mix": ["github_repos", "github_issues", "twitter_xreach"]
+            },
             candidate_program={"provider_mix": ["github_issues"]},
         )
         self.assertTrue(decision["accepted"])
@@ -253,7 +276,11 @@ class SelectorTests(unittest.TestCase):
             },
             candidate_finding_count=22,
             current_program={"branch_id": "seed", "family_id": "seed-family"},
-            candidate_program={"branch_id": "runtime-repair", "family_id": "repair-family", "repair_depth": 2},
+            candidate_program={
+                "branch_id": "runtime-repair",
+                "family_id": "repair-family",
+                "repair_depth": 2,
+            },
         )
         self.assertEqual(decision["branch_novelty"], 1)
         self.assertEqual(decision["family_novelty"], 1)
@@ -293,7 +320,10 @@ class SelectorTests(unittest.TestCase):
                     "retired_mutation_kinds": ["frontier_probe"],
                 }
             },
-            candidate_program={"mutation_kind": "dimension_repair", "family_id": "retired-family"},
+            candidate_program={
+                "mutation_kind": "dimension_repair",
+                "family_id": "retired-family",
+            },
         )
         self.assertEqual(decision["evolution_acceptance_score"], 1)
         self.assertEqual(decision["retirement_penalty"], 2)

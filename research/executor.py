@@ -38,13 +38,23 @@ DEEP_GENERIC_TERMS = {
 def _query_role_terms(text: str) -> set[str]:
     lowered = str(text or "").lower()
     roles: set[str] = set()
-    if any(term in lowered for term in ("repo", "repository", "sdk", "library", "tool")):
+    if any(
+        term in lowered for term in ("repo", "repository", "sdk", "library", "tool")
+    ):
         roles.add("repos")
-    if any(term in lowered for term in ("issue", "error", "bug", "failure", "incident", "postmortem")):
+    if any(
+        term in lowered
+        for term in ("issue", "error", "bug", "failure", "incident", "postmortem")
+    ):
         roles.add("discussion")
-    if any(term in lowered for term in ("code", "implementation", "source", "diff", "patch")):
+    if any(
+        term in lowered
+        for term in ("code", "implementation", "source", "diff", "patch")
+    ):
         roles.add("code")
-    if any(term in lowered for term in ("dataset", "benchmark", "trajectory", "eval set")):
+    if any(
+        term in lowered for term in ("dataset", "benchmark", "trajectory", "eval set")
+    ):
         roles.add("datasets")
     if any(term in lowered for term in ("tweet", "twitter", "xreach", "social")):
         roles.add("social")
@@ -106,7 +116,9 @@ def _platforms_for_intent(
     return narrowed or effective_platforms
 
 
-def _intent_query_spec(query: dict[str, Any], provider_mix: list[str]) -> dict[str, Any]:
+def _intent_query_spec(
+    query: dict[str, Any], provider_mix: list[str]
+) -> dict[str, Any]:
     if str(query.get("record_type") or "") == "evidence":
         text = " ".join(
             part
@@ -117,7 +129,9 @@ def _intent_query_spec(query: dict[str, Any], provider_mix: list[str]) -> dict[s
             )
             if part
         ).strip()
-        return restrict_query_to_provider_mix({"text": text, "platforms": []}, provider_mix)
+        return restrict_query_to_provider_mix(
+            {"text": text, "platforms": []}, provider_mix
+        )
     return restrict_query_to_provider_mix(query, provider_mix)
 
 
@@ -197,7 +211,10 @@ def _deep_followup_queries(
     followups: list[dict[str, Any]] = []
     suffixes = ["implementation details", "operational proof", "release blocker"]
     for suffix in suffixes:
-        spec = {"text": f"{base_text} {' '.join(reason_terms[:2])} {suffix}".strip(), "platforms": []}
+        spec = {
+            "text": f"{base_text} {' '.join(reason_terms[:2])} {suffix}".strip(),
+            "platforms": [],
+        }
         if str(spec) in tried or spec in followups:
             continue
         followups.append(spec)
@@ -219,7 +236,9 @@ def execute_research_plan(
 ) -> dict[str, Any]:
     decision = dict(plan.get("decision") or {})
     effective_provider_mix = list(decision.get("provider_mix") or provider_mix or [])
-    effective_platforms = platforms_for_provider_mix(default_platforms, effective_provider_mix)
+    effective_platforms = platforms_for_provider_mix(
+        default_platforms, effective_provider_mix
+    )
     query_runs: list[dict[str, Any]] = []
     findings: list[dict[str, Any]] = []
     deep_steps: list[dict[str, Any]] = []
@@ -228,7 +247,9 @@ def execute_research_plan(
     intents = list(plan.get("intents") or [])
     intents.extend(_cross_verification_intents(decision, tried=tried))
     intents = dedup_query_specs(intents, threshold=0.88)
-    local_records = coerce_evidence_records(local_evidence_records or plan.get("local_evidence_records") or [])
+    local_records = coerce_evidence_records(
+        local_evidence_records or plan.get("local_evidence_records") or []
+    )
     effective_sampling_policy = {
         **dict(sampling_policy or {}),
         **dict(decision.get("sampling_policy") or {}),
@@ -248,7 +269,8 @@ def execute_research_plan(
         intent_index += 1
         raw_query = (
             coerce_evidence_record(query)
-            if isinstance(query, dict) and str(query.get("record_type") or "") == "evidence"
+            if isinstance(query, dict)
+            and str(query.get("record_type") or "") == "evidence"
             else query
         )
         effective_query = _intent_query_spec(raw_query, effective_provider_mix)
@@ -272,14 +294,18 @@ def execute_research_plan(
             continue
         query_keys.append(key)
         local_hits = coerce_evidence_records(
-            search_evidence(local_records, str(effective_query.get("text") or ""), limit=local_limit)
+            search_evidence(
+                local_records, str(effective_query.get("text") or ""), limit=local_limit
+            )
         )
         findings.extend(local_hits)
-        deep_steps.append({
-            "kind": "search",
-            "summary": f"searched: {effective_query.get('text', '')}",
-            "metadata": {"provider_count": len(intent_platforms)},
-        })
+        deep_steps.append(
+            {
+                "kind": "search",
+                "summary": f"searched: {effective_query.get('text', '')}",
+                "metadata": {"provider_count": len(intent_platforms)},
+            }
+        )
         run = search_query(
             effective_query,
             intent_platforms,
@@ -288,30 +314,36 @@ def execute_research_plan(
         normalized_findings = coerce_evidence_records(run["findings"])
         if effective_query in _cross_verification_intents(decision, tried=set()):
             verification_query_count += 1
-        query_runs.append({
-            "query": run["query"],
-            "query_spec": run["query_spec"],
-            "baseline_score": run["baseline_score"],
-            "finding_count": len(normalized_findings),
-            "local_evidence_count": len(local_hits),
-            "sample_findings": sample_findings(normalized_findings, limit=5),
-        })
-        findings.extend(normalized_findings)
-        deep_steps.append({
-            "kind": "read",
-            "summary": f"read {len(normalized_findings) + len(local_hits)} evidence records",
-            "metadata": {
+        query_runs.append(
+            {
+                "query": run["query"],
+                "query_spec": run["query_spec"],
+                "baseline_score": run["baseline_score"],
                 "finding_count": len(normalized_findings),
                 "local_evidence_count": len(local_hits),
-            },
-        })
+                "sample_findings": sample_findings(normalized_findings, limit=5),
+            }
+        )
+        findings.extend(normalized_findings)
+        deep_steps.append(
+            {
+                "kind": "read",
+                "summary": f"read {len(normalized_findings) + len(local_hits)} evidence records",
+                "metadata": {
+                    "finding_count": len(normalized_findings),
+                    "local_evidence_count": len(local_hits),
+                },
+            }
+        )
         if mode == "deep":
             reason_terms = _deep_reason_terms(normalized_findings or local_hits)
-            deep_steps.append({
-                "kind": "reason",
-                "summary": "reasoned over acquired evidence",
-                "metadata": {"reason_terms": reason_terms[:6]},
-            })
+            deep_steps.append(
+                {
+                    "kind": "reason",
+                    "summary": "reasoned over acquired evidence",
+                    "metadata": {"reason_terms": reason_terms[:6]},
+                }
+            )
             if deep_followup_budget > 0:
                 followups = _deep_followup_queries(
                     effective_query,

@@ -28,35 +28,153 @@ class APIMethodSpec:
 
 
 METHOD_SPECS: dict[str, APIMethodSpec] = {
-    "api_info": APIMethodSpec("api_info", "stable", "metadata", "Describe the public API product and method catalog."),
-    "api_method": APIMethodSpec("api_method", "stable", "metadata", "Describe one public API method contract."),
-    "doctor": APIMethodSpec("doctor", "stable", "capability_report", "Return source capability state."),
-    "goal_capability_report": APIMethodSpec("goal_capability_report", "stable", "capability_report", "Return goal-scoped capability state."),
-    "goal_platforms": APIMethodSpec("goal_platforms", "stable", "platforms", "Return effective goal-scoped provider configs."),
-    "normalize_query": APIMethodSpec("normalize_query", "stable", "query_spec", "Normalize a query into the public query shape."),
-    "run_search_task": APIMethodSpec("run_search_task", "stable", "search_run", "Run the plain engine search workflow."),
-    "search_goal_query": APIMethodSpec("search_goal_query", "stable", "query_execution", "Execute one goal-scoped query."),
-    "replay_goal_queries": APIMethodSpec("replay_goal_queries", "stable", "query_replay", "Replay multiple goal-scoped queries."),
-    "fetch_document": APIMethodSpec("fetch_document", "stable", "document", "Fetch one document through the acquisition pipeline."),
-    "enrich_record": APIMethodSpec("enrich_record", "stable", "enriched_record", "Enrich one evidence-like record."),
-    "build_markdown_views": APIMethodSpec("build_markdown_views", "stable", "markdown_views", "Build clean and fitted markdown views."),
-    "chunk_document": APIMethodSpec("chunk_document", "stable", "chunk_ranking", "Return ranked chunks for one document."),
-    "normalize_result_record": APIMethodSpec("normalize_result_record", "stable", "evidence_record", "Normalize a raw search result."),
-    "normalize_acquired_document": APIMethodSpec("normalize_acquired_document", "stable", "evidence_record", "Normalize an acquired document."),
-    "normalize_evidence_record": APIMethodSpec("normalize_evidence_record", "stable", "evidence_record", "Normalize a dict-shaped evidence record."),
-    "coerce_evidence_record": APIMethodSpec("coerce_evidence_record", "stable", "evidence_record", "Coerce one item into an evidence record."),
-    "coerce_evidence_records": APIMethodSpec("coerce_evidence_records", "stable", "evidence_record_list", "Coerce a list of items into evidence records."),
-    "build_research_plan": APIMethodSpec("build_research_plan", "beta", "research_plan", "Build one round of research plans."),
-    "execute_research_plan": APIMethodSpec("execute_research_plan", "beta", "research_execution", "Execute one research plan."),
-    "synthesize_research_round": APIMethodSpec("synthesize_research_round", "beta", "research_round", "Synthesize one research round."),
-    "build_routeable_output": APIMethodSpec("build_routeable_output", "stable", "routeable_output", "Build the routeable handoff artifact."),
-    "build_research_packet": APIMethodSpec("build_research_packet", "stable", "research_packet", "Build the standalone research packet."),
-    "run_goal_case": APIMethodSpec("run_goal_case", "stable", "goal_run", "Run the full goal loop."),
-    "optimize_goal": APIMethodSpec("optimize_goal", "stable", "goal_run", "Run a goal toward a target score."),
-    "run_goal_benchmark": APIMethodSpec("run_goal_benchmark", "stable", "benchmark", "Run multiple goal cases."),
-    "optimize_goals": APIMethodSpec("optimize_goals", "stable", "benchmark", "Run a target-oriented benchmark."),
-    "run_watch": APIMethodSpec("run_watch", "stable", "watch_run", "Run one watch profile."),
-    "run_watches": APIMethodSpec("run_watches", "stable", "watch_batch", "Run multiple watch profiles."),
+    "api_info": APIMethodSpec(
+        "api_info",
+        "stable",
+        "metadata",
+        "Describe the public API product and method catalog.",
+    ),
+    "api_method": APIMethodSpec(
+        "api_method", "stable", "metadata", "Describe one public API method contract."
+    ),
+    "doctor": APIMethodSpec(
+        "doctor", "stable", "capability_report", "Return source capability state."
+    ),
+    "goal_capability_report": APIMethodSpec(
+        "goal_capability_report",
+        "stable",
+        "capability_report",
+        "Return goal-scoped capability state.",
+    ),
+    "goal_platforms": APIMethodSpec(
+        "goal_platforms",
+        "stable",
+        "platforms",
+        "Return effective goal-scoped provider configs.",
+    ),
+    "normalize_query": APIMethodSpec(
+        "normalize_query",
+        "stable",
+        "query_spec",
+        "Normalize a query into the public query shape.",
+    ),
+    "run_search_task": APIMethodSpec(
+        "run_search_task",
+        "stable",
+        "search_run",
+        "Run the plain engine search workflow.",
+    ),
+    "search_goal_query": APIMethodSpec(
+        "search_goal_query",
+        "stable",
+        "query_execution",
+        "Execute one goal-scoped query.",
+    ),
+    "replay_goal_queries": APIMethodSpec(
+        "replay_goal_queries",
+        "stable",
+        "query_replay",
+        "Replay multiple goal-scoped queries.",
+    ),
+    "fetch_document": APIMethodSpec(
+        "fetch_document",
+        "stable",
+        "document",
+        "Fetch one document through the acquisition pipeline.",
+    ),
+    "enrich_record": APIMethodSpec(
+        "enrich_record", "stable", "enriched_record", "Enrich one evidence-like record."
+    ),
+    "build_markdown_views": APIMethodSpec(
+        "build_markdown_views",
+        "stable",
+        "markdown_views",
+        "Build clean and fitted markdown views.",
+    ),
+    "chunk_document": APIMethodSpec(
+        "chunk_document",
+        "stable",
+        "chunk_ranking",
+        "Return ranked chunks for one document.",
+    ),
+    "normalize_result_record": APIMethodSpec(
+        "normalize_result_record",
+        "stable",
+        "evidence_record",
+        "Normalize a raw search result.",
+    ),
+    "normalize_acquired_document": APIMethodSpec(
+        "normalize_acquired_document",
+        "stable",
+        "evidence_record",
+        "Normalize an acquired document.",
+    ),
+    "normalize_evidence_record": APIMethodSpec(
+        "normalize_evidence_record",
+        "stable",
+        "evidence_record",
+        "Normalize a dict-shaped evidence record.",
+    ),
+    "coerce_evidence_record": APIMethodSpec(
+        "coerce_evidence_record",
+        "stable",
+        "evidence_record",
+        "Coerce one item into an evidence record.",
+    ),
+    "coerce_evidence_records": APIMethodSpec(
+        "coerce_evidence_records",
+        "stable",
+        "evidence_record_list",
+        "Coerce a list of items into evidence records.",
+    ),
+    "build_research_plan": APIMethodSpec(
+        "build_research_plan",
+        "beta",
+        "research_plan",
+        "Build one round of research plans.",
+    ),
+    "execute_research_plan": APIMethodSpec(
+        "execute_research_plan",
+        "beta",
+        "research_execution",
+        "Execute one research plan.",
+    ),
+    "synthesize_research_round": APIMethodSpec(
+        "synthesize_research_round",
+        "beta",
+        "research_round",
+        "Synthesize one research round.",
+    ),
+    "build_routeable_output": APIMethodSpec(
+        "build_routeable_output",
+        "stable",
+        "routeable_output",
+        "Build the routeable handoff artifact.",
+    ),
+    "build_research_packet": APIMethodSpec(
+        "build_research_packet",
+        "stable",
+        "research_packet",
+        "Build the standalone research packet.",
+    ),
+    "run_goal_case": APIMethodSpec(
+        "run_goal_case", "stable", "goal_run", "Run the full goal loop."
+    ),
+    "optimize_goal": APIMethodSpec(
+        "optimize_goal", "stable", "goal_run", "Run a goal toward a target score."
+    ),
+    "run_goal_benchmark": APIMethodSpec(
+        "run_goal_benchmark", "stable", "benchmark", "Run multiple goal cases."
+    ),
+    "optimize_goals": APIMethodSpec(
+        "optimize_goals", "stable", "benchmark", "Run a target-oriented benchmark."
+    ),
+    "run_watch": APIMethodSpec(
+        "run_watch", "stable", "watch_run", "Run one watch profile."
+    ),
+    "run_watches": APIMethodSpec(
+        "run_watches", "stable", "watch_batch", "Run multiple watch profiles."
+    ),
 }
 
 
@@ -89,24 +207,30 @@ def method_catalog() -> list[dict[str, str]]:
 
 
 def api_info_payload() -> dict[str, Any]:
-    return with_api_meta({
-        "api_name": API_NAME,
-        "api_version": API_VERSION,
-        "contract_revision": CONTRACT_REVISION,
-        "doc_path": DOC_PATH,
-        "methods": method_catalog(),
-    }, "api_info")
+    return with_api_meta(
+        {
+            "api_name": API_NAME,
+            "api_version": API_VERSION,
+            "contract_revision": CONTRACT_REVISION,
+            "doc_path": DOC_PATH,
+            "methods": method_catalog(),
+        },
+        "api_info",
+    )
 
 
 def api_method_payload(method: str) -> dict[str, Any]:
     spec = method_spec(method)
-    return with_api_meta({
-        "method": spec.name,
-        "stability": spec.stability,
-        "result_kind": spec.result_kind,
-        "summary": spec.summary,
-        "doc_path": DOC_PATH,
-    }, "api_method")
+    return with_api_meta(
+        {
+            "method": spec.name,
+            "stability": spec.stability,
+            "result_kind": spec.result_kind,
+            "summary": spec.summary,
+            "doc_path": DOC_PATH,
+        },
+        "api_method",
+    )
 
 
 def serialize_acquired_document(document: Any) -> dict[str, Any]:

@@ -18,10 +18,8 @@ HOME = Path.home()
 
 
 # Support env var overrides (for launchd rsync mode)
-ARMORY_ROOT = Path(os.environ.get(
-    "ARMORY_ROOT", "/Volumes/4TB/Armory"))
-SCOUT_DIR = Path(os.environ.get(
-    "SCOUT_DIR", str(ARMORY_ROOT / "scripts/scout")))
+ARMORY_ROOT = Path(os.environ.get("ARMORY_ROOT", "/Volumes/4TB/Armory"))
+SCOUT_DIR = Path(os.environ.get("SCOUT_DIR", str(ARMORY_ROOT / "scripts/scout")))
 AUTOSEARCH_DIR = Path(__file__).parent
 
 OUTCOMES_PATH = AUTOSEARCH_DIR / "outcomes.jsonl"
@@ -49,7 +47,8 @@ def record_intakes():
 
     # Find intaked repos
     intaked = {
-        url: info for url, info in state.get("seen_urls", {}).items()
+        url: info
+        for url, info in state.get("seen_urls", {}).items()
         if info.get("status") == "intaked"
     }
 
@@ -66,8 +65,7 @@ def record_intakes():
 
     # Find new intakes (not yet in outcomes.jsonl)
     new_intakes = {
-        url: info for url, info in intaked.items()
-        if url not in recorded_repos
+        url: info for url, info in intaked.items() if url not in recorded_repos
     }
 
     if not new_intakes:
@@ -81,7 +79,8 @@ def record_intakes():
         for repo_url, info in new_intakes.items():
             # Try to find source query
             source_query, query_family = _find_source_provenance(
-                repo_url, info, query_provenance)
+                repo_url, info, query_provenance
+            )
 
             outcome = {
                 "repo": repo_url,
@@ -90,13 +89,14 @@ def record_intakes():
                 "source_query": source_query,
                 "query_family": query_family,
                 "when_use_count": 0,  # filled by track_outcomes later
-                "outcome_score": 0,   # filled by track_outcomes later
+                "outcome_score": 0,  # filled by track_outcomes later
                 "recorded": today,
             }
             f.write(json.dumps(outcome, ensure_ascii=False) + "\n")
             count += 1
-            print(f"[Outcome] Recorded: {repo_url} "
-                  f"(query: {source_query or 'unknown'})")
+            print(
+                f"[Outcome] Recorded: {repo_url} (query: {source_query or 'unknown'})"
+            )
 
     return count
 
@@ -134,7 +134,13 @@ def _load_query_provenance() -> dict[str, dict[str, Any]]:
             if isinstance(url, str) and url:
                 record["harvested_urls"].add(url.lower())
                 if "github.com/" in url.lower():
-                    record["repo_slugs"].add(url.lower().replace("https://", "").replace("http://", "").replace("www.", "").replace("github.com/", ""))
+                    record["repo_slugs"].add(
+                        url.lower()
+                        .replace("https://", "")
+                        .replace("http://", "")
+                        .replace("www.", "")
+                        .replace("github.com/", "")
+                    )
 
         for title in exp.get("sample_titles", []) or []:
             if isinstance(title, str) and "/" in title:
@@ -144,7 +150,8 @@ def _load_query_provenance() -> dict[str, dict[str, Any]]:
 
 
 def _find_source_provenance(
-    repo_url: str, info: dict,
+    repo_url: str,
+    info: dict,
     query_provenance: dict[str, dict[str, Any]],
 ) -> tuple[str, str]:
     """Try to find which query and query_family led to discovering this repo."""
@@ -202,10 +209,8 @@ def track_outcomes():
                 repo_field = block.get("repo", "")
                 if repo_field:
                     # Convert "owner_name" to "github.com/owner/name"
-                    key = "github.com/" + repo_field.replace(
-                        "_", "/", 1).lower()
-                    repo_when_blocks[key] = (
-                        repo_when_blocks.get(key, 0) + 1)
+                    key = "github.com/" + repo_field.replace("_", "/", 1).lower()
+                    repo_when_blocks[key] = repo_when_blocks.get(key, 0) + 1
             except json.JSONDecodeError:
                 pass
 
@@ -222,10 +227,10 @@ def track_outcomes():
             if new_count != outcome.get("when_use_count", 0):
                 outcome["when_use_count"] = new_count
                 # Outcome score: when_use_count is the primary signal
-                outcome["outcome_score"] = (
-                    min(100, new_count * 5))  # 20 blocks = max score
-                outcome["last_tracked"] = (
-                    datetime.now().strftime("%Y-%m-%d"))
+                outcome["outcome_score"] = min(
+                    100, new_count * 5
+                )  # 20 blocks = max score
+                outcome["last_tracked"] = datetime.now().strftime("%Y-%m-%d")
                 changes += 1
             updated_lines.append(json.dumps(outcome, ensure_ascii=False))
         except json.JSONDecodeError:
@@ -281,11 +286,10 @@ def _update_pattern_weights():
         "platform": "all",
         "finding": (
             "Queries with proven outcome (intake → WHEN/USE blocks): "
-            + ", ".join(f'"{q}" (score={max(scores)})'
-                        for q, scores in top_queries[:5])
+            + ", ".join(f'"{q}" (score={max(scores)})' for q, scores in top_queries[:5])
         ),
         "impact": "These queries led to repos that produced "
-                  "real WHEN/USE blocks. Boost in future sessions.",
+        "real WHEN/USE blocks. Boost in future sessions.",
         "validated": timestamp,
         "auto_generated": True,
         "outcome_scores": {q: max(s) for q, s in top_queries},
@@ -294,12 +298,12 @@ def _update_pattern_weights():
     with open(PATTERNS_PATH, "a") as f:
         f.write(json.dumps(pattern, ensure_ascii=False) + "\n")
 
-    print(f"[Outcome] Wrote outcome boost pattern with "
-          f"{len(top_queries)} queries")
+    print(f"[Outcome] Wrote outcome boost pattern with {len(top_queries)} queries")
 
 
 if __name__ == "__main__":
     import sys
+
     if len(sys.argv) > 1 and sys.argv[1] == "track":
         track_outcomes()
     else:

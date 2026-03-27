@@ -22,8 +22,7 @@ Vector = dict[str, float] | list[float]
 class EmbeddingBackend(Protocol):
     name: str
 
-    def embed(self, text: str) -> Vector:
-        ...
+    def embed(self, text: str) -> Vector: ...
 
 
 def _tokens(text: str) -> list[str]:
@@ -34,7 +33,7 @@ def _char_ngrams(text: str, n: int = 3) -> list[str]:
     cleaned = re.sub(r"\s+", " ", str(text or "").lower()).strip()
     if len(cleaned) < n:
         return [cleaned] if cleaned else []
-    return [cleaned[index:index + n] for index in range(0, len(cleaned) - n + 1)]
+    return [cleaned[index : index + n] for index in range(0, len(cleaned) - n + 1)]
 
 
 def _sparse_embed(text: str) -> dict[str, float]:
@@ -85,17 +84,26 @@ def cosine_similarity(left: Vector, right: Vector) -> float:
     if _is_sparse(left) and _is_sparse(right):
         shared = set(left) & set(right)
         dot = sum(float(left[key]) * float(right[key]) for key in shared)
-        left_norm = math.sqrt(sum(float(value) * float(value) for value in left.values()))
-        right_norm = math.sqrt(sum(float(value) * float(value) for value in right.values()))
+        left_norm = math.sqrt(
+            sum(float(value) * float(value) for value in left.values())
+        )
+        right_norm = math.sqrt(
+            sum(float(value) * float(value) for value in right.values())
+        )
     else:
         left_values = list(left.values()) if _is_sparse(left) else list(left)
         right_values = list(right.values()) if _is_sparse(right) else list(right)
         width = min(len(left_values), len(right_values))
         if width <= 0:
             return 0.0
-        dot = sum(float(left_values[index]) * float(right_values[index]) for index in range(width))
+        dot = sum(
+            float(left_values[index]) * float(right_values[index])
+            for index in range(width)
+        )
         left_norm = math.sqrt(sum(float(value) * float(value) for value in left_values))
-        right_norm = math.sqrt(sum(float(value) * float(value) for value in right_values))
+        right_norm = math.sqrt(
+            sum(float(value) * float(value) for value in right_values)
+        )
     if not left_norm or not right_norm:
         return 0.0
     return dot / (left_norm * right_norm)

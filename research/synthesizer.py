@@ -72,10 +72,7 @@ def _query_cluster(bundle: list[dict[str, Any]]) -> list[dict[str, Any]]:
         query = str(item.get("query") or "").strip()
         if query:
             counts[query] += 1
-    return [
-        {"query": query, "count": count}
-        for query, count in counts.most_common(8)
-    ]
+    return [{"query": query, "count": count} for query, count in counts.most_common(8)]
 
 
 def _domain_cluster(bundle: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -85,8 +82,7 @@ def _domain_cluster(bundle: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if domain:
             counts[domain] += 1
     return [
-        {"domain": domain, "count": count}
-        for domain, count in counts.most_common(8)
+        {"domain": domain, "count": count} for domain, count in counts.most_common(8)
     ]
 
 
@@ -104,13 +100,15 @@ def _graph_scheduler_hints(
             sorted(dimension_scores.keys()),
             key=lambda key: int(dimension_scores.get(key, 0) or 0),
         )
-    branch_targets = [str(item).strip() for item in list(graph_plan.get("branch_targets") or []) if str(item).strip()]
+    branch_targets = [
+        str(item).strip()
+        for item in list(graph_plan.get("branch_targets") or [])
+        if str(item).strip()
+    ]
     query_clusters = _query_cluster(bundle)
     domain_clusters = _domain_cluster(bundle)
     merge_candidates = [
-        item["query"]
-        for item in query_clusters
-        if int(item.get("count", 0) or 0) >= 2
+        item["query"] for item in query_clusters if int(item.get("count", 0) or 0) >= 2
     ][:4]
     prune_candidates = [
         item["domain"]
@@ -143,29 +141,51 @@ def _cross_verification_summary(
     graph_plan = dict(graph_plan or {})
     decision = dict(graph_plan.get("decision") or {})
     query_runs = list(graph_plan.get("query_runs") or [])
-    provider_count = len({
-        str(item.get("source") or "").strip()
-        for item in list(bundle or [])
-        if str(item.get("source") or "").strip()
-    })
-    domain_count = len({
-        str(item.get("domain") or "").strip()
-        for item in list(bundle or [])
-        if str(item.get("domain") or "").strip()
-    })
-    contradiction_terms = {"vs", "versus", "limitation", "limitations", "criticism", "tradeoff", "tradeoffs", "regression"}
+    provider_count = len(
+        {
+            str(item.get("source") or "").strip()
+            for item in list(bundle or [])
+            if str(item.get("source") or "").strip()
+        }
+    )
+    domain_count = len(
+        {
+            str(item.get("domain") or "").strip()
+            for item in list(bundle or [])
+            if str(item.get("domain") or "").strip()
+        }
+    )
+    contradiction_terms = {
+        "vs",
+        "versus",
+        "limitation",
+        "limitations",
+        "criticism",
+        "tradeoff",
+        "tradeoffs",
+        "regression",
+    }
     contradiction_signals = [
         str(item.get("title") or "")
         for item in list(bundle or [])
-        if contradiction_terms.intersection(set(str(item.get("title") or "").lower().split()))
+        if contradiction_terms.intersection(
+            set(str(item.get("title") or "").lower().split())
+        )
     ][:6]
     claim_alignment = _align_claims(bundle)
     contradiction_pairs = list(claim_alignment.get("contradiction_pairs") or [])
-    stance_counts = dict(claim_alignment.get("stance_counts") or {"positive": 0, "negative": 0, "neutral": 0})
+    stance_counts = dict(
+        claim_alignment.get("stance_counts")
+        or {"positive": 0, "negative": 0, "neutral": 0}
+    )
     contradiction_detected = bool(claim_alignment.get("contradiction_detected"))
     if contradiction_detected:
         consensus_strength = "contested"
-    elif int(claim_alignment.get("multi_source_claims", 0) or 0) >= 2 and provider_count >= 3 and domain_count >= 2:
+    elif (
+        int(claim_alignment.get("multi_source_claims", 0) or 0) >= 2
+        and provider_count >= 3
+        and domain_count >= 2
+    ):
         consensus_strength = "high"
     elif provider_count >= 2:
         consensus_strength = "medium"
@@ -173,7 +193,14 @@ def _cross_verification_summary(
         consensus_strength = "low"
     return {
         "enabled": bool(decision.get("cross_verify")),
-        "verification_queries": int(((graph_plan.get("cross_verification") or {}).get("verification_query_count", 0) or 0)),
+        "verification_queries": int(
+            (
+                (graph_plan.get("cross_verification") or {}).get(
+                    "verification_query_count", 0
+                )
+                or 0
+            )
+        ),
         "provider_count": provider_count,
         "domain_count": domain_count,
         "consensus_strength": consensus_strength,
@@ -182,7 +209,9 @@ def _cross_verification_summary(
         "contradiction_signals": contradiction_signals,
         "contradiction_pairs": contradiction_pairs[:8],
         "claim_alignment": list(claim_alignment.get("aligned_claims") or [])[:8],
-        "contradiction_clusters": list(claim_alignment.get("contradiction_clusters") or [])[:6],
+        "contradiction_clusters": list(
+            claim_alignment.get("contradiction_clusters") or []
+        )[:6],
         "source_dispute_map": dict(claim_alignment.get("source_dispute_map") or {}),
         "query_run_count": len(query_runs),
     }
@@ -250,7 +279,20 @@ def _topic_signature(item: dict[str, Any], sentence: str) -> str:
     terms = [
         token
         for token in re.findall(r"[A-Za-z0-9_\-]{4,}", raw)
-        if token not in {"works", "working", "passes", "passed", "verified", "fails", "failed", "failing", "issue", "issues", "stable"}
+        if token
+        not in {
+            "works",
+            "working",
+            "passes",
+            "passed",
+            "verified",
+            "fails",
+            "failed",
+            "failing",
+            "issue",
+            "issues",
+            "stable",
+        }
     ]
     if not terms:
         return ""
@@ -277,11 +319,15 @@ def _claim_overlap(left: str, right: str) -> float:
     return len(left_terms & right_terms) / max(len(left_terms | right_terms), 1)
 
 
-def _find_claim_cluster(clusters: list[dict[str, Any]], sentence: str, topic_signature: str) -> dict[str, Any] | None:
+def _find_claim_cluster(
+    clusters: list[dict[str, Any]], sentence: str, topic_signature: str
+) -> dict[str, Any] | None:
     signature = _claim_signature(sentence)
     for cluster in clusters:
         representative = str(cluster.get("representative_claim") or "")
-        if topic_signature and topic_signature == str(cluster.get("topic_signature") or ""):
+        if topic_signature and topic_signature == str(
+            cluster.get("topic_signature") or ""
+        ):
             return cluster
         if signature and signature == str(cluster.get("signature") or ""):
             return cluster
@@ -317,13 +363,15 @@ def _align_claims(bundle: list[dict[str, Any]]) -> dict[str, Any]:
                 }
                 clusters.append(cluster)
             cluster["stances"][stance] += 1
-            cluster["sources"].append({
-                "source": item_source,
-                "url": item_url,
-                "title": item_title,
-                "stance": stance,
-                "claim": sentence,
-            })
+            cluster["sources"].append(
+                {
+                    "source": item_source,
+                    "url": item_url,
+                    "title": item_title,
+                    "stance": stance,
+                    "claim": sentence,
+                }
+            )
             if item_url and item_url not in cluster["urls"]:
                 cluster["urls"].append(item_url)
             if item_source:
@@ -347,11 +395,13 @@ def _align_claims(bundle: list[dict[str, Any]]) -> dict[str, Any]:
     for cluster in clusters:
         sources = list(cluster.get("sources") or [])
         stances = dict(cluster.get("stances") or {})
-        unique_sources = sorted({
-            str(item.get("source") or "").strip()
-            for item in sources
-            if str(item.get("source") or "").strip()
-        })
+        unique_sources = sorted(
+            {
+                str(item.get("source") or "").strip()
+                for item in sources
+                if str(item.get("source") or "").strip()
+            }
+        )
         if len(unique_sources) >= 2:
             multi_source_claims += 1
         payload = {
@@ -366,25 +416,33 @@ def _align_claims(bundle: list[dict[str, Any]]) -> dict[str, Any]:
         }
         aligned_claims.append(payload)
         if payload["support_count"] and payload["oppose_count"]:
-            positive_sources = [item for item in sources if str(item.get("stance") or "") == "positive"]
-            negative_sources = [item for item in sources if str(item.get("stance") or "") == "negative"]
+            positive_sources = [
+                item for item in sources if str(item.get("stance") or "") == "positive"
+            ]
+            negative_sources = [
+                item for item in sources if str(item.get("stance") or "") == "negative"
+            ]
             cluster_pairs: list[dict[str, Any]] = []
             for left in positive_sources[:2]:
                 for right in negative_sources[:2]:
                     if (
                         str(left.get("source") or "").strip()
-                        and str(left.get("source") or "").strip() == str(right.get("source") or "").strip()
+                        and str(left.get("source") or "").strip()
+                        == str(right.get("source") or "").strip()
                         and str(left.get("url") or "").strip()
-                        and str(left.get("url") or "").strip() == str(right.get("url") or "").strip()
+                        and str(left.get("url") or "").strip()
+                        == str(right.get("url") or "").strip()
                     ):
                         continue
-                    cluster_pairs.append({
-                        "claim": payload["claim"],
-                        "left_source": str(left.get("source") or ""),
-                        "left_url": str(left.get("url") or ""),
-                        "right_source": str(right.get("source") or ""),
-                        "right_url": str(right.get("url") or ""),
-                    })
+                    cluster_pairs.append(
+                        {
+                            "claim": payload["claim"],
+                            "left_source": str(left.get("source") or ""),
+                            "left_url": str(left.get("url") or ""),
+                            "right_source": str(right.get("source") or ""),
+                            "right_url": str(right.get("url") or ""),
+                        }
+                    )
             if cluster_pairs:
                 contradiction_clusters.append(payload)
                 contradiction_pairs.extend(cluster_pairs)
@@ -392,7 +450,11 @@ def _align_claims(bundle: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "aligned_claims": sorted(
             aligned_claims,
-            key=lambda item: (int(item.get("support_count", 0) or 0) + int(item.get("oppose_count", 0) or 0), int(item.get("source_count", 0) or 0)),
+            key=lambda item: (
+                int(item.get("support_count", 0) or 0)
+                + int(item.get("oppose_count", 0) or 0),
+                int(item.get("source_count", 0) or 0),
+            ),
             reverse=True,
         ),
         "contradiction_clusters": contradiction_clusters,
@@ -418,19 +480,23 @@ def _gap_queue_update(
         dimension = str(payload.get("dimension") or "").strip()
         if not dimension:
             continue
-        payload["status"] = str(statuses.get(dimension) or payload.get("status") or "open")
+        payload["status"] = str(
+            statuses.get(dimension) or payload.get("status") or "open"
+        )
         updated.append(payload)
         seen.add(dimension)
     for dimension, status in statuses.items():
         if dimension in seen:
             continue
-        updated.append({
-            "gap_id": f"gap:{dimension.replace(' ', '_')}",
-            "dimension": dimension,
-            "question": dimension.replace("_", " "),
-            "priority": len(updated) + 1,
-            "status": status,
-        })
+        updated.append(
+            {
+                "gap_id": f"gap:{dimension.replace(' ', '_')}",
+                "dimension": dimension,
+                "question": dimension.replace("_", " "),
+                "priority": len(updated) + 1,
+                "status": status,
+            }
+        )
     return updated
 
 
@@ -478,7 +544,9 @@ def synthesize_research_round(
         bundle=bundle,
         graph_plan=graph_plan,
     )
-    updated_gap_queue = _gap_queue_update(goal_case=goal_case, gap_queue=gap_queue, judge_result=judge_result)
+    updated_gap_queue = _gap_queue_update(
+        goal_case=goal_case, gap_queue=gap_queue, judge_result=judge_result
+    )
     planning_ops_summary = {
         "count": len(list(planning_ops or [])),
         "ops": [
@@ -492,7 +560,9 @@ def synthesize_research_round(
             source=str(item.get("from") or ""),
             target=str(item.get("to") or ""),
             kind=str(item.get("kind") or "branch"),
-            metadata={k: v for k, v in dict(item).items() if k not in {"from", "to", "kind"}},
+            metadata={
+                k: v for k, v in dict(item).items() if k not in {"from", "to", "kind"}
+            },
         )
         for item in list((graph_plan or {}).get("graph_edges") or [])
     ]
@@ -506,7 +576,11 @@ def synthesize_research_round(
                 branch_type=str((graph_plan or {}).get("branch_type") or ""),
                 branch_subgoal=str((graph_plan or {}).get("branch_subgoal") or ""),
                 priority=int(((graph_plan or {}).get("branch_depth", 0) or 0)),
-                metadata={"branch_targets": list((graph_plan or {}).get("branch_targets") or [])},
+                metadata={
+                    "branch_targets": list(
+                        (graph_plan or {}).get("branch_targets") or []
+                    )
+                },
             )
         )
     search_graph = SearchGraph(
@@ -531,7 +605,9 @@ def synthesize_research_round(
         repair_hints={
             "weakest_dimension": weakest_dimension,
             "missing_dimensions": list(judge_result.get("missing_dimensions") or []),
-            "follow_up_dimensions": list(judge_result.get("missing_dimensions") or [])[:2],
+            "follow_up_dimensions": list(judge_result.get("missing_dimensions") or [])[
+                :2
+            ],
             "merge_candidates": list(graph_scheduler.get("merge_candidates") or []),
             "prune_candidates": list(graph_scheduler.get("prune_candidates") or []),
             "next_branch_mode": str(graph_scheduler.get("next_branch_mode") or ""),
@@ -565,7 +641,9 @@ def synthesize_research_round(
         "repair_hints": {
             "weakest_dimension": weakest_dimension,
             "missing_dimensions": list(judge_result.get("missing_dimensions") or []),
-            "follow_up_dimensions": list(judge_result.get("missing_dimensions") or [])[:2],
+            "follow_up_dimensions": list(judge_result.get("missing_dimensions") or [])[
+                :2
+            ],
             "merge_candidates": list(graph_scheduler.get("merge_candidates") or []),
             "prune_candidates": list(graph_scheduler.get("prune_candidates") or []),
             "next_branch_mode": str(graph_scheduler.get("next_branch_mode") or ""),
