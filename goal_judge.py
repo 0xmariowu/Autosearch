@@ -67,7 +67,19 @@ CONCEPT_ALIASES = {
     "postprocessing": "filter",
     "post-processing": "filter",
 }
-TOKEN_STOP_WORDS = {"and", "the", "with", "from", "into", "that", "this", "then", "until", "later", "after"}
+TOKEN_STOP_WORDS = {
+    "and",
+    "the",
+    "with",
+    "from",
+    "into",
+    "that",
+    "this",
+    "then",
+    "until",
+    "later",
+    "after",
+}
 PAIR_SHARED_UNIT_TERMS = (
     "same benchmark instance",
     "same instance",
@@ -100,13 +112,26 @@ PAIR_ARTIFACT_TEXT_TERMS = (
 
 
 def _strict_openrouter_judge() -> bool:
-    return os.environ.get("OPENROUTER_STRICT_JUDGE", "1").strip().lower() not in {"0", "false", "no"}
+    return os.environ.get("OPENROUTER_STRICT_JUDGE", "1").strip().lower() not in {
+        "0",
+        "false",
+        "no",
+    }
 
 
 def _normalize_text(items: list[dict[str, Any]]) -> str:
     parts: list[str] = []
     for item in items:
-        for key in ("title", "url", "body", "source", "canonical_text", "fit_markdown", "clean_markdown", "acquired_text"):
+        for key in (
+            "title",
+            "url",
+            "body",
+            "source",
+            "canonical_text",
+            "fit_markdown",
+            "clean_markdown",
+            "acquired_text",
+        ):
             value = str(item.get(key) or "").strip()
             if value:
                 parts.append(value.lower())
@@ -118,7 +143,15 @@ def _finding_texts(items: list[dict[str, Any]]) -> list[str]:
     for item in list(items or []):
         parts = [
             str(item.get(key) or "").strip()
-            for key in ("title", "body", "extract", "canonical_text", "fit_markdown", "clean_markdown", "acquired_text")
+            for key in (
+                "title",
+                "body",
+                "extract",
+                "canonical_text",
+                "fit_markdown",
+                "clean_markdown",
+                "acquired_text",
+            )
         ]
         text = "\n".join(part for part in parts if part)
         if text:
@@ -130,7 +163,7 @@ def _stem_token(token: str) -> str:
     normalized = str(token or "").strip().lower()
     for suffix in ("ing", "ed", "es", "s"):
         if len(normalized) > len(suffix) + 2 and normalized.endswith(suffix):
-            return normalized[:-len(suffix)]
+            return normalized[: -len(suffix)]
     return normalized
 
 
@@ -161,17 +194,36 @@ def _keyword_match(keyword: str, texts: list[str]) -> bool:
             return True
         if len(keyword_concepts) == 2 and len(overlap) == 2:
             return True
-        if len(keyword_concepts) >= 3 and len(overlap) >= max(2, len(keyword_concepts) - 1):
+        if len(keyword_concepts) >= 3 and len(overlap) >= max(
+            2, len(keyword_concepts) - 1
+        ):
             return True
     return False
 
 
-def _criterion_score(weight: int, keywords: list[str], texts: list[str]) -> tuple[int, list[str]]:
+def _criterion_score(
+    weight: int, keywords: list[str], texts: list[str]
+) -> tuple[int, list[str]]:
     hits = [keyword for keyword in keywords if _keyword_match(keyword, texts)]
     if not hits:
         return 0, []
     ratio = min(1.0, len(hits) / max(2, len(keywords) // 2 or 1))
     return round(weight * ratio), hits
+
+
+def _dimension_keywords(dimension: dict[str, Any]) -> list[str]:
+    keywords: list[str] = []
+    seen: set[str] = set()
+    for keyword in list(dimension.get("keywords") or []) + list(
+        dimension.get("aliases") or []
+    ):
+        phrase = str(keyword or "").strip()
+        lowered = phrase.lower()
+        if not phrase or lowered in seen:
+            continue
+        seen.add(lowered)
+        keywords.append(phrase)
+    return keywords
 
 
 def _pair_extract_text(item: dict[str, Any]) -> str:
@@ -196,8 +248,13 @@ def _has_pair_shared_unit(text: str) -> bool:
 
 
 def _has_pair_dual_outcome(text: str) -> bool:
-    success_side = any(term in text for term in ("successful", "success", "passed", "passing", "resolved"))
-    failure_side = any(term in text for term in ("failed", "failure", "failing", "unresolved"))
+    success_side = any(
+        term in text
+        for term in ("successful", "success", "passed", "passing", "resolved")
+    )
+    failure_side = any(
+        term in text for term in ("failed", "failure", "failing", "unresolved")
+    )
     return success_side and failure_side
 
 
@@ -208,7 +265,12 @@ def _has_pair_trajectory_form(text: str) -> bool:
 def _has_pair_artifact_link(item: dict[str, Any], text: str) -> bool:
     source = str(item.get("source") or "").strip().lower()
     url = str(item.get("url") or "").strip().lower()
-    if source in {"github_repos", "github_issues", "github_code", "huggingface_datasets"}:
+    if source in {
+        "github_repos",
+        "github_issues",
+        "github_code",
+        "huggingface_datasets",
+    }:
         return True
     if "github.com" in url or "huggingface.co" in url:
         return True
@@ -297,7 +359,9 @@ def _pair_extract_structural_score(weight: int, detail: dict[str, Any]) -> int:
 
 
 class HeuristicGoalJudge:
-    def evaluate(self, goal_case: dict[str, Any], query: str, findings: list[dict[str, Any]]) -> dict[str, Any]:
+    def evaluate(
+        self, goal_case: dict[str, Any], query: str, findings: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         texts = _finding_texts(findings)
         total = 0
         criteria_rows: list[dict[str, Any]] = []
@@ -305,15 +369,21 @@ class HeuristicGoalJudge:
         matched_terms: list[str] = []
         for criterion in goal_case.get("rubric", []):
             weight = int(criterion.get("weight", 0) or 0)
-            keywords = [str(keyword) for keyword in criterion.get("keywords", []) if str(keyword).strip()]
+            keywords = [
+                str(keyword)
+                for keyword in criterion.get("keywords", [])
+                if str(keyword).strip()
+            ]
             score, hits = _criterion_score(weight, keywords, texts)
             total += score
-            criteria_rows.append({
-                "id": criterion.get("id", ""),
-                "score": score,
-                "weight": weight,
-                "hits": hits,
-            })
+            criteria_rows.append(
+                {
+                    "id": criterion.get("id", ""),
+                    "score": score,
+                    "weight": weight,
+                    "hits": hits,
+                }
+            )
             if hits:
                 matched_terms.extend(hits)
             elif keywords:
@@ -333,12 +403,16 @@ class HeuristicGoalJudge:
 class OpenRouterGoalJudge:
     def __init__(self, model: str | None = None):
         self.api_key = os.environ.get("OPENROUTER_API_KEY", "")
-        self.model = model or os.environ.get("OPENROUTER_MODEL", DEFAULT_OPENROUTER_MODEL)
+        self.model = model or os.environ.get(
+            "OPENROUTER_MODEL", DEFAULT_OPENROUTER_MODEL
+        )
 
     def enabled(self) -> bool:
         return bool(self.api_key)
 
-    def evaluate(self, goal_case: dict[str, Any], query: str, findings: list[dict[str, Any]]) -> dict[str, Any]:
+    def evaluate(
+        self, goal_case: dict[str, Any], query: str, findings: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         if not self.enabled():
             raise RuntimeError("OPENROUTER_API_KEY not configured")
 
@@ -359,11 +433,13 @@ class OpenRouterGoalJudge:
             f"Findings: {json.dumps(sample, ensure_ascii=False)}\n\n"
             "Return only JSON with keys: score (0-100), matched_terms (array), missing_terms (array), rationale."
         )
-        body = json.dumps({
-            "model": self.model,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0,
-        }).encode("utf-8")
+        body = json.dumps(
+            {
+                "model": self.model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0,
+            }
+        ).encode("utf-8")
         request = urllib.request.Request(
             OPENROUTER_API_URL,
             data=body,
@@ -372,7 +448,9 @@ class OpenRouterGoalJudge:
                 "Content-Type": "application/json",
             },
         )
-        with urllib.request.urlopen(request, timeout=OPENROUTER_REQUEST_TIMEOUT) as response:
+        with urllib.request.urlopen(  # nosemgrep: dynamic-urllib-use-detected
+            request, timeout=OPENROUTER_REQUEST_TIMEOUT
+        ) as response:
             payload = json.loads(response.read().decode("utf-8"))
         content = payload["choices"][0]["message"]["content"]
         start = content.find("{")
@@ -385,8 +463,12 @@ class OpenRouterGoalJudge:
         return result
 
 
-def evaluate_goal_case(goal_case: dict[str, Any], query: str, findings: list[dict[str, Any]]) -> dict[str, Any]:
-    openrouter = OpenRouterGoalJudge(model=str(goal_case.get("judge_model") or "").strip() or None)
+def evaluate_goal_case(
+    goal_case: dict[str, Any], query: str, findings: list[dict[str, Any]]
+) -> dict[str, Any]:
+    openrouter = OpenRouterGoalJudge(
+        model=str(goal_case.get("judge_model") or "").strip() or None
+    )
     if openrouter.enabled():
         if _strict_openrouter_judge():
             return openrouter.evaluate(goal_case, query, findings)
@@ -397,13 +479,11 @@ def evaluate_goal_case(goal_case: dict[str, Any], query: str, findings: list[dic
     return HeuristicGoalJudge().evaluate(goal_case, query, findings)
 
 
-def _heuristic_bundle_dimension_score(dimension: dict[str, Any], findings: list[dict[str, Any]]) -> tuple[int, list[str]]:
+def _heuristic_bundle_dimension_score(
+    dimension: dict[str, Any], findings: list[dict[str, Any]]
+) -> tuple[int, list[str]]:
     weight = int(dimension.get("weight", 0) or 0)
-    keywords = [
-        str(keyword)
-        for keyword in list(dimension.get("keywords") or []) + list(dimension.get("aliases") or [])
-        if str(keyword).strip()
-    ]
+    keywords = _dimension_keywords(dimension)
     score, hits = _criterion_score(weight, keywords, _finding_texts(findings))
     if str(dimension.get("id") or "") == "pair_extract":
         detail = _pair_extract_detail(findings)
@@ -430,25 +510,60 @@ def _bundle_dimensions(goal_case: dict[str, Any]) -> list[dict[str, Any]]:
         criterion_id = str(criterion.get("id") or f"criterion_{index}").strip()
         if not criterion_id:
             continue
-        derived.append({
-            "id": criterion_id,
-            "weight": int(criterion.get("weight", 0) or 0),
-            "keywords": [str(keyword) for keyword in list(criterion.get("keywords") or []) if str(keyword).strip()],
-            "aliases": [str(keyword) for keyword in list(criterion.get("aliases") or []) if str(keyword).strip()],
-        })
+        derived.append(
+            {
+                "id": criterion_id,
+                "weight": int(criterion.get("weight", 0) or 0),
+                "keywords": [
+                    str(keyword)
+                    for keyword in list(criterion.get("keywords") or [])
+                    if str(keyword).strip()
+                ],
+                "aliases": [
+                    str(keyword)
+                    for keyword in list(criterion.get("aliases") or [])
+                    if str(keyword).strip()
+                ],
+            }
+        )
     return derived
 
 
-def _normalize_bundle_result(result: dict[str, Any], dimensions: list[dict[str, Any]]) -> dict[str, Any]:
-    dimension_ids = [str(dimension.get("id") or "").strip() for dimension in dimensions if str(dimension.get("id") or "").strip()]
+def _normalize_bundle_result(
+    result: dict[str, Any], dimensions: list[dict[str, Any]]
+) -> dict[str, Any]:
+    def _normalize_dimension_keyword_map(raw: Any) -> dict[str, list[str]]:
+        keyword_map = dict(raw or {})
+        normalized_map: dict[str, list[str]] = {}
+        for dimension_id in dimension_ids:
+            phrases: list[str] = []
+            seen: set[str] = set()
+            for item in list(keyword_map.get(dimension_id) or []):
+                phrase = str(item or "").strip()
+                lowered = phrase.lower()
+                if not phrase or lowered in seen:
+                    continue
+                seen.add(lowered)
+                phrases.append(phrase)
+            normalized_map[dimension_id] = phrases
+        return normalized_map
+
+    dimension_ids = [
+        str(dimension.get("id") or "").strip()
+        for dimension in dimensions
+        if str(dimension.get("id") or "").strip()
+    ]
     dimension_scores = {
-        dimension_id: int((result.get("dimension_scores") or {}).get(dimension_id, 0) or 0)
+        dimension_id: int(
+            (result.get("dimension_scores") or {}).get(dimension_id, 0) or 0
+        )
         for dimension_id in dimension_ids
     }
     matched_dimensions = [
         dimension_id
         for dimension_id in dimension_ids
-        if dimension_id in set(str(item) for item in list(result.get("matched_dimensions") or []))
+        if dimension_id
+        in set(str(item) for item in list(result.get("matched_dimensions") or []))
         or int(dimension_scores.get(dimension_id, 0) or 0) > 0
     ]
     missing_dimensions = [
@@ -461,18 +576,37 @@ def _normalize_bundle_result(result: dict[str, Any], dimensions: list[dict[str, 
     normalized["dimension_scores"] = dimension_scores
     normalized["matched_dimensions"] = matched_dimensions
     normalized["missing_dimensions"] = missing_dimensions
+    if "dimension_keyword_hits" in result:
+        normalized["dimension_keyword_hits"] = _normalize_dimension_keyword_map(
+            result.get("dimension_keyword_hits")
+        )
+    if "dimension_keyword_misses" in result:
+        normalized["dimension_keyword_misses"] = _normalize_dimension_keyword_map(
+            result.get("dimension_keyword_misses")
+        )
     return normalized
 
 
-def _heuristic_bundle_eval(goal_case: dict[str, Any], findings: list[dict[str, Any]]) -> dict[str, Any]:
+def _heuristic_bundle_eval(
+    goal_case: dict[str, Any], findings: list[dict[str, Any]]
+) -> dict[str, Any]:
     total = 0
     dimension_scores: dict[str, int] = {}
+    dimension_keyword_hits: dict[str, list[str]] = {}
+    dimension_keyword_misses: dict[str, list[str]] = {}
     missing_dimensions: list[str] = []
     matched_dimensions: list[str] = []
     for dimension in _bundle_dimensions(goal_case):
         dim_id = str(dimension.get("id") or "")
+        keywords = _dimension_keywords(dimension)
         score, hits = _heuristic_bundle_dimension_score(dimension, findings)
+        matched = {
+            str(item or "").strip().lower() for item in hits if str(item or "").strip()
+        }
+        misses = [keyword for keyword in keywords if keyword.lower() not in matched]
         dimension_scores[dim_id] = score
+        dimension_keyword_hits[dim_id] = list(hits)
+        dimension_keyword_misses[dim_id] = misses
         total += score
         if hits:
             matched_dimensions.append(dim_id)
@@ -481,6 +615,8 @@ def _heuristic_bundle_eval(goal_case: dict[str, Any], findings: list[dict[str, A
     return {
         "score": min(100, total),
         "dimension_scores": dimension_scores,
+        "dimension_keyword_hits": dimension_keyword_hits,
+        "dimension_keyword_misses": dimension_keyword_misses,
         "missing_dimensions": missing_dimensions,
         "matched_dimensions": matched_dimensions,
         "rationale": "heuristic bundle evaluation",
@@ -488,7 +624,9 @@ def _heuristic_bundle_eval(goal_case: dict[str, Any], findings: list[dict[str, A
     }
 
 
-def _bundle_sample(findings: list[dict[str, Any]], limit: int = 18, per_query: int = 3) -> list[dict[str, Any]]:
+def _bundle_sample(
+    findings: list[dict[str, Any]], limit: int = 18, per_query: int = 3
+) -> list[dict[str, Any]]:
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     ordered_queries: list[str] = []
     for item in findings:
@@ -506,13 +644,15 @@ def _bundle_sample(findings: list[dict[str, Any]], limit: int = 18, per_query: i
             if round_index >= len(items) or round_index >= per_query:
                 continue
             item = items[round_index]
-            sample.append({
-                "title": str(item.get("title") or ""),
-                "url": str(item.get("url") or ""),
-                "source": str(item.get("source") or ""),
-                "query": str(item.get("query") or ""),
-                "body": str(item.get("body") or "")[:400],
-            })
+            sample.append(
+                {
+                    "title": str(item.get("title") or ""),
+                    "url": str(item.get("url") or ""),
+                    "source": str(item.get("source") or ""),
+                    "query": str(item.get("query") or ""),
+                    "body": str(item.get("body") or "")[:400],
+                }
+            )
             added = True
             if len(sample) >= limit:
                 break
@@ -522,9 +662,13 @@ def _bundle_sample(findings: list[dict[str, Any]], limit: int = 18, per_query: i
     return sample
 
 
-def _openrouter_bundle_eval(goal_case: dict[str, Any], findings: list[dict[str, Any]]) -> dict[str, Any]:
+def _openrouter_bundle_eval(
+    goal_case: dict[str, Any], findings: list[dict[str, Any]]
+) -> dict[str, Any]:
     api_key = os.environ.get("OPENROUTER_API_KEY", "")
-    model = str(goal_case.get("judge_model") or "").strip() or os.environ.get("OPENROUTER_MODEL", DEFAULT_OPENROUTER_MODEL)
+    model = str(goal_case.get("judge_model") or "").strip() or os.environ.get(
+        "OPENROUTER_MODEL", DEFAULT_OPENROUTER_MODEL
+    )
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY not configured")
 
@@ -541,11 +685,13 @@ def _openrouter_bundle_eval(goal_case: dict[str, Any], findings: list[dict[str, 
         "dimension_scores must map each dimension id to an integer 0-20.\n"
         "Use both the evidence titles and body snippets. Treat concrete implementation patterns and operational guardrails as positive evidence."
     )
-    body = json.dumps({
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0,
-    }).encode("utf-8")
+    body = json.dumps(
+        {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0,
+        }
+    ).encode("utf-8")
     request = urllib.request.Request(
         OPENROUTER_API_URL,
         data=body,
@@ -554,7 +700,9 @@ def _openrouter_bundle_eval(goal_case: dict[str, Any], findings: list[dict[str, 
             "Content-Type": "application/json",
         },
     )
-    with urllib.request.urlopen(request, timeout=OPENROUTER_BUNDLE_TIMEOUT) as response:
+    with urllib.request.urlopen(
+        request, timeout=OPENROUTER_BUNDLE_TIMEOUT
+    ) as response:  # nosemgrep: dynamic-urllib-use-detected
         payload = json.loads(response.read().decode("utf-8"))
     content = payload["choices"][0]["message"]["content"]
     start = content.find("{")
@@ -574,6 +722,7 @@ def _bundle_findings(findings: Any) -> list[dict[str, Any]]:
 
 def evaluate_goal_bundle(goal_case: dict[str, Any], findings: Any) -> dict[str, Any]:
     bundle_findings = _bundle_findings(findings)
+    dimensions = _bundle_dimensions(goal_case)
     if os.environ.get("OPENROUTER_API_KEY"):
         if _strict_openrouter_judge():
             result = _openrouter_bundle_eval(goal_case, bundle_findings)
@@ -584,7 +733,15 @@ def evaluate_goal_bundle(goal_case: dict[str, Any], findings: Any) -> dict[str, 
                 result = _heuristic_bundle_eval(goal_case, bundle_findings)
     else:
         result = _heuristic_bundle_eval(goal_case, bundle_findings)
-    if any(str(dimension.get("id") or "") == "pair_extract" for dimension in _bundle_dimensions(goal_case)):
+    if str(result.get("judge") or "") == "heuristic-bundle":
+        result = _normalize_bundle_result(result, dimensions)
+        result["rationale"] = str(
+            result.get("rationale") or "heuristic bundle evaluation"
+        )
+        result["judge"] = "heuristic-bundle"
+    if any(
+        str(dimension.get("id") or "") == "pair_extract" for dimension in dimensions
+    ):
         result = dict(result)
         result["pair_extract_detail"] = _pair_extract_detail(bundle_findings)
     return result

@@ -9,7 +9,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from goal_bundle_loop import GOAL_CASES_ROOT, GOAL_RUNS_ROOT, load_goal_case, run_goal_bundle_loop
+from goal_bundle_loop import (
+    GOAL_CASES_ROOT,
+    GOAL_RUNS_ROOT,
+    load_goal_case,
+    run_goal_bundle_loop,
+)
 
 
 BENCHMARK_ROOT = GOAL_CASES_ROOT / "benchmarks"
@@ -26,15 +31,23 @@ def _benchmark_summary(result: dict[str, Any]) -> dict[str, Any]:
         "target_score": target_score,
         "final_score": final_score,
         "goal_reached": bool(result.get("goal_reached")),
-        "score_gap": int(result.get("score_gap", max(0, target_score - final_score)) or 0),
+        "score_gap": int(
+            result.get("score_gap", max(0, target_score - final_score)) or 0
+        ),
         "stop_reason": str(result.get("stop_reason") or ""),
         "practical_ceiling": result.get("practical_ceiling"),
         "accepted_rounds": len(accepted_rounds),
         "rounds_run": len(rounds),
         "providers_used": list(result.get("providers_used") or []),
-        "accepted_program_id": str((result.get("accepted_program") or {}).get("program_id") or ""),
-        "matched_dimensions": list(((result.get("bundle_final") or {}).get("matched_dimensions") or [])),
-        "missing_dimensions": list(((result.get("bundle_final") or {}).get("missing_dimensions") or [])),
+        "accepted_program_id": str(
+            (result.get("accepted_program") or {}).get("program_id") or ""
+        ),
+        "matched_dimensions": list(
+            ((result.get("bundle_final") or {}).get("matched_dimensions") or [])
+        ),
+        "missing_dimensions": list(
+            ((result.get("bundle_final") or {}).get("missing_dimensions") or [])
+        ),
     }
 
 
@@ -83,13 +96,18 @@ def _write_outputs(benchmark: dict[str, Any]) -> dict[str, Path]:
     GOAL_RUNS_ROOT.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
     summary_path = BENCHMARK_ROOT / f"{stamp}-goal-benchmark.json"
-    summary_path.write_text(json.dumps(benchmark["payload"], ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    summary_path.write_text(
+        json.dumps(benchmark["payload"], ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
     per_goal_paths: list[Path] = []
     for result in benchmark["results"]:
         goal_id = str(result.get("goal_id") or "goal")
         run_path = GOAL_RUNS_ROOT / f"{stamp}-{goal_id}-benchmark-bundle.json"
-        run_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        run_path.write_text(
+            json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
         per_goal_paths.append(run_path)
 
     return {
@@ -99,7 +117,9 @@ def _write_outputs(benchmark: dict[str, Any]) -> dict[str, Path]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run a cross-goal benchmark for autosearch goal loops")
+    parser = argparse.ArgumentParser(
+        description="Run a cross-goal benchmark for autosearch goal loops"
+    )
     parser.add_argument(
         "--goals",
         nargs="*",
@@ -137,11 +157,17 @@ def main() -> None:
         plateau_rounds=args.plateau_rounds or None,
     )
     outputs = _write_outputs(benchmark)
-    print(json.dumps({
-        **benchmark["payload"],
-        "summary_path": str(outputs["summary"]),
-        "run_paths": [str(path) for path in outputs["runs"]],
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                **benchmark["payload"],
+                "summary_path": str(outputs["summary"]),
+                "run_paths": [str(path) for path in outputs["runs"]],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

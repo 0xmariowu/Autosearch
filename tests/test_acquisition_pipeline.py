@@ -28,13 +28,16 @@ class AcquisitionPipelineTests(unittest.TestCase):
           </body>
         </html>
         """
-        with patch("acquisition.fetch_pipeline.fetch_page", return_value={
-            "url": "https://example.com",
-            "final_url": "https://example.com",
-            "status_code": 200,
-            "content_type": "text/html",
-            "raw_html": html,
-        }):
+        with patch(
+            "acquisition.fetch_pipeline.fetch_page",
+            return_value={
+                "url": "https://example.com",
+                "final_url": "https://example.com",
+                "status_code": 200,
+                "content_type": "text/html",
+                "raw_html": html,
+            },
+        ):
             document = fetch_document("https://example.com")
         self.assertTrue(document.document_id)
         self.assertEqual(document.status_code, 200)
@@ -57,19 +60,29 @@ class AcquisitionPipelineTests(unittest.TestCase):
             raw_html="<html></html>",
             used_render_fallback=True,
         )
-        with patch("acquisition.fetch_pipeline.fetch_page", side_effect=RuntimeError("boom")), \
-             patch("acquisition.fetch_pipeline.render_document", return_value=fallback_doc):
+        with (
+            patch(
+                "acquisition.fetch_pipeline.fetch_page",
+                side_effect=RuntimeError("boom"),
+            ),
+            patch(
+                "acquisition.fetch_pipeline.render_document", return_value=fallback_doc
+            ),
+        ):
             document = fetch_document("https://example.com", use_render_fallback=True)
         self.assertTrue(document.used_render_fallback)
         self.assertEqual(document.title, "Rendered")
 
     def test_render_document_uses_local_playwright_renderer(self):
-        with patch("acquisition.render_pipeline._render_with_playwright", return_value={
-            "url": "https://example.com",
-            "final_url": "https://example.com/docs",
-            "title": "Rendered Title",
-            "raw_html": "<html><head><title>Rendered Title</title></head><body><p>Rendered body</p></body></html>",
-        }):
+        with patch(
+            "acquisition.render_pipeline._render_with_playwright",
+            return_value={
+                "url": "https://example.com",
+                "final_url": "https://example.com/docs",
+                "title": "Rendered Title",
+                "raw_html": "<html><head><title>Rendered Title</title></head><body><p>Rendered body</p></body></html>",
+            },
+        ):
             document = render_document("https://example.com")
         self.assertTrue(document.used_render_fallback)
         self.assertEqual(document.final_url, "https://example.com/docs")
@@ -89,6 +102,7 @@ class AcquisitionPipelineTests(unittest.TestCase):
                 "references": [{"url": "https://example.com/ref", "text": "Ref"}],
             },
         )()
+
         class FakeCrawler:
             def run(self, url, timeout=10):
                 return fake_result
@@ -98,8 +112,13 @@ class AcquisitionPipelineTests(unittest.TestCase):
             (),
             {"WebCrawler": FakeCrawler},
         )()
-        with patch("acquisition.crawl4ai_adapter.importlib.util.find_spec", return_value=object()), \
-             patch.dict(sys.modules, {"crawl4ai": fake_module}):
+        with (
+            patch(
+                "acquisition.crawl4ai_adapter.importlib.util.find_spec",
+                return_value=object(),
+            ),
+            patch.dict(sys.modules, {"crawl4ai": fake_module}),
+        ):
             document = fetch_with_crawl4ai("https://example.com")
         self.assertTrue(document.document_id)
         self.assertEqual(document.fetch_method, "crawl4ai")
@@ -110,44 +129,58 @@ class AcquisitionPipelineTests(unittest.TestCase):
         self.assertEqual(document.references[0]["url"], "https://example.com/ref")
 
     def test_query_aware_content_filter_keeps_relevant_middle_paragraph(self):
-        text = "\n\n".join([
-            "Intro paragraph about agent systems.",
-            "Unrelated filler about gardening and hobbies.",
-            "Planner executor synthesizer pipeline with runtime skip and release gate.",
-            "More unrelated filler content.",
-            "Conclusion paragraph on evaluation harness design.",
-        ])
-        selected = select_relevant_content(text, query="runtime skip release gate", max_chars=500)
+        text = "\n\n".join(
+            [
+                "Intro paragraph about agent systems.",
+                "Unrelated filler about gardening and hobbies.",
+                "Planner executor synthesizer pipeline with runtime skip and release gate.",
+                "More unrelated filler content.",
+                "Conclusion paragraph on evaluation harness design.",
+            ]
+        )
+        selected = select_relevant_content(
+            text, query="runtime skip release gate", max_chars=500
+        )
         self.assertIn("Intro paragraph", selected)
         self.assertIn("runtime skip and release gate", selected)
         self.assertIn("Conclusion paragraph", selected)
 
     def test_query_aware_content_filter_selects_relevant_sentence_chunk(self):
-        text = "\n\n".join([
-            "Intro paragraph about systems.",
-            "This page has many details. The release gate blocks rollout on failed validation. Extra filler follows. Another sentence about unrelated UI polish.",
-            "Final note about evaluation.",
-        ])
-        selected = select_relevant_content(text, query="release gate validation", max_chars=350)
+        text = "\n\n".join(
+            [
+                "Intro paragraph about systems.",
+                "This page has many details. The release gate blocks rollout on failed validation. Extra filler follows. Another sentence about unrelated UI polish.",
+                "Final note about evaluation.",
+            ]
+        )
+        selected = select_relevant_content(
+            text, query="release gate validation", max_chars=350
+        )
         self.assertIn("release gate blocks rollout", selected)
 
     def test_chunk_document_ranks_query_aligned_chunks(self):
-        text = "\n\n".join([
-            "Intro paragraph about systems.",
-            "This page has many details. The release gate blocks rollout on failed validation. Extra filler follows. Another sentence about unrelated UI polish.",
-            "Final note about evaluation.",
-        ])
+        text = "\n\n".join(
+            [
+                "Intro paragraph about systems.",
+                "This page has many details. The release gate blocks rollout on failed validation. Extra filler follows. Another sentence about unrelated UI polish.",
+                "Final note about evaluation.",
+            ]
+        )
         chunks = chunk_document(text, query="release gate validation", limit=3)
         self.assertTrue(chunks)
         self.assertIn("release gate blocks rollout", chunks[1]["text"])
 
     def test_build_markdown_views_returns_chunk_scores(self):
-        text = "\n\n".join([
-            "Intro paragraph about systems.",
-            "This page has many details. The release gate blocks rollout on failed validation. Extra filler follows. Another sentence about unrelated UI polish.",
-            "Final note about evaluation.",
-        ])
-        views = build_markdown_views(text, query="release gate validation", max_chars=350)
+        text = "\n\n".join(
+            [
+                "Intro paragraph about systems.",
+                "This page has many details. The release gate blocks rollout on failed validation. Extra filler follows. Another sentence about unrelated UI polish.",
+                "Final note about evaluation.",
+            ]
+        )
+        views = build_markdown_views(
+            text, query="release gate validation", max_chars=350
+        )
         self.assertIn("clean_markdown", views)
         self.assertIn("fit_markdown", views)
         self.assertTrue(views["chunk_scores"])

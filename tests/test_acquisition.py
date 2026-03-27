@@ -34,11 +34,14 @@ class AcquisitionTests(unittest.TestCase):
         self.assertNotIn("console.log", extracted["text"])
 
     def test_enrich_evidence_record_adds_acquired_fields(self):
-        with patch("acquisition.fetch_page", return_value={
-            "title": "Fetched Title",
-            "text": "Clean extracted page text",
-            "content_type": "text/html",
-        }):
+        with patch(
+            "acquisition.fetch_page",
+            return_value={
+                "title": "Fetched Title",
+                "text": "Clean extracted page text",
+                "content_type": "text/html",
+            },
+        ):
             enriched = enrich_evidence_record({"url": "https://example.com"})
         self.assertTrue(enriched["acquired"])
         self.assertEqual(enriched["acquired_title"], "Fetched Title")
@@ -58,8 +61,15 @@ class AcquisitionTests(unittest.TestCase):
                 )
             ],
         )
-        with patch("goal_services.PlatformConnector.search", return_value=outcome), \
-             patch("goal_services.enrich_evidence_record", side_effect=lambda record: dict(record, acquired=True, acquired_text="fetched")):
+        with (
+            patch("goal_services.PlatformConnector.search", return_value=outcome),
+            patch(
+                "goal_services.enrich_evidence_record",
+                side_effect=lambda record: dict(
+                    record, acquired=True, acquired_text="fetched"
+                ),
+            ),
+        ):
             run = search_query(
                 "harness engineering",
                 [{"name": "searxng", "limit": 5}],

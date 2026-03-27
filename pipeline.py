@@ -31,15 +31,9 @@ HOME = Path.home()
 
 
 # Support override via env vars (for launchd rsync mode)
-ARMORY_ROOT = Path(os.environ.get(
-    "ARMORY_ROOT",
-    "/Volumes/4TB/Armory"))
-AIMD_ROOT = Path(os.environ.get(
-    "AIMD_ROOT",
-    "/Volumes/4TB/AIMD"))
-SCOUT_DIR = Path(os.environ.get(
-    "SCOUT_DIR",
-    str(ARMORY_ROOT / "scripts/scout")))
+ARMORY_ROOT = Path(os.environ.get("ARMORY_ROOT", "/Volumes/4TB/Armory"))
+AIMD_ROOT = Path(os.environ.get("AIMD_ROOT", "/Volumes/4TB/AIMD"))
+SCOUT_DIR = Path(os.environ.get("SCOUT_DIR", str(ARMORY_ROOT / "scripts/scout")))
 AUTOSEARCH_DIR = Path(__file__).parent
 
 # score-and-stage.js dependencies
@@ -56,6 +50,7 @@ def log(msg: str):
 
 # ── Step 1: Run engine (daily mode) ──
 
+
 def run_engine(skip_health_check: bool = False) -> Path:
     """Run daily.py and return path to findings JSONL."""
     log("Phase 1: Running AutoSearch engine (daily mode)...")
@@ -64,15 +59,16 @@ def run_engine(skip_health_check: bool = False) -> Path:
     output = Path(f"/tmp/autosearch-daily-{today}.jsonl")
 
     cmd = [
-        sys.executable, str(AUTOSEARCH_DIR / "daily.py"),
-        "--output", str(output),
+        sys.executable,
+        str(AUTOSEARCH_DIR / "daily.py"),
+        "--output",
+        str(output),
     ]
     if skip_health_check:
         cmd.append("--skip-health-check")
 
     try:
-        result = subprocess.run(
-            cmd, cwd=str(AUTOSEARCH_DIR), timeout=1800)
+        result = subprocess.run(cmd, cwd=str(AUTOSEARCH_DIR), timeout=1800)
     except subprocess.TimeoutExpired:
         log("ERROR: Engine timed out after 30 minutes")
         sys.exit(1)
@@ -91,6 +87,7 @@ def run_engine(skip_health_check: bool = False) -> Path:
 
 
 # ── Step 2: Adapt engine output to score-and-stage format ──
+
 
 def adapt_findings(findings_path: Path, raw_dir: Path):
     """Convert engine JSONL to per-platform JSONL files for score-and-stage.js.
@@ -283,17 +280,24 @@ def _infer_topic(query: str) -> str:
 
 # ── Step 3: Score and stage ──
 
+
 def run_score_and_stage(raw_dir: Path):
     """Run score-and-stage.js on adapted findings."""
     log("Phase 3: Scoring & staging...")
 
     cmd = [
-        "node", str(SCOUT_DIR / "score-and-stage.js"),
-        "--raw-dir", str(raw_dir),
-        "--state", str(STATE_PATH),
-        "--armory-index", str(ARMORY_INDEX),
-        "--output", str(OUTPUT_DIR),
-        "--queries", str(QUERIES_PATH),
+        "node",
+        str(SCOUT_DIR / "score-and-stage.js"),
+        "--raw-dir",
+        str(raw_dir),
+        "--state",
+        str(STATE_PATH),
+        "--armory-index",
+        str(ARMORY_INDEX),
+        "--output",
+        str(OUTPUT_DIR),
+        "--queries",
+        str(QUERIES_PATH),
     ]
 
     try:
@@ -306,6 +310,7 @@ def run_score_and_stage(raw_dir: Path):
 
 
 # ── Step 4: Auto-intake ──
+
 
 def run_auto_intake():
     """Run auto-intake.sh for high-scoring repos."""
@@ -323,11 +328,13 @@ def run_auto_intake():
 
 # ── Step 5: Send email ──
 
+
 def run_outcome_recording():
     """Record query→repo outcome links after auto-intake."""
     log("Phase 4b: Recording outcomes...")
     try:
         from outcomes import record_intakes
+
         count = record_intakes()
         log(f"  {count} new intake outcomes recorded")
     except Exception as e:
@@ -350,8 +357,10 @@ def run_email():
                 recipient = line.split("=", 1)[1].strip()
 
     cmd = [
-        "bash", str(SCOUT_DIR / "send-email.sh"),
-        str(report), recipient,
+        "bash",
+        str(SCOUT_DIR / "send-email.sh"),
+        str(report),
+        recipient,
     ]
     try:
         result = subprocess.run(cmd, cwd=str(SCOUT_DIR), timeout=60)
@@ -364,24 +373,29 @@ def run_email():
 
 # ── Main ──
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="AutoSearch Pipeline — unified daily run",
     )
     parser.add_argument(
-        "--skip-email", action="store_true",
+        "--skip-email",
+        action="store_true",
         help="Skip email sending",
     )
     parser.add_argument(
-        "--skip-intake", action="store_true",
+        "--skip-intake",
+        action="store_true",
         help="Skip auto-intake",
     )
     parser.add_argument(
-        "--engine-only", action="store_true",
+        "--engine-only",
+        action="store_true",
         help="Only run engine, skip all downstream",
     )
     parser.add_argument(
-        "--skip-health-check", action="store_true",
+        "--skip-health-check",
+        action="store_true",
         help="Skip platform pre-flight checks",
     )
     args = parser.parse_args()
@@ -391,8 +405,7 @@ def main():
     log("")
 
     # Step 1: Run engine
-    findings_path = run_engine(
-        skip_health_check=args.skip_health_check)
+    findings_path = run_engine(skip_health_check=args.skip_health_check)
 
     if args.engine_only:
         log("Engine-only mode. Done.")

@@ -50,7 +50,9 @@ def goal_provider_names(goal_case: dict[str, Any]) -> list[str]:
     return ordered
 
 
-def available_platforms(goal_case: dict[str, Any], capability_report: dict[str, Any]) -> list[dict[str, Any]]:
+def available_platforms(
+    goal_case: dict[str, Any], capability_report: dict[str, Any]
+) -> list[dict[str, Any]]:
     platforms: list[dict[str, Any]] = []
     for name in goal_provider_names(goal_case):
         decision = get_source_decision(capability_report, name)

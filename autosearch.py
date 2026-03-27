@@ -14,7 +14,12 @@ Phase 2: Harvest (slow, content extraction with verified queries)
   - Early stop: new findings per round < 5
 """
 
-import json, urllib.request, urllib.parse, os, time, random, hashlib
+import json
+import urllib.request
+import urllib.parse
+import os
+import time
+import random
 from datetime import datetime
 
 DEST = os.path.expanduser("/Volumes/4TB/Armory/dataset/_search")
@@ -23,16 +28,59 @@ DEST = os.path.expanduser("/Volumes/4TB/Armory/dataset/_search")
 # GENE POOL
 # ============================================================
 GENES = {
-    "product": ["Claude Code", "CLAUDE.md", "Cursor", "cursorrules", "AGENTS.md",
-                "Codex", "Copilot", "Windsurf", "aider"],
-    "pain_verb": ["ignores", "violates", "breaks", "forgets", "loses", "overwrites",
-                  "deletes", "hallucinates", "skips", "bypasses", "doesn't follow",
-                  "keeps doing", "refuses to", "fails to"],
-    "object": ["rules", "instructions", "conventions", "guidelines", "configuration",
-               "coding standards", "context", "custom instructions", "system prompt",
-               "project settings", "style", "format"],
-    "symptom": ["wrong", "broken", "after compact", "long conversation", "repeatedly",
-                "first attempt", "80% of the time", "worse", "degraded", "inconsistent"],
+    "product": [
+        "Claude Code",
+        "CLAUDE.md",
+        "Cursor",
+        "cursorrules",
+        "AGENTS.md",
+        "Codex",
+        "Copilot",
+        "Windsurf",
+        "aider",
+    ],
+    "pain_verb": [
+        "ignores",
+        "violates",
+        "breaks",
+        "forgets",
+        "loses",
+        "overwrites",
+        "deletes",
+        "hallucinates",
+        "skips",
+        "bypasses",
+        "doesn't follow",
+        "keeps doing",
+        "refuses to",
+        "fails to",
+    ],
+    "object": [
+        "rules",
+        "instructions",
+        "conventions",
+        "guidelines",
+        "configuration",
+        "coding standards",
+        "context",
+        "custom instructions",
+        "system prompt",
+        "project settings",
+        "style",
+        "format",
+    ],
+    "symptom": [
+        "wrong",
+        "broken",
+        "after compact",
+        "long conversation",
+        "repeatedly",
+        "first attempt",
+        "80% of the time",
+        "worse",
+        "degraded",
+        "inconsistent",
+    ],
 }
 
 PLATFORMS = [
@@ -42,13 +90,19 @@ PLATFORMS = [
     {"name": "reddit", "sub": "ChatGPTCoding"},
 ]
 
+
 def gen_query():
     patterns = [
-        lambda: f"{random.choice(GENES['product'])} {random.choice(GENES['pain_verb'])} {random.choice(GENES['object'])}",
+        lambda: (
+            f"{random.choice(GENES['product'])} {random.choice(GENES['pain_verb'])} {random.choice(GENES['object'])}"
+        ),
         lambda: f"{random.choice(GENES['product'])} {random.choice(GENES['symptom'])}",
-        lambda: f"{random.choice(GENES['pain_verb'])} {random.choice(GENES['object'])} {random.choice(GENES['symptom'])}",
+        lambda: (
+            f"{random.choice(GENES['pain_verb'])} {random.choice(GENES['object'])} {random.choice(GENES['symptom'])}"
+        ),
     ]
     return random.choice(patterns)()
+
 
 def search_reddit(sub, query, limit=20):
     url = f"https://www.reddit.com/r/{sub}/search.json?q={urllib.parse.quote(query)}&restrict_sr=on&limit={limit}&sort=relevance&t=all"
@@ -56,11 +110,17 @@ def search_reddit(sub, query, limit=20):
     try:
         with urllib.request.urlopen(req, timeout=10) as r:
             data = json.loads(r.read())
-        return [{"title": p["data"].get("title",""),
-                 "url": "https://www.reddit.com" + p["data"].get("permalink",""),
-                 "eng": p["data"].get("score",0) + p["data"].get("num_comments",0)}
-                for p in data.get("data",{}).get("children",[])]
-    except: return []
+        return [
+            {
+                "title": p["data"].get("title", ""),
+                "url": "https://www.reddit.com" + p["data"].get("permalink", ""),
+                "eng": p["data"].get("score", 0) + p["data"].get("num_comments", 0),
+            }
+            for p in data.get("data", {}).get("children", [])
+        ]
+    except:
+        return []
+
 
 # ============================================================
 # PHASE 1: QUERY EXPLORATION
@@ -79,7 +139,9 @@ QUERIES_PER_ROUND = 12
 all_query_scores = []
 
 for round_num in range(1, MAX_ROUNDS + 1):
-    queries = list(set(gen_query() for _ in range(QUERIES_PER_ROUND * 2)))[:QUERIES_PER_ROUND]
+    queries = list(set(gen_query() for _ in range(QUERIES_PER_ROUND * 2)))[
+        :QUERIES_PER_ROUND
+    ]
     round_scores = []
 
     for query in queries:
@@ -98,7 +160,9 @@ for round_num in range(1, MAX_ROUNDS + 1):
         # Score = NEW unique results × avg engagement of new results
         avg_eng = query_total_eng / max(query_new_urls, 1)
         score = int(query_new_urls * avg_eng)
-        round_scores.append({"query": query, "new_urls": query_new_urls, "score": score})
+        round_scores.append(
+            {"query": query, "new_urls": query_new_urls, "score": score}
+        )
 
     round_scores.sort(key=lambda x: x["score"], reverse=True)
     round_best = round_scores[0]["score"] if round_scores else 0
@@ -120,7 +184,9 @@ for round_num in range(1, MAX_ROUNDS + 1):
 
     # Print round summary
     top3 = round_scores[:3]
-    print(f"\n  R{round_num}: best={round_best:6d} new_urls={total_new:3d} improvement={improvement:+.0%} stale={stale_rounds}/{MAX_STALE}")
+    print(
+        f"\n  R{round_num}: best={round_best:6d} new_urls={total_new:3d} improvement={improvement:+.0%} stale={stale_rounds}/{MAX_STALE}"
+    )
     for r in top3:
         print(f"    score={r['score']:6d} new={r['new_urls']:2d} | {r['query'][:50]}")
 
@@ -128,7 +194,9 @@ for round_num in range(1, MAX_ROUNDS + 1):
 
     # EARLY STOPPING
     if stale_rounds >= MAX_STALE:
-        print(f"\n  >>> EARLY STOP: {MAX_STALE} consecutive rounds with <10% improvement")
+        print(
+            f"\n  >>> EARLY STOP: {MAX_STALE} consecutive rounds with <10% improvement"
+        )
         break
 
     # Gene evolution: extract words from high-scoring query results
@@ -156,26 +224,28 @@ with open(playbook_path, "w") as f:
     for q in playbook:
         f.write(json.dumps(q, ensure_ascii=False) + "\n")
 
-print(f"\n{'='*70}")
+print(f"\n{'=' * 70}")
 print(f"PHASE 1 COMPLETE: {len(playbook)} queries in playbook-final.jsonl")
-print(f"{'='*70}")
-print(f"\nTop 10 queries:")
+print(f"{'=' * 70}")
+print("\nTop 10 queries:")
 for i, q in enumerate(playbook[:10]):
-    print(f"  #{i+1:2d} score={q['score']:6d} new={q['new_urls']:2d} R{q['round']} | {q['query'][:50]}")
+    print(
+        f"  #{i + 1:2d} score={q['score']:6d} new={q['new_urls']:2d} R{q['round']} | {q['query'][:50]}"
+    )
 
 # ============================================================
 # PHASE 2: HARVEST
 # ============================================================
-print(f"\n{'='*70}")
-print(f"PHASE 2: Harvest (early stopping at <5 new findings/round)")
-print(f"{'='*70}")
+print(f"\n{'=' * 70}")
+print("PHASE 2: Harvest (early stopping at <5 new findings/round)")
+print(f"{'=' * 70}")
 
 FINDINGS_PATH = os.path.join(DEST, "findings-v2.jsonl")
 harvest_seen = set()
 if os.path.exists(FINDINGS_PATH):
     with open(FINDINGS_PATH) as f:
         for line in f:
-            harvest_seen.add(json.loads(line).get("url",""))
+            harvest_seen.add(json.loads(line).get("url", ""))
 
 # Use top 15 queries from playbook
 harvest_queries = playbook[:15]
@@ -192,34 +262,40 @@ for q_entry in harvest_queries:
         try:
             with urllib.request.urlopen(req, timeout=10) as r:
                 data = json.loads(r.read())
-            for p in data.get("data",{}).get("children",[]):
+            for p in data.get("data", {}).get("children", []):
                 d = p["data"]
-                post_url = "https://www.reddit.com" + d.get("permalink","")
-                if post_url in harvest_seen: continue
+                post_url = "https://www.reddit.com" + d.get("permalink", "")
+                if post_url in harvest_seen:
+                    continue
 
-                created = datetime.fromtimestamp(d.get("created_utc",0)).strftime("%Y-%m-%d")
-                if created < "2025-10-01": continue
+                created = datetime.fromtimestamp(d.get("created_utc", 0)).strftime(
+                    "%Y-%m-%d"
+                )
+                if created < "2025-10-01":
+                    continue
 
-                eng = d.get("score",0) + d.get("num_comments",0)
-                if eng < 5: continue
+                eng = d.get("score", 0) + d.get("num_comments", 0)
+                if eng < 5:
+                    continue
 
                 finding = {
                     "url": post_url,
-                    "title": d.get("title","")[:150],
+                    "title": d.get("title", "")[:150],
                     "source": f"reddit/r/{plat['sub']}",
                     "query": query,
                     "engagement": eng,
-                    "score": d.get("score",0),
-                    "comments": d.get("num_comments",0),
+                    "score": d.get("score", 0),
+                    "comments": d.get("num_comments", 0),
                     "created": created,
-                    "body": d.get("selftext","")[:500],
+                    "body": d.get("selftext", "")[:500],
                     "collected": datetime.now().strftime("%Y-%m-%d"),
                 }
                 with open(FINDINGS_PATH, "a") as f:
                     f.write(json.dumps(finding, ensure_ascii=False) + "\n")
                 harvest_seen.add(post_url)
                 new_this_query += 1
-        except: pass
+        except:
+            pass
         time.sleep(0.2)
 
     total_harvested += new_this_query
@@ -235,9 +311,8 @@ for q_entry in harvest_queries:
             print(f"  >>> HARVEST STOP: rate={recent_rate:.1f} findings/query")
             break
 
-print(f"\n{'='*70}")
-print(f"PHASE 2 COMPLETE")
+print(f"\n{'=' * 70}")
+print("PHASE 2 COMPLETE")
 print(f"  Harvested: {total_harvested} new findings")
 print(f"  Total in file: {len(harvest_seen)}")
-print(f"{'='*70}")
-
+print(f"{'=' * 70}")

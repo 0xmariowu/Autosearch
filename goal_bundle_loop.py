@@ -9,11 +9,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from evaluation_harness import build_bundle, bundle_metrics
+from evaluation_harness import build_bundle
 from evidence.normalize import coerce_evidence_records
 from evidence_index import LocalEvidenceIndex
 from goal_editor import GoalSearcher
-from goal_judge import evaluate_goal_bundle
+from goal_judge import (
+    _bundle_dimensions,
+    _finding_texts,
+    _keyword_match,
+    evaluate_goal_bundle,
+)
 from goal_runtime import (
     archive_candidate_program,
     build_candidate_program,
@@ -29,11 +34,8 @@ from goal_services import (
     normalize_query_spec as _normalize_query_spec,
     platforms_for_provider_mix as _platforms_for_provider_mix,
     query_key as _query_key,
-    query_text as _query_text,
     replay_queries as _replay_queries,
-    restrict_query_to_provider_mix as _restrict_query_to_provider_mix,
     sample_findings as _sample_findings,
-    search_query as _search_query,
 )
 from research import (
     apply_planning_ops,
@@ -124,18 +126,147 @@ def _normalized_findings(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return coerce_evidence_records(items)
 
 
-def _harness_for_program(harness: dict[str, Any], program: dict[str, Any]) -> dict[str, Any]:
+def _harness_for_program(
+    harness: dict[str, Any], program: dict[str, Any]
+) -> dict[str, Any]:
     effective = json.loads(json.dumps(harness))
     sampling_policy = dict(program.get("sampling_policy") or {})
     bundle_policy = dict(effective.get("bundle_policy") or {})
     if "bundle_per_query_cap" in sampling_policy:
-        bundle_policy["per_query_cap"] = int(sampling_policy.get("bundle_per_query_cap") or bundle_policy.get("per_query_cap", 5))
+        bundle_policy["per_query_cap"] = int(
+            sampling_policy.get("bundle_per_query_cap")
+            or bundle_policy.get("per_query_cap", 5)
+        )
     if "bundle_per_source_cap" in sampling_policy:
-        bundle_policy["per_source_cap"] = int(sampling_policy.get("bundle_per_source_cap") or bundle_policy.get("per_source_cap", 18))
+        bundle_policy["per_source_cap"] = int(
+            sampling_policy.get("bundle_per_source_cap")
+            or bundle_policy.get("per_source_cap", 18)
+        )
     if "bundle_per_domain_cap" in sampling_policy:
-        bundle_policy["per_domain_cap"] = int(sampling_policy.get("bundle_per_domain_cap") or bundle_policy.get("per_domain_cap", 18))
+        bundle_policy["per_domain_cap"] = int(
+            sampling_policy.get("bundle_per_domain_cap")
+            or bundle_policy.get("per_domain_cap", 18)
+        )
     effective["bundle_policy"] = bundle_policy
     return effective
+
+
+def _round_roles_for_program(program: dict[str, Any]) -> list[str]:
+    roles: list[str] = []
+    for role in list(program.get("round_roles") or []):
+        value = str(role or "").strip()
+        if value and value not in roles:
+            roles.append(value)
+    current_role = str(program.get("current_role") or "").strip()
+    if current_role and current_role not in roles:
+        roles.append(current_role)
+    if roles:
+        return roles
+    return ["broad_recall", "dimension_repair", "orthogonal_probe"]
+
+
+def _merge_historical_evidence_into_bundle(
+    *,
+    goal_case: dict[str, Any],
+    bundle_state: dict[str, Any],
+    harness: dict[str, Any],
+    program: dict[str, Any],
+    index: LocalEvidenceIndex,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    historical_evidence = _normalized_findings(index.load_all())
+    if not historical_evidence:
+        return bundle_state, None
+    merged_findings = _merge_findings(
+        list(bundle_state.get("accepted_findings") or []),
+        historical_evidence,
+    )
+    # Historical evidence is already validated — use relaxed caps to preserve
+    # keyword coverage that strict per-source/per-domain caps would drop.
+    relaxed_harness = {
+        "bundle_policy": {
+            "per_query_cap": 999,
+            "per_source_cap": 999,
+            "per_domain_cap": 999,
+        }
+    }
+    merged_bundle = build_bundle([], merged_findings, relaxed_harness)
+    # Use heuristic for internal merge decisions — fast, deterministic, no API calls.
+    from goal_judge import _heuristic_bundle_eval
+
+    merged_judge = _heuristic_bundle_eval(goal_case, merged_bundle)
+    if int(merged_judge.get("score", 0) or 0) < int(bundle_state.get("score", 0) or 0):
+        return bundle_state, None
+    return {
+        "accepted_findings": _normalized_findings(merged_bundle),
+        "accepted_queries": list(bundle_state.get("accepted_queries") or []),
+        "score": int(merged_judge.get("score", 0) or 0),
+        "judge": merged_judge.get("judge", ""),
+        "dimension_scores": merged_judge.get("dimension_scores", {}),
+        "missing_dimensions": merged_judge.get("missing_dimensions", []),
+        "rationale": merged_judge.get("rationale", ""),
+        "matched_dimensions": merged_judge.get("matched_dimensions", []),
+    }, merged_judge
+
+
+def _update_query_keyword_hits(
+    *,
+    goal_case: dict[str, Any],
+    query_keyword_map: dict[str, list[str]] | None,
+    query_runs: list[dict[str, Any]],
+    findings: list[dict[str, Any]],
+) -> dict[str, list[str]]:
+    updated: dict[str, list[str]] = {
+        str(query).strip(): [
+            str(keyword).strip()
+            for keyword in list(keywords or [])
+            if str(keyword).strip()
+        ]
+        for query, keywords in dict(query_keyword_map or {}).items()
+        if str(query).strip()
+    }
+    findings_by_query: dict[str, list[dict[str, Any]]] = {}
+    for finding in list(findings or []):
+        query_text = str(finding.get("query") or "").strip()
+        if not query_text:
+            continue
+        findings_by_query.setdefault(query_text, []).append(finding)
+    for qrun in list(query_runs or []):
+        query_text = (
+            _normalize_query_spec(
+                qrun.get("query_spec") or qrun.get("query") or {}
+            ).get("text")
+            or ""
+        )
+        if not query_text:
+            continue
+        q_findings = findings_by_query.get(query_text) or []
+        if not q_findings:
+            continue
+        q_texts = _finding_texts(q_findings)
+        q_hits: list[str] = []
+        for dimension in _bundle_dimensions(goal_case):
+            dimension_terms: list[str] = []
+            for keyword in list(dimension.get("keywords") or []) + list(
+                dimension.get("aliases") or []
+            ):
+                phrase = str(keyword or "").strip()
+                if (
+                    phrase
+                    and phrase not in dimension_terms
+                    and _keyword_match(phrase, q_texts)
+                ):
+                    dimension_terms.append(phrase)
+            for phrase in dimension_terms:
+                if phrase not in q_hits:
+                    q_hits.append(phrase)
+        if not q_hits:
+            continue
+        merged_hits = list(updated.get(query_text) or [])
+        for hit in q_hits:
+            if hit not in merged_hits:
+                merged_hits.append(hit)
+        updated[query_text] = merged_hits
+    return updated
 
 
 def _update_plateau_state(
@@ -147,13 +278,19 @@ def _update_plateau_state(
     candidate_dimensions: dict[str, Any],
 ) -> dict[str, Any]:
     next_state = dict(plateau_state or {})
-    dimension_stagnation = {
-        str(key): int(value or 0)
-        for key, value in dict(next_state.get("dimension_stagnation") or {}).items()
-    }
+    dimension_stagnation = {}
+    for key, value in dict(next_state.get("dimension_stagnation") or {}).items():
+        try:
+            dimension_stagnation[str(key)] = int(value or 0)
+        except (ValueError, TypeError):
+            dimension_stagnation[str(key)] = 0
     improved = int(candidate_score or 0) > int(current_score or 0)
-    next_state["best_score"] = max(int(next_state.get("best_score", 0) or 0), int(candidate_score or 0))
-    next_state["stagnant_rounds"] = 0 if improved else int(next_state.get("stagnant_rounds", 0) or 0) + 1
+    next_state["best_score"] = max(
+        int(next_state.get("best_score", 0) or 0), int(candidate_score or 0)
+    )
+    next_state["stagnant_rounds"] = (
+        0 if improved else int(next_state.get("stagnant_rounds", 0) or 0) + 1
+    )
     current_dimensions = dict(current_dimensions or {})
     candidate_dimensions = dict(candidate_dimensions or {})
     for dim_id in set(current_dimensions) | set(candidate_dimensions):
@@ -162,10 +299,14 @@ def _update_plateau_state(
         if current > previous:
             dimension_stagnation[dim_id] = 0
         else:
-            dimension_stagnation[dim_id] = int(dimension_stagnation.get(dim_id, 0) or 0) + 1
+            dimension_stagnation[dim_id] = (
+                int(dimension_stagnation.get(dim_id, 0) or 0) + 1
+            )
     next_state["dimension_stagnation"] = dimension_stagnation
     if next_state["stagnant_rounds"] >= 3:
-        next_state["practical_ceiling"] = int(next_state.get("best_score", candidate_score) or candidate_score)
+        next_state["practical_ceiling"] = int(
+            next_state.get("best_score", candidate_score) or candidate_score
+        )
     return next_state
 
 
@@ -178,8 +319,12 @@ def _updated_evolution_stats(
     accepted_program: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     stats = dict(current_program.get("evolution_stats") or {})
-    stats["accepted_rounds"] = int(stats.get("accepted_rounds", 0) or 0) + (1 if accepted else 0)
-    stats["rejected_rounds"] = int(stats.get("rejected_rounds", 0) or 0) + (0 if accepted else 1)
+    stats["accepted_rounds"] = int(stats.get("accepted_rounds", 0) or 0) + (
+        1 if accepted else 0
+    )
+    stats["rejected_rounds"] = int(stats.get("rejected_rounds", 0) or 0) + (
+        0 if accepted else 1
+    )
     family_best_scores = dict(stats.get("family_best_scores") or {})
     if accepted_program is not None:
         family_id = str(accepted_program.get("family_id") or "")
@@ -197,22 +342,53 @@ def _updated_evolution_stats(
     selected_program = dict(selected_program or {})
     selected_mutation = str(selected_program.get("mutation_kind") or "")
     selected_family = str(selected_program.get("family_id") or "")
-    retire_after = int(((current_program.get("population_policy") or {}).get("retire_family_after_rejections", 3)) or 3)
+    retire_after = int(
+        (
+            (current_program.get("population_policy") or {}).get(
+                "retire_family_after_rejections", 3
+            )
+        )
+        or 3
+    )
     if accepted and accepted_program is not None:
-        selected_mutation = str(accepted_program.get("mutation_kind") or selected_mutation)
+        selected_mutation = str(
+            accepted_program.get("mutation_kind") or selected_mutation
+        )
         selected_family = str(accepted_program.get("family_id") or selected_family)
     if selected_mutation:
-        mutation_acceptance[selected_mutation] = int(mutation_acceptance.get(selected_mutation, 0) or 0) + (1 if accepted else 0)
-        mutation_rejection_streaks[selected_mutation] = 0 if accepted else int(mutation_rejection_streaks.get(selected_mutation, 0) or 0) + 1
+        mutation_acceptance[selected_mutation] = int(
+            mutation_acceptance.get(selected_mutation, 0) or 0
+        ) + (1 if accepted else 0)
+        mutation_rejection_streaks[selected_mutation] = (
+            0
+            if accepted
+            else int(mutation_rejection_streaks.get(selected_mutation, 0) or 0) + 1
+        )
         if accepted and selected_mutation in retired_mutation_kinds:
-            retired_mutation_kinds = [item for item in retired_mutation_kinds if item != selected_mutation]
-        if not accepted and mutation_rejection_streaks[selected_mutation] >= retire_after and selected_mutation not in retired_mutation_kinds:
+            retired_mutation_kinds = [
+                item for item in retired_mutation_kinds if item != selected_mutation
+            ]
+        if (
+            not accepted
+            and mutation_rejection_streaks[selected_mutation] >= retire_after
+            and selected_mutation not in retired_mutation_kinds
+        ):
             retired_mutation_kinds.append(selected_mutation)
     if selected_family:
-        family_rejection_streaks[selected_family] = 0 if accepted else int(family_rejection_streaks.get(selected_family, 0) or 0) + 1
+        family_rejection_streaks[selected_family] = (
+            0
+            if accepted
+            else int(family_rejection_streaks.get(selected_family, 0) or 0) + 1
+        )
         if accepted and selected_family in retired_families:
-            retired_families = [item for item in retired_families if item != selected_family]
-        if not accepted and family_rejection_streaks[selected_family] >= retire_after and selected_family not in retired_families:
+            retired_families = [
+                item for item in retired_families if item != selected_family
+            ]
+        if (
+            not accepted
+            and family_rejection_streaks[selected_family] >= retire_after
+            and selected_family not in retired_families
+        ):
             retired_families.append(selected_family)
     stats["mutation_acceptance"] = mutation_acceptance
     stats["mutation_rejection_streaks"] = mutation_rejection_streaks
@@ -223,14 +399,18 @@ def _updated_evolution_stats(
         "population_size": len(population),
         "branch_counts": {
             str(item.get("branch_id") or ""): sum(
-                1 for other in population if str(other.get("branch_id") or "") == str(item.get("branch_id") or "")
+                1
+                for other in population
+                if str(other.get("branch_id") or "") == str(item.get("branch_id") or "")
             )
             for item in population
             if str(item.get("branch_id") or "")
         },
         "family_counts": {
             str(item.get("family_id") or ""): sum(
-                1 for other in population if str(other.get("family_id") or "") == str(item.get("family_id") or "")
+                1
+                for other in population
+                if str(other.get("family_id") or "") == str(item.get("family_id") or "")
             )
             for item in population
             if str(item.get("family_id") or "")
@@ -310,7 +490,9 @@ def _archive_promotion_decision(
     if candidate_score > current_score:
         accepted = True
         reason = "archive_score_improved"
-    elif candidate_score == current_score and (candidate_profile > current_profile or program_changed):
+    elif candidate_score == current_score and (
+        candidate_profile > current_profile or program_changed
+    ):
         accepted = True
         reason = "archive_tie_broken_by_profile_or_program"
     return {
@@ -325,6 +507,7 @@ def _archive_promotion_decision(
         "anti_cheat_warnings": [],
     }
 
+
 def _promote_compatible_archive_candidate(
     *,
     goal_case: dict[str, Any],
@@ -335,14 +518,19 @@ def _promote_compatible_archive_candidate(
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any] | None]:
     archive_dir = runtime_paths(str(goal_case.get("id") or "goal"))["program_archive"]
     if not archive_dir.exists():
-        return accepted_program, bundle_state, {
-            "score": bundle_state.get("score", 0),
-            "dimension_scores": bundle_state.get("dimension_scores", {}),
-            "missing_dimensions": bundle_state.get("missing_dimensions", []),
-            "matched_dimensions": bundle_state.get("matched_dimensions", []),
-            "rationale": bundle_state.get("rationale", ""),
-            "judge": bundle_state.get("judge", ""),
-        }, None
+        return (
+            accepted_program,
+            bundle_state,
+            {
+                "score": bundle_state.get("score", 0),
+                "dimension_scores": bundle_state.get("dimension_scores", {}),
+                "missing_dimensions": bundle_state.get("missing_dimensions", []),
+                "matched_dimensions": bundle_state.get("matched_dimensions", []),
+                "rationale": bundle_state.get("rationale", ""),
+                "judge": bundle_state.get("judge", ""),
+            },
+            None,
+        )
 
     compatible: list[dict[str, Any]] = []
     for path in sorted(archive_dir.glob("*.json")):
@@ -352,9 +540,13 @@ def _promote_compatible_archive_candidate(
         candidate_program = dict(payload.get("candidate_program") or {})
         result = dict(payload.get("result") or {})
         selection = dict(result.get("selection") or {})
-        if candidate_program.get("parent_program_id") != accepted_program.get("program_id"):
+        if candidate_program.get("parent_program_id") != accepted_program.get(
+            "program_id"
+        ):
             continue
-        if int(selection.get("current_score", -1) or -1) != int(bundle_state.get("score", 0) or 0):
+        if int(selection.get("current_score", -1) or -1) != int(
+            bundle_state.get("score", 0) or 0
+        ):
             continue
         reevaluated = _archive_promotion_decision(
             current_state=bundle_state,
@@ -365,28 +557,36 @@ def _promote_compatible_archive_candidate(
         )
         if not reevaluated.get("accepted"):
             continue
-        compatible.append({
-            "program": candidate_program,
-            "score": int(result.get("score", 0) or 0),
-            "dimension_scores": dict(result.get("dimension_scores") or {}),
-            "harness_metrics": dict(result.get("harness_metrics") or {}),
-            "selection": reevaluated,
-            "archive_path": str(path),
-        })
+        compatible.append(
+            {
+                "program": candidate_program,
+                "score": int(result.get("score", 0) or 0),
+                "dimension_scores": dict(result.get("dimension_scores") or {}),
+                "harness_metrics": dict(result.get("harness_metrics") or {}),
+                "selection": reevaluated,
+                "archive_path": str(path),
+            }
+        )
 
     if not compatible:
-        return accepted_program, bundle_state, {
-            "score": bundle_state.get("score", 0),
-            "dimension_scores": bundle_state.get("dimension_scores", {}),
-            "missing_dimensions": bundle_state.get("missing_dimensions", []),
-            "matched_dimensions": bundle_state.get("matched_dimensions", []),
-            "rationale": bundle_state.get("rationale", ""),
-            "judge": bundle_state.get("judge", ""),
-        }, None
+        return (
+            accepted_program,
+            bundle_state,
+            {
+                "score": bundle_state.get("score", 0),
+                "dimension_scores": bundle_state.get("dimension_scores", {}),
+                "missing_dimensions": bundle_state.get("missing_dimensions", []),
+                "matched_dimensions": bundle_state.get("matched_dimensions", []),
+                "rationale": bundle_state.get("rationale", ""),
+                "judge": bundle_state.get("judge", ""),
+            },
+            None,
+        )
 
     best = max(compatible, key=candidate_rank)
     promoted_queries = _unique_query_specs(
-        list(bundle_state.get("accepted_queries", [])) + list(best["program"].get("queries") or [])
+        list(bundle_state.get("accepted_queries", []))
+        + list(best["program"].get("queries") or [])
     )
     effective_harness = _harness_for_program(harness, best["program"])
     replay_runs, replay_findings = _replay_queries(
@@ -414,13 +614,18 @@ def _promote_compatible_archive_candidate(
         "accepted_at": datetime.now().astimezone().isoformat(),
     }
     save_accepted_program(str(goal_case.get("id") or "goal"), promoted_program)
-    return promoted_program, promoted_bundle_state, replay_judge, {
-        "program_id": promoted_program["program_id"],
-        "archive_path": best["archive_path"],
-        "selection": best["selection"],
-        "query_runs": replay_runs,
-        "replayed_score": promoted_bundle_state["score"],
-    }
+    return (
+        promoted_program,
+        promoted_bundle_state,
+        replay_judge,
+        {
+            "program_id": promoted_program["program_id"],
+            "archive_path": best["archive_path"],
+            "selection": best["selection"],
+            "query_runs": replay_runs,
+            "replayed_score": promoted_bundle_state["score"],
+        },
+    )
 
 
 def run_goal_bundle_loop(
@@ -439,7 +644,9 @@ def run_goal_bundle_loop(
     searcher = GoalSearcher(goal_case)
     available_provider_names = [platform["name"] for platform in platforms]
     accepted_program = load_accepted_program(goal_case, available_provider_names)
-    index = LocalEvidenceIndex(runtime_paths(str(goal_case.get("id") or "goal"))["evidence_index"])
+    index = LocalEvidenceIndex(
+        runtime_paths(str(goal_case.get("id") or "goal"))["evidence_index"]
+    )
     tried_queries: set[str] = set()
     rounds: list[dict[str, Any]] = []
     no_improvement_rounds = 0
@@ -469,19 +676,43 @@ def run_goal_bundle_loop(
         round_index=0,
     )
     diary_entries: list[dict[str, Any]] = []
-    target_score = int(target_score_override or goal_case.get("target_score", 100) or 100)
+    target_score = int(
+        target_score_override or goal_case.get("target_score", 100) or 100
+    )
     goal_case["target_score"] = target_score
 
     prior_path, prior_payload = _best_prior_run(str(goal_case.get("id") or ""))
     prior_queries = list(accepted_program.get("queries") or [])
-    prior_score = int((((prior_payload or {}).get("bundle_final") or {}).get("score") or 0))
+    prior_score = int(
+        (((prior_payload or {}).get("bundle_final") or {}).get("score") or 0)
+    )
     accepted_score = int(accepted_program.get("score", 0) or 0)
     if prior_payload and (not prior_queries or prior_score > accepted_score):
         prior_queries = _accepted_queries_from_run(prior_payload)
         if prior_queries:
             accepted_program["queries"] = list(prior_queries)
             accepted_program["score"] = prior_score
-            accepted_program["dimension_scores"] = dict(((prior_payload.get("bundle_final") or {}).get("dimension_scores") or {}))
+            accepted_program["dimension_scores"] = dict(
+                (
+                    (prior_payload.get("bundle_final") or {}).get("dimension_scores")
+                    or {}
+                )
+            )
+    query_keyword_map = {
+        str(query).strip(): list(keywords or [])
+        for query, keywords in dict(
+            accepted_program.get("query_keyword_hits") or {}
+        ).items()
+        if str(query).strip()
+    }
+    if query_keyword_map and prior_queries:
+        effective_queries = [
+            query
+            for query in prior_queries
+            if (_normalize_query_spec(query).get("text") or "") in query_keyword_map
+        ]
+        if effective_queries:
+            prior_queries = effective_queries
     if prior_queries:
         if prior_queries:
             effective_harness = _harness_for_program(harness, accepted_program)
@@ -504,8 +735,23 @@ def run_goal_bundle_loop(
             }
             judge_result = replay_judge
             accepted_program["score"] = bundle_state["score"]
-            accepted_program["dimension_scores"] = dict(bundle_state["dimension_scores"])
+            accepted_program["dimension_scores"] = dict(
+                bundle_state["dimension_scores"]
+            )
             index.add(list(bundle_state["accepted_findings"]))
+            bundle_state, merged_judge = _merge_historical_evidence_into_bundle(
+                goal_case=goal_case,
+                bundle_state=bundle_state,
+                harness=harness,
+                program=accepted_program,
+                index=index,
+            )
+            if merged_judge is not None:
+                judge_result = merged_judge
+                accepted_program["score"] = bundle_state["score"]
+                accepted_program["dimension_scores"] = dict(
+                    bundle_state["dimension_scores"]
+                )
             for query in prior_queries:
                 tried_queries.add(_query_key(query))
             warm_start = {
@@ -515,14 +761,29 @@ def run_goal_bundle_loop(
                 "replayed_score": bundle_state["score"],
                 "query_runs": replay_runs,
             }
-            accepted_program, bundle_state, judge_result, promoted = _promote_compatible_archive_candidate(
-                goal_case=goal_case,
-                accepted_program=accepted_program,
-                bundle_state=bundle_state,
-                harness=harness,
-                platforms=platforms,
+            accepted_program, bundle_state, judge_result, promoted = (
+                _promote_compatible_archive_candidate(
+                    goal_case=goal_case,
+                    accepted_program=accepted_program,
+                    bundle_state=bundle_state,
+                    harness=harness,
+                    platforms=platforms,
+                )
             )
             if promoted:
+                bundle_state, merged_judge = _merge_historical_evidence_into_bundle(
+                    goal_case=goal_case,
+                    bundle_state=bundle_state,
+                    harness=harness,
+                    program=accepted_program,
+                    index=index,
+                )
+                if merged_judge is not None:
+                    judge_result = merged_judge
+                    accepted_program["score"] = bundle_state["score"]
+                    accepted_program["dimension_scores"] = dict(
+                        bundle_state["dimension_scores"]
+                    )
                 for query in accepted_program.get("queries", []):
                     tried_queries.add(_query_key(query))
                 warm_start = {
@@ -535,8 +796,20 @@ def run_goal_bundle_loop(
         str(accepted_program.get("mode") or "balanced"),
         dict(accepted_program.get("mode_policy_overrides") or {}),
     )
-    effective_plan_count = int(plan_count_override or population_policy.get("plan_count", accepted_program.get("plan_count", mode_policy.max_plan_count)) or mode_policy.max_plan_count)
-    effective_max_queries = int(max_queries_override or population_policy.get("max_queries", accepted_program.get("max_queries", mode_policy.max_queries)) or mode_policy.max_queries)
+    effective_plan_count = int(
+        plan_count_override
+        or population_policy.get(
+            "plan_count", accepted_program.get("plan_count", mode_policy.max_plan_count)
+        )
+        or mode_policy.max_plan_count
+    )
+    effective_max_queries = int(
+        max_queries_override
+        or population_policy.get(
+            "max_queries", accepted_program.get("max_queries", mode_policy.max_queries)
+        )
+        or mode_policy.max_queries
+    )
     plateau_rounds_limit = int(
         plateau_rounds_override
         or (accepted_program.get("stop_rules") or {}).get("plateau_rounds", 3)
@@ -545,7 +818,9 @@ def run_goal_bundle_loop(
     stop_reason = "max_rounds_reached"
 
     for round_index in range(1, max_rounds + 1):
-        current_budget = budget_state(program=accepted_program, round_index=round_index, max_rounds=max_rounds)
+        current_budget = budget_state(
+            program=accepted_program, round_index=round_index, max_rounds=max_rounds
+        )
         action_policy = build_action_policy(
             mode=str(accepted_program.get("mode") or "balanced"),
             active_program=accepted_program,
@@ -594,9 +869,12 @@ def run_goal_bundle_loop(
         if not candidate_plans:
             break
 
-        if bool((accepted_program.get("stop_rules") or {}).get("stop_on_saturated", False)):
+        if bool(
+            (accepted_program.get("stop_rules") or {}).get("stop_on_saturated", False)
+        ):
             if not judge_result.get("missing_dimensions") and not [
-                item for item in list(gap_queue or [])
+                item
+                for item in list(gap_queue or [])
                 if str(item.get("status") or "open") == "open"
             ]:
                 stop_reason = "mode_saturated"
@@ -616,56 +894,102 @@ def run_goal_bundle_loop(
                 candidate_index=plan_index,
                 program_overrides=dict(plan.get("program_overrides") or {}),
             )
-            candidate_program = apply_planning_ops(candidate_program, list(plan.get("planning_ops") or []))
-            if str(candidate_program.get("family_id") or "") in _retired_families(accepted_program):
-                strategy_summaries.append({
-                    "label": plan.get("label", f"plan-{plan_index}"),
-                    "program_id": candidate_program["program_id"],
-                    "queries": plan.get("queries", []),
-                    "graph_node": str(plan.get("graph_node") or ""),
-                    "graph_edges": list(plan.get("graph_edges") or []),
-                    "provider_mix": list(candidate_program.get("provider_mix") or []),
-                    "query_runs": [],
-                    "candidate_score": bundle_state["score"],
-                    "matched_dimensions": list(bundle_state.get("matched_dimensions", [])),
-                    "missing_dimensions": list(bundle_state.get("missing_dimensions", [])),
-                    "sample_bundle": _sample_findings(bundle_state.get("accepted_findings", []), limit=6),
-                    "rationale": "candidate family retired by evolution policy",
-                })
+            candidate_program = apply_planning_ops(
+                candidate_program, list(plan.get("planning_ops") or [])
+            )
+            if str(candidate_program.get("family_id") or "") in _retired_families(
+                accepted_program
+            ):
+                strategy_summaries.append(
+                    {
+                        "label": plan.get("label", f"plan-{plan_index}"),
+                        "program_id": candidate_program["program_id"],
+                        "queries": plan.get("queries", []),
+                        "graph_node": str(plan.get("graph_node") or ""),
+                        "graph_edges": list(plan.get("graph_edges") or []),
+                        "provider_mix": list(
+                            candidate_program.get("provider_mix") or []
+                        ),
+                        "query_runs": [],
+                        "candidate_score": bundle_state["score"],
+                        "matched_dimensions": list(
+                            bundle_state.get("matched_dimensions", [])
+                        ),
+                        "missing_dimensions": list(
+                            bundle_state.get("missing_dimensions", [])
+                        ),
+                        "sample_bundle": _sample_findings(
+                            bundle_state.get("accepted_findings", []), limit=6
+                        ),
+                        "rationale": "candidate family retired by evolution policy",
+                    }
+                )
                 continue
             max_branch_depth = int(population_policy.get("max_branch_depth", 0) or 0)
-            if max_branch_depth and int(candidate_program.get("branch_depth", 0) or 0) > max_branch_depth:
-                strategy_summaries.append({
-                    "label": plan.get("label", f"plan-{plan_index}"),
-                    "program_id": candidate_program["program_id"],
-                    "queries": plan.get("queries", []),
-                    "graph_node": str(plan.get("graph_node") or ""),
-                    "graph_edges": list(plan.get("graph_edges") or []),
-                    "provider_mix": list(candidate_program.get("provider_mix") or []),
-                    "query_runs": [],
-                    "candidate_score": bundle_state["score"],
-                    "matched_dimensions": list(bundle_state.get("matched_dimensions", [])),
-                    "missing_dimensions": list(bundle_state.get("missing_dimensions", [])),
-                    "sample_bundle": _sample_findings(bundle_state.get("accepted_findings", []), limit=6),
-                    "rationale": "branch depth exceeds population policy",
-                })
+            if (
+                max_branch_depth
+                and int(candidate_program.get("branch_depth", 0) or 0)
+                > max_branch_depth
+            ):
+                strategy_summaries.append(
+                    {
+                        "label": plan.get("label", f"plan-{plan_index}"),
+                        "program_id": candidate_program["program_id"],
+                        "queries": plan.get("queries", []),
+                        "graph_node": str(plan.get("graph_node") or ""),
+                        "graph_edges": list(plan.get("graph_edges") or []),
+                        "provider_mix": list(
+                            candidate_program.get("provider_mix") or []
+                        ),
+                        "query_runs": [],
+                        "candidate_score": bundle_state["score"],
+                        "matched_dimensions": list(
+                            bundle_state.get("matched_dimensions", [])
+                        ),
+                        "missing_dimensions": list(
+                            bundle_state.get("missing_dimensions", [])
+                        ),
+                        "sample_bundle": _sample_findings(
+                            bundle_state.get("accepted_findings", []), limit=6
+                        ),
+                        "rationale": "branch depth exceeds population policy",
+                    }
+                )
                 continue
-            stale_rounds_limit = int(population_policy.get("stale_branch_rounds", 0) or 0)
-            if stale_rounds_limit and _branch_stale_rounds(rounds, str(candidate_program.get("branch_id") or "")) >= stale_rounds_limit:
-                strategy_summaries.append({
-                    "label": plan.get("label", f"plan-{plan_index}"),
-                    "program_id": candidate_program["program_id"],
-                    "queries": plan.get("queries", []),
-                    "graph_node": str(plan.get("graph_node") or ""),
-                    "graph_edges": list(plan.get("graph_edges") or []),
-                    "provider_mix": list(candidate_program.get("provider_mix") or []),
-                    "query_runs": [],
-                    "candidate_score": bundle_state["score"],
-                    "matched_dimensions": list(bundle_state.get("matched_dimensions", [])),
-                    "missing_dimensions": list(bundle_state.get("missing_dimensions", [])),
-                    "sample_bundle": _sample_findings(bundle_state.get("accepted_findings", []), limit=6),
-                    "rationale": "branch retired by stale branch policy",
-                })
+            stale_rounds_limit = int(
+                population_policy.get("stale_branch_rounds", 0) or 0
+            )
+            if (
+                stale_rounds_limit
+                and _branch_stale_rounds(
+                    rounds, str(candidate_program.get("branch_id") or "")
+                )
+                >= stale_rounds_limit
+            ):
+                strategy_summaries.append(
+                    {
+                        "label": plan.get("label", f"plan-{plan_index}"),
+                        "program_id": candidate_program["program_id"],
+                        "queries": plan.get("queries", []),
+                        "graph_node": str(plan.get("graph_node") or ""),
+                        "graph_edges": list(plan.get("graph_edges") or []),
+                        "provider_mix": list(
+                            candidate_program.get("provider_mix") or []
+                        ),
+                        "query_runs": [],
+                        "candidate_score": bundle_state["score"],
+                        "matched_dimensions": list(
+                            bundle_state.get("matched_dimensions", [])
+                        ),
+                        "missing_dimensions": list(
+                            bundle_state.get("missing_dimensions", [])
+                        ),
+                        "sample_bundle": _sample_findings(
+                            bundle_state.get("accepted_findings", []), limit=6
+                        ),
+                        "rationale": "branch retired by stale branch policy",
+                    }
+                )
                 continue
             provider_mix = list(candidate_program.get("provider_mix") or [])
             candidate_platforms = _platforms_for_provider_mix(platforms, provider_mix)
@@ -686,7 +1010,9 @@ def run_goal_bundle_loop(
                     "graph_edges": list(plan.get("graph_edges") or []),
                     "branch_targets": list(plan.get("branch_targets") or []),
                     "branch_depth": int(plan.get("branch_depth", 0) or 0),
-                    "local_evidence_records": list(plan.get("local_evidence_records") or []),
+                    "local_evidence_records": list(
+                        plan.get("local_evidence_records") or []
+                    ),
                 },
                 default_platforms=candidate_platforms,
                 provider_mix=list(candidate_program.get("provider_mix") or []),
@@ -700,26 +1026,38 @@ def run_goal_bundle_loop(
             round_findings = _normalized_findings(list(execution["findings"]))
             plan_query_keys = list(execution["query_keys"])
             if not query_runs:
-                strategy_summaries.append({
-                    "label": plan.get("label", f"plan-{plan_index}"),
-                    "program_id": candidate_program["program_id"],
-                    "queries": plan.get("queries", []),
-                    "graph_node": str(plan.get("graph_node") or ""),
-                    "graph_edges": list(plan.get("graph_edges") or []),
-                    "provider_mix": list(candidate_program.get("provider_mix") or []),
-                    "query_runs": [],
-                    "candidate_score": bundle_state["score"],
-                    "matched_dimensions": list(bundle_state.get("matched_dimensions", [])),
-                    "missing_dimensions": list(bundle_state.get("missing_dimensions", [])),
-                    "sample_bundle": _sample_findings(bundle_state.get("accepted_findings", []), limit=6),
-                    "rationale": "all plan queries already tried",
-                })
+                strategy_summaries.append(
+                    {
+                        "label": plan.get("label", f"plan-{plan_index}"),
+                        "program_id": candidate_program["program_id"],
+                        "queries": plan.get("queries", []),
+                        "graph_node": str(plan.get("graph_node") or ""),
+                        "graph_edges": list(plan.get("graph_edges") or []),
+                        "provider_mix": list(
+                            candidate_program.get("provider_mix") or []
+                        ),
+                        "query_runs": [],
+                        "candidate_score": bundle_state["score"],
+                        "matched_dimensions": list(
+                            bundle_state.get("matched_dimensions", [])
+                        ),
+                        "missing_dimensions": list(
+                            bundle_state.get("missing_dimensions", [])
+                        ),
+                        "sample_bundle": _sample_findings(
+                            bundle_state.get("accepted_findings", []), limit=6
+                        ),
+                        "rationale": "all plan queries already tried",
+                    }
+                )
                 continue
 
             effective_harness = _harness_for_program(harness, candidate_program)
             synthesized = synthesize_research_round(
                 goal_case,
-                existing_findings=_normalized_findings(bundle_state["accepted_findings"]),
+                existing_findings=_normalized_findings(
+                    bundle_state["accepted_findings"]
+                ),
                 round_findings=round_findings,
                 harness=effective_harness,
                 graph_plan=execution,
@@ -730,7 +1068,9 @@ def run_goal_bundle_loop(
             plan_judge = dict(synthesized["judge_result"])
             harness_state = dict(synthesized["harness_metrics"])
             routeable_output = dict(synthesized.get("routeable_output") or {})
-            routeable_output["score_gap"] = max(0, target_score - int(plan_judge.get("score", 0) or 0))
+            routeable_output["score_gap"] = max(
+                0, target_score - int(plan_judge.get("score", 0) or 0)
+            )
             selection = evaluate_acceptance(
                 current_state=bundle_state,
                 candidate_score=int(plan_judge.get("score", 0) or 0),
@@ -783,57 +1123,67 @@ def run_goal_bundle_loop(
                     "planning_ops": execution.get("planning_ops", []),
                 },
             )
-            strategy_summaries.append({
-                "label": candidate["label"],
-                "program_id": candidate_program["program_id"],
-                "program_archive": str(archive_path),
-                "queries": candidate["queries"],
-                "graph_node": candidate.get("graph_node", ""),
-                "graph_edges": candidate.get("graph_edges", []),
-                "branch_type": candidate.get("branch_type", ""),
-                "branch_subgoal": candidate.get("branch_subgoal", ""),
-                "branch_targets": candidate.get("branch_targets", []),
-                "provider_mix": list(candidate_program.get("provider_mix") or []),
-                "query_runs": query_runs,
-                "candidate_score": candidate["score"],
-                "matched_dimensions": plan_judge.get("matched_dimensions", []),
-                "missing_dimensions": plan_judge.get("missing_dimensions", []),
-                "harness_metrics": harness_state,
-                "selection": selection,
-                "sample_bundle": _sample_findings(candidate_bundle, limit=6),
-                "rationale": plan_judge.get("rationale", ""),
-                "routeable_output": routeable_output,
-                "research_bundle": synthesized.get("research_bundle", {}),
-                "search_graph": synthesized.get("search_graph", {}),
-                "gap_queue": gap_queue_summary(synthesized.get("gap_queue") or []),
-                "decision": execution.get("decision", {}),
-                "planning_ops": execution.get("planning_ops", []),
-                "deep_steps": list(execution.get("deep_steps") or []),
-                "budget_state": current_budget,
-            })
-            population.append({
-                "program_id": candidate_program["program_id"],
-                "parent_program_id": candidate_program.get("parent_program_id"),
-                "label": candidate["label"],
-                "provider_mix": list(candidate_program.get("provider_mix") or []),
-                "search_backends": list(candidate_program.get("search_backends") or []),
-                "branch_id": str(candidate_program.get("branch_id") or ""),
-                "family_id": str(candidate_program.get("family_id") or ""),
-                "branch_root_program_id": str(candidate_program.get("branch_root_program_id") or ""),
-                "branch_depth": int(candidate_program.get("branch_depth", 0) or 0),
-                "repair_depth": int(candidate_program.get("repair_depth", 0) or 0),
-                "mutation_kind": str(candidate_program.get("mutation_kind") or ""),
-                "mutation_history": list(candidate_program.get("mutation_history") or []),
-                "score": candidate["score"],
-                "result": {
+            strategy_summaries.append(
+                {
+                    "label": candidate["label"],
+                    "program_id": candidate_program["program_id"],
+                    "program_archive": str(archive_path),
+                    "queries": candidate["queries"],
+                    "graph_node": candidate.get("graph_node", ""),
+                    "graph_edges": candidate.get("graph_edges", []),
+                    "branch_type": candidate.get("branch_type", ""),
+                    "branch_subgoal": candidate.get("branch_subgoal", ""),
+                    "branch_targets": candidate.get("branch_targets", []),
+                    "provider_mix": list(candidate_program.get("provider_mix") or []),
+                    "query_runs": query_runs,
+                    "candidate_score": candidate["score"],
+                    "matched_dimensions": plan_judge.get("matched_dimensions", []),
+                    "missing_dimensions": plan_judge.get("missing_dimensions", []),
+                    "harness_metrics": harness_state,
+                    "selection": selection,
+                    "sample_bundle": _sample_findings(candidate_bundle, limit=6),
+                    "rationale": plan_judge.get("rationale", ""),
+                    "routeable_output": routeable_output,
+                    "research_bundle": synthesized.get("research_bundle", {}),
+                    "search_graph": synthesized.get("search_graph", {}),
+                    "gap_queue": gap_queue_summary(synthesized.get("gap_queue") or []),
+                    "decision": execution.get("decision", {}),
+                    "planning_ops": execution.get("planning_ops", []),
+                    "deep_steps": list(execution.get("deep_steps") or []),
+                    "budget_state": current_budget,
+                }
+            )
+            population.append(
+                {
+                    "program_id": candidate_program["program_id"],
+                    "parent_program_id": candidate_program.get("parent_program_id"),
+                    "label": candidate["label"],
+                    "provider_mix": list(candidate_program.get("provider_mix") or []),
+                    "search_backends": list(
+                        candidate_program.get("search_backends") or []
+                    ),
+                    "branch_id": str(candidate_program.get("branch_id") or ""),
+                    "family_id": str(candidate_program.get("family_id") or ""),
+                    "branch_root_program_id": str(
+                        candidate_program.get("branch_root_program_id") or ""
+                    ),
+                    "branch_depth": int(candidate_program.get("branch_depth", 0) or 0),
+                    "repair_depth": int(candidate_program.get("repair_depth", 0) or 0),
+                    "mutation_kind": str(candidate_program.get("mutation_kind") or ""),
+                    "mutation_history": list(
+                        candidate_program.get("mutation_history") or []
+                    ),
                     "score": candidate["score"],
+                    "result": {
+                        "score": candidate["score"],
+                        "dimension_scores": dict(candidate["dimension_scores"]),
+                    },
                     "dimension_scores": dict(candidate["dimension_scores"]),
-                },
-                "dimension_scores": dict(candidate["dimension_scores"]),
-                "selection": selection,
-                "harness_metrics": harness_state,
-                "planning_ops": list(execution.get("planning_ops") or []),
-            })
+                    "selection": selection,
+                    "harness_metrics": harness_state,
+                    "planning_ops": list(execution.get("planning_ops") or []),
+                }
+            )
             if (
                 best_candidate is None
                 or (
@@ -853,7 +1203,9 @@ def run_goal_bundle_loop(
 
         effective_population = _population_candidates(
             population,
-            prefer_diverse_branches=bool(population_policy.get("prefer_diverse_branches", False)),
+            prefer_diverse_branches=bool(
+                population_policy.get("prefer_diverse_branches", False)
+            ),
         )
         population_paths = save_population_snapshot(
             str(goal_case.get("id") or "goal"),
@@ -874,7 +1226,8 @@ def run_goal_bundle_loop(
             bundle_state = {
                 "accepted_findings": best_candidate["bundle"],
                 "accepted_queries": _unique_query_specs(
-                    list(bundle_state["accepted_queries"]) + list(best_candidate["queries"])
+                    list(bundle_state["accepted_queries"])
+                    + list(best_candidate["queries"])
                 ),
                 "score": candidate_score,
                 "judge": judge_result.get("judge", ""),
@@ -893,7 +1246,9 @@ def run_goal_bundle_loop(
                     candidate_score=candidate_score,
                     current_score=previous_score,
                     current_dimensions=previous_dimensions,
-                    candidate_dimensions=dict(judge_result.get("dimension_scores") or {}),
+                    candidate_dimensions=dict(
+                        judge_result.get("dimension_scores") or {}
+                    ),
                 ),
                 "evolution_stats": _updated_evolution_stats(
                     accepted_program,
@@ -907,6 +1262,28 @@ def run_goal_bundle_loop(
                 ),
                 "accepted_at": datetime.now().astimezone().isoformat(),
             }
+            bundle_state, merged_judge = _merge_historical_evidence_into_bundle(
+                goal_case=goal_case,
+                bundle_state=bundle_state,
+                harness=harness,
+                program=accepted_program,
+                index=index,
+            )
+            if merged_judge is not None:
+                judge_result = merged_judge
+                accepted_program["score"] = bundle_state["score"]
+                accepted_program["dimension_scores"] = dict(
+                    bundle_state["dimension_scores"]
+                )
+            accepted_program["query_keyword_hits"] = _update_query_keyword_hits(
+                goal_case=goal_case,
+                query_keyword_map=dict(
+                    accepted_program.get("query_keyword_hits") or {}
+                ),
+                query_runs=list(best_candidate.get("query_runs") or []),
+                findings=list(best_candidate.get("round_findings") or []),
+            )
+            accepted_program["_strategies_exhausted"] = 0
             save_accepted_program(str(goal_case.get("id") or "goal"), accepted_program)
             index.add(list(bundle_state["accepted_findings"]))
             no_improvement_rounds = 0
@@ -919,7 +1296,9 @@ def run_goal_bundle_loop(
                     candidate_score=candidate_score,
                     current_score=previous_score,
                     current_dimensions=previous_dimensions,
-                    candidate_dimensions=dict(judge_result.get("dimension_scores") or {}),
+                    candidate_dimensions=dict(
+                        judge_result.get("dimension_scores") or {}
+                    ),
                 ),
                 "evolution_stats": _updated_evolution_stats(
                     accepted_program,
@@ -929,62 +1308,73 @@ def run_goal_bundle_loop(
                 ),
             }
 
-        rounds.append({
-            "round": round_index,
-            "queries": best_candidate["queries"],
-            "accepted_program_id": accepted_program.get("program_id"),
-            "selected_program_id": best_candidate["program"]["program_id"],
-            "strategy_candidates": strategy_summaries,
-            "candidate_population": effective_population,
-            "population_snapshot": {key: str(value) for key, value in population_paths.items()},
-            "editor_plans": strategy_summaries,
-            "selected_plan_label": best_candidate["label"],
-            "graph_node": str(best_candidate.get("graph_node") or ""),
-            "graph_edges": list(best_candidate.get("graph_edges") or []),
-            "branch_type": str(best_candidate.get("branch_type") or ""),
-            "branch_subgoal": str(best_candidate.get("branch_subgoal") or ""),
-            "branch_targets": list(best_candidate.get("branch_targets") or []),
-            "query_runs": best_candidate["query_runs"],
-            "added_finding_count": len(best_candidate["round_findings"]),
-            "candidate_score": candidate_score,
-            "accepted": accepted,
-            "role": str((best_candidate["program"] or {}).get("current_role") or ""),
-            "round_role": str((best_candidate["program"] or {}).get("current_role") or ""),
-            "selection": best_candidate["selection"],
-            "harness_metrics": best_candidate["harness_metrics"],
-            "budget_state": current_budget,
-            "bundle_score_after_round": bundle_state["score"],
-            "dimension_scores": judge_result.get("dimension_scores", {}),
-            "missing_dimensions": judge_result.get("missing_dimensions", []),
-            "gap_queue": gap_queue_summary(gap_queue),
-            "sample_bundle": _sample_findings(best_candidate["bundle"], limit=8),
-            "rationale": judge_result.get("rationale", ""),
-            "routeable_output": next(
-                (
-                    summary.get("routeable_output", {})
-                    for summary in strategy_summaries
-                    if str(summary.get("program_id") or "") == str(best_candidate["program"]["program_id"] or "")
+        rounds.append(
+            {
+                "round": round_index,
+                "queries": best_candidate["queries"],
+                "accepted_program_id": accepted_program.get("program_id"),
+                "selected_program_id": best_candidate["program"]["program_id"],
+                "strategy_candidates": strategy_summaries,
+                "candidate_population": effective_population,
+                "population_snapshot": {
+                    key: str(value) for key, value in population_paths.items()
+                },
+                "editor_plans": strategy_summaries,
+                "selected_plan_label": best_candidate["label"],
+                "graph_node": str(best_candidate.get("graph_node") or ""),
+                "graph_edges": list(best_candidate.get("graph_edges") or []),
+                "branch_type": str(best_candidate.get("branch_type") or ""),
+                "branch_subgoal": str(best_candidate.get("branch_subgoal") or ""),
+                "branch_targets": list(best_candidate.get("branch_targets") or []),
+                "query_runs": best_candidate["query_runs"],
+                "added_finding_count": len(best_candidate["round_findings"]),
+                "candidate_score": candidate_score,
+                "accepted": accepted,
+                "role": str(
+                    (best_candidate["program"] or {}).get("current_role") or ""
                 ),
-                {},
-            ),
-            "research_bundle": next(
-                (
-                    summary.get("research_bundle", {})
-                    for summary in strategy_summaries
-                    if str(summary.get("program_id") or "") == str(best_candidate["program"]["program_id"] or "")
+                "round_role": str(
+                    (best_candidate["program"] or {}).get("current_role") or ""
                 ),
-                {},
-            ),
-            "search_graph": next(
-                (
-                    summary.get("search_graph", {})
-                    for summary in strategy_summaries
-                    if str(summary.get("program_id") or "") == str(best_candidate["program"]["program_id"] or "")
+                "selection": best_candidate["selection"],
+                "harness_metrics": best_candidate["harness_metrics"],
+                "budget_state": current_budget,
+                "bundle_score_after_round": bundle_state["score"],
+                "dimension_scores": judge_result.get("dimension_scores", {}),
+                "missing_dimensions": judge_result.get("missing_dimensions", []),
+                "gap_queue": gap_queue_summary(gap_queue),
+                "sample_bundle": _sample_findings(best_candidate["bundle"], limit=8),
+                "rationale": judge_result.get("rationale", ""),
+                "routeable_output": next(
+                    (
+                        summary.get("routeable_output", {})
+                        for summary in strategy_summaries
+                        if str(summary.get("program_id") or "")
+                        == str(best_candidate["program"]["program_id"] or "")
+                    ),
+                    {},
                 ),
-                {},
-            ),
-            "deep_steps": list(best_candidate.get("deep_steps") or []),
-        })
+                "research_bundle": next(
+                    (
+                        summary.get("research_bundle", {})
+                        for summary in strategy_summaries
+                        if str(summary.get("program_id") or "")
+                        == str(best_candidate["program"]["program_id"] or "")
+                    ),
+                    {},
+                ),
+                "search_graph": next(
+                    (
+                        summary.get("search_graph", {})
+                        for summary in strategy_summaries
+                        if str(summary.get("program_id") or "")
+                        == str(best_candidate["program"]["program_id"] or "")
+                    ),
+                    {},
+                ),
+                "deep_steps": list(best_candidate.get("deep_steps") or []),
+            }
+        )
         diary_entries.append(
             build_diary_entry(
                 round_index=round_index,
@@ -1011,13 +1401,31 @@ def run_goal_bundle_loop(
             stop_reason = "budget_exhausted"
             break
         if no_improvement_rounds >= plateau_rounds_limit:
-            stop_reason = "plateau_detected"
-            break
+            round_roles = _round_roles_for_program(accepted_program)
+            strategies_tried = (
+                int(accepted_program.get("_strategies_exhausted", 0) or 0) + 1
+            )
+            if strategies_tried >= len(round_roles):
+                accepted_program["_strategies_exhausted"] = strategies_tried
+                stop_reason = "all_strategies_exhausted"
+                break
+            current_role = str(accepted_program.get("current_role") or "").strip()
+            try:
+                role_index = round_roles.index(current_role)
+            except ValueError:
+                role_index = 0
+            accepted_program["current_role"] = round_roles[
+                (role_index + 1) % len(round_roles)
+            ]
+            accepted_program["_strategies_exhausted"] = strategies_tried
+            no_improvement_rounds = 0
 
     baseline_best = None
     for round_item in rounds:
         for run in round_item["query_runs"]:
-            if baseline_best is None or int(run["baseline_score"]) > int(baseline_best["baseline_score"]):
+            if baseline_best is None or int(run["baseline_score"]) > int(
+                baseline_best["baseline_score"]
+            ):
                 baseline_best = run
 
     artifact_round = _artifact_round(rounds)
@@ -1034,7 +1442,9 @@ def run_goal_bundle_loop(
         "accepted_program": accepted_program,
         "stop_reason": stop_reason,
         "plateau_state": dict(accepted_program.get("plateau_state") or {}),
-        "practical_ceiling": (accepted_program.get("plateau_state") or {}).get("practical_ceiling"),
+        "practical_ceiling": (accepted_program.get("plateau_state") or {}).get(
+            "practical_ceiling"
+        ),
         "goal_reached": bool(bundle_state["score"] >= target_score),
         "score_gap": max(0, int(target_score) - int(bundle_state["score"])),
         "budget_policy": budget_policy(accepted_program),
@@ -1049,14 +1459,20 @@ def run_goal_bundle_loop(
             "matched_dimensions": bundle_state.get("matched_dimensions", []),
             "accepted_query_count": len(bundle_state.get("accepted_queries", [])),
             "accepted_finding_count": len(bundle_state.get("accepted_findings", [])),
-            "sample_findings": _sample_findings(bundle_state.get("accepted_findings", []), limit=10),
+            "sample_findings": _sample_findings(
+                bundle_state.get("accepted_findings", []), limit=10
+            ),
             "rationale": bundle_state.get("rationale", ""),
         },
         "routeable_output": artifact_round.get("routeable_output", {}),
         "research_bundle": artifact_round.get("research_bundle", {}),
         "search_graph": artifact_round.get("search_graph", {}),
         "research_packet": (
-            ((artifact_round.get("routeable_output", {}) or {}).get("research_packet", {}))
+            (
+                (artifact_round.get("routeable_output", {}) or {}).get(
+                    "research_packet", {}
+                )
+            )
             if artifact_round
             else {}
         ),
@@ -1083,7 +1499,9 @@ def main() -> None:
     run_path = GOAL_RUNS_ROOT / (
         f"{datetime.now().strftime('%Y-%m-%d-%H%M%S')}-{goal_case.get('id', 'bundle-goal')}-bundle.json"
     )
-    run_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    run_path.write_text(
+        json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     print(f"\nRun: {run_path}")
 

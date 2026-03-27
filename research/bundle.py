@@ -8,7 +8,9 @@ from typing import Any
 
 
 def _bundle_id(goal_id: str, evidence_records: list[dict[str, Any]]) -> str:
-    urls = "\n".join(sorted(str(item.get("url") or "") for item in list(evidence_records or [])))
+    urls = "\n".join(
+        sorted(str(item.get("url") or "") for item in list(evidence_records or []))
+    )
     raw = f"{goal_id}\n{urls}".encode("utf-8", errors="ignore")
     return hashlib.sha1(raw).hexdigest()[:16]
 
@@ -41,13 +43,21 @@ class ResearchBundle:
             evidence_records=list(evidence_records or []),
             dimension_scores={
                 str(key): int(value or 0)
-                for key, value in dict(judge_result.get("dimension_scores") or {}).items()
+                for key, value in dict(
+                    judge_result.get("dimension_scores") or {}
+                ).items()
             },
-            missing_dimensions=[str(item) for item in list(judge_result.get("missing_dimensions") or [])],
-            matched_dimensions=[str(item) for item in list(judge_result.get("matched_dimensions") or [])],
+            missing_dimensions=[
+                str(item) for item in list(judge_result.get("missing_dimensions") or [])
+            ],
+            matched_dimensions=[
+                str(item) for item in list(judge_result.get("matched_dimensions") or [])
+            ],
             score=int(judge_result.get("score", 0) or 0),
             judge=str(judge_result.get("judge") or ""),
-            score_gap=max(int(target_score or 100) - int(judge_result.get("score", 0) or 0), 0),
+            score_gap=max(
+                int(target_score or 100) - int(judge_result.get("score", 0) or 0), 0
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:

@@ -34,9 +34,11 @@ from source_capability import get_source_decision
 # DATA TYPES
 # ============================================================
 
+
 @dataclass
 class SearchResult:
     """Standardized result from any platform."""
+
     title: str = ""
     url: str = ""
     eng: int = 0  # engagement score (0 for platforms that don't provide it)
@@ -48,6 +50,7 @@ class SearchResult:
 @dataclass
 class PlatformSearchOutcome:
     """Search execution result for one provider attempt."""
+
     provider: str
     results: list[SearchResult] = field(default_factory=list)
     error_alias: str = ""
@@ -56,6 +59,7 @@ class PlatformSearchOutcome:
 @dataclass
 class Experiment:
     """One query execution record."""
+
     round: int
     query: str
     query_family: str = "unknown"
@@ -71,10 +75,16 @@ class Experiment:
 @dataclass
 class EngineConfig:
     """Engine configuration."""
-    genes: dict = field(default_factory=lambda: {
-        "entity": [], "pain_verb": [], "object": [],
-        "symptom": [], "context": [],
-    })
+
+    genes: dict = field(
+        default_factory=lambda: {
+            "entity": [],
+            "pain_verb": [],
+            "object": [],
+            "symptom": [],
+            "context": [],
+        }
+    )
     platforms: list = field(default_factory=list)
     target_spec: str = ""
     task_name: str = "autosearch"
@@ -104,6 +114,7 @@ class EngineConfig:
 # PATTERN STORE
 # ============================================================
 
+
 class PatternStore:
     """Manages patterns.jsonl — accumulated search intelligence."""
 
@@ -121,8 +132,10 @@ class PatternStore:
                 continue
             p = json.loads(line)
             finding = p.get("finding", "")
-            if any(w in finding.lower() for w in
-                   ["fail", "don't", "never", "avoid", "unreliable", "empty"]):
+            if any(
+                w in finding.lower()
+                for w in ["fail", "don't", "never", "avoid", "unreliable", "empty"]
+            ):
                 self.avoid_patterns.append(p)
             else:
                 self.use_patterns.append(p)
@@ -135,13 +148,13 @@ class PatternStore:
     def total_count(self) -> int:
         if not self.path.exists():
             return 0
-        return sum(1 for line in self.path.read_text().splitlines()
-                   if line.strip())
+        return sum(1 for line in self.path.read_text().splitlines() if line.strip())
 
 
 # ============================================================
 # LLM EVALUATOR
 # ============================================================
+
 
 class LLMEvaluator:
     """Calls Anthropic API for relevance evaluation."""
@@ -151,8 +164,9 @@ class LLMEvaluator:
         self.model = model
         self.enabled = bool(self.api_key)
 
-    def evaluate_round(self, results: list[SearchResult],
-                       target_spec: str) -> Optional[dict]:
+    def evaluate_round(
+        self, results: list[SearchResult], target_spec: str
+    ) -> Optional[dict]:
         """Evaluate top results for relevance. Returns parsed JSON or None."""
         if not results or not self.enabled:
             return None
@@ -183,11 +197,13 @@ Rules:
         if not self.api_key:
             return None
         try:
-            body = json.dumps({
-                "model": self.model,
-                "max_tokens": max_tokens,
-                "messages": [{"role": "user", "content": prompt}],
-            }).encode()
+            body = json.dumps(
+                {
+                    "model": self.model,
+                    "max_tokens": max_tokens,
+                    "messages": [{"role": "user", "content": prompt}],
+                }
+            ).encode()
             req = urllib.request.Request(
                 "https://api.anthropic.com/v1/messages",
                 data=body,
@@ -213,6 +229,7 @@ Rules:
 # ============================================================
 # PLATFORM CONNECTORS
 # ============================================================
+
 
 class PlatformConnector:
     """Unified interface to all search platforms.
@@ -249,8 +266,9 @@ class PlatformConnector:
         return fn(platform, query)
 
     @staticmethod
-    def _outcome(provider: str, results: list[SearchResult] | None = None,
-                 error_alias: str = "") -> PlatformSearchOutcome:
+    def _outcome(
+        provider: str, results: list[SearchResult] | None = None, error_alias: str = ""
+    ) -> PlatformSearchOutcome:
         return PlatformSearchOutcome(
             provider=provider,
             results=list(results or []),
@@ -260,14 +278,19 @@ class PlatformConnector:
     @staticmethod
     def _github_error_alias(stderr: str) -> str:
         lowered = (stderr or "").lower()
-        if any(token in lowered for token in ["not logged", "authentication", "login", "auth"]):
+        if any(
+            token in lowered
+            for token in ["not logged", "authentication", "login", "auth"]
+        ):
             return "gh_auth_error"
         return "github_repo_error"
 
     @staticmethod
     def _xreach_error_alias(stderr: str) -> str:
         lowered = (stderr or "").lower()
-        if any(token in lowered for token in ["auth", "login", "cookie", "unauthorized"]):
+        if any(
+            token in lowered for token in ["auth", "login", "cookie", "unauthorized"]
+        ):
             return "xreach_auth_error"
         return "xreach_auth_error"
 
@@ -276,27 +299,34 @@ class PlatformConnector:
     def _reddit_api(platform: dict, query: str) -> PlatformSearchOutcome:
         sub = platform.get("sub", "all")
         limit = platform.get("limit", 20)
-        url = (f"https://www.reddit.com/r/{sub}/search.json?"
-               f"q={urllib.parse.quote(query)}&restrict_sr=on"
-               f"&limit={limit}&sort=relevance&t=all")
+        url = (
+            f"https://www.reddit.com/r/{sub}/search.json?"
+            f"q={urllib.parse.quote(query)}&restrict_sr=on"
+            f"&limit={limit}&sort=relevance&t=all"
+        )
         req = urllib.request.Request(
-            url, headers={"User-Agent": "autosearch-engine/1.0"})
+            url, headers={"User-Agent": "autosearch-engine/1.0"}
+        )
         try:
             with urllib.request.urlopen(req, timeout=10) as r:
                 data = json.loads(r.read())
-            return PlatformConnector._outcome("reddit", [
-                SearchResult(
-                    title=p["data"].get("title", ""),
-                    url="https://www.reddit.com" + p["data"].get("permalink", ""),
-                    eng=p["data"].get("score", 0) + p["data"].get("num_comments", 0),
-                    created=datetime.fromtimestamp(
-                        p["data"].get("created_utc", 0)
-                    ).strftime("%Y-%m-%d"),
-                    body=p["data"].get("selftext", "")[:500],
-                    source="reddit",
-                )
-                for p in data.get("data", {}).get("children", [])
-            ])
+            return PlatformConnector._outcome(
+                "reddit",
+                [
+                    SearchResult(
+                        title=p["data"].get("title", ""),
+                        url="https://www.reddit.com" + p["data"].get("permalink", ""),
+                        eng=p["data"].get("score", 0)
+                        + p["data"].get("num_comments", 0),
+                        created=datetime.fromtimestamp(
+                            p["data"].get("created_utc", 0)
+                        ).strftime("%Y-%m-%d"),
+                        body=p["data"].get("selftext", "")[:500],
+                        source="reddit",
+                    )
+                    for p in data.get("data", {}).get("children", [])
+                ],
+            )
         except Exception:
             return PlatformConnector._outcome("reddit")
 
@@ -304,7 +334,10 @@ class PlatformConnector:
     @staticmethod
     def _reddit_exa(platform: dict, query: str) -> PlatformSearchOutcome:
         return PlatformConnector._exa_with_site(
-            "reddit.com", query, "reddit", platform.get("name", "reddit_exa"),
+            "reddit.com",
+            query,
+            "reddit",
+            platform.get("name", "reddit_exa"),
             limit=platform.get("limit", 5),
         )
 
@@ -312,22 +345,27 @@ class PlatformConnector:
     @staticmethod
     def _hn_algolia(platform: dict, query: str) -> PlatformSearchOutcome:
         limit = platform.get("limit", 20)
-        url = (f"https://hn.algolia.com/api/v1/search?"
-               f"query={urllib.parse.quote(query)}&tags=story"
-               f"&hitsPerPage={limit}")
+        url = (
+            f"https://hn.algolia.com/api/v1/search?"
+            f"query={urllib.parse.quote(query)}&tags=story"
+            f"&hitsPerPage={limit}"
+        )
         try:
             with urllib.request.urlopen(url, timeout=10) as r:
                 data = json.loads(r.read())
-            return PlatformConnector._outcome("hn", [
-                SearchResult(
-                    title=h.get("title", ""),
-                    url=f"https://news.ycombinator.com/item?id={h.get('objectID', '')}",
-                    eng=h.get("points", 0) + h.get("num_comments", 0),
-                    created=h.get("created_at", "")[:10],
-                    source="hn",
-                )
-                for h in data.get("hits", [])
-            ])
+            return PlatformConnector._outcome(
+                "hn",
+                [
+                    SearchResult(
+                        title=h.get("title", ""),
+                        url=f"https://news.ycombinator.com/item?id={h.get('objectID', '')}",
+                        eng=h.get("points", 0) + h.get("num_comments", 0),
+                        created=h.get("created_at", "")[:10],
+                        source="hn",
+                    )
+                    for h in data.get("hits", [])
+                ],
+            )
         except Exception:
             return PlatformConnector._outcome("hn")
 
@@ -335,7 +373,10 @@ class PlatformConnector:
     @staticmethod
     def _hn_exa(platform: dict, query: str) -> PlatformSearchOutcome:
         return PlatformConnector._exa_with_site(
-            "news.ycombinator.com", query, "hn", platform.get("name", "hn_exa"),
+            "news.ycombinator.com",
+            query,
+            "hn",
+            platform.get("name", "hn_exa"),
             limit=platform.get("limit", 5),
         )
 
@@ -346,11 +387,15 @@ class PlatformConnector:
         try:
             escaped = query.replace('"', '\\"')
             cmd = [
-                "mcporter", "call",
+                "mcporter",
+                "call",
                 f'exa.web_search_exa(query: "{escaped}", numResults: {limit})',
             ]
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=15,
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=15,
                 cwd=os.path.expanduser("~"),
             )
             if result.returncode != 0:
@@ -366,7 +411,9 @@ class PlatformConnector:
 
     @staticmethod
     def _searxng(platform: dict, query: str) -> PlatformSearchOutcome:
-        base_url = str(os.environ.get("SEARXNG_URL", "http://127.0.0.1:8888")).rstrip("/")
+        base_url = str(os.environ.get("SEARXNG_URL", "http://127.0.0.1:8888")).rstrip(
+            "/"
+        )
         limit = int(platform.get("limit", 10) or 10)
         params = {
             "q": str(platform.get("query") or query or "").strip(),
@@ -390,15 +437,19 @@ class PlatformConnector:
                 if not url_value and not title:
                     continue
                 body = str(item.get("content") or item.get("snippet") or "")[:500]
-                results.append(SearchResult(
-                    title=title,
-                    url=url_value,
-                    body=body,
-                    source="searxng",
-                ))
+                results.append(
+                    SearchResult(
+                        title=title,
+                        url=url_value,
+                        body=body,
+                        source="searxng",
+                    )
+                )
             return PlatformConnector._outcome("searxng", results)
         except Exception:
-            return PlatformConnector._outcome("searxng", error_alias="searxng_unavailable")
+            return PlatformConnector._outcome(
+                "searxng", error_alias="searxng_unavailable"
+            )
 
     @staticmethod
     def _ddgs(platform: dict, query: str) -> PlatformSearchOutcome:
@@ -408,9 +459,13 @@ class PlatformConnector:
             module = __import__("ddgs")
             ddgs_class = getattr(module, "DDGS", None)
             if ddgs_class is None:
-                return PlatformConnector._outcome("ddgs", error_alias="ddgs_unavailable")
+                return PlatformConnector._outcome(
+                    "ddgs", error_alias="ddgs_unavailable"
+                )
             with ddgs_class() as client:
-                rows = list(client.text(query, max_results=limit, backend=backend) or [])
+                rows = list(
+                    client.text(query, max_results=limit, backend=backend) or []
+                )
             results = []
             for item in rows[:limit]:
                 url_value = str(item.get("href") or item.get("url") or "").strip()
@@ -418,12 +473,14 @@ class PlatformConnector:
                 if not url_value and not title:
                     continue
                 body = str(item.get("body") or item.get("snippet") or "")[:500]
-                results.append(SearchResult(
-                    title=title,
-                    url=url_value,
-                    body=body,
-                    source="ddgs",
-                ))
+                results.append(
+                    SearchResult(
+                        title=title,
+                        url=url_value,
+                        body=body,
+                        source="ddgs",
+                    )
+                )
             return PlatformConnector._outcome("ddgs", results)
         except Exception:
             return PlatformConnector._outcome("ddgs", error_alias="ddgs_unavailable")
@@ -432,7 +489,9 @@ class PlatformConnector:
     def _tavily(platform: dict, query: str) -> PlatformSearchOutcome:
         api_key = os.environ.get("TAVILY_API_KEY", "").strip()
         if not api_key:
-            return PlatformConnector._outcome("tavily", error_alias="tavily_unavailable")
+            return PlatformConnector._outcome(
+                "tavily", error_alias="tavily_unavailable"
+            )
 
         limit = int(platform.get("limit", 10) or 10)
         payload = {
@@ -466,16 +525,20 @@ class PlatformConnector:
                     continue
                 score = item.get("score", 0) or 0
                 body = str(item.get("content") or item.get("raw_content") or "")[:500]
-                results.append(SearchResult(
-                    title=title,
-                    url=url,
-                    eng=int(float(score) * 100),
-                    body=body,
-                    source="tavily",
-                ))
+                results.append(
+                    SearchResult(
+                        title=title,
+                        url=url,
+                        eng=int(float(score) * 100),
+                        body=body,
+                        source="tavily",
+                    )
+                )
             return PlatformConnector._outcome("tavily", results)
         except Exception:
-            return PlatformConnector._outcome("tavily", error_alias="tavily_unavailable")
+            return PlatformConnector._outcome(
+                "tavily", error_alias="tavily_unavailable"
+            )
 
     @staticmethod
     def _huggingface_query_terms(query: str, max_terms: int = 2) -> str:
@@ -503,12 +566,14 @@ class PlatformConnector:
         if not hf_query:
             return PlatformConnector._outcome("huggingface_datasets")
 
-        params = urllib.parse.urlencode({
-            "search": hf_query,
-            "sort": "downloads",
-            "direction": "-1",
-            "limit": limit,
-        })
+        params = urllib.parse.urlencode(
+            {
+                "search": hf_query,
+                "sort": "downloads",
+                "direction": "-1",
+                "limit": limit,
+            }
+        )
         url = f"https://huggingface.co/api/datasets?{params}"
         request = urllib.request.Request(
             url,
@@ -522,20 +587,25 @@ class PlatformConnector:
                 dataset_id = str(item.get("id") or "")
                 if not dataset_id:
                     continue
-                tags = [str(tag) for tag in item.get("tags", [])[:8] if str(tag).strip()]
+                tags = [
+                    str(tag) for tag in item.get("tags", [])[:8] if str(tag).strip()
+                ]
                 body_parts = []
                 if item.get("description"):
                     body_parts.append(str(item.get("description") or ""))
                 if tags:
                     body_parts.append("tags: " + ", ".join(tags))
-                results.append(SearchResult(
-                    title=dataset_id,
-                    url=f"https://huggingface.co/datasets/{dataset_id}",
-                    eng=int(item.get("downloads", 0) or 0) + int(item.get("likes", 0) or 0),
-                    created=str(item.get("createdAt") or "")[:10],
-                    body=" | ".join(body_parts)[:500],
-                    source="huggingface_datasets",
-                ))
+                results.append(
+                    SearchResult(
+                        title=dataset_id,
+                        url=f"https://huggingface.co/datasets/{dataset_id}",
+                        eng=int(item.get("downloads", 0) or 0)
+                        + int(item.get("likes", 0) or 0),
+                        created=str(item.get("createdAt") or "")[:10],
+                        body=" | ".join(body_parts)[:500],
+                        source="huggingface_datasets",
+                    )
+                )
             return PlatformConnector._outcome("huggingface_datasets", results)
         except Exception:
             return PlatformConnector._outcome("huggingface_datasets")
@@ -547,34 +617,44 @@ class PlatformConnector:
         repo = platform.get("repo")
         try:
             cmd = [
-                "gh", "search", "issues", query,
-                "--sort", "comments", "--limit", str(limit),
-                "--json", "title,url,commentsCount,body,createdAt",
+                "gh",
+                "search",
+                "issues",
+                query,
+                "--sort",
+                "comments",
+                "--limit",
+                str(limit),
+                "--json",
+                "title,url,commentsCount,body,createdAt",
             ]
             if repo:
                 cmd.extend(["--repo", repo])
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=15)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
             if result.returncode != 0:
                 return PlatformConnector._outcome(
                     "github_issues",
                     error_alias=PlatformConnector._github_error_alias(result.stderr),
                 )
             issues = json.loads(result.stdout)
-            return PlatformConnector._outcome("github_issues", [
-                SearchResult(
-                    title=i.get("title", ""),
-                    url=i.get("url", ""),
-                    eng=i.get("commentsCount", 0),
-                    created=i.get("createdAt", "")[:10],
-                    body=(i.get("body") or "")[:500],
-                    source="github_issues",
-                )
-                for i in issues
-            ])
-        except (FileNotFoundError, subprocess.TimeoutExpired,
-                json.JSONDecodeError):
-            return PlatformConnector._outcome("github_issues", error_alias="github_repo_error")
+            return PlatformConnector._outcome(
+                "github_issues",
+                [
+                    SearchResult(
+                        title=i.get("title", ""),
+                        url=i.get("url", ""),
+                        eng=i.get("commentsCount", 0),
+                        created=i.get("createdAt", "")[:10],
+                        body=(i.get("body") or "")[:500],
+                        source="github_issues",
+                    )
+                    for i in issues
+                ],
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired, json.JSONDecodeError):
+            return PlatformConnector._outcome(
+                "github_issues", error_alias="github_repo_error"
+            )
 
     # --- GitHub Code: via gh CLI ---
     @staticmethod
@@ -583,14 +663,18 @@ class PlatformConnector:
         repo = platform.get("repo")
         try:
             cmd = [
-                "gh", "search", "code", query,
-                "--limit", str(limit),
-                "--json", "repository,path,url,textMatches",
+                "gh",
+                "search",
+                "code",
+                query,
+                "--limit",
+                str(limit),
+                "--json",
+                "repository,path,url,textMatches",
             ]
             if repo:
                 cmd.extend(["--repo", repo])
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=20)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
             if result.returncode != 0:
                 return PlatformConnector._outcome(
                     "github_code",
@@ -608,17 +692,22 @@ class PlatformConnector:
                     fragment = str(match.get("fragment") or "").strip()
                     if fragment:
                         fragments.append(fragment.replace("\n", " "))
-                results.append(SearchResult(
-                    title=f"{repo_name}:{path}" if repo_name and path else (path or repo_name),
-                    url=str(item.get("url") or repo_info.get("url") or ""),
-                    eng=len(text_matches),
-                    body=" | ".join(fragments)[:500],
-                    source="github_code",
-                ))
+                results.append(
+                    SearchResult(
+                        title=f"{repo_name}:{path}"
+                        if repo_name and path
+                        else (path or repo_name),
+                        url=str(item.get("url") or repo_info.get("url") or ""),
+                        eng=len(text_matches),
+                        body=" | ".join(fragments)[:500],
+                        source="github_code",
+                    )
+                )
             return PlatformConnector._outcome("github_code", results)
-        except (FileNotFoundError, subprocess.TimeoutExpired,
-                json.JSONDecodeError):
-            return PlatformConnector._outcome("github_code", error_alias="github_repo_error")
+        except (FileNotFoundError, subprocess.TimeoutExpired, json.JSONDecodeError):
+            return PlatformConnector._outcome(
+                "github_code", error_alias="github_repo_error"
+            )
 
     # --- GitHub Repos: via gh CLI (Scout-style) ---
     @staticmethod
@@ -627,40 +716,51 @@ class PlatformConnector:
         min_stars = platform.get("min_stars", 100)
         try:
             cmd = [
-                "gh", "search", "repos", query,
-                "--sort=stars", "--limit", str(limit),
+                "gh",
+                "search",
+                "repos",
+                query,
+                "--sort=stars",
+                "--limit",
+                str(limit),
                 "--json",
                 "name,owner,description,stargazersCount,url,createdAt,updatedAt",
             ]
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=15)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
             if result.returncode != 0:
                 return PlatformConnector._outcome(
                     "github_repos",
                     error_alias=PlatformConnector._github_error_alias(result.stderr),
                 )
             repos = json.loads(result.stdout)
-            return PlatformConnector._outcome("github_repos", [
-                SearchResult(
-                    title=f"{r['owner']['login']}/{r['name']}",
-                    url=r.get("url", ""),
-                    eng=r.get("stargazersCount", 0),
-                    created=r.get("createdAt", "")[:10],
-                    body=(r.get("description") or ""),
-                    source="github_repos",
-                )
-                for r in repos
-                if r.get("stargazersCount", 0) >= min_stars
-            ])
-        except (FileNotFoundError, subprocess.TimeoutExpired,
-                json.JSONDecodeError):
-            return PlatformConnector._outcome("github_repos", error_alias="github_repo_error")
+            return PlatformConnector._outcome(
+                "github_repos",
+                [
+                    SearchResult(
+                        title=f"{r['owner']['login']}/{r['name']}",
+                        url=r.get("url", ""),
+                        eng=r.get("stargazersCount", 0),
+                        created=r.get("createdAt", "")[:10],
+                        body=(r.get("description") or ""),
+                        source="github_repos",
+                    )
+                    for r in repos
+                    if r.get("stargazersCount", 0) >= min_stars
+                ],
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired, json.JSONDecodeError):
+            return PlatformConnector._outcome(
+                "github_repos", error_alias="github_repo_error"
+            )
 
     # --- Twitter: via Exa ---
     @staticmethod
     def _twitter_exa(platform: dict, query: str) -> PlatformSearchOutcome:
         return PlatformConnector._exa_with_site(
-            "x.com", query, "twitter", platform.get("name", "twitter_exa"),
+            "x.com",
+            query,
+            "twitter",
+            platform.get("name", "twitter_exa"),
             limit=platform.get("limit", 10),
         )
 
@@ -670,8 +770,7 @@ class PlatformConnector:
         limit = platform.get("limit", 10)
         try:
             cmd = ["xreach", "search", query, "-n", str(limit), "--json"]
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=15)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
             if result.returncode != 0:
                 return PlatformConnector._outcome(
                     "twitter_xreach",
@@ -683,25 +782,28 @@ class PlatformConnector:
                 text = item.get("text", "")
                 # Extract non-twitter URLs from tweet text
                 urls = re.findall(r'https?://[^\s")\]]+', text)
-                urls = [u for u in urls
-                        if "x.com" not in u and "twitter.com" not in u]
+                urls = [u for u in urls if "x.com" not in u and "twitter.com" not in u]
                 if urls:
-                    results.append(SearchResult(
-                        title=text[:500],
-                        url=urls[0],
-                        eng=item.get("likeCount", 0) + item.get("retweetCount", 0),
-                        created=item.get("createdAt", ""),
-                        source="twitter",
-                    ))
+                    results.append(
+                        SearchResult(
+                            title=text[:500],
+                            url=urls[0],
+                            eng=item.get("likeCount", 0) + item.get("retweetCount", 0),
+                            created=item.get("createdAt", ""),
+                            source="twitter",
+                        )
+                    )
             return PlatformConnector._outcome("twitter_xreach", results)
-        except (FileNotFoundError, subprocess.TimeoutExpired,
-                json.JSONDecodeError):
-            return PlatformConnector._outcome("twitter_xreach", error_alias="xreach_auth_error")
+        except (FileNotFoundError, subprocess.TimeoutExpired, json.JSONDecodeError):
+            return PlatformConnector._outcome(
+                "twitter_xreach", error_alias="xreach_auth_error"
+            )
 
     # --- Shared: Exa with site: filter ---
     @staticmethod
-    def _exa_with_site(site: str, query: str, source_name: str,
-                       provider_name: str, limit: int = 5) -> PlatformSearchOutcome:
+    def _exa_with_site(
+        site: str, query: str, source_name: str, provider_name: str, limit: int = 5
+    ) -> PlatformSearchOutcome:
         error_alias = {
             "reddit_exa": "reddit_exa_error",
             "hn_exa": "hn_exa_error",
@@ -710,17 +812,22 @@ class PlatformConnector:
             full_query = f"{query} site:{site}"
             escaped = full_query.replace('"', '\\"')
             cmd = [
-                "mcporter", "call",
+                "mcporter",
+                "call",
                 f'exa.web_search_exa(query: "{escaped}", numResults: {limit})',
             ]
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=15,
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=15,
                 cwd=os.path.expanduser("~"),
             )
             if result.returncode != 0:
-                return PlatformConnector._outcome(provider_name, error_alias=error_alias)
-            parsed = PlatformConnector._parse_exa_text(
-                result.stdout, source_name)
+                return PlatformConnector._outcome(
+                    provider_name, error_alias=error_alias
+                )
+            parsed = PlatformConnector._parse_exa_text(result.stdout, source_name)
             # Filter: only keep URLs matching the site
             return PlatformConnector._outcome(
                 provider_name,
@@ -753,15 +860,16 @@ class PlatformConnector:
                     if body_lines:
                         current.body = "\n".join(body_lines).strip()[:500]
                     results.append(current)
-                current = SearchResult(
-                    title=line[6:].strip(), source=source_name)
+                current = SearchResult(title=line[6:].strip(), source=source_name)
                 in_highlights = False
                 body_lines = []
             elif current is not None:
                 if line.startswith("URL:"):
                     current.url = line[4:].strip()
                     in_highlights = False
-                elif line.startswith("Published Date:") or line.startswith("Published:"):
+                elif line.startswith("Published Date:") or line.startswith(
+                    "Published:"
+                ):
                     date_part = line.split(":", 1)[1].strip()
                     current.created = date_part[:10]
                     in_highlights = False
@@ -783,6 +891,7 @@ class PlatformConnector:
 # ============================================================
 # QUERY GENERATOR
 # ============================================================
+
 
 class QueryGenerator:
     """Generates queries from gene pool + LLM suggestions + past patterns."""
@@ -839,8 +948,7 @@ class QueryGenerator:
                 finding = p.get("finding", "")
                 cats = [k for k, v in self.config.genes.items() if v]
                 if cats:
-                    gene = random.choice(
-                        self.config.genes[random.choice(cats)])
+                    gene = random.choice(self.config.genes[random.choice(cats)])
                     keywords = [w for w in finding.split() if len(w) > 4]
                     if keywords:
                         q = f"{random.choice(keywords)} {gene}"
@@ -874,6 +982,7 @@ class QueryGenerator:
 # SCORER
 # ============================================================
 
+
 class Scorer:
     """Scores search results with dedup and confidence."""
 
@@ -893,14 +1002,14 @@ class Scorer:
 
         # Only count engagement from sources that provide it
         eng_results = [r for r in new_results if r.eng > 0]
-        avg_eng = (sum(r.eng for r in eng_results) / len(eng_results)
-                   if eng_results else 0)
+        avg_eng = (
+            sum(r.eng for r in eng_results) / len(eng_results) if eng_results else 0
+        )
 
         return len(new_results), int(len(new_results) * avg_eng), new_results
 
     @staticmethod
-    def compute_adjusted_score(raw_score: int,
-                               relevance_ratio: float) -> int:
+    def compute_adjusted_score(raw_score: int, relevance_ratio: float) -> int:
         """40% engagement + 60% relevance."""
         normalized_eng = min(raw_score / 10000, 1.0) if raw_score > 0 else 0
         return int((0.4 * normalized_eng + 0.6 * relevance_ratio) * 10000)
@@ -910,8 +1019,7 @@ class Scorer:
         if len(self.all_scores) < 3:
             return None
         median = statistics.median(self.all_scores)
-        mad = statistics.median(
-            [abs(s - median) for s in self.all_scores])
+        mad = statistics.median([abs(s - median) for s in self.all_scores])
         if mad == 0:
             return None
         best = max(self.all_scores)
@@ -921,6 +1029,7 @@ class Scorer:
 # ============================================================
 # SESSION DOCUMENT
 # ============================================================
+
 
 class SessionDoc:
     """Writes session document (atomic writes)."""
@@ -952,6 +1061,7 @@ class SessionDoc:
 # ENGINE — orchestrates all 3 phases
 # ============================================================
 
+
 class Engine:
     """AutoSearch engine. Call run() to execute all 3 phases."""
 
@@ -963,8 +1073,7 @@ class Engine:
         self.llm = LLMEvaluator(model=config.llm_model)
         self.query_gen = QueryGenerator(config, self.patterns)
         self.scorer = Scorer()
-        self.session_doc = SessionDoc(
-            base_dir / f"{config.task_name}.md")
+        self.session_doc = SessionDoc(base_dir / f"{config.task_name}.md")
 
         # State accumulated during run
         self.all_experiments: list[Experiment] = []
@@ -1000,12 +1109,15 @@ class Engine:
     def _phase1_explore(self) -> list[Experiment]:
         print("=" * 60)
         print("PHASE 1: Query Exploration")
-        print(f"  Past patterns loaded: {len(self.patterns.use_patterns)} "
-              f"positive, {len(self.patterns.avoid_patterns)} negative")
-        print(f"  LLM evaluation: "
-              f"{'ON' if self.llm.enabled else 'OFF (no ANTHROPIC_API_KEY)'}")
-        print(f"  Platforms: "
-              f"{', '.join(p['name'] for p in self.config.platforms)}")
+        print(
+            f"  Past patterns loaded: {len(self.patterns.use_patterns)} "
+            f"positive, {len(self.patterns.avoid_patterns)} negative"
+        )
+        print(
+            f"  LLM evaluation: "
+            f"{'ON' if self.llm.enabled else 'OFF (no ANTHROPIC_API_KEY)'}"
+        )
+        print(f"  Platforms: {', '.join(p['name'] for p in self.config.platforms)}")
         print("=" * 60)
 
         history_best_raw = 0
@@ -1021,14 +1133,16 @@ class Engine:
             for q in queries:
                 query_family = self._query_family_for_query(q)
                 results = self._search_all_platforms(q, query_family)
-                new_count, raw_score, new_results = (
-                    self.scorer.score_results(results))
+                new_count, raw_score, new_results = self.scorer.score_results(results)
                 round_new_total += new_count
                 round_all_results.extend(new_results)
 
                 exp = Experiment(
-                    round=rnd, query=q, query_family=query_family,
-                    new=new_count, score=raw_score,
+                    round=rnd,
+                    query=q,
+                    query_family=query_family,
+                    new=new_count,
+                    score=raw_score,
                     source=query_sources.get(q, "gene"),
                     sample_titles=[r.title[:60] for r in new_results[:3]],
                 )
@@ -1042,47 +1156,48 @@ class Engine:
             llm_suggestions: list[str] = []
             llm_result = None
             if round_all_results:
-                top10 = sorted(
-                    round_all_results, key=lambda r: r.eng, reverse=True
-                )[:10]
-                llm_result = self.llm.evaluate_round(
-                    top10, self.config.target_spec)
+                top10 = sorted(round_all_results, key=lambda r: r.eng, reverse=True)[
+                    :10
+                ]
+                llm_result = self.llm.evaluate_round(top10, self.config.target_spec)
                 if llm_result:
                     relevant_count = sum(
-                        1 for r in llm_result.get("results", [])
-                        if r.get("relevant"))
+                        1 for r in llm_result.get("results", []) if r.get("relevant")
+                    )
                     total_evaluated = len(llm_result.get("results", []))
-                    relevance_ratio = (
-                        relevant_count / max(total_evaluated, 1))
+                    relevance_ratio = relevant_count / max(total_evaluated, 1)
                     llm_suggestions = llm_result.get("next_queries", [])
                     self.query_gen.add_llm_suggestions(llm_suggestions)
 
             # Adjusted score
             round_adjusted = Scorer.compute_adjusted_score(
-                round_best_raw, relevance_ratio)
+                round_best_raw, relevance_ratio
+            )
             for e in self.all_experiments:
                 if e.round == rnd:
                     e.adjusted_score = Scorer.compute_adjusted_score(
-                        e.score, relevance_ratio)
+                        e.score, relevance_ratio
+                    )
 
             # Stale tracking
             llm_succeeded = self.llm.enabled and llm_result is not None
             if llm_succeeded:
-                rel_delta = ((relevance_ratio - history_best_relevance)
-                             / max(history_best_relevance, 0.01))
+                rel_delta = (relevance_ratio - history_best_relevance) / max(
+                    history_best_relevance, 0.01
+                )
                 if relevance_ratio > history_best_relevance:
                     history_best_relevance = relevance_ratio
                 stale = stale + 1 if rel_delta < 0.1 else 0
             else:
-                raw_delta = ((round_best_raw - history_best_raw)
-                             / max(history_best_raw, 1))
+                raw_delta = (round_best_raw - history_best_raw) / max(
+                    history_best_raw, 1
+                )
                 if round_best_raw > history_best_raw:
                     history_best_raw = round_best_raw
                 stale = stale + 1 if raw_delta < 0.1 else 0
 
             conf = self.scorer.mad_confidence() or "n/a"
-            rel_str = (f"rel={relevance_ratio:.0%} "
-                       if self.llm.enabled else "")
+            rel_str = f"rel={relevance_ratio:.0%} " if self.llm.enabled else ""
             print(
                 f"  R{rnd:2d}: adj={round_adjusted:6d} "
                 f"raw={round_best_raw:6d} "
@@ -1093,8 +1208,9 @@ class Engine:
             )
 
             # Session doc
-            llm_line = (f"\n- LLM suggestions: {llm_suggestions}"
-                        if llm_suggestions else "")
+            llm_line = (
+                f"\n- LLM suggestions: {llm_suggestions}" if llm_suggestions else ""
+            )
             self.session_doc.append(
                 f"### Round {rnd}\n"
                 f"- Queries: {len(queries)} | New URLs: {round_new_total}"
@@ -1109,28 +1225,27 @@ class Engine:
             if stale >= self.config.max_stale:
                 print(f"  >>> EARLY STOP after {rnd} rounds")
                 self.session_doc.append(
-                    f"**EARLY STOP** after {rnd} rounds "
-                    f"(stale={stale})\n\n")
+                    f"**EARLY STOP** after {rnd} rounds (stale={stale})\n\n"
+                )
                 break
 
         top_queries = sorted(
             self.all_experiments,
-            key=lambda x: x.adjusted_score, reverse=True,
+            key=lambda x: x.adjusted_score,
+            reverse=True,
         )[:20]
 
-        print(f"\nTop 5 queries:")
+        print("\nTop 5 queries:")
         for q in top_queries[:5]:
-            src_tag = (f" [{q.source}]" if q.source != "gene" else "")
-            print(f"  score={q.score:6d} new={q.new:2d}"
-                  f"{src_tag:9s} | {q.query[:50]}")
+            src_tag = f" [{q.source}]" if q.source != "gene" else ""
+            print(f"  score={q.score:6d} new={q.new:2d}{src_tag:9s} | {q.query[:50]}")
 
         self.session_doc.append(
             "## Top Queries\n\n"
             "| # | Query | Score | New | Source |\n"
             "|---|-------|-------|-----|--------|\n"
             + "\n".join(
-                f"| {i+1} | {q.query[:50]} | {q.score} "
-                f"| {q.new} | {q.source} |"
+                f"| {i + 1} | {q.query[:50]} | {q.score} | {q.new} | {q.source} |"
                 for i, q in enumerate(top_queries[:10])
             )
             + "\n\n"
@@ -1160,23 +1275,28 @@ class Engine:
                     continue
                 harvest_seen.add(r.url)
                 with open(self.config.output_path, "a") as f:
-                    f.write(json.dumps({
-                        "url": r.url,
-                        "title": r.title[:150],
-                        "engagement": r.eng,
-                        "created": r.created,
-                        "body": r.body[:500],
-                        "query": q_entry.query,
-                        "query_family": q_entry.query_family,
-                        "source": r.source,
-                        "collected": datetime.now().strftime("%Y-%m-%d"),
-                    }, ensure_ascii=False) + "\n")
+                    f.write(
+                        json.dumps(
+                            {
+                                "url": r.url,
+                                "title": r.title[:150],
+                                "engagement": r.eng,
+                                "created": r.created,
+                                "body": r.body[:500],
+                                "query": q_entry.query,
+                                "query_family": q_entry.query_family,
+                                "source": r.source,
+                                "collected": datetime.now().strftime("%Y-%m-%d"),
+                            },
+                            ensure_ascii=False,
+                        )
+                        + "\n"
+                    )
                 q_entry.harvested_urls.append(r.url)
                 new += 1
             total_harvested += new
 
-        print(f"  Harvested: {total_harvested} findings "
-              f"-> {self.config.output_path}")
+        print(f"  Harvested: {total_harvested} findings -> {self.config.output_path}")
 
         self.session_doc.append(
             f"## Phase 2: Harvest\n\n"
@@ -1198,10 +1318,14 @@ class Engine:
         losers = [e for e in self.all_experiments if e.score == 0]
 
         print(f"  Total experiments: {len(self.all_experiments)}")
-        print(f"  Winners: {len(winners)} "
-              f"({len(winners) * 100 // max(len(self.all_experiments), 1)}%)")
-        print(f"  Losers: {len(losers)} "
-              f"({len(losers) * 100 // max(len(self.all_experiments), 1)}%)")
+        print(
+            f"  Winners: {len(winners)} "
+            f"({len(winners) * 100 // max(len(self.all_experiments), 1)}%)"
+        )
+        print(
+            f"  Losers: {len(losers)} "
+            f"({len(losers) * 100 // max(len(self.all_experiments), 1)}%)"
+        )
 
         # Source performance
         def _source_stats(tag):
@@ -1214,7 +1338,7 @@ class Engine:
         pat_w, pat_t, pat_rate = _source_stats("pattern")
         gen_w, gen_t, gen_rate = _source_stats("gene")
 
-        print(f"\n  Source performance:")
+        print("\n  Source performance:")
         print(f"    LLM:     {llm_w}/{llm_t} ({llm_rate:.0%})")
         print(f"    Pattern: {pat_w}/{pat_t} ({pat_rate:.0%})")
         print(f"    Gene:    {gen_w}/{gen_t} ({gen_rate:.0%})")
@@ -1232,11 +1356,13 @@ class Engine:
                     word_in_losers[w] = word_in_losers.get(w, 0) + 1
 
         winning_words = [
-            (w, c) for w, c in word_in_winners.items()
+            (w, c)
+            for w, c in word_in_winners.items()
             if c >= 3 and c > word_in_losers.get(w, 0) * 2
         ]
         losing_words = [
-            (w, c) for w, c in word_in_losers.items()
+            (w, c)
+            for w, c in word_in_losers.items()
             if c >= 3 and word_in_winners.get(w, 0) == 0
         ]
 
@@ -1245,64 +1371,74 @@ class Engine:
         timestamp = datetime.now().strftime("%Y-%m-%d")
 
         if winning_words:
-            top_winning = sorted(
-                winning_words, key=lambda x: x[1], reverse=True)[:5]
-            new_patterns.append({
-                "pattern": f"winning_words_{timestamp}",
-                "platform": "all",
-                "finding": ("Words that correlate with high-scoring queries: "
-                            + ", ".join(w for w, c in top_winning)),
-                "impact": "Use these words when generating queries",
-                "validated": timestamp,
-                "auto_generated": True,
-            })
+            top_winning = sorted(winning_words, key=lambda x: x[1], reverse=True)[:5]
+            new_patterns.append(
+                {
+                    "pattern": f"winning_words_{timestamp}",
+                    "platform": "all",
+                    "finding": (
+                        "Words that correlate with high-scoring queries: "
+                        + ", ".join(w for w, c in top_winning)
+                    ),
+                    "impact": "Use these words when generating queries",
+                    "validated": timestamp,
+                    "auto_generated": True,
+                }
+            )
 
         if losing_words:
-            top_losing = sorted(
-                losing_words, key=lambda x: x[1], reverse=True)[:5]
-            new_patterns.append({
-                "pattern": f"losing_words_{timestamp}",
-                "platform": "all",
-                "finding": ("Words that ONLY appear in failed queries: "
-                            + ", ".join(w for w, c in top_losing)
-                            + ". Avoid these."),
-                "impact": "These words don't produce results",
-                "validated": timestamp,
-                "auto_generated": True,
-            })
+            top_losing = sorted(losing_words, key=lambda x: x[1], reverse=True)[:5]
+            new_patterns.append(
+                {
+                    "pattern": f"losing_words_{timestamp}",
+                    "platform": "all",
+                    "finding": (
+                        "Words that ONLY appear in failed queries: "
+                        + ", ".join(w for w, c in top_losing)
+                        + ". Avoid these."
+                    ),
+                    "impact": "These words don't produce results",
+                    "validated": timestamp,
+                    "auto_generated": True,
+                }
+            )
 
         # LLM win rate pattern
         if self.llm.enabled and llm_t > 0:
-            new_patterns.append({
-                "pattern": f"llm_win_rate_{timestamp}",
-                "platform": "all",
-                "finding": (
-                    f"LLM-suggested queries win rate: "
-                    f"{llm_rate:.0%} ({llm_w}/{llm_t}). "
-                    f"Pattern: {pat_rate:.0%} ({pat_w}/{pat_t}). "
-                    f"Gene: {gen_rate:.0%} ({gen_w}/{gen_t})."
-                ),
-                "impact": "Adjust LLM query quota based on performance",
-                "validated": timestamp,
-                "auto_generated": True,
-            })
+            new_patterns.append(
+                {
+                    "pattern": f"llm_win_rate_{timestamp}",
+                    "platform": "all",
+                    "finding": (
+                        f"LLM-suggested queries win rate: "
+                        f"{llm_rate:.0%} ({llm_w}/{llm_t}). "
+                        f"Pattern: {pat_rate:.0%} ({pat_w}/{pat_t}). "
+                        f"Gene: {gen_rate:.0%} ({gen_w}/{gen_t})."
+                    ),
+                    "impact": "Adjust LLM query quota based on performance",
+                    "validated": timestamp,
+                    "auto_generated": True,
+                }
+            )
 
         # Session stats
         conf_final = self.scorer.mad_confidence()
-        new_patterns.append({
-            "pattern": f"session_stats_{timestamp}",
-            "platform": "all",
-            "finding": (
-                f"Session: {len(self.all_experiments)} queries, "
-                f"{len(winners)} winners "
-                f"({len(winners) * 100 // max(len(self.all_experiments), 1)}%), "
-                f"{len(self.scorer.seen)} unique URLs, "
-                f"confidence={conf_final}"
-            ),
-            "impact": "Baseline for next session comparison",
-            "validated": timestamp,
-            "auto_generated": True,
-        })
+        new_patterns.append(
+            {
+                "pattern": f"session_stats_{timestamp}",
+                "platform": "all",
+                "finding": (
+                    f"Session: {len(self.all_experiments)} queries, "
+                    f"{len(winners)} winners "
+                    f"({len(winners) * 100 // max(len(self.all_experiments), 1)}%), "
+                    f"{len(self.scorer.seen)} unique URLs, "
+                    f"confidence={conf_final}"
+                ),
+                "impact": "Baseline for next session comparison",
+                "validated": timestamp,
+                "auto_generated": True,
+            }
+        )
 
         self.patterns.append(new_patterns)
 
@@ -1314,29 +1450,45 @@ class Engine:
         with open(self.evolution_path, "a") as f:
             for e in self.all_experiments:
                 e.session = timestamp
-                f.write(json.dumps({
-                    "round": e.round, "query": e.query,
-                    "query_family": e.query_family,
-                    "new": e.new, "score": e.score,
-                    "adjusted_score": e.adjusted_score,
-                    "source": e.source,
-                    "sample_titles": e.sample_titles,
-                    "harvested_urls": e.harvested_urls,
-                    "session": e.session,
-                }, ensure_ascii=False) + "\n")
+                f.write(
+                    json.dumps(
+                        {
+                            "round": e.round,
+                            "query": e.query,
+                            "query_family": e.query_family,
+                            "new": e.new,
+                            "score": e.score,
+                            "adjusted_score": e.adjusted_score,
+                            "source": e.source,
+                            "sample_titles": e.sample_titles,
+                            "harvested_urls": e.harvested_urls,
+                            "session": e.session,
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
 
         total_patterns = self.patterns.total_count()
         print(f"\n  Total patterns in library: {total_patterns}")
 
         # Session doc
-        ww_str = (", ".join(
-            w for w, c in sorted(
-                winning_words, key=lambda x: x[1], reverse=True)[:10])
-            if winning_words else "None")
-        lw_str = (", ".join(
-            w for w, c in sorted(
-                losing_words, key=lambda x: x[1], reverse=True)[:10])
-            if losing_words else "None")
+        ww_str = (
+            ", ".join(
+                w
+                for w, c in sorted(winning_words, key=lambda x: x[1], reverse=True)[:10]
+            )
+            if winning_words
+            else "None"
+        )
+        lw_str = (
+            ", ".join(
+                w
+                for w, c in sorted(losing_words, key=lambda x: x[1], reverse=True)[:10]
+            )
+            if losing_words
+            else "None"
+        )
 
         self.session_doc.append(
             f"## Phase 3: Post-Mortem\n\n"
@@ -1354,9 +1506,7 @@ class Engine:
             f"### Winning Words\n{ww_str}\n\n"
             f"### Losing Words\n{lw_str}\n\n"
             f"### New Patterns Written\n"
-            + "\n".join(
-                f'- [{p["pattern"]}] {p["finding"][:80]}'
-                for p in new_patterns)
+            + "\n".join(f"- [{p['pattern']}] {p['finding'][:80]}" for p in new_patterns)
             + f"\n\n### Stats\n"
             f"- Unique URLs: {len(self.scorer.seen)}\n"
             f"- MAD Confidence: {conf_final}\n"
@@ -1394,7 +1544,9 @@ class Engine:
                 provider,
                 query_family,
             )
-            ranked.append(((capability["priority"], decision["priority"], provider), platform))
+            ranked.append(
+                ((capability["priority"], decision["priority"], provider), platform)
+            )
         return [platform for _, platform in sorted(ranked, key=lambda item: item[0])]
 
     def _record_search_event(
@@ -1407,19 +1559,23 @@ class Engine:
         new_urls: int,
         errors: int,
     ) -> None:
-        self.search_events.append({
-            "aspect": "search",
-            "run_id": self.config.run_id,
-            "timestamp": datetime.now().astimezone().isoformat(),
-            "provider": provider,
-            "query_family": query_family,
-            "attempts": attempts,
-            "results": results,
-            "new_urls": new_urls,
-            "errors": errors,
-        })
+        self.search_events.append(
+            {
+                "aspect": "search",
+                "run_id": self.config.run_id,
+                "timestamp": datetime.now().astimezone().isoformat(),
+                "provider": provider,
+                "query_family": query_family,
+                "attempts": attempts,
+                "results": results,
+                "new_urls": new_urls,
+                "errors": errors,
+            }
+        )
 
-    def _search_all_platforms(self, query: str, query_family: str) -> list[SearchResult]:
+    def _search_all_platforms(
+        self, query: str, query_family: str
+    ) -> list[SearchResult]:
         all_results: list[SearchResult] = []
         query_seen = set(self.scorer.seen)
         for plat in self._ordered_platforms(query_family):

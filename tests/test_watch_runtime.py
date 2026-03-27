@@ -22,10 +22,18 @@ class WatchRuntimeTests(unittest.TestCase):
             return {"id": goal_id, "mode": "balanced"}
 
         def optimize_goal(goal_case, **kwargs):
-            return {"bundle_final": {"score": 88}, "goal_case": goal_case, "kwargs": kwargs}
+            return {
+                "bundle_final": {"score": 88},
+                "goal_case": goal_case,
+                "kwargs": kwargs,
+            }
 
         result = run_watch(
-            {"goal_id": "goal-a", "mode": "deep", "budget": {"rounds": 4, "plan_count": 2, "max_queries": 3}},
+            {
+                "goal_id": "goal-a",
+                "mode": "deep",
+                "budget": {"rounds": 4, "plan_count": 2, "max_queries": 3},
+            },
             resolve_goal_case=resolve_goal_case,
             optimize_goal=optimize_goal,
         )

@@ -7,7 +7,6 @@ must already work without it.
 from __future__ import annotations
 
 import importlib.util
-from typing import Any
 
 from .document_models import AcquiredDocument
 from .markdown_strategy import build_markdown_views
@@ -23,7 +22,9 @@ def fetch_with_crawl4ai(url: str, *, timeout: int = 10) -> AcquiredDocument:
     # Keep the adapter loose and resilient: use attribute probing instead of
     # binding our runtime to one Crawl4AI versioned API.
     module = __import__("crawl4ai")
-    crawler_cls = getattr(module, "AsyncWebCrawler", None) or getattr(module, "WebCrawler", None)
+    crawler_cls = getattr(module, "AsyncWebCrawler", None) or getattr(
+        module, "WebCrawler", None
+    )
     if crawler_cls is None:
         raise RuntimeError("crawl4ai crawler class not available")
     crawler = crawler_cls()
@@ -31,10 +32,14 @@ def fetch_with_crawl4ai(url: str, *, timeout: int = 10) -> AcquiredDocument:
     if runner is None:
         raise RuntimeError("crawl4ai crawler missing run/crawl method")
     result = runner(str(url or "").strip(), timeout=timeout)
-    markdown = str(getattr(result, "markdown", "") or getattr(result, "clean_markdown", "") or "")
+    markdown = str(
+        getattr(result, "markdown", "") or getattr(result, "clean_markdown", "") or ""
+    )
     fit = str(getattr(result, "fit_markdown", "") or "")
     html = str(getattr(result, "html", "") or getattr(result, "raw_html", "") or "")
-    final_url = str(getattr(result, "url", "") or getattr(result, "final_url", "") or url)
+    final_url = str(
+        getattr(result, "url", "") or getattr(result, "final_url", "") or url
+    )
     title = str(getattr(result, "title", "") or "").strip()
     text = str(getattr(result, "text", "") or markdown or fit or "").strip()
     document = AcquiredDocument(
@@ -56,7 +61,9 @@ def fetch_with_crawl4ai(url: str, *, timeout: int = 10) -> AcquiredDocument:
         fetch_method=document.fetch_method,
     ).document_id
     markdown_views = build_markdown_views(markdown or text, query="")
-    document.clean_markdown = str(markdown or markdown_views.get("clean_markdown") or "")
+    document.clean_markdown = str(
+        markdown or markdown_views.get("clean_markdown") or ""
+    )
     document.fit_markdown = str(fit or markdown_views.get("fit_markdown") or "")
     document.chunk_scores = list(markdown_views.get("chunk_scores") or [])
     document.selected_chunks = list(markdown_views.get("selected_chunks") or [])

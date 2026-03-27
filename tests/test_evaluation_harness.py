@@ -22,9 +22,24 @@ class EvaluationHarnessTests(unittest.TestCase):
         bundle = build_bundle(
             [],
             [
-                {"title": "a1", "url": "https://a.com/1", "source": "github_issues", "query": "q1"},
-                {"title": "a2", "url": "https://a.com/2", "source": "github_issues", "query": "q1"},
-                {"title": "b1", "url": "https://b.com/1", "source": "github_issues", "query": "q2"},
+                {
+                    "title": "a1",
+                    "url": "https://a.com/1",
+                    "source": "github_issues",
+                    "query": "q1",
+                },
+                {
+                    "title": "a2",
+                    "url": "https://a.com/2",
+                    "source": "github_issues",
+                    "query": "q1",
+                },
+                {
+                    "title": "b1",
+                    "url": "https://b.com/1",
+                    "source": "github_issues",
+                    "query": "q2",
+                },
             ],
             harness,
         )
@@ -42,7 +57,13 @@ class EvaluationHarnessTests(unittest.TestCase):
         bundle = build_bundle(
             [],
             [
-                {"title": "legacy", "url": "https://a.com/1", "body": "legacy body", "source": "searxng", "query": "q1"},
+                {
+                    "title": "legacy",
+                    "url": "https://a.com/1",
+                    "body": "legacy body",
+                    "source": "searxng",
+                    "query": "q1",
+                },
             ],
             harness,
         )
@@ -51,11 +72,26 @@ class EvaluationHarnessTests(unittest.TestCase):
 
     def test_bundle_metrics_tracks_novelty_and_diversity(self):
         previous = [
-            {"title": "old", "url": "https://x.com/1", "source": "github_repos", "query": "q1"},
+            {
+                "title": "old",
+                "url": "https://x.com/1",
+                "source": "github_repos",
+                "query": "q1",
+            },
         ]
         bundle = previous + [
-            {"title": "new1", "url": "https://y.com/2", "source": "github_issues", "query": "q2"},
-            {"title": "new2", "url": "https://z.com/3", "source": "huggingface_datasets", "query": "q3"},
+            {
+                "title": "new1",
+                "url": "https://y.com/2",
+                "source": "github_issues",
+                "query": "q2",
+            },
+            {
+                "title": "new2",
+                "url": "https://z.com/3",
+                "source": "huggingface_datasets",
+                "query": "q3",
+            },
         ]
         metrics = bundle_metrics(bundle, previous_bundle=previous)
         self.assertEqual(metrics["new_unique_urls"], 2)
