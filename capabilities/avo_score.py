@@ -8,11 +8,18 @@ output_type = "scores"
 input_schema = {
     "type": "object",
     "properties": {
-        "input": {"type": "object", "description": "Search result dict with evidence list and steps_used"},
+        "input": {
+            "type": "object",
+            "description": "Search result dict with evidence list and steps_used",
+        },
         "context": {
             "type": "object",
             "properties": {
-                "target_count": {"type": "integer", "default": 100, "description": "Target number of unique URLs"},
+                "target_count": {
+                    "type": "integer",
+                    "default": 100,
+                    "description": "Target number of unique URLs",
+                },
             },
         },
     },
@@ -24,7 +31,14 @@ from collections import Counter
 
 def run(result, **context):
     if not isinstance(result, dict):
-        return {"total": 0, "unique_urls": 0, "quantity_score": 0, "diversity": 0, "relevance": 0, "efficiency": 0}
+        return {
+            "total": 0,
+            "unique_urls": 0,
+            "quantity_score": 0,
+            "diversity": 0,
+            "relevance": 0,
+            "efficiency": 0,
+        }
 
     evidence = result.get("evidence", [])
     if not isinstance(evidence, list):
@@ -43,7 +57,9 @@ def run(result, **context):
     sources = Counter(e.get("provider", e.get("source", "unknown")) for e in evidence)
     total = sum(sources.values())
     if total > 1:
-        diversity = 1 - sum(n * (n - 1) for n in sources.values()) / (total * (total - 1))
+        diversity = 1 - sum(n * (n - 1) for n in sources.values()) / (
+            total * (total - 1)
+        )
     else:
         diversity = 0.0
 
@@ -57,7 +73,9 @@ def run(result, **context):
     # Dimension 4: Efficiency (URLs per step, 10/step = perfect)
     efficiency = min(unique_count / steps / 10, 1.0)
 
-    total_score = round(0.4 * quantity_score + 0.2 * diversity + 0.2 * relevance + 0.2 * efficiency, 4)
+    total_score = round(
+        0.4 * quantity_score + 0.2 * diversity + 0.2 * relevance + 0.2 * efficiency, 4
+    )
 
     return {
         "total": total_score,

@@ -13,9 +13,21 @@ input_schema = {
         "context": {
             "type": "object",
             "properties": {
-                "limit": {"type": "integer", "description": "Max results to return", "default": 50},
-                "query_family": {"type": "string", "description": "Query family label", "default": "unknown"},
-                "search_type": {"type": "string", "enum": ["repos", "issues", "code", "all"], "default": "all"},
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results to return",
+                    "default": 50,
+                },
+                "query_family": {
+                    "type": "string",
+                    "description": "Query family label",
+                    "default": "unknown",
+                },
+                "search_type": {
+                    "type": "string",
+                    "enum": ["repos", "issues", "code", "all"],
+                    "default": "all",
+                },
             },
         },
     },

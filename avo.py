@@ -67,10 +67,15 @@ def check_stagnation(population, window=3):
 
     # No improvement in last N generations (< 1%)
     if scores and max(scores) <= min(scores) * 1.01:
-        return True, f"Scores flat for {window} generations: {[round(s, 3) for s in scores]}"
+        return (
+            True,
+            f"Scores flat for {window} generations: {[round(s, 3) for s in scores]}",
+        )
 
     # Scores declining
-    if len(scores) >= 2 and all(scores[i] <= scores[i - 1] for i in range(1, len(scores))):
+    if len(scores) >= 2 and all(
+        scores[i] <= scores[i - 1] for i in range(1, len(scores))
+    ):
         return True, f"Scores declining: {[round(s, 3) for s in scores]}"
 
     return False, ""
@@ -97,11 +102,19 @@ def run_avo(
 
     knowledge = manifest_text()
     population = load_population(task_spec)
-    best_score = max((p.get("scores", {}).get("total", 0) for p in population), default=0)
+    best_score = max(
+        (p.get("scores", {}).get("total", 0) for p in population), default=0
+    )
     best_prompt = SYSTEM_PROMPT
 
-    print(f"[AVO] Starting evolution: {max_generations} generations, {steps_per_gen} steps each", file=sys.stderr)
-    print(f"[AVO] Population: {len(population)} prior generations, best score: {best_score:.4f}", file=sys.stderr)
+    print(
+        f"[AVO] Starting evolution: {max_generations} generations, {steps_per_gen} steps each",
+        file=sys.stderr,
+    )
+    print(
+        f"[AVO] Population: {len(population)} prior generations, best score: {best_score:.4f}",
+        file=sys.stderr,
+    )
     print(f"[AVO] Capabilities: {len(load_manifest())}", file=sys.stderr)
 
     for gen in range(max_generations):
@@ -122,7 +135,10 @@ def run_avo(
         if new_prompt is None:
             new_prompt = best_prompt
 
-        print(f"\n[AVO] === Generation {gen + 1}/{max_generations} (method: {method}) ===", file=sys.stderr)
+        print(
+            f"\n[AVO] === Generation {gen + 1}/{max_generations} (method: {method}) ===",
+            file=sys.stderr,
+        )
 
         # 2. RUN: Execute orchestrator with evolved prompt
         result = run_task(
@@ -145,7 +161,9 @@ def run_avo(
         )
 
         # 4. UPDATE: Commit generation
-        entry = commit_generation(task_spec, gen + 1, new_prompt, scores, scores["unique_urls"])
+        entry = commit_generation(
+            task_spec, gen + 1, new_prompt, scores, scores["unique_urls"]
+        )
         population.append(entry)
 
         if scores["total"] > best_score:
@@ -158,7 +176,10 @@ def run_avo(
             stagnant, reason = check_stagnation(population)
             if stagnant:
                 print(f"[AVO] Supervisor: STAGNATION — {reason}", file=sys.stderr)
-                print(f"[AVO] Supervisor: forcing template variation for diversity", file=sys.stderr)
+                print(
+                    "[AVO] Supervisor: forcing template variation for diversity",
+                    file=sys.stderr,
+                )
                 # Force template variation to break out of local optimum
                 redirect_result = dispatch(
                     "avo_vary",
@@ -173,7 +194,9 @@ def run_avo(
                     best_prompt = redirect_prompt
 
     # Summary
-    print(f"\n[AVO] Evolution complete. {max_generations} generations.", file=sys.stderr)
+    print(
+        f"\n[AVO] Evolution complete. {max_generations} generations.", file=sys.stderr
+    )
     print(f"[AVO] Best score: {best_score:.4f}", file=sys.stderr)
     print(f"[AVO] Population size: {len(population)}", file=sys.stderr)
 
@@ -184,7 +207,10 @@ def run_avo(
         "population_size": len(population),
         "best_prompt_excerpt": best_prompt[:500] if best_prompt else "",
         "score_trajectory": [
-            {"gen": p.get("generation", "?"), "total": p.get("scores", {}).get("total", 0)}
+            {
+                "gen": p.get("generation", "?"),
+                "total": p.get("scores", {}).get("total", 0),
+            }
             for p in population[-max_generations:]
         ],
     }

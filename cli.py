@@ -117,16 +117,25 @@ def main():
         default="",
         help="Resume from checkpoint file or task ID",
     )
-    parser.add_argument("--evolve", action="store_true", default=False, help="Run AVO evolution mode")
-    parser.add_argument("--generations", type=int, default=5, help="AVO generations (default: 5)")
-    parser.add_argument("--steps-per-gen", type=int, default=None, help="Steps per AVO generation")
+    parser.add_argument(
+        "--evolve", action="store_true", default=False, help="Run AVO evolution mode"
+    )
+    parser.add_argument(
+        "--generations", type=int, default=5, help="AVO generations (default: 5)"
+    )
+    parser.add_argument(
+        "--steps-per-gen", type=int, default=None, help="Steps per AVO generation"
+    )
 
     args = parser.parse_args()
 
     # --- AVO Evolution mode ---
     if args.evolve:
         if not args.task_spec:
-            print("Error: --evolve requires a positional task_spec argument", file=sys.stderr)
+            print(
+                "Error: --evolve requires a positional task_spec argument",
+                file=sys.stderr,
+            )
             sys.exit(1)
         try:
             from avo import run_avo
@@ -136,7 +145,9 @@ def main():
         result = run_avo(
             args.task_spec,
             max_generations=args.generations,
-            steps_per_gen=args.steps_per_gen if args.steps_per_gen else (args.max_steps if args.max_steps else 15),
+            steps_per_gen=args.steps_per_gen
+            if args.steps_per_gen
+            else (args.max_steps if args.max_steps else 15),
             model=args.llm_model,
         )
         print("\n--- AVO Evolution Result ---")

@@ -13,8 +13,16 @@ input_schema = {
         "context": {
             "type": "object",
             "properties": {
-                "limit": {"type": "integer", "description": "Max results to return", "default": 50},
-                "query_family": {"type": "string", "description": "Query family label", "default": "unknown"},
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results to return",
+                    "default": 50,
+                },
+                "query_family": {
+                    "type": "string",
+                    "description": "Query family label",
+                    "default": "unknown",
+                },
             },
         },
     },
@@ -24,6 +32,7 @@ input_schema = {
 
 def run(query, **context):
     from search_mesh.router import search_platform
+
     limit = context.get("limit", 50)
     query_family = context.get("query_family", "unknown")
     platforms = context.get("platforms", ["reddit", "hn", "twitter_xreach"])

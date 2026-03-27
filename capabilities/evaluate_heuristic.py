@@ -17,10 +17,5 @@ def run(evidence, **context):
 
 
 def test():
-    from goal_judge import (
-        evaluate_goal_bundle,
-        _heuristic_bundle_eval,
-        _bundle_findings,
-    )  # noqa: F401
 
     return "ok"

@@ -159,13 +159,19 @@ def register_tools(server: Server) -> None:
             else:
                 raise ValueError(f"Unknown tool: {name}")
         except Exception as exc:
-            return [types.TextContent(
-                type="text",
-                text=json.dumps({
-                    "error": str(exc),
-                    "traceback": traceback.format_exc(),
-                }, ensure_ascii=False, indent=2),
-            )]
+            return [
+                types.TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {
+                            "error": str(exc),
+                            "traceback": traceback.format_exc(),
+                        },
+                        ensure_ascii=False,
+                        indent=2,
+                    ),
+                )
+            ]
 
 
 # --- Handler implementations ---
@@ -185,10 +191,12 @@ async def _handle_search(arguments: dict) -> list[types.TextContent]:
         max_steps=5,
         mode="fast",
     )
-    return [types.TextContent(
-        type="text",
-        text=json.dumps(result, ensure_ascii=False, indent=2),
-    )]
+    return [
+        types.TextContent(
+            type="text",
+            text=json.dumps(result, ensure_ascii=False, indent=2),
+        )
+    ]
 
 
 async def _handle_orchestrate(arguments: dict) -> list[types.TextContent]:
@@ -207,10 +215,12 @@ async def _handle_orchestrate(arguments: dict) -> list[types.TextContent]:
         "summary": result.get("summary", ""),
         "top_results": result.get("collected", [])[:20],
     }
-    return [types.TextContent(
-        type="text",
-        text=json.dumps(output, ensure_ascii=False, indent=2),
-    )]
+    return [
+        types.TextContent(
+            type="text",
+            text=json.dumps(output, ensure_ascii=False, indent=2),
+        )
+    ]
 
 
 async def _handle_doctor(arguments: dict) -> list[types.TextContent]:
@@ -221,10 +231,12 @@ async def _handle_doctor(arguments: dict) -> list[types.TextContent]:
     provider_list = [p.strip() for p in providers_raw.split(",") if p.strip()] or None
 
     result = dispatch("check_health", provider_list)
-    return [types.TextContent(
-        type="text",
-        text=json.dumps(result, ensure_ascii=False, indent=2),
-    )]
+    return [
+        types.TextContent(
+            type="text",
+            text=json.dumps(result, ensure_ascii=False, indent=2),
+        )
+    ]
 
 
 async def _handle_capabilities(arguments: dict) -> list[types.TextContent]:
@@ -232,10 +244,12 @@ async def _handle_capabilities(arguments: dict) -> list[types.TextContent]:
     from capabilities import manifest_text
 
     text = manifest_text()
-    return [types.TextContent(
-        type="text",
-        text=text,
-    )]
+    return [
+        types.TextContent(
+            type="text",
+            text=text,
+        )
+    ]
 
 
 async def _handle_resume(arguments: dict) -> list[types.TextContent]:
@@ -247,10 +261,12 @@ async def _handle_resume(arguments: dict) -> list[types.TextContent]:
         "",  # empty task_spec — resume uses the checkpoint's spec
         resume_from=task_id,
     )
-    return [types.TextContent(
-        type="text",
-        text=json.dumps(result, ensure_ascii=False, indent=2),
-    )]
+    return [
+        types.TextContent(
+            type="text",
+            text=json.dumps(result, ensure_ascii=False, indent=2),
+        )
+    ]
 
 
 async def _handle_evolve(arguments: dict) -> list[types.TextContent]:
@@ -260,6 +276,7 @@ async def _handle_evolve(arguments: dict) -> list[types.TextContent]:
 
     try:
         from avo import run_avo
+
         result = run_avo(task_spec, generations=generations)
     except ImportError:
         result = {
@@ -270,7 +287,9 @@ async def _handle_evolve(arguments: dict) -> list[types.TextContent]:
             ),
         }
 
-    return [types.TextContent(
-        type="text",
-        text=json.dumps(result, ensure_ascii=False, indent=2),
-    )]
+    return [
+        types.TextContent(
+            type="text",
+            text=json.dumps(result, ensure_ascii=False, indent=2),
+        )
+    ]

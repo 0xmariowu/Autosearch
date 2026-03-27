@@ -12,8 +12,14 @@ input_schema = {
         "context": {
             "type": "object",
             "properties": {
-                "population": {"type": "array", "description": "Prior generations: [{prompt, scores}]"},
-                "knowledge": {"type": "string", "description": "Capabilities manifest text"},
+                "population": {
+                    "type": "array",
+                    "description": "Prior generations: [{prompt, scores}]",
+                },
+                "knowledge": {
+                    "type": "string",
+                    "description": "Capabilities manifest text",
+                },
                 "task_spec": {"type": "string", "description": "The search task"},
                 "use_llm": {"type": "boolean", "default": True},
             },
@@ -62,11 +68,15 @@ def _llm_vary(population, knowledge, task_spec):
 
     pop_summary = ""
     if population:
-        sorted_pop = sorted(population, key=lambda x: x.get("scores", {}).get("total", 0), reverse=True)
+        sorted_pop = sorted(
+            population, key=lambda x: x.get("scores", {}).get("total", 0), reverse=True
+        )
         for i, entry in enumerate(sorted_pop[:5]):
             s = entry.get("scores", {})
             pop_summary += f"\nGen (score {s.get('total', 0):.3f}): urls={s.get('unique_urls', 0)}, "
-            pop_summary += f"div={s.get('diversity', 0):.2f}, eff={s.get('efficiency', 0):.2f}"
+            pop_summary += (
+                f"div={s.get('diversity', 0):.2f}, eff={s.get('efficiency', 0):.2f}"
+            )
             pop_summary += f"\nPrompt: {str(entry.get('prompt', ''))[:200]}..."
 
     meta_prompt = f"""You are evolving a search system's orchestrator prompt.
@@ -88,17 +98,24 @@ Generate an improved SYSTEM PROMPT. It must:
 
 Return ONLY the prompt text."""
 
-    payload = json.dumps({
-        "model": os.environ.get("OPENROUTER_ORCHESTRATOR_MODEL", "google/gemini-2.5-flash"),
-        "max_tokens": 2048,
-        "messages": [{"role": "user", "content": meta_prompt}],
-        "temperature": 0.7,
-    }).encode()
+    payload = json.dumps(
+        {
+            "model": os.environ.get(
+                "OPENROUTER_ORCHESTRATOR_MODEL", "google/gemini-2.5-flash"
+            ),
+            "max_tokens": 2048,
+            "messages": [{"role": "user", "content": meta_prompt}],
+            "temperature": 0.7,
+        }
+    ).encode()
 
     req = urllib.request.Request(
         OPENROUTER_API_URL,
         data=payload,
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
     )
 
     try:
@@ -131,10 +148,34 @@ def run(input_data, **context):
 
 def test():
     pop = [
-        {"prompt": "Search broadly", "scores": {"total": 0.3, "quantity_score": 0.5, "diversity": 0.1, "relevance": 0.3, "efficiency": 0.3}},
-        {"prompt": "Search deeply", "scores": {"total": 0.5, "quantity_score": 0.7, "diversity": 0.3, "relevance": 0.5, "efficiency": 0.5}},
+        {
+            "prompt": "Search broadly",
+            "scores": {
+                "total": 0.3,
+                "quantity_score": 0.5,
+                "diversity": 0.1,
+                "relevance": 0.3,
+                "efficiency": 0.3,
+            },
+        },
+        {
+            "prompt": "Search deeply",
+            "scores": {
+                "total": 0.5,
+                "quantity_score": 0.7,
+                "diversity": 0.3,
+                "relevance": 0.5,
+                "efficiency": 0.5,
+            },
+        },
     ]
-    result = run(None, population=pop, knowledge="test capabilities", task_spec="test", use_llm=False)
+    result = run(
+        None,
+        population=pop,
+        knowledge="test capabilities",
+        task_spec="test",
+        use_llm=False,
+    )
     assert result["prompt"] is not None
     assert "PRIORITY" in result["prompt"]
 
