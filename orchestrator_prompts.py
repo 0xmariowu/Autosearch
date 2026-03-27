@@ -27,6 +27,11 @@ Follow this pattern for every search task:
 - Use think before major strategy changes
 - If a capability returns an error, skip it and try the next step
 - Prefer free providers (search_web, search_github) over premium (search_semantic)
+- Set limit=50 on every search call to maximize results per step
+- Spend at least 80% of steps on actual searching, not thinking or processing
+- Do NOT call think more than twice in a session
+- Batch processing: only call consensus_score + dedup_results after collecting from 3+ sources, not after every single search
+- When you have enough results, call terminate immediately — do not over-process
 
 ## Example workflow for "find 20 AI repos"
 

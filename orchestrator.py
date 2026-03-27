@@ -137,6 +137,7 @@ def run_task(
     dry_run: bool = False,
     task_id: str = "",
     resume_from: str = "",
+    system_prompt: str = "",
 ) -> dict[str, Any]:
     """Run an AI-orchestrated search task.
 
@@ -182,8 +183,10 @@ def run_task(
         }
     )
 
+    # Use custom prompt if provided (AVO evolution), otherwise default
+    base_prompt = system_prompt if system_prompt else SYSTEM_PROMPT
     # Build initial messages
-    system_msg = SYSTEM_PROMPT.format(manifest=manifest_text())
+    system_msg = base_prompt.format(manifest=manifest_text())
     task_msg = TASK_PROMPT.format(
         task_spec=task_spec,
         mode=mode,

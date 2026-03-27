@@ -13,21 +13,9 @@ input_schema = {
         "context": {
             "type": "object",
             "properties": {
-                "limit": {
-                    "type": "integer",
-                    "description": "Max results to return",
-                    "default": 20,
-                },
-                "query_family": {
-                    "type": "string",
-                    "description": "Query family label",
-                    "default": "unknown",
-                },
-                "search_type": {
-                    "type": "string",
-                    "enum": ["repos", "issues", "code", "all"],
-                    "default": "all",
-                },
+                "limit": {"type": "integer", "description": "Max results to return", "default": 50},
+                "query_family": {"type": "string", "description": "Query family label", "default": "unknown"},
+                "search_type": {"type": "string", "enum": ["repos", "issues", "code", "all"], "default": "all"},
             },
         },
     },
@@ -39,7 +27,7 @@ def run(query, **context):
     from search_mesh.router import search_platform
 
     search_type = context.get("search_type", "all")
-    limit = context.get("limit", 20)
+    limit = context.get("limit", 50)
     query_family = context.get("query_family", "unknown")
 
     providers = {
