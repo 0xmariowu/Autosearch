@@ -284,7 +284,8 @@ def main(genome_path: str = ""):
     if args.queries:
         queries_path = Path(args.queries)
     else:
-        queries_path = Path("/Volumes/4TB/Armory/scripts/scout/queries.json")
+        armory_root = Path(os.environ.get("ARMORY_ROOT", "/Volumes/4TB/Armory"))
+        queries_path = armory_root / "scripts" / "scout" / "queries.json"
 
     if not queries_path.exists():
         print(f"Error: queries file not found: {queries_path}", file=sys.stderr)

@@ -22,7 +22,8 @@ import time
 import random
 from datetime import datetime
 
-DEST = os.path.expanduser("/Volumes/4TB/Armory/dataset/_search")
+ARMORY_ROOT = os.environ.get("ARMORY_ROOT", "/Volumes/4TB/Armory")
+DEST = os.path.join(ARMORY_ROOT, "dataset", "_search")
 
 # ============================================================
 # GENE POOL
