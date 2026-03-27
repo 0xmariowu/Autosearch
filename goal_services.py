@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import json
-from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 from acquisition import enrich_evidence_record
@@ -277,9 +277,7 @@ def search_query(
     all_hits: list[SearchHit] = []
     findings: list[dict[str, Any]] = []
     timed_out_providers: list[str] = []
-    max_workers = max(
-        1, min(len(platforms), int(sampling["parallel_provider_limit"] or 1))
-    )
+    max_workers = max(1, min(len(platforms), 5))
     executor = ThreadPoolExecutor(max_workers=max_workers)
     try:
         futures = {
@@ -291,18 +289,18 @@ def search_query(
             ): str(platform.get("name") or "")
             for platform in platforms
         }
-        done, pending = wait(
-            futures.keys(), timeout=float(sampling["provider_timeout_seconds"])
-        )
-        for future in done:
-            try:
-                batch = future.result()
-            except Exception:
-                continue
-            all_hits.extend(list(batch.hits))
-        for future in pending:
-            timed_out_providers.append(futures.get(future, ""))
-            future.cancel()
+        try:
+            for future in as_completed(futures.keys(), timeout=20):
+                try:
+                    batch = future.result()
+                except Exception:
+                    continue
+                all_hits.extend(list(batch.hits))
+        except TimeoutError:
+            for future in futures:
+                if not future.done():
+                    timed_out_providers.append(futures.get(future, ""))
+                    future.cancel()
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
     rerank_profile = str(sampling["rerank_profile"])
