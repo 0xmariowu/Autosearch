@@ -15,4 +15,4 @@ if ! git rebase origin/main --quiet; then
 fi
 echo "Rebased on origin/main"
 
-pytest -x -q
+python3 -m unittest discover -s tests -q
