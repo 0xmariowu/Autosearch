@@ -1,6 +1,10 @@
 """Tests for the capabilities registry."""
 
-import pytest
+try:
+    import pytest
+except ImportError:
+    import unittest
+    pytest = None
 from capabilities import load_manifest, dispatch, manifest_text, manifest_json, run_all_tests, available_capabilities
 
 
@@ -46,8 +50,12 @@ def test_dispatch_consensus_score():
 
 
 def test_dispatch_unknown_raises():
-    with pytest.raises(Exception):
+    raised = False
+    try:
         dispatch("nonexistent_capability_xyz", {})
+    except Exception:
+        raised = True
+    assert raised, "Should raise on unknown capability"
 
 
 def test_run_all_tests_all_pass():
@@ -62,3 +70,4 @@ def test_available_capabilities_filters():
     # All available should have no LOAD ERROR
     for cap in available:
         assert "LOAD ERROR" not in cap.get("description", "")
+

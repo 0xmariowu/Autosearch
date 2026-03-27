@@ -1,6 +1,10 @@
 """Tests for new capabilities (F004 patterns)."""
 
-import pytest
+try:
+    import pytest
+except ImportError:
+    import unittest
+    pytest = None
 
 
 class TestConsensusScore:
@@ -162,3 +166,4 @@ class TestLearningsExtract:
         result = run(hits, query="AI framework")
         assert isinstance(result, list)
         assert len(result) > 0
+

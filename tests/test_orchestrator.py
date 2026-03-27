@@ -1,6 +1,10 @@
 """Tests for the orchestrator module."""
 
-import pytest
+try:
+    import pytest
+except ImportError:
+    import unittest
+    pytest = None
 from unittest.mock import patch, MagicMock
 
 
@@ -10,9 +14,9 @@ def test_orchestrator_imports():
 
 
 def test_dry_run_without_api_key():
-    """Without ANTHROPIC_API_KEY, dry_run should return error."""
+    """Without OPENROUTER_API_KEY, dry_run should return error."""
     import os
-    with patch.dict(os.environ, {"ANTHROPIC_API_KEY": ""}, clear=False):
+    with patch.dict(os.environ, {"OPENROUTER_API_KEY": ""}, clear=False):
         from orchestrator import run_task
         result = run_task("test query", dry_run=True)
         assert result["status"] == "error"
@@ -67,3 +71,4 @@ def test_extract_text():
     }
     assert "Part 1" in _extract_text(response)
     assert "Part 2" in _extract_text(response)
+
