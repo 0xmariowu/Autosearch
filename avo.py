@@ -65,6 +65,9 @@ def check_stagnation(population, window=3):
     recent = population[-window:]
     scores = [p.get("scores", {}).get("total", 0) for p in recent]
 
+    if max(scores) == 0:
+        return False, "", []
+
     stagnant = False
     reason = ""
 
@@ -265,7 +268,7 @@ def run_avo(
         # 3. EVALUATE: Score using cumulative evidence
         score_input = dict(result)
         score_input["evidence"] = cumulative_evidence
-        score_input["steps_used"] = sum(p.get("scores", {}).get("steps_used", steps_per_gen) for p in population) + result.get("steps_used", steps_per_gen)
+        score_input["steps_used"] = (gen + 1) * steps_per_gen
         scores = dispatch("avo_score", score_input, target_count=100)
         gen_time = time.time() - gen_start
 

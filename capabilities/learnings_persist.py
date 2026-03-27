@@ -66,9 +66,12 @@ def _save_learnings(learnings, task_spec):
         entries.append(entry)
 
     if entries:
+        import fcntl
         with open(_PATTERNS_PATH, "a") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
             for entry in entries:
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            fcntl.flock(f, fcntl.LOCK_UN)
 
     return {"saved": len(entries), "file": str(_PATTERNS_PATH)}
 

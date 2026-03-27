@@ -64,7 +64,7 @@ def _llm_vary(population, knowledge, task_spec):
     """LLM-based variation: generate improved prompt."""
     api_key = os.environ.get("OPENROUTER_API_KEY", "")
     if not api_key:
-        return _template_vary(population, knowledge, task_spec)
+        return None
 
     pop_summary = ""
     if population:
@@ -129,7 +129,7 @@ Return ONLY the prompt text."""
     except Exception:
         pass
 
-    return _template_vary(population, knowledge, task_spec)
+    return None
 
 
 def run(input_data, **context):
@@ -140,10 +140,14 @@ def run(input_data, **context):
 
     if use_llm:
         prompt = _llm_vary(population, knowledge, task_spec)
+        method = "llm" if prompt else "template_fallback"
+        if not prompt:
+            prompt = _template_vary(population, knowledge, task_spec)
     else:
         prompt = _template_vary(population, knowledge, task_spec)
+        method = "template"
 
-    return {"prompt": prompt, "method": "llm" if use_llm and prompt else "template"}
+    return {"prompt": prompt, "method": method}
 
 
 def test():
