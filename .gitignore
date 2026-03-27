@@ -10,3 +10,7 @@ experience/latest-health.json
 20*-daily-*.md
 daily-20*.md
 node_modules/
+sources/checkpoints/
+sources/evolved-prompt.txt
+sources/health-state.json
+sources/cache.sqlite
