@@ -700,7 +700,9 @@ def _openrouter_bundle_eval(
             "Content-Type": "application/json",
         },
     )
-    with urllib.request.urlopen(request, timeout=OPENROUTER_BUNDLE_TIMEOUT) as response:  # nosemgrep: dynamic-urllib-use-detected
+    with urllib.request.urlopen(
+        request, timeout=OPENROUTER_BUNDLE_TIMEOUT
+    ) as response:  # nosemgrep: dynamic-urllib-use-detected
         payload = json.loads(response.read().decode("utf-8"))
     content = payload["choices"][0]["message"]["content"]
     start = content.find("{")
