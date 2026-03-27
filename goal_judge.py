@@ -644,15 +644,19 @@ def _bundle_sample(
             if round_index >= len(items) or round_index >= per_query:
                 continue
             item = items[round_index]
-            sample.append(
-                {
-                    "title": str(item.get("title") or ""),
-                    "url": str(item.get("url") or ""),
-                    "source": str(item.get("source") or ""),
-                    "query": str(item.get("query") or ""),
-                    "body": str(item.get("body") or "")[:400],
-                }
-            )
+            entry: dict[str, str] = {
+                "title": str(item.get("title") or ""),
+                "url": str(item.get("url") or ""),
+                "source": str(item.get("source") or ""),
+                "query": str(item.get("query") or ""),
+                "body": str(item.get("body") or "")[:400],
+            }
+            for rich_key in ("fit_markdown", "clean_markdown", "acquired_text"):
+                rich_val = str(item.get(rich_key) or "").strip()
+                if rich_val:
+                    entry["content"] = rich_val[:1500]
+                    break
+            sample.append(entry)
             added = True
             if len(sample) >= limit:
                 break
@@ -660,6 +664,89 @@ def _bundle_sample(
             break
         round_index += 1
     return sample
+
+
+def _rich_entry(item: dict[str, Any]) -> dict[str, str]:
+    """Build a sample entry with rich content from an evidence record."""
+    entry: dict[str, str] = {
+        "title": str(item.get("title") or ""),
+        "url": str(item.get("url") or ""),
+        "source": str(item.get("source") or ""),
+        "query": str(item.get("query") or ""),
+        "body": str(item.get("body") or "")[:400],
+    }
+    for rich_key in ("fit_markdown", "clean_markdown", "acquired_text"):
+        rich_val = str(item.get(rich_key) or "").strip()
+        if rich_val:
+            entry["content"] = rich_val[:1500]
+            break
+    return entry
+
+
+def _dimension_keyword_hits(
+    item: dict[str, Any], dimension: dict[str, Any]
+) -> int:
+    """Count how many dimension keywords an evidence item matches."""
+    keywords = _dimension_keywords(dimension)
+    if not keywords:
+        return 0
+    texts = _finding_texts([item])
+    return sum(1 for kw in keywords if _keyword_match(kw, texts))
+
+
+def _dimension_aware_bundle_sample(
+    findings: list[dict[str, Any]],
+    dimensions: list[dict[str, Any]],
+    limit: int = 18,
+) -> list[dict[str, Any]]:
+    """Sample evidence ensuring each dimension gets adequate representation.
+
+    Picks top items per dimension first, then fills remainder with best overall.
+    """
+    if not dimensions:
+        return _bundle_sample(findings, limit=limit)
+
+    import math
+
+    per_dim = max(2, math.ceil(limit / len(dimensions)))
+    seen_keys: set[str] = set()
+    sample: list[dict[str, Any]] = []
+
+    def _dedup_key(item: dict[str, Any]) -> str:
+        return str(item.get("url") or "") or str(item.get("title") or "")
+
+    for dim in dimensions:
+        if len(sample) >= limit:
+            break
+        scored = [
+            (item, _dimension_keyword_hits(item, dim))
+            for item in findings
+        ]
+        scored.sort(key=lambda x: x[1], reverse=True)
+        count = 0
+        for item, hits in scored:
+            if hits == 0 or len(sample) >= limit:
+                break
+            key = _dedup_key(item)
+            if not key or key in seen_keys:
+                continue
+            seen_keys.add(key)
+            sample.append(_rich_entry(item))
+            count += 1
+            if count >= per_dim:
+                break
+
+    if len(sample) < limit:
+        for item in findings:
+            key = _dedup_key(item)
+            if not key or key in seen_keys:
+                continue
+            seen_keys.add(key)
+            sample.append(_rich_entry(item))
+            if len(sample) >= limit:
+                break
+
+    return sample[:limit]
 
 
 def _openrouter_bundle_eval(
@@ -673,17 +760,18 @@ def _openrouter_bundle_eval(
         raise RuntimeError("OPENROUTER_API_KEY not configured")
 
     dimensions = _bundle_dimensions(goal_case)
-    sample = _bundle_sample(findings, limit=18, per_query=3)
+    sample = _dimension_aware_bundle_sample(findings, dimensions, limit=18)
     prompt = (
         "You are a scoring judge only. Do not suggest strategies.\n"
         "Score the cumulative evidence bundle for a concrete project problem.\n"
         f"Problem: {goal_case.get('problem', '')}\n"
         f"Context: {goal_case.get('context_notes', '')}\n"
         f"Dimensions: {json.dumps(dimensions, ensure_ascii=False)}\n"
-        f"Evidence bundle: {json.dumps(sample, ensure_ascii=False)}\n\n"
+        f"Evidence bundle ({len(sample)} items): {json.dumps(sample, ensure_ascii=False)}\n\n"
         "Return only JSON with keys: score, dimension_scores, matched_dimensions, missing_dimensions, rationale.\n"
         "dimension_scores must map each dimension id to an integer 0-20.\n"
-        "Use both the evidence titles and body snippets. Treat concrete implementation patterns and operational guardrails as positive evidence."
+        "Use all available evidence fields — especially the 'content' field which contains page content when available. "
+        "Weigh content heavily for implementation depth. Treat concrete implementation patterns and operational guardrails as positive evidence."
     )
     body = json.dumps(
         {

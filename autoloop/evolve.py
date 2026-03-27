@@ -24,12 +24,11 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from evaluation_harness import build_bundle
-from acquisition import enrich_evidence_record
 from evidence.normalize import coerce_evidence_records
 from evidence_index import LocalEvidenceIndex
 from goal_judge import (
     _bundle_dimensions,
-    _bundle_sample,
+    _dimension_aware_bundle_sample,
     _normalize_bundle_result,
 )
 from goal_services import normalize_query_spec, search_query
@@ -85,49 +84,7 @@ def get_index() -> LocalEvidenceIndex:
 def ai_judge(goal_case: dict, bundle: list[dict], api_key: str, model: str) -> dict:
     """Call AI judge and get per-dimension scores + feedback."""
     dimensions = _bundle_dimensions(goal_case)
-    sample = _bundle_sample(bundle, limit=18, per_query=3)
-    sampled_bundle: list[dict[str, Any]] = []
-    sample_counts: dict[tuple[str, str, str, str], int] = {}
-    for item in sample:
-        key = (
-            str(item.get("title") or ""),
-            str(item.get("url") or ""),
-            str(item.get("source") or ""),
-            str(item.get("query") or ""),
-        )
-        seen = sample_counts.get(key, 0)
-        match_count = 0
-        matched_item: dict[str, Any] | None = None
-        for candidate in bundle:
-            candidate_key = (
-                str(candidate.get("title") or ""),
-                str(candidate.get("url") or ""),
-                str(candidate.get("source") or ""),
-                str(candidate.get("query") or ""),
-            )
-            if candidate_key != key:
-                continue
-            if match_count == seen:
-                matched_item = candidate
-                break
-            match_count += 1
-        sampled_bundle.append(matched_item or item)
-        sample_counts[key] = seen + 1
-
-    rich_sample: list[dict[str, str]] = []
-    for item in sampled_bundle:
-        entry = {
-            "title": str(item.get("title") or ""),
-            "url": str(item.get("url") or ""),
-            "source": str(item.get("source") or ""),
-            "body": str(item.get("body") or "")[:200],
-        }
-        for key in ("fit_markdown", "clean_markdown", "acquired_text"):
-            content = str(item.get(key) or "").strip()
-            if content:
-                entry["content"] = content[:500]
-                break
-        rich_sample.append(entry)
+    rich_sample = _dimension_aware_bundle_sample(bundle, dimensions, limit=18)
 
     prompt = (
         "You are a scoring judge only. Do not suggest strategies.\n"
@@ -186,25 +143,18 @@ def search_for_gaps(
         spec = normalize_query_spec({"text": query_text, "platforms": []})
         try:
             result = search_query(
-                spec, platforms, sampling_policy={"bundle_per_query_cap": 10}
+                spec,
+                platforms,
+                sampling_policy={
+                    "bundle_per_query_cap": 10,
+                    "acquire_pages": True,
+                    "page_fetch_limit": 5,
+                    "prefer_acquired_text": True,
+                },
             )
         except Exception:
             continue
         findings = coerce_evidence_records(result.get("findings", []))
-        enriched: list[dict[str, Any]] = []
-        for finding in findings[:5]:
-            try:
-                enriched_finding = enrich_evidence_record(
-                    finding,
-                    timeout=8,
-                    use_render_fallback=False,
-                    query=query_text,
-                )
-                enriched.append(enriched_finding)
-            except Exception:
-                enriched.append(finding)
-        if enriched:
-            findings = enriched + findings[5:]
         added = index.add(findings)
         if added:
             log(f"  +{added} [{query_text[:60]}]")

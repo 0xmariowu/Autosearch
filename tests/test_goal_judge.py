@@ -336,6 +336,98 @@ class GoalJudgeTests(unittest.TestCase):
         self.assertEqual(result["dimension_scores"]["doctor"], 12)
         self.assertIn("runtime_skip", result["missing_dimensions"])
 
+    def test_bundle_sample_includes_rich_content(self):
+        findings = [
+            {
+                "title": "Repo A",
+                "url": "https://a.com",
+                "source": "github_repos",
+                "query": "test query",
+                "body": "short snippet",
+                "fit_markdown": "x" * 2400,
+            },
+            {
+                "title": "Repo B",
+                "url": "https://b.com",
+                "source": "github_repos",
+                "query": "test query",
+                "body": "another snippet",
+            },
+        ]
+        sample = gj._bundle_sample(findings, limit=5)
+        self.assertEqual(len(sample), 2)
+        item_a = sample[0]
+        self.assertIn("content", item_a)
+        self.assertEqual(len(item_a["content"]), 1500)
+        item_b = sample[1]
+        self.assertNotIn("content", item_b)
+
+    def test_dimension_aware_sample_covers_all_dimensions(self):
+        dimensions = [
+            {"id": "dim_a", "weight": 20, "keywords": ["alpha"]},
+            {"id": "dim_b", "weight": 20, "keywords": ["beta"]},
+            {"id": "dim_c", "weight": 20, "keywords": ["gamma"]},
+        ]
+        findings = []
+        for i in range(10):
+            findings.append({
+                "title": f"alpha doc {i}",
+                "url": f"https://a.com/{i}",
+                "body": "alpha content",
+                "source": "github_repos",
+                "query": "q1",
+            })
+        findings.append({
+            "title": "beta doc",
+            "url": "https://b.com/0",
+            "body": "beta content",
+            "source": "github_repos",
+            "query": "q2",
+        })
+        findings.append({
+            "title": "gamma doc",
+            "url": "https://c.com/0",
+            "body": "gamma content",
+            "source": "github_repos",
+            "query": "q3",
+        })
+        sample = gj._dimension_aware_bundle_sample(findings, dimensions, limit=9)
+        urls = [item["url"] for item in sample]
+        self.assertIn("https://b.com/0", urls)
+        self.assertIn("https://c.com/0", urls)
+        self.assertLessEqual(len(sample), 9)
+
+    def test_dimension_aware_sample_includes_content(self):
+        dimensions = [
+            {"id": "dim_a", "weight": 20, "keywords": ["alpha"]},
+        ]
+        findings = [
+            {
+                "title": "alpha doc",
+                "url": "https://a.com",
+                "body": "short",
+                "source": "github_repos",
+                "fit_markdown": "rich alpha content " * 100,
+            }
+        ]
+        sample = gj._dimension_aware_bundle_sample(findings, dimensions, limit=5)
+        self.assertEqual(len(sample), 1)
+        self.assertIn("content", sample[0])
+        self.assertLessEqual(len(sample[0]["content"]), 1500)
+
+    def test_dimension_aware_sample_falls_back_without_dimensions(self):
+        findings = [
+            {
+                "title": "doc",
+                "url": "https://a.com",
+                "body": "content",
+                "source": "github_repos",
+                "query": "q",
+            }
+        ]
+        sample = gj._dimension_aware_bundle_sample(findings, [], limit=5)
+        self.assertEqual(len(sample), 1)
+
     def test_evaluate_goal_bundle_accepts_explicit_research_bundle_payload(self):
         goal_case = {
             "rubric": [
