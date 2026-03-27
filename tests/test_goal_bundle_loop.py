@@ -598,6 +598,7 @@ class GoalBundleLoopTests(unittest.TestCase):
              )), \
              patch.object(gbl, "build_bundle", side_effect=lambda existing, findings, harness: list(findings)), \
              patch.object(gbl, "evaluate_goal_bundle", side_effect=fake_judge), \
+             patch("goal_judge._heuristic_bundle_eval", side_effect=fake_judge), \
              patch.object(
                  gbl,
                  "_promote_compatible_archive_candidate",
