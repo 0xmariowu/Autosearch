@@ -59,14 +59,12 @@ def dispatch(name: str, input_data: Any = None, **context: Any) -> Any:
 
 
 def manifest_text() -> str:
-    """Generate AI-readable manifest for LLM prompt injection."""
+    """Generate compact AI-readable manifest for LLM prompt injection."""
     lines = []
     for cap in load_manifest():
-        lines.append(
-            f"- **{cap['name']}** ({cap['input_type']} -> {cap['output_type']})"
-        )
-        lines.append(f"  {cap['description']}")
-        lines.append(f"  Use when: {cap['when']}")
+        # One line per capability: name (types) — short description
+        desc = cap["description"].split(".")[0]  # First sentence only
+        lines.append(f"- {cap['name']} ({cap['input_type']}->{cap['output_type']}): {desc}")
     return "\n".join(lines)
 
 
