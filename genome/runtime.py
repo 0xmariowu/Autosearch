@@ -100,9 +100,7 @@ def execute(genome: GenomeSchema, task: str, **kwargs: Any) -> RuntimeResult:
     logger.info("Task intent: %s", result.intent)
 
     # Resolve platforms
-    platforms = kwargs.get("platforms") or _resolve_platforms(
-        genome, result.intent
-    )
+    platforms = kwargs.get("platforms") or _resolve_platforms(genome, result.intent)
 
     # Shared state across phases
     state = _RuntimeState(
@@ -126,9 +124,7 @@ def execute(genome: GenomeSchema, task: str, **kwargs: Any) -> RuntimeResult:
         state.accumulated_evidence.extend(phase_result.evidence)
 
         # Stale detection between phases
-        new_urls = {
-            h.get("url", "") for h in phase_result.hits if h.get("url")
-        }
+        new_urls = {h.get("url", "") for h in phase_result.hits if h.get("url")}
         new_unique = new_urls - state.seen_urls
         state.seen_urls.update(new_urls)
 
@@ -208,9 +204,7 @@ def _execute_phase(phase: PhaseSpec, state: _RuntimeState) -> PhaseResult:
             continue
 
         try:
-            cap_result = _dispatch_capability(
-                cap_name, queries, input_hits, state
-            )
+            cap_result = _dispatch_capability(cap_name, queries, input_hits, state)
             if cap_name in _QUERY_PRODUCERS and isinstance(cap_result, list):
                 queries = cap_result
                 pr.queries_used = cap_result
@@ -220,9 +214,7 @@ def _execute_phase(phase: PhaseSpec, state: _RuntimeState) -> PhaseResult:
                 elif isinstance(cap_result, (int, str)):
                     pr.metadata[cap_name] = cap_result
             elif isinstance(cap_result, list):
-                pr.hits.extend(
-                    item for item in cap_result if isinstance(item, dict)
-                )
+                pr.hits.extend(item for item in cap_result if isinstance(item, dict))
             elif isinstance(cap_result, dict):
                 pr.metadata[cap_name] = cap_result
         except Exception as exc:
@@ -258,23 +250,35 @@ def _dispatch_capability(
     if cap_name == "dedup":
         return []  # handled separately in _apply_dedup
     if cap_name == "cross_ref":
-        return call_primitive("cross_ref", {
-            "hits": input_hits or state.accumulated_hits[-200:],
-            "jaccard_threshold": state.genome.thresholds.dedup_jaccard,
-        })
+        return call_primitive(
+            "cross_ref",
+            {
+                "hits": input_hits or state.accumulated_hits[-200:],
+                "jaccard_threshold": state.genome.thresholds.dedup_jaccard,
+            },
+        )
     if cap_name == "synthesize":
-        return call_primitive("synthesize", {
-            "evidence": input_hits or state.accumulated_hits[-100:],
-        })
+        return call_primitive(
+            "synthesize",
+            {
+                "evidence": input_hits or state.accumulated_hits[-100:],
+            },
+        )
     if cap_name == "store":
-        return call_primitive("store", {
-            "records": input_hits or state.accumulated_hits[-200:],
-        })
+        return call_primitive(
+            "store",
+            {
+                "records": input_hits or state.accumulated_hits[-200:],
+            },
+        )
     if cap_name == "report":
-        return call_primitive("report", {
-            "evidence": input_hits or state.accumulated_evidence[-100:],
-            "template": state.intent,
-        })
+        return call_primitive(
+            "report",
+            {
+                "evidence": input_hits or state.accumulated_evidence[-100:],
+                "template": state.intent,
+            },
+        )
     if cap_name == "extract_entities":
         texts = [
             h.get("title", "") + " " + h.get("snippet", "")
@@ -284,19 +288,25 @@ def _dispatch_capability(
     if cap_name == "classify_intent":
         return call_primitive("classify_intent", {"query": state.task})
     if cap_name == "score_consensus":
-        return call_primitive("score_consensus", {
-            "hits": input_hits or state.accumulated_hits[-200:],
-        })
+        return call_primitive(
+            "score_consensus",
+            {
+                "hits": input_hits or state.accumulated_hits[-200:],
+            },
+        )
     if cap_name == "evaluate_engagement":
         results = []
         formulas = state.genome.scoring.engagement_formulas
-        for hit in (input_hits or state.accumulated_hits[-100:]):
+        for hit in input_hits or state.accumulated_hits[-100:]:
             platform = hit.get("source") or hit.get("provider") or ""
-            score = call_primitive("evaluate_engagement", {
-                "metrics": hit,
-                "platform": platform,
-                "formulas": formulas,
-            })
+            score = call_primitive(
+                "evaluate_engagement",
+                {
+                    "metrics": hit,
+                    "platform": platform,
+                    "formulas": formulas,
+                },
+            )
             results.append({**hit, "engagement_score": score})
         return results
     if cap_name == "fetch":
@@ -319,41 +329,38 @@ def _dispatch_capability(
 # ---------------------------------------------------------------------------
 
 
-def _run_search(
-    queries: list[str], state: _RuntimeState
-) -> list[dict[str, Any]]:
+def _run_search(queries: list[str], state: _RuntimeState) -> list[dict[str, Any]]:
     """Run search across platforms for all queries."""
     all_hits: list[dict[str, Any]] = []
     timeout = state.genome.orchestrator.search_timeout
 
     def _search_one(query: str, platform: dict[str, Any]) -> list[dict[str, Any]]:
         try:
-            return call_primitive("search", {
-                "query": query,
-                "platform": platform,
-                "limit": state.genome.engine.queries_per_round,
-            })
+            return call_primitive(
+                "search",
+                {
+                    "query": query,
+                    "platform": platform,
+                    "limit": state.genome.engine.queries_per_round,
+                },
+            )
         except Exception as exc:
             logger.warning(
                 "search(%s, %s) failed: %s",
-                query[:30], platform.get("name", "?"), exc,
+                query[:30],
+                platform.get("name", "?"),
+                exc,
             )
             return []
 
-    tasks = [
-        (q, p)
-        for q in queries
-        for p in state.platforms
-    ]
+    tasks = [(q, p) for q in queries for p in state.platforms]
 
     if not tasks:
         return all_hits
 
     max_workers = min(len(tasks), 6)
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = {
-            pool.submit(_search_one, q, p): (q, p) for q, p in tasks
-        }
+        futures = {pool.submit(_search_one, q, p): (q, p) for q, p in tasks}
         for future in as_completed(futures, timeout=timeout):
             try:
                 hits = future.result()
@@ -367,17 +374,20 @@ def _run_search(
 def _run_generate_queries(state: _RuntimeState) -> list[str]:
     """Generate queries using the primitive."""
     try:
-        return call_primitive("generate_queries", {
-            "task": state.task,
-            "genes": state.genes,
-            "config": {
-                "queries_per_round": state.genome.engine.queries_per_round,
-                "llm_ratio": state.genome.engine.llm_ratio,
-                "pattern_ratio": state.genome.engine.pattern_ratio,
-                "gene_ratio": state.genome.engine.gene_ratio,
-                "patterns": state.patterns,
+        return call_primitive(
+            "generate_queries",
+            {
+                "task": state.task,
+                "genes": state.genes,
+                "config": {
+                    "queries_per_round": state.genome.engine.queries_per_round,
+                    "llm_ratio": state.genome.engine.llm_ratio,
+                    "pattern_ratio": state.genome.engine.pattern_ratio,
+                    "gene_ratio": state.genome.engine.gene_ratio,
+                    "patterns": state.patterns,
+                },
             },
-        })
+        )
     except Exception as exc:
         logger.warning("generate_queries failed: %s", exc)
         return [state.task]
@@ -393,14 +403,17 @@ def _apply_scoring(
 ) -> list[dict[str, Any]]:
     """Score hits using genome.scoring config."""
     scoring = state.genome.scoring
-    scored = call_primitive("score", {
-        "hits": hits,
-        "query": state.task,
-        "scoring_config": {
-            "term_weights": scoring.term_weights,
-            "preferred_content_types": None,
+    scored = call_primitive(
+        "score",
+        {
+            "hits": hits,
+            "query": state.task,
+            "scoring_config": {
+                "term_weights": scoring.term_weights,
+                "preferred_content_types": None,
+            },
         },
-    })
+    )
     return sorted(scored, key=lambda h: h.get("score_hint", 0), reverse=True)
 
 
@@ -408,11 +421,14 @@ def _apply_dedup(
     hits: list[dict[str, Any]], state: _RuntimeState
 ) -> list[dict[str, Any]]:
     """Dedup hits using genome.thresholds."""
-    return call_primitive("dedup", {
-        "hits": hits,
-        "threshold": state.genome.thresholds.dedup_jaccard,
-        "max_per_domain": state.genome.thresholds.per_domain_cap,
-    })
+    return call_primitive(
+        "dedup",
+        {
+            "hits": hits,
+            "threshold": state.genome.thresholds.dedup_jaccard,
+            "max_per_domain": state.genome.thresholds.per_domain_cap,
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -428,9 +444,7 @@ def _classify_intent(task: str) -> str:
         return "research"
 
 
-def _resolve_platforms(
-    genome: GenomeSchema, intent: str
-) -> list[dict[str, Any]]:
+def _resolve_platforms(genome: GenomeSchema, intent: str) -> list[dict[str, Any]]:
     """Pick platforms based on genome routing + intent."""
     routing = genome.platform_routing
 
@@ -457,9 +471,7 @@ def _resolve_platforms(
 # ---------------------------------------------------------------------------
 
 
-def _resolve_input(
-    phase: PhaseSpec, state: _RuntimeState
-) -> list[dict[str, Any]]:
+def _resolve_input(phase: PhaseSpec, state: _RuntimeState) -> list[dict[str, Any]]:
     """Resolve phase input from previous results."""
     if not phase.input_from:
         return []
@@ -483,9 +495,7 @@ def _resolve_input(
     return state.accumulated_hits
 
 
-def _resolve_queries(
-    phase: PhaseSpec, state: _RuntimeState
-) -> list[str]:
+def _resolve_queries(phase: PhaseSpec, state: _RuntimeState) -> list[str]:
     """Determine queries for this phase."""
     # If phase has query_source, extract from previous results
     if phase.query_source:
@@ -530,16 +540,18 @@ def _hits_to_evidence(
         url = hit.get("url", "")
         if not url:
             continue
-        evidence.append({
-            "url": url,
-            "title": hit.get("title", "")[:150],
-            "snippet": hit.get("snippet", "")[:500],
-            "source": hit.get("source") or hit.get("provider", ""),
-            "query": hit.get("query", state.task),
-            "score_hint": hit.get("score_hint", 0),
-            "engagement_score": hit.get("engagement_score", 0),
-            "backend": hit.get("backend", ""),
-        })
+        evidence.append(
+            {
+                "url": url,
+                "title": hit.get("title", "")[:150],
+                "snippet": hit.get("snippet", "")[:500],
+                "source": hit.get("source") or hit.get("provider", ""),
+                "query": hit.get("query", state.task),
+                "score_hint": hit.get("score_hint", 0),
+                "engagement_score": hit.get("engagement_score", 0),
+                "backend": hit.get("backend", ""),
+            }
+        )
     return evidence
 
 

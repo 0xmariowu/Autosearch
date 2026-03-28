@@ -222,7 +222,9 @@ def run_task(
         base_prompt = system_prompt
     else:
         genome_prompt_file = (
-            str(getattr(getattr(genome, "orchestrator", None), "system_prompt_file", ""))
+            str(
+                getattr(getattr(genome, "orchestrator", None), "system_prompt_file", "")
+            )
             if genome is not None
             else ""
         )

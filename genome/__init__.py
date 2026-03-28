@@ -49,9 +49,7 @@ def load_default_genome() -> GenomeSchema:
     return GenomeSchema.from_dict(merged)
 
 
-def merge_genome(
-    base: GenomeSchema, overrides: dict[str, Any]
-) -> GenomeSchema:
+def merge_genome(base: GenomeSchema, overrides: dict[str, Any]) -> GenomeSchema:
     """Deep-merge *overrides* into *base*, returning a new GenomeSchema.
 
     Only keys present in *overrides* are replaced; everything else
@@ -84,9 +82,7 @@ def validate_genome(genome: GenomeSchema) -> list[str]:
         errors.append(f"engine.gene_ratio must be in [0,1], got {e.gene_ratio}")
     ratio_sum = e.llm_ratio + e.pattern_ratio + e.gene_ratio
     if abs(ratio_sum - 1.0) > 0.01:
-        errors.append(
-            f"engine ratios must sum to ~1.0, got {ratio_sum:.2f}"
-        )
+        errors.append(f"engine ratios must sum to ~1.0, got {ratio_sum:.2f}")
 
     # Orchestrator bounds
     o = genome.orchestrator
@@ -131,26 +127,31 @@ def validate_genome(genome: GenomeSchema) -> list[str]:
             if not str(cap).strip():
                 errors.append(f"phases[{i}].capabilities[{j}] is empty")
     from .primitives import list_primitives
+
     registered = set(list_primitives())
     for i, phase in enumerate(genome.phases):
         for j, cap in enumerate(phase.capabilities):
             if cap and cap not in registered:
-                errors.append(f"phases[{i}].capabilities[{j}]: unknown primitive '{cap}'")
+                errors.append(
+                    f"phases[{i}].capabilities[{j}]: unknown primitive '{cap}'"
+                )
 
     # Engagement formulas: validate syntax (not runtime values)
     from .safe_eval import SafeEvalError, safe_eval
 
     dummy_vars = {
-        "score": 1, "comments": 1, "awards": 1,
-        "stars": 1, "forks": 1, "watchers": 1,
+        "score": 1,
+        "comments": 1,
+        "awards": 1,
+        "stars": 1,
+        "forks": 1,
+        "watchers": 1,
     }
     for platform, formula in genome.scoring.engagement_formulas.items():
         try:
             safe_eval(formula, dummy_vars)
         except SafeEvalError as exc:
-            errors.append(
-                f"scoring.engagement_formulas.{platform}: {exc}"
-            )
+            errors.append(f"scoring.engagement_formulas.{platform}: {exc}")
 
     return errors
 
@@ -158,11 +159,7 @@ def validate_genome(genome: GenomeSchema) -> list[str]:
 def _deep_merge(base: dict[str, Any], overrides: dict[str, Any]) -> None:
     """Recursively merge *overrides* into *base* in place."""
     for key, value in overrides.items():
-        if (
-            key in base
-            and isinstance(base[key], dict)
-            and isinstance(value, dict)
-        ):
+        if key in base and isinstance(base[key], dict) and isinstance(value, dict):
             _deep_merge(base[key], value)
         else:
             base[key] = value

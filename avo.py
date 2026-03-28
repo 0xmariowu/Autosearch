@@ -78,8 +78,15 @@ def load_genome_population(task_spec=""):
 
 
 def commit_genome_generation(
-    task_spec, generation, genome_id, genome_path, parent_id,
-    mutation_type, mutation_detail, scores, evidence_count,
+    task_spec,
+    generation,
+    genome_id,
+    genome_path,
+    parent_id,
+    mutation_type,
+    mutation_detail,
+    scores,
+    evidence_count,
 ):
     """Append genome-based AVO generation record to evolution.jsonl."""
     entry = {
@@ -112,7 +119,8 @@ def load_best_genome(task_spec=""):
     """Load the highest-scoring genome from evolution history."""
     population = load_genome_population(task_spec)
     genome_entries = [
-        p for p in population
+        p
+        for p in population
         if p.get("genome_path") and p.get("scores", {}).get("total", 0) > 0
     ]
     if not genome_entries:
@@ -121,6 +129,7 @@ def load_best_genome(task_spec=""):
     genome_path = best.get("genome_path", "")
     if genome_path and Path(genome_path).exists():
         from genome import load_genome
+
         return load_genome(genome_path)
     return None
 
@@ -549,9 +558,15 @@ def run_avo_genome(
         genome_path = save_evolved_genome(child, genome_id)
         try:
             entry = commit_genome_generation(
-                task_spec, gen_num, genome_id, str(genome_path),
-                parent.genome_id, mutation_type, mutation_detail,
-                scores, scores.get("unique_urls", 0),
+                task_spec,
+                gen_num,
+                genome_id,
+                str(genome_path),
+                parent.genome_id,
+                mutation_type,
+                mutation_detail,
+                scores,
+                scores.get("unique_urls", 0),
             )
         except Exception as exc:
             # Remove orphan genome file if JSONL write fails
@@ -610,10 +625,13 @@ def _evaluate_result(result, task_spec):
 
     try:
         from capabilities import dispatch
+
         score_input = {
             "evidence": evidence,
             "unique_urls": unique_urls,
-            "steps_used": result.rounds_completed if hasattr(result, "rounds_completed") else 0,
+            "steps_used": result.rounds_completed
+            if hasattr(result, "rounds_completed")
+            else 0,
         }
         return dispatch("avo_score", score_input, target_count=100)
     except Exception:

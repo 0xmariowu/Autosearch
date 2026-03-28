@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import patch
 
 # Ensure project root is importable
 import sys
@@ -137,15 +136,17 @@ def test_runtime_produces_result_with_evidence():
     """Execute runtime with mocked primitives — verify structure."""
     g = load_genome(SEEDS_DIR / "engine-3phase.json")
 
-    originals = _swap_primitives({
-        "search": _mock_search,
-        "generate_queries": _mock_generate_queries,
-        "score": _mock_score,
-        "dedup": _mock_dedup,
-        "store": _mock_store,
-        "cross_ref": _mock_cross_ref,
-        "synthesize": _mock_synthesize,
-    })
+    originals = _swap_primitives(
+        {
+            "search": _mock_search,
+            "generate_queries": _mock_generate_queries,
+            "score": _mock_score,
+            "dedup": _mock_dedup,
+            "store": _mock_store,
+            "cross_ref": _mock_cross_ref,
+            "synthesize": _mock_synthesize,
+        }
+    )
     try:
         result = execute(g, "find AI agent repos")
 
@@ -153,8 +154,13 @@ def test_runtime_produces_result_with_evidence():
         assert result.genome_id == g.genome_id
         assert result.task == "find AI agent repos"
         assert result.intent in (
-            "how_to", "comparison", "opinion", "debug",
-            "breaking", "research", "prediction",
+            "how_to",
+            "comparison",
+            "opinion",
+            "debug",
+            "breaking",
+            "research",
+            "prediction",
         )
         assert result.elapsed_seconds > 0
         assert len(result.phase_results) > 0

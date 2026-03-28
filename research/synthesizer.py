@@ -115,7 +115,9 @@ def _graph_scheduler_hints(
         for item in list(graph_plan.get("branch_targets") or [])
         if str(item).strip()
     ]
-    query_clusters = _query_cluster(bundle, limit=int(cfg.get("query_cluster_limit", 8)))
+    query_clusters = _query_cluster(
+        bundle, limit=int(cfg.get("query_cluster_limit", 8))
+    )
     domain_clusters = _domain_cluster(
         bundle,
         limit=int(cfg.get("domain_cluster_limit", 8)),

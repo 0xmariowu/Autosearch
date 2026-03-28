@@ -130,8 +130,7 @@ def get_mode_policy(
         mode_data = genome.modes.get(normalize_mode(mode))
         if mode_data:
             base = {
-                key: getattr(mode_data, key)
-                for key in ModeSection.__dataclass_fields__
+                key: getattr(mode_data, key) for key in ModeSection.__dataclass_fields__
             }
             for key, value in dict(overrides or {}).items():
                 if key in base and value is not None:

@@ -71,7 +71,9 @@ def call_primitive(name: str, inputs: dict[str, Any]) -> Any:
     required = list(spec.input_schema.get("required") or [])
     missing = [key for key in required if key not in inputs]
     if missing:
-        raise ValueError(f"Missing required inputs for {spec.name}: {', '.join(missing)}")
+        raise ValueError(
+            f"Missing required inputs for {spec.name}: {', '.join(missing)}"
+        )
     return spec.fn(**inputs)
 
 
@@ -79,7 +81,9 @@ def list_primitives() -> list[str]:
     return sorted(_REGISTRY)
 
 
-def _coerce_platform(platform: str | dict[str, Any], limit: int | None) -> dict[str, Any]:
+def _coerce_platform(
+    platform: str | dict[str, Any], limit: int | None
+) -> dict[str, Any]:
     payload = {"name": platform} if isinstance(platform, str) else dict(platform or {})
     if limit is not None:
         payload.setdefault("limit", int(limit))
@@ -128,7 +132,9 @@ def _ordered_unique(values: list[str]) -> list[str]:
     return ordered
 
 
-def _filter_records(records: list[dict[str, Any]], filters: dict[str, Any]) -> list[dict[str, Any]]:
+def _filter_records(
+    records: list[dict[str, Any]], filters: dict[str, Any]
+) -> list[dict[str, Any]]:
     if not filters:
         return records
     matched: list[dict[str, Any]] = []
@@ -160,8 +166,12 @@ def _mutation_query_specs(config: dict[str, Any]) -> list[dict[str, Any]]:
         "goal_case": dict(config.get("goal_case") or {}),
         "local_evidence_records": list(config.get("local_evidence_records") or []),
         "judge_result": dict(config.get("judge_result") or {}),
-        "max_queries": int(config.get("limit", config.get("queries_per_round", 5)) or 5),
-        "tried_queries": set(str(item) for item in list(config.get("tried_queries") or [])),
+        "max_queries": int(
+            config.get("limit", config.get("queries_per_round", 5)) or 5
+        ),
+        "tried_queries": set(
+            str(item) for item in list(config.get("tried_queries") or [])
+        ),
         "generic_tokens": config.get("generic_anchor_tokens"),
     }
     if not common["judge_result"] and not common["local_evidence_records"]:
@@ -259,7 +269,9 @@ def _primitive_cross_ref(
     from capabilities.consensus_score import run as consensus_score
     from capabilities.cross_verify import run as cross_verify
 
-    boosted = consensus_score([dict(hit) for hit in list(hits or []) if isinstance(hit, dict)])
+    boosted = consensus_score(
+        [dict(hit) for hit in list(hits or []) if isinstance(hit, dict)]
+    )
     report = cross_verify(boosted, jaccard_threshold=jaccard_threshold)
     disputes = dict(report.get("source_dispute_map") or {})
     consensus = list(report.get("consensus") or [])
@@ -268,13 +280,18 @@ def _primitive_cross_ref(
     for hit in boosted:
         source = str(hit.get("source") or hit.get("provider") or "")
         url = str(hit.get("url") or "")
-        related = lambda item: url in list(item.get("urls") or []) or source in list(item.get("sources") or [])
+        related = lambda item: (
+            url in list(item.get("urls") or [])
+            or source in list(item.get("sources") or [])
+        )
         result.append(
             {
                 **hit,
                 "cross_refs": {
                     "consensus": [item for item in consensus if related(item)][:5],
-                    "contradictions": [item for item in contradictions if related(item)][:5],
+                    "contradictions": [
+                        item for item in contradictions if related(item)
+                    ][:5],
                     "source_summary": dict(disputes.get(source) or {}),
                     "stance_counts": dict(report.get("stance_counts") or {}),
                 },
@@ -349,7 +366,9 @@ def _primitive_generate_queries(
 
     cfg = dict(config or {})
     limit = int(cfg.get("limit", cfg.get("queries_per_round", 5)) or 5)
-    patterns = PatternStore(Path(cfg.get("patterns_path") or "/tmp/autosearch-primitives-patterns.jsonl"))
+    patterns = PatternStore(
+        Path(cfg.get("patterns_path") or "/tmp/autosearch-primitives-patterns.jsonl")
+    )
     patterns.use_patterns = list(cfg.get("patterns") or patterns.use_patterns)
     generator = QueryGenerator(
         EngineConfig(
@@ -361,8 +380,12 @@ def _primitive_generate_queries(
         ),
         patterns,
     )
-    generator.add_seed_queries(_ordered_unique([str(task or ""), *list(cfg.get("seed_queries") or [])]))
-    generator.add_llm_suggestions(_ordered_unique(list(cfg.get("llm_suggestions") or [])))
+    generator.add_seed_queries(
+        _ordered_unique([str(task or ""), *list(cfg.get("seed_queries") or [])])
+    )
+    generator.add_llm_suggestions(
+        _ordered_unique(list(cfg.get("llm_suggestions") or []))
+    )
     base_queries, _ = generator.generate(limit)
     mutation_queries = [spec.get("text", "") for spec in _mutation_query_specs(cfg)]
     return _ordered_unique([str(task or ""), *base_queries, *mutation_queries])[:limit]
@@ -375,7 +398,9 @@ def _primitive_evaluate_engagement(
 ) -> float:
     from genome.safe_eval import SafeEvalError, safe_eval
 
-    formula = dict(formulas or _DEFAULT_ENGAGEMENT_FORMULAS).get(str(platform or "").lower(), "")
+    formula = dict(formulas or _DEFAULT_ENGAGEMENT_FORMULAS).get(
+        str(platform or "").lower(), ""
+    )
     if not formula:
         return 0.0
     try:
@@ -387,7 +412,9 @@ def _primitive_evaluate_engagement(
 def _primitive_score_consensus(hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
     from capabilities.consensus_score import run as consensus_score
 
-    return consensus_score([dict(hit) for hit in list(hits or []) if isinstance(hit, dict)])
+    return consensus_score(
+        [dict(hit) for hit in list(hits or []) if isinstance(hit, dict)]
+    )
 
 
 register_primitive(

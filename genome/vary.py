@@ -16,7 +16,6 @@ Five mutation types:
 from __future__ import annotations
 
 import copy
-import json
 import logging
 import random
 from typing import Any
@@ -59,9 +58,19 @@ _MUTABLE_NUMERICS: dict[str, list[tuple[str, float, float]]] = {
 
 # Primitives that can appear in phases
 _KNOWN_PRIMITIVES = [
-    "search", "score", "dedup", "generate_queries", "cross_ref",
-    "synthesize", "store", "report", "extract_entities",
-    "classify_intent", "score_consensus", "evaluate_engagement", "fetch",
+    "search",
+    "score",
+    "dedup",
+    "generate_queries",
+    "cross_ref",
+    "synthesize",
+    "store",
+    "report",
+    "extract_entities",
+    "classify_intent",
+    "score_consensus",
+    "evaluate_engagement",
+    "fetch",
 ]
 
 
@@ -148,7 +157,11 @@ def _micro_mutation(parent: GenomeSchema) -> tuple[GenomeSchema, str]:
     setattr(section, field_name, new_value)
 
     # Re-normalize ratios if engine ratios were mutated
-    if section_name == "engine" and field_name in ("llm_ratio", "pattern_ratio", "gene_ratio"):
+    if section_name == "engine" and field_name in (
+        "llm_ratio",
+        "pattern_ratio",
+        "gene_ratio",
+    ):
         _normalize_ratios(child)
 
     detail = f"{section_name}.{field_name}: {old_value} → {new_value}"
@@ -212,7 +225,7 @@ def _structural_mutation(parent: GenomeSchema) -> tuple[GenomeSchema, str]:
                 capabilities=source.capabilities[mid:],
                 input_from=f"phase:{source.name}_a",
             )
-            phases[idx:idx + 1] = [p1, p2]
+            phases[idx : idx + 1] = [p1, p2]
             child.phases = phases
             return child, f"split phase {source.name} into {p1.name} + {p2.name}"
 
@@ -226,10 +239,7 @@ def _crossover(
 ) -> tuple[GenomeSchema, str]:
     """Combine sections from parent and another genome in the population."""
     # Filter to entries that have genome files
-    genome_entries = [
-        p for p in population[-10:]
-        if p.get("genome_path")
-    ]
+    genome_entries = [p for p in population[-10:] if p.get("genome_path")]
     if len(genome_entries) < 1:
         child, detail = _micro_mutation(parent)
         return child, f"crossover_fallback→{detail}"
@@ -238,6 +248,7 @@ def _crossover(
     other_genome_path = other_entry.get("genome_path", "")
     try:
         from . import load_genome
+
         other = load_genome(other_genome_path)
     except Exception:
         child, detail = _micro_mutation(parent)
@@ -310,7 +321,8 @@ def _knowledge_injection(
 
     # Pick a recent winning pattern
     winning = [
-        p for p in knowledge
+        p
+        for p in knowledge
         if "winning" in str(p.get("pattern", "")).lower()
         or "success" in str(p.get("finding", "")).lower()
     ]

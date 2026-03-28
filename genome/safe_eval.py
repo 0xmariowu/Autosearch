@@ -39,7 +39,7 @@ _ALLOWED_NODE_TYPES = (
     ast.Call,
     ast.Name,
     ast.Constant,
-    *(([ast.Num] if hasattr(ast, "Num") else [])),  # removed in Python 3.12
+    *([ast.Num] if hasattr(ast, "Num") else []),  # removed in Python 3.12
     ast.Add,
     ast.Sub,
     ast.Mult,
@@ -61,9 +61,7 @@ class _WhitelistVisitor(ast.NodeVisitor):
 
     def generic_visit(self, node: ast.AST) -> None:
         if not isinstance(node, _ALLOWED_NODE_TYPES):
-            raise SafeEvalError(
-                f"Disallowed node type: {type(node).__name__}"
-            )
+            raise SafeEvalError(f"Disallowed node type: {type(node).__name__}")
         super().generic_visit(node)
 
     def visit_Name(self, node: ast.Name) -> None:

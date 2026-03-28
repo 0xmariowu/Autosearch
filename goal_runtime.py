@@ -55,14 +55,10 @@ def get_harness(genome: Any | None = None) -> dict[str, Any]:
                 "min_new_unique_urls": int(thresholds.min_new_unique_urls),
                 "min_novelty_ratio": float(thresholds.min_novelty_ratio),
                 "min_source_diversity": float(thresholds.min_source_diversity),
-                "max_source_concentration": float(
-                    thresholds.max_source_concentration
-                ),
+                "max_source_concentration": float(thresholds.max_source_concentration),
                 "max_query_concentration": float(thresholds.max_query_concentration),
                 "min_new_sources_when_score_improves": int(
-                    DEFAULT_HARNESS["anti_cheat"][
-                        "min_new_sources_when_score_improves"
-                    ]
+                    DEFAULT_HARNESS["anti_cheat"]["min_new_sources_when_score_improves"]
                 ),
             },
         }

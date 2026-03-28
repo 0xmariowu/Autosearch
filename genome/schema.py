@@ -68,9 +68,15 @@ class ModeSection:
     page_fetch_limit: int = 2
     prefer_acquired_text: bool = False
     rerank_profile: str = "hybrid"
-    branch_budget_per_round: dict[str, int] = field(default_factory=lambda: {
-        "breadth": 1, "repair": 2, "followup": 1, "probe": 1, "research": 1,
-    })
+    branch_budget_per_round: dict[str, int] = field(
+        default_factory=lambda: {
+            "breadth": 1,
+            "repair": 2,
+            "followup": 1,
+            "probe": 1,
+            "research": 1,
+        }
+    )
     plateau_rounds: int = 3
     stop_on_saturated: bool = False
     max_findings_before_search_disable: int = 40
@@ -79,64 +85,125 @@ class ModeSection:
 
 @dataclass
 class ScoringSection:
-    term_weights: dict[str, int] = field(default_factory=lambda: {
-        "title": 4, "snippet": 2, "url": 1, "source": 1,
-    })
+    term_weights: dict[str, int] = field(
+        default_factory=lambda: {
+            "title": 4,
+            "snippet": 2,
+            "url": 1,
+            "source": 1,
+        }
+    )
     content_type_bonus: int = 2
     harmonic_divisor: int = 10
-    stop_words: list[str] = field(default_factory=lambda: [
-        "the", "and", "for", "with", "that", "this", "from", "into",
-        "after", "before", "what", "when", "where", "which", "about",
-        "have", "has", "will", "your",
-    ])
-    tracking_params: list[str] = field(default_factory=lambda: [
-        "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
-        "fbclid", "gclid", "gclsrc", "dclid", "msclkid", "ref", "ref_src",
-        "ref_url", "mc_cid", "mc_eid", "oly_enc_id", "oly_anon_id",
-        "_ga", "_gl", "_hsenc", "_hsmi", "vero_id", "mkt_tok",
-    ])
+    stop_words: list[str] = field(
+        default_factory=lambda: [
+            "the",
+            "and",
+            "for",
+            "with",
+            "that",
+            "this",
+            "from",
+            "into",
+            "after",
+            "before",
+            "what",
+            "when",
+            "where",
+            "which",
+            "about",
+            "have",
+            "has",
+            "will",
+            "your",
+        ]
+    )
+    tracking_params: list[str] = field(
+        default_factory=lambda: [
+            "utm_source",
+            "utm_medium",
+            "utm_campaign",
+            "utm_term",
+            "utm_content",
+            "fbclid",
+            "gclid",
+            "gclsrc",
+            "dclid",
+            "msclkid",
+            "ref",
+            "ref_src",
+            "ref_url",
+            "mc_cid",
+            "mc_eid",
+            "oly_enc_id",
+            "oly_anon_id",
+            "_ga",
+            "_gl",
+            "_hsenc",
+            "_hsmi",
+            "vero_id",
+            "mkt_tok",
+        ]
+    )
     generic_tokens: list[str] = field(default_factory=list)
     generic_cap: int = 3
-    engagement_formulas: dict[str, str] = field(default_factory=lambda: {
-        "reddit": "0.50*log1p(score) + 0.35*log1p(comments) + 0.15*log1p(awards)",
-        "github": "0.40*log1p(stars) + 0.35*log1p(forks) + 0.25*log1p(watchers)",
-        "hn": "0.60*log1p(score) + 0.40*log1p(comments)",
-    })
+    engagement_formulas: dict[str, str] = field(
+        default_factory=lambda: {
+            "reddit": "0.50*log1p(score) + 0.35*log1p(comments) + 0.15*log1p(awards)",
+            "github": "0.40*log1p(stars) + 0.35*log1p(forks) + 0.25*log1p(watchers)",
+            "hn": "0.60*log1p(score) + 0.40*log1p(comments)",
+        }
+    )
     cross_source_bonus: float = 1.0
     consensus_formula: str = "original_score * max(1, provider_count)"
 
 
 @dataclass
 class PlatformRoutingSection:
-    status_priority: dict[str, int] = field(default_factory=lambda: {
-        "ok": 0, "warn": 1, "off": 9, "error": 9,
-    })
-    tier_priority: dict[str, int] = field(default_factory=lambda: {
-        "free_default": 0, "specialized_free": 1, "premium_fallback": 3,
-    })
-    default_providers: list[dict[str, Any]] = field(default_factory=lambda: [
-        {"name": "github_repos"},
-        {"name": "github_issues"},
-        {"name": "searxng"},
-        {"name": "ddgs"},
-        {"name": "reddit", "sub": "all"},
-        {"name": "hn"},
-    ])
-    premium_providers: list[dict[str, str]] = field(default_factory=lambda: [
-        {"name": "exa"},
-        {"name": "tavily"},
-        {"name": "twitter_xreach"},
-        {"name": "huggingface_datasets"},
-    ])
-    intent_routing: dict[str, list[str]] = field(default_factory=lambda: {
-        "how_to": ["github_repos", "searxng", "ddgs"],
-        "comparison": ["searxng", "ddgs", "reddit", "hn"],
-        "opinion": ["reddit", "hn", "twitter_xreach"],
-        "debug": ["github_issues", "searxng", "ddgs"],
-        "breaking": ["twitter_xreach", "hn", "reddit"],
-        "research": ["github_repos", "searxng", "semantic_scholar"],
-        "prediction": ["twitter_xreach", "reddit", "hn"],
-    })
+    status_priority: dict[str, int] = field(
+        default_factory=lambda: {
+            "ok": 0,
+            "warn": 1,
+            "off": 9,
+            "error": 9,
+        }
+    )
+    tier_priority: dict[str, int] = field(
+        default_factory=lambda: {
+            "free_default": 0,
+            "specialized_free": 1,
+            "premium_fallback": 3,
+        }
+    )
+    default_providers: list[dict[str, Any]] = field(
+        default_factory=lambda: [
+            {"name": "github_repos"},
+            {"name": "github_issues"},
+            {"name": "searxng"},
+            {"name": "ddgs"},
+            {"name": "reddit", "sub": "all"},
+            {"name": "hn"},
+        ]
+    )
+    premium_providers: list[dict[str, str]] = field(
+        default_factory=lambda: [
+            {"name": "exa"},
+            {"name": "tavily"},
+            {"name": "twitter_xreach"},
+            {"name": "huggingface_datasets"},
+        ]
+    )
+    intent_routing: dict[str, list[str]] = field(
+        default_factory=lambda: {
+            "how_to": ["github_repos", "searxng", "ddgs"],
+            "comparison": ["searxng", "ddgs", "reddit", "hn"],
+            "opinion": ["reddit", "hn", "twitter_xreach"],
+            "debug": ["github_issues", "searxng", "ddgs"],
+            "breaking": ["twitter_xreach", "hn", "reddit"],
+            "research": ["github_repos", "searxng", "semantic_scholar"],
+            "prediction": ["twitter_xreach", "reddit", "hn"],
+        }
+    )
 
 
 @dataclass
@@ -168,65 +235,142 @@ class ThresholdsSection:
 
 @dataclass
 class SynthesisSection:
-    positive_claim_terms: list[str] = field(default_factory=lambda: [
-        "works", "working", "passes", "passed", "verified",
-        "reliable", "success", "successful", "stable",
-    ])
-    negative_claim_terms: list[str] = field(default_factory=lambda: [
-        "fails", "failed", "failing", "broken", "issue", "issues",
-        "bug", "bugs", "limitation", "limitations", "criticism",
-        "tradeoff", "tradeoffs", "regression",
-    ])
-    claim_stop_words: list[str] = field(default_factory=lambda: [
-        "the", "and", "with", "that", "this", "from", "into",
-        "using", "implementation", "system", "approach", "method",
-        "results", "result", "page", "report", "study",
-    ])
+    positive_claim_terms: list[str] = field(
+        default_factory=lambda: [
+            "works",
+            "working",
+            "passes",
+            "passed",
+            "verified",
+            "reliable",
+            "success",
+            "successful",
+            "stable",
+        ]
+    )
+    negative_claim_terms: list[str] = field(
+        default_factory=lambda: [
+            "fails",
+            "failed",
+            "failing",
+            "broken",
+            "issue",
+            "issues",
+            "bug",
+            "bugs",
+            "limitation",
+            "limitations",
+            "criticism",
+            "tradeoff",
+            "tradeoffs",
+            "regression",
+        ]
+    )
+    claim_stop_words: list[str] = field(
+        default_factory=lambda: [
+            "the",
+            "and",
+            "with",
+            "that",
+            "this",
+            "from",
+            "into",
+            "using",
+            "implementation",
+            "system",
+            "approach",
+            "method",
+            "results",
+            "result",
+            "page",
+            "report",
+            "study",
+        ]
+    )
     query_cluster_limit: int = 8
     domain_cluster_limit: int = 8
     multi_source_threshold: int = 2
     intent_templates: dict[str, dict[str, Any]] = field(default_factory=dict)
-    report_sections: list[str] = field(default_factory=lambda: [
-        "summary", "findings", "claim_alignment", "clusters", "gaps",
-    ])
+    report_sections: list[str] = field(
+        default_factory=lambda: [
+            "summary",
+            "findings",
+            "claim_alignment",
+            "clusters",
+            "gaps",
+        ]
+    )
 
 
 @dataclass
 class QueryGenerationSection:
-    generic_anchor_tokens: list[str] = field(default_factory=lambda: [
-        "https", "http", "github", "issue", "issues", "about", "using",
-        "validation", "report", "implementation", "details", "failure",
-        "modes", "dataset", "public", "release",
-    ])
-    strong_evidence_types: list[str] = field(default_factory=lambda: [
-        "code", "repository", "issue", "reference", "web",
-    ])
+    generic_anchor_tokens: list[str] = field(
+        default_factory=lambda: [
+            "https",
+            "http",
+            "github",
+            "issue",
+            "issues",
+            "about",
+            "using",
+            "validation",
+            "report",
+            "implementation",
+            "details",
+            "failure",
+            "modes",
+            "dataset",
+            "public",
+            "release",
+        ]
+    )
+    strong_evidence_types: list[str] = field(
+        default_factory=lambda: [
+            "code",
+            "repository",
+            "issue",
+            "reference",
+            "web",
+        ]
+    )
     anchor_token_limit: int = 4
     recursive_depth_limit: int = 4
-    branch_budget_defaults: dict[str, int] = field(default_factory=lambda: {
-        "breadth": 1, "repair": 2, "followup": 1, "probe": 1, "research": 1,
-    })
-    intent_patterns: dict[str, str] = field(default_factory=lambda: {
-        "how_to": r"(?i)\b(how\s+to|setup|install|configure|deploy)\b",
-        "comparison": r"(?i)\b(vs\.?|versus|compared?\s+to|alternative)\b",
-        "opinion": r"(?i)\b(best|worst|review|recommend|should\s+i)\b",
-        "debug": r"(?i)\b(error|bug|fix|crash|traceback|exception|fail)\b",
-        "breaking": r"(?i)\b(new|launch|announce|release|breaking)\b",
-        "research": r"(?i)\b(paper|study|survey|benchmark|evaluation)\b",
-        "prediction": r"(?i)\b(future|predict|trend|forecast|roadmap)\b",
-    })
-    mutation_kinds: dict[str, float] = field(default_factory=lambda: {
-        "breadth": 0.30,
-        "repair": 0.25,
-        "followup": 0.20,
-        "probe": 0.15,
-        "research": 0.10,
-    })
-    entity_extraction: dict[str, Any] = field(default_factory=lambda: {
-        "handle_pattern": r"@[\w]+",
-        "org_pattern": r"(?:by|from|at)\s+([A-Z][\w]+(?:\s+[A-Z][\w]+)*)",
-        "subreddit_pattern": r"r/[\w]+",
-    })
+    branch_budget_defaults: dict[str, int] = field(
+        default_factory=lambda: {
+            "breadth": 1,
+            "repair": 2,
+            "followup": 1,
+            "probe": 1,
+            "research": 1,
+        }
+    )
+    intent_patterns: dict[str, str] = field(
+        default_factory=lambda: {
+            "how_to": r"(?i)\b(how\s+to|setup|install|configure|deploy)\b",
+            "comparison": r"(?i)\b(vs\.?|versus|compared?\s+to|alternative)\b",
+            "opinion": r"(?i)\b(best|worst|review|recommend|should\s+i)\b",
+            "debug": r"(?i)\b(error|bug|fix|crash|traceback|exception|fail)\b",
+            "breaking": r"(?i)\b(new|launch|announce|release|breaking)\b",
+            "research": r"(?i)\b(paper|study|survey|benchmark|evaluation)\b",
+            "prediction": r"(?i)\b(future|predict|trend|forecast|roadmap)\b",
+        }
+    )
+    mutation_kinds: dict[str, float] = field(
+        default_factory=lambda: {
+            "breadth": 0.30,
+            "repair": 0.25,
+            "followup": 0.20,
+            "probe": 0.15,
+            "research": 0.10,
+        }
+    )
+    entity_extraction: dict[str, Any] = field(
+        default_factory=lambda: {
+            "handle_pattern": r"@[\w]+",
+            "org_pattern": r"(?:by|from|at)\s+([A-Z][\w]+(?:\s+[A-Z][\w]+)*)",
+            "subreddit_pattern": r"r/[\w]+",
+        }
+    )
 
 
 @dataclass
@@ -251,43 +395,53 @@ class GenomeSchema:
 
     engine: EngineSection = field(default_factory=EngineSection)
     orchestrator: OrchestratorSection = field(default_factory=OrchestratorSection)
-    modes: dict[str, ModeSection] = field(default_factory=lambda: {
-        "speed": ModeSection(
-            name="speed",
-            enable_planning=False,
-            enable_cross_verification=False,
-            enable_acquisition=False,
-            enable_recursive_repair=False,
-            emit_research_packet=False,
-            max_branch_depth=1,
-            max_plan_count=1,
-            max_queries=3,
-            page_fetch_limit=0,
-            prefer_acquired_text=False,
-            rerank_profile="lexical",
-            branch_budget_per_round={
-                "breadth": 1, "repair": 1, "followup": 0, "probe": 0, "research": 0,
-            },
-            plateau_rounds=1,
-            stop_on_saturated=True,
-            max_findings_before_search_disable=18,
-            disabled_actions=["cross_verify"],
-        ),
-        "balanced": ModeSection(),
-        "deep": ModeSection(
-            name="deep",
-            max_branch_depth=5,
-            max_plan_count=5,
-            max_queries=7,
-            page_fetch_limit=4,
-            prefer_acquired_text=True,
-            branch_budget_per_round={
-                "breadth": 1, "repair": 3, "followup": 2, "probe": 2, "research": 2,
-            },
-            plateau_rounds=4,
-            max_findings_before_search_disable=80,
-        ),
-    })
+    modes: dict[str, ModeSection] = field(
+        default_factory=lambda: {
+            "speed": ModeSection(
+                name="speed",
+                enable_planning=False,
+                enable_cross_verification=False,
+                enable_acquisition=False,
+                enable_recursive_repair=False,
+                emit_research_packet=False,
+                max_branch_depth=1,
+                max_plan_count=1,
+                max_queries=3,
+                page_fetch_limit=0,
+                prefer_acquired_text=False,
+                rerank_profile="lexical",
+                branch_budget_per_round={
+                    "breadth": 1,
+                    "repair": 1,
+                    "followup": 0,
+                    "probe": 0,
+                    "research": 0,
+                },
+                plateau_rounds=1,
+                stop_on_saturated=True,
+                max_findings_before_search_disable=18,
+                disabled_actions=["cross_verify"],
+            ),
+            "balanced": ModeSection(),
+            "deep": ModeSection(
+                name="deep",
+                max_branch_depth=5,
+                max_plan_count=5,
+                max_queries=7,
+                page_fetch_limit=4,
+                prefer_acquired_text=True,
+                branch_budget_per_round={
+                    "breadth": 1,
+                    "repair": 3,
+                    "followup": 2,
+                    "probe": 2,
+                    "research": 2,
+                },
+                plateau_rounds=4,
+                max_findings_before_search_disable=80,
+            ),
+        }
+    )
     scoring: ScoringSection = field(default_factory=ScoringSection)
     platform_routing: PlatformRoutingSection = field(
         default_factory=PlatformRoutingSection,
@@ -322,7 +476,8 @@ class GenomeSchema:
                 if unknown:
                     logger.warning(
                         "Genome %s: dropping unknown keys %s",
-                        klass.__name__, sorted(unknown),
+                        klass.__name__,
+                        sorted(unknown),
                     )
                 return klass(**{k: v for k, v in raw.items() if k in known})
             return klass()
@@ -344,10 +499,14 @@ class GenomeSchema:
             orchestrator=_section(OrchestratorSection, data.get("orchestrator")),
             modes=modes,
             scoring=_section(ScoringSection, data.get("scoring")),
-            platform_routing=_section(PlatformRoutingSection, data.get("platform_routing")),
+            platform_routing=_section(
+                PlatformRoutingSection, data.get("platform_routing")
+            ),
             thresholds=_section(ThresholdsSection, data.get("thresholds")),
             synthesis=_section(SynthesisSection, data.get("synthesis")),
-            query_generation=_section(QueryGenerationSection, data.get("query_generation")),
+            query_generation=_section(
+                QueryGenerationSection, data.get("query_generation")
+            ),
             phases=phases,
         )
 
@@ -356,7 +515,6 @@ class GenomeSchema:
     @classmethod
     def json_schema(cls) -> dict[str, Any]:
         """Export a JSON Schema describing the genome structure."""
-        from typing import get_type_hints
 
         def _type_for(annotation: Any) -> dict[str, Any]:
             if annotation is int:
