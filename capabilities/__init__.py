@@ -64,7 +64,9 @@ def manifest_text() -> str:
     for cap in load_manifest():
         # One line per capability: name (types) — short description
         desc = cap["description"].split(".")[0]  # First sentence only
-        lines.append(f"- {cap['name']} ({cap['input_type']}->{cap['output_type']}): {desc}")
+        lines.append(
+            f"- {cap['name']} ({cap['input_type']}->{cap['output_type']}): {desc}"
+        )
     return "\n".join(lines)
 
 

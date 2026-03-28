@@ -73,8 +73,12 @@ def check_stagnation(population, window=3):
 
     if scores and max(scores) <= min(scores) * 1.01:
         stagnant = True
-        reason = f"Scores flat for {window} generations: {[round(s, 3) for s in scores]}"
-    if len(scores) >= 2 and all(scores[i] <= scores[i - 1] for i in range(1, len(scores))):
+        reason = (
+            f"Scores flat for {window} generations: {[round(s, 3) for s in scores]}"
+        )
+    if len(scores) >= 2 and all(
+        scores[i] <= scores[i - 1] for i in range(1, len(scores))
+    ):
         stagnant = True
         reason = f"Scores declining: {[round(s, 3) for s in scores]}"
 
@@ -98,7 +102,9 @@ def check_stagnation(population, window=3):
     if avg_dims.get("efficiency", 0) < 0.3:
         suggestions.append("Minimize think/processing steps, maximize search steps")
     suggestions.append("Try persona_expand for completely different query angles")
-    suggestions.append("Reframe topic: 'AI agent' → 'autonomous AI tools' or 'LLM orchestration'")
+    suggestions.append(
+        "Reframe topic: 'AI agent' → 'autonomous AI tools' or 'LLM orchestration'"
+    )
 
     return True, reason, suggestions
 
@@ -139,17 +145,24 @@ Generate a NEW orchestrator prompt that takes a completely different approach.
 Include {{manifest}} placeholder for capabilities list.
 Return ONLY the prompt text."""
 
-    payload = json.dumps({
-        "model": os.environ.get("OPENROUTER_ORCHESTRATOR_MODEL", "google/gemini-2.5-flash"),
-        "max_tokens": 1500,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.9,
-    }).encode()
+    payload = json.dumps(
+        {
+            "model": os.environ.get(
+                "OPENROUTER_ORCHESTRATOR_MODEL", "google/gemini-2.5-flash"
+            ),
+            "max_tokens": 1500,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.9,
+        }
+    ).encode()
 
     req = urllib.request.Request(
         "https://openrouter.ai/api/v1/chat/completions",
         data=payload,
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
     )
 
     try:
@@ -255,9 +268,12 @@ def run_avo(
                 )
                 # Diagnose: mutate prompt to fix the issue
                 redirect_result = dispatch(
-                    "avo_vary", None,
-                    population=population, knowledge=knowledge,
-                    task_spec=task_spec, use_llm=False,
+                    "avo_vary",
+                    None,
+                    population=population,
+                    knowledge=knowledge,
+                    task_spec=task_spec,
+                    use_llm=False,
                 )
                 retry_prompt = redirect_result.get("prompt")
                 if retry_prompt:
@@ -301,11 +317,17 @@ def run_avo(
                 # Try LLM-based supervisor redirect first (AVO's "reviews overall trajectory")
                 redirect_prompt = supervise_with_llm(population, knowledge, task_spec)
                 if redirect_prompt:
-                    print("[AVO] Supervisor: LLM generated new redirect strategy", file=sys.stderr)
+                    print(
+                        "[AVO] Supervisor: LLM generated new redirect strategy",
+                        file=sys.stderr,
+                    )
                     best_prompt = redirect_prompt
                 else:
                     # Fallback: template variation
-                    print("[AVO] Supervisor: using template variation fallback", file=sys.stderr)
+                    print(
+                        "[AVO] Supervisor: using template variation fallback",
+                        file=sys.stderr,
+                    )
                     redirect_result = dispatch(
                         "avo_vary",
                         None,
