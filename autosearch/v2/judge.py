@@ -77,8 +77,14 @@ def score_results(
     now = now or dt.datetime.now(dt.timezone.utc)
     total_results = len(results)
     unique_urls = {item.get("url") for item in results if item.get("url")}
-    queries = {str(item.get("query", "")).strip() for item in results if str(item.get("query", "")).strip()}
-    platforms = [str(item.get("source", "")).lower() for item in results if item.get("source")]
+    queries = {
+        str(item.get("query", "")).strip()
+        for item in results
+        if str(item.get("query", "")).strip()
+    }
+    platforms = [
+        str(item.get("source", "")).lower() for item in results if item.get("source")
+    ]
     counts = Counter(platforms)
     query_words = {word.lower() for query in queries for word in WORD_RE.findall(query)}
 
@@ -92,7 +98,10 @@ def score_results(
     match_count = 0
     for item in results:
         haystack_words = {
-            word.lower() for word in WORD_RE.findall(f"{item.get('title', '')} {item.get('snippet', '')}")
+            word.lower()
+            for word in WORD_RE.findall(
+                f"{item.get('title', '')} {item.get('snippet', '')}"
+            )
         }
         if query_words and haystack_words.intersection(query_words):
             match_count += 1
@@ -121,13 +130,16 @@ def score_results(
     }
     weight_sum = sum(float(weights.get(name, 0.0)) for name in dimensions)
     total = (
-        sum(dimensions[name] * float(weights.get(name, 0.0)) for name in dimensions) / weight_sum
+        sum(dimensions[name] * float(weights.get(name, 0.0)) for name in dimensions)
+        / weight_sum
         if weight_sum > 0
         else 0.0
     )
     return {
         "total": max(0.0, min(total, 1.0)),
-        "dimensions": {name: max(0.0, min(value, 1.0)) for name, value in dimensions.items()},
+        "dimensions": {
+            name: max(0.0, min(value, 1.0)) for name, value in dimensions.items()
+        },
         "meta": {
             "total_results": total_results,
             "unique_urls": len(unique_urls),
@@ -144,7 +156,9 @@ def main() -> int:
     try:
         weights = json.loads(args.weights) if args.weights else load_default_weights()
         results = load_results(Path(args.evidence_file))
-        payload = score_results(results, args.evidence_file, target=args.target, weights=weights)
+        payload = score_results(
+            results, args.evidence_file, target=args.target, weights=weights
+        )
     except Exception as exc:
         print(str(exc), file=sys.stderr)
         return 1
