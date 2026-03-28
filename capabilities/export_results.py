@@ -16,8 +16,15 @@ input_schema = {
         "context": {
             "type": "object",
             "properties": {
-                "format": {"type": "string", "enum": ["markdown", "csv", "jsonl"], "default": "markdown"},
-                "output_path": {"type": "string", "description": "Optional file path to write output"},
+                "format": {
+                    "type": "string",
+                    "enum": ["markdown", "csv", "jsonl"],
+                    "default": "markdown",
+                },
+                "output_path": {
+                    "type": "string",
+                    "description": "Optional file path to write output",
+                },
             },
         },
     },
@@ -45,7 +52,9 @@ def run(hits, **context):
         content = "\n".join(lines)
 
     elif fmt == "jsonl":
-        content = "\n".join(json.dumps(h, default=str, ensure_ascii=False) for h in hits)
+        content = "\n".join(
+            json.dumps(h, default=str, ensure_ascii=False) for h in hits
+        )
 
     else:  # markdown
         lines = [f"# Search Results ({len(hits)} items)", ""]
@@ -79,13 +88,30 @@ def run(hits, **context):
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         Path(output_path).write_text(content, encoding="utf-8")
 
-    return {"format": fmt, "content": content, "count": len(hits), "output_path": output_path or ""}
+    return {
+        "format": fmt,
+        "content": content,
+        "count": len(hits),
+        "output_path": output_path or "",
+    }
 
 
 def test():
     sample = [
-        {"title": "Repo A", "url": "https://github.com/a", "provider": "github", "score_hint": 100, "quality_tier": "high"},
-        {"title": "Article B", "url": "https://blog.com/b", "provider": "web", "score_hint": 50, "quality_tier": "medium"},
+        {
+            "title": "Repo A",
+            "url": "https://github.com/a",
+            "provider": "github",
+            "score_hint": 100,
+            "quality_tier": "high",
+        },
+        {
+            "title": "Article B",
+            "url": "https://blog.com/b",
+            "provider": "web",
+            "score_hint": 50,
+            "quality_tier": "medium",
+        },
     ]
     # Test markdown
     md = run(sample, format="markdown")

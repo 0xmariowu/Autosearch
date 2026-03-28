@@ -20,7 +20,11 @@ input_schema = {
         "context": {
             "type": "object",
             "properties": {
-                "max_crawl": {"type": "integer", "default": 10, "description": "Max pages to crawl"},
+                "max_crawl": {
+                    "type": "integer",
+                    "default": 10,
+                    "description": "Max pages to crawl",
+                },
             },
         },
     },
@@ -28,14 +32,34 @@ input_schema = {
 }
 
 _SKIP_PATTERNS = [
-    "javascript:", "mailto:", "#",
-    "login", "signup", "signin", "register",
-    "linkedin.com/in/", "twitter.com/intent",
-    ".css", ".js", ".png", ".jpg", ".gif", ".svg", ".ico",
-    ".woff", ".ttf", ".eot", ".mp4", ".mp3",
-    "githubassets.com", "s3.amazonaws.com",
-    "cloudfront.net", "fonts.googleapis.com", "cdn.",
-    "google.com/search", "bing.com/search",
+    "javascript:",
+    "mailto:",
+    "#",
+    "login",
+    "signup",
+    "signin",
+    "register",
+    "linkedin.com/in/",
+    "twitter.com/intent",
+    ".css",
+    ".js",
+    ".png",
+    ".jpg",
+    ".gif",
+    ".svg",
+    ".ico",
+    ".woff",
+    ".ttf",
+    ".eot",
+    ".mp4",
+    ".mp3",
+    "githubassets.com",
+    "s3.amazonaws.com",
+    "cloudfront.net",
+    "fonts.googleapis.com",
+    "cdn.",
+    "google.com/search",
+    "bing.com/search",
 ]
 
 
@@ -44,7 +68,9 @@ def _extract_github_readme_links(owner, repo):
     urls = []
     for branch in ["main", "master"]:
         try:
-            readme_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/README.md"
+            readme_url = (
+                f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/README.md"
+            )
             with urllib.request.urlopen(readme_url, timeout=8) as resp:
                 content = resp.read().decode("utf-8", errors="ignore")
             found = re.findall(r"https?://[^\s\)\]\"\'>]+", content)

@@ -1,7 +1,9 @@
 """Search V2EX tech community via DuckDuckGo site filter."""
 
 name = "search_v2ex"
-description = "Search V2EX Chinese tech community for discussions, experiences, and opinions"
+description = (
+    "Search V2EX Chinese tech community for discussions, experiences, and opinions"
+)
 when = "When looking for Chinese tech community discussions, developer experiences, or opinions on tools."
 input_type = "query"
 output_type = "hits"
@@ -13,8 +15,10 @@ input_schema = {
     "required": ["input"],
 }
 
+
 def run(query, **context):
     from search_mesh.router import search_platform
+
     site_query = f"site:v2ex.com {query}"
     limit = context.get("limit", 20)
     try:
@@ -23,6 +27,8 @@ def run(query, **context):
     except Exception:
         return []
 
+
 def test():
     from search_mesh.router import search_platform  # noqa: F401
+
     return "ok"
