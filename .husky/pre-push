@@ -15,4 +15,17 @@ if ! git rebase origin/main --quiet; then
 fi
 echo "Rebased on origin/main"
 
-python3 -m unittest discover -s tests -q
+# Use uv-managed Python 3.11+ (codebase uses X | Y union syntax requiring 3.10+)
+PYTHON=$(command -v python3.11 || command -v python3.12 || echo "")
+if [ -z "$PYTHON" ]; then
+  # Fallback: try uv-installed Python
+  for p in "$HOME"/.local/share/uv/python/cpython-3.1*/bin/python3; do
+    [ -x "$p" ] && PYTHON="$p" && break
+  done
+fi
+if [ -z "$PYTHON" ]; then
+  echo "warning: Python 3.10+ not found, skipping tests"
+  exit 0
+fi
+
+"$PYTHON" -m unittest discover -s tests -q
