@@ -190,7 +190,7 @@ After two retries, accept the best score produced in that generation and move on
 
 Append a `diagnosis` record for each retry:
 ```json
-{"type":"diagnosis","ts":"ISO8601 UTC","session_id":"string","generation":2,"attempt":1,"prior_score":0.0,"weakest_dimension":"relevance","hypothesis":"query family too broad","fix":{"kind":"config_update","path":"platform_weights.reddit","value":0.2},"resulting_run_id":"20260328T073455Z"}
+{"type":"diagnosis","ts":"ISO8601 UTC","session_id":"string","generation":2,"attempt":1,"prior_score":0.0,"weakest_dimension":"relevance","hypothesis":"query family too broad","fix":{"kind":"config_update","path":"platform_weights.reddit","value":0.2},"resulting_generation":2}
 ```
 
 ### Step 5: EVOLVE
