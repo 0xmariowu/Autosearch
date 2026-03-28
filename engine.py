@@ -110,7 +110,7 @@ class EngineConfig:
     llm_model: str = "claude-haiku-4-5-20251001"
 
     @classmethod
-    def from_genome(cls, genome: Any, **overrides: Any) -> EngineConfig:
+    def from_genome(cls, genome: Any, **overrides: Any) -> "EngineConfig":
         return cls(
             max_stale=int(genome.engine.max_stale),
             max_rounds=int(genome.engine.max_rounds),
