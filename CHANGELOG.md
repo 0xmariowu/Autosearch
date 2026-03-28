@@ -5,6 +5,9 @@ All changes to AutoSearch. Every entry includes **what** changed and **why**.
 ---
 
 ## 2026-03-28
+- You can now run `/autosearch "find AI agent frameworks"` to execute a self-evolving search session. The system autonomously searches 5 platforms, scores results with judge.py, reflects, evolves its strategy, and delivers. Why: v2 replaces ~7000 lines of Python with ~100 lines of code + ~2500 lines of Markdown skills. Everything is now skills-native and AVO-driven.
+- Added `autosearch/v2/` — complete skills-native architecture: PROTOCOL.md (operating protocol), skill-spec.md (skill format), judge.py (deterministic scorer), 14 skills (5 platform + 4 strategy + 5 AVO), state management. Why: v1's Python runtime was hard to evolve; v2 lets the AVO loop modify skills directly as Markdown.
+- End-to-end validated: 43 results from 4 platforms, judge score 0.853, full worklog cycle from task_spec to delivery.
 - You can now evolve search strategies as JSON genomes instead of hardcoded Python. New `genome/` module: schema (8 sections), runtime interpreter, 13 primitives, 5 mutation operators, safe expression evaluator. Run `python3 avo.py "task" --genome` to start genome-based AVO evolution. Why: AVO paper's Vary(P_t) needs a structured, evolvable representation — Python code can't be safely mutated by an AI agent, but JSON genomes can.
 - Three seed genomes created from existing strategies: `engine-3phase.json` (3-phase explore/harvest/postmortem), `orchestrator-react.json` (ReAct loop), `daily-discovery.json` (daily discovery). Why: AVO needs initial population members to start evolution from known-good strategies.
 - All existing modules now accept optional `genome=` parameter with fallback to current hardcoded defaults. Files: modes.py, lexical.py, planner.py, synthesizer.py, project_experience.py, engine.py, orchestrator.py, daily.py, goal_runtime.py. Why: gradual migration — genome config is opt-in, existing behavior unchanged.
