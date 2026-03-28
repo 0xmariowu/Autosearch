@@ -270,19 +270,25 @@ async def _handle_resume(arguments: dict) -> list[types.TextContent]:
 
 
 async def _handle_evolve(arguments: dict) -> list[types.TextContent]:
-    """Run AVO evolution. Returns not-yet-implemented if avo module is unavailable."""
+    """Run AVO evolution using genome-based evolution."""
     task_spec = arguments["task_spec"]
     generations = arguments.get("generations", 3)
 
     try:
-        from avo import run_avo
+        import asyncio
+        from avo import run_avo_genome
 
-        result = run_avo(task_spec, generations=generations)
+        result = await asyncio.to_thread(
+            run_avo_genome,
+            task_spec,
+            max_generations=generations,
+            seed_genome_path=arguments.get("seed_genome", ""),
+        )
     except ImportError:
         result = {
             "status": "not_implemented",
             "message": (
-                "AVO evolution module is not yet available. "
+                "AVO genome evolution module is not yet available. "
                 f"Requested: task_spec={task_spec!r}, generations={generations}"
             ),
         }

@@ -138,6 +138,7 @@ def run_task(
     task_id: str = "",
     resume_from: str = "",
     system_prompt: str = "",
+    genome_path: str = "",
 ) -> dict[str, Any]:
     """Run an AI-orchestrated search task.
 
@@ -158,6 +159,15 @@ def run_task(
         PROGRESS_TEMPLATE,
         STUCK_NUDGE,
     )
+
+    genome = None
+    if genome_path:
+        from genome import load_genome
+
+        genome = load_genome(genome_path)
+        max_steps = int(genome.orchestrator.max_steps or max_steps)
+        if not model:
+            model = str(genome.orchestrator.model or "")
 
     # Build tool definitions from capabilities
     cap_tools = manifest_json()
@@ -211,15 +221,33 @@ def run_task(
     if system_prompt:
         base_prompt = system_prompt
     else:
-        # Use AVO-evolved prompt if available, otherwise default
-        evolved_path = Path(__file__).parent / "sources" / "evolved-prompt.txt"
-        if evolved_path.exists():
-            try:
-                base_prompt = evolved_path.read_text()
-            except Exception:
+        genome_prompt_file = (
+            str(
+                getattr(getattr(genome, "orchestrator", None), "system_prompt_file", "")
+            )
+            if genome is not None
+            else ""
+        )
+        base_prompt = ""
+        if genome_prompt_file:
+            prompt_path = Path(genome_prompt_file)
+            if not prompt_path.is_absolute():
+                prompt_path = Path(__file__).parent / prompt_path
+            if prompt_path.exists():
+                try:
+                    base_prompt = prompt_path.read_text()
+                except Exception:
+                    base_prompt = ""
+        if not base_prompt:
+            # Use AVO-evolved prompt if available, otherwise default
+            evolved_path = Path(__file__).parent / "sources" / "evolved-prompt.txt"
+            if evolved_path.exists():
+                try:
+                    base_prompt = evolved_path.read_text()
+                except Exception:
+                    base_prompt = SYSTEM_PROMPT
+            else:
                 base_prompt = SYSTEM_PROMPT
-        else:
-            base_prompt = SYSTEM_PROMPT
     # Build initial messages
     system_msg = base_prompt.format(manifest=manifest_text())
     task_msg = TASK_PROMPT.format(
@@ -523,3 +551,13 @@ def run_task(
             "learnings": all_learnings,
             "steps_used": max_steps,
         }
+
+
+def run_with_genome(genome_path: str, task: str, **kwargs) -> dict:
+    """Execute orchestrator search using a genome instead of hardcoded config."""
+    from genome import load_genome
+    from genome.runtime import execute
+
+    genome = load_genome(genome_path)
+    result = execute(genome, task, **kwargs)
+    return result.to_dict()

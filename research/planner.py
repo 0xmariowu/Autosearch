@@ -76,16 +76,26 @@ def _recursive_depth_limit(active_program: dict[str, Any]) -> int:
 
 
 def _anchor_tokens(
-    local_evidence_records: list[dict[str, Any]] | None, *, limit: int = 4
+    local_evidence_records: list[dict[str, Any]] | None,
+    *,
+    limit: int = 4,
+    generic_tokens: set[str] | list[str] | tuple[str, ...] | None = None,
 ) -> list[str]:
     counts: Counter[str] = Counter()
+    blocked = {
+        str(token or "").strip().lower()
+        for token in (
+            GENERIC_ANCHOR_TOKENS if generic_tokens is None else generic_tokens
+        )
+        if str(token or "").strip()
+    }
     for item in list(local_evidence_records or []):
         title = str(item.get("title") or "").lower()
         for token in title.split():
             token = token.strip(".,:;()[]{}")
             if len(token) < 5:
                 continue
-            if token in GENERIC_ANCHOR_TOKENS:
+            if token in blocked:
                 continue
             counts[token] += 1
     return [token for token, _ in counts.most_common(limit)]
@@ -244,7 +254,11 @@ def _dedupe_decomposition_templates(*, include_anchor: bool) -> list[str]:
     return templates
 
 
-def _followup_program_overrides(active_program: dict[str, Any]) -> dict[str, Any]:
+def _followup_program_overrides(
+    active_program: dict[str, Any],
+    *,
+    strong_evidence_content_types: list[str] | None = None,
+) -> dict[str, Any]:
     current_acquisition = dict(active_program.get("acquisition_policy") or {})
     current_evidence = dict(active_program.get("evidence_policy") or {})
     return {
@@ -264,7 +278,11 @@ def _followup_program_overrides(active_program: dict[str, Any]) -> dict[str, Any
         },
         "evidence_policy": {
             **current_evidence,
-            "preferred_content_types": list(STRONG_EVIDENCE_CONTENT_TYPES),
+            "preferred_content_types": list(
+                STRONG_EVIDENCE_CONTENT_TYPES
+                if strong_evidence_content_types is None
+                else strong_evidence_content_types
+            ),
             "prefer_acquired_text": True,
         },
     }
@@ -316,10 +334,14 @@ def _decision_for_plan(
     judge_result: dict[str, Any],
     tried_queries: set[str],
     max_queries: int,
+    genome: Any | None = None,
+    strong_evidence_content_types: list[str] | None = None,
 ) -> SearchDecision:
     mode = str(active_program.get("mode") or "balanced")
     mode_policy = get_mode_policy(
-        mode, dict(active_program.get("mode_policy_overrides") or {})
+        mode,
+        dict(active_program.get("mode_policy_overrides") or {}),
+        genome=genome,
     )
     provider_mix = list(
         program_overrides.get("provider_mix")
@@ -362,7 +384,11 @@ def _decision_for_plan(
     if branch_type in {"repair", "followup", "research"}:
         evidence_policy["preferred_content_types"] = _merge_preferred_content_types(
             list(evidence_policy.get("preferred_content_types") or []),
-            STRONG_EVIDENCE_CONTENT_TYPES,
+            (
+                STRONG_EVIDENCE_CONTENT_TYPES
+                if strong_evidence_content_types is None
+                else strong_evidence_content_types
+            ),
         )
         evidence_policy["prefer_acquired_text"] = True
     if branch_type == "repair" or (
@@ -515,9 +541,10 @@ def _augment_queries(
     judge_result: dict[str, Any],
     tried_queries: set[str],
     max_queries: int,
+    generic_tokens: set[str] | list[str] | tuple[str, ...] | None = None,
 ) -> list[dict[str, Any]]:
     augmented = list(queries)
-    anchors = _anchor_tokens(local_evidence_records)
+    anchors = _anchor_tokens(local_evidence_records, generic_tokens=generic_tokens)
     repairs = _repair_terms(judge_result, goal_case)
     for anchor in anchors:
         for repair in repairs:
@@ -539,8 +566,13 @@ def _follow_up_queries(
     judge_result: dict[str, Any],
     max_queries: int,
     tried_queries: set[str],
+    generic_tokens: set[str] | list[str] | tuple[str, ...] | None = None,
 ) -> list[dict[str, Any]]:
-    anchors = _anchor_tokens(local_evidence_records, limit=6)
+    anchors = _anchor_tokens(
+        local_evidence_records,
+        limit=6,
+        generic_tokens=generic_tokens,
+    )
     repairs = _repair_terms(judge_result, goal_case)
     missed = _missed_keyword_phrases(judge_result, limit=4)
     missed_lower = {phrase.lower() for phrase in missed}
@@ -594,8 +626,13 @@ def _decomposition_followups(
     judge_result: dict[str, Any],
     max_queries: int,
     tried_queries: set[str],
+    generic_tokens: set[str] | list[str] | tuple[str, ...] | None = None,
 ) -> list[dict[str, Any]]:
-    anchors = _anchor_tokens(local_evidence_records, limit=8)
+    anchors = _anchor_tokens(
+        local_evidence_records,
+        limit=8,
+        generic_tokens=generic_tokens,
+    )
     repairs = _repair_terms(judge_result, goal_case)
     missed = _missed_keyword_phrases(judge_result, limit=4)
     missed_lower = {phrase.lower() for phrase in missed}
@@ -647,7 +684,19 @@ def build_research_plan(
     gap_queue: list[dict[str, Any]] | None = None,
     diary_summary: list[str] | None = None,
     action_policy: dict[str, Any] | None = None,
+    genome: Any | None = None,
 ) -> list[dict[str, Any]]:
+    query_generation = getattr(genome, "query_generation", None)
+    generic_anchor_tokens = (
+        list(query_generation.generic_anchor_tokens)
+        if query_generation is not None
+        else list(GENERIC_ANCHOR_TOKENS)
+    )
+    strong_evidence_content_types = (
+        list(query_generation.strong_evidence_types)
+        if query_generation is not None
+        else list(STRONG_EVIDENCE_CONTENT_TYPES)
+    )
     current_role = _current_round_role(active_program, round_history)
     retired_mutations = _retired_mutation_kinds(active_program)
     if _mutation_kind_for_role(current_role) in retired_mutations:
@@ -697,6 +746,7 @@ def build_research_plan(
             judge_result=judge_result,
             max_queries=max_queries,
             tried_queries=tried_queries,
+            generic_tokens=generic_anchor_tokens,
         )
         if allow_recursive_followups
         else []
@@ -708,6 +758,7 @@ def build_research_plan(
             judge_result=judge_result,
             max_queries=max_queries,
             tried_queries=tried_queries,
+            generic_tokens=generic_anchor_tokens,
         )
         if allow_recursive_followups
         else []
@@ -722,6 +773,7 @@ def build_research_plan(
             judge_result=judge_result,
             tried_queries=tried_queries,
             max_queries=max_queries,
+            generic_tokens=generic_anchor_tokens,
         )
         role = str(plan.get("role") or current_role or "broad_recall")
         branch_type = _branch_type(role)
@@ -740,6 +792,8 @@ def build_research_plan(
             judge_result=judge_result,
             tried_queries=tried_queries,
             max_queries=max_queries,
+            genome=genome,
+            strong_evidence_content_types=strong_evidence_content_types,
         )
         planning_ops = _planning_ops_for_plan(
             role=role,
@@ -800,7 +854,10 @@ def build_research_plan(
         and "anchor_followup" not in retired_mutations
     ):
         graph_node = _node_id("graph_followup", len(normalized) + 1, branch_depth + 1)
-        followup_overrides = _followup_program_overrides(active_program)
+        followup_overrides = _followup_program_overrides(
+            active_program,
+            strong_evidence_content_types=strong_evidence_content_types,
+        )
         followup_decision = _decision_for_plan(
             active_program=active_program,
             role="graph_followup",
@@ -810,6 +867,8 @@ def build_research_plan(
             judge_result=judge_result,
             tried_queries=tried_queries,
             max_queries=max_queries,
+            genome=genome,
+            strong_evidence_content_types=strong_evidence_content_types,
         )
         normalized.append(
             {
@@ -864,7 +923,10 @@ def build_research_plan(
         graph_node = _node_id(
             "decomposition_followup", len(normalized) + 1, branch_depth + 2
         )
-        decomposition_overrides = _followup_program_overrides(active_program)
+        decomposition_overrides = _followup_program_overrides(
+            active_program,
+            strong_evidence_content_types=strong_evidence_content_types,
+        )
         decomposition_decision = _decision_for_plan(
             active_program=active_program,
             role="decomposition_followup",
@@ -874,6 +936,8 @@ def build_research_plan(
             judge_result=judge_result,
             tried_queries=tried_queries,
             max_queries=max_queries,
+            genome=genome,
+            strong_evidence_content_types=strong_evidence_content_types,
         )
         normalized.append(
             {
