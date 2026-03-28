@@ -119,7 +119,7 @@ def search_reddit(sub, query, limit=20):
             }
             for p in data.get("data", {}).get("children", [])
         ]
-    except:
+    except Exception:
         return []
 
 
@@ -295,7 +295,7 @@ for q_entry in harvest_queries:
                     f.write(json.dumps(finding, ensure_ascii=False) + "\n")
                 harvest_seen.add(post_url)
                 new_this_query += 1
-        except:
+        except Exception:
             pass
         time.sleep(0.2)
 

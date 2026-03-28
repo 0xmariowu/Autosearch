@@ -92,7 +92,6 @@ def run_goal_loop(
     rounds: list[dict[str, Any]] = []
     queries = list(goal_case.get("seed_queries", []))
     best_goal_score = -1
-    best_goal_run: dict[str, Any] | None = None
     all_runs: list[dict[str, Any]] = []
 
     for round_index in range(1, max_rounds + 1):
@@ -125,7 +124,6 @@ def run_goal_loop(
             all_runs.append(record)
             if record["goal_score"] > best_goal_score:
                 best_goal_score = record["goal_score"]
-                best_goal_run = record
 
         round_runs.sort(key=lambda item: item["goal_score"], reverse=True)
         rounds.append({"round": round_index, "runs": round_runs})

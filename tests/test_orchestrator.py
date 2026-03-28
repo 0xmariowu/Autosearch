@@ -50,37 +50,38 @@ def test_extract_tool_call():
     from orchestrator import _extract_tool_call
 
     response = {
-        "content": [
-            {"type": "text", "text": "Let me search"},
+        "choices": [
             {
-                "type": "tool_use",
-                "id": "t1",
-                "name": "search_web",
-                "input": {"input": "test"},
-            },
+                "message": {
+                    "tool_calls": [
+                        {
+                            "id": "t1",
+                            "function": {
+                                "name": "search_web",
+                                "arguments": '{"input": "test"}',
+                            },
+                        }
+                    ]
+                }
+            }
         ]
     }
     tool = _extract_tool_call(response)
     assert tool["name"] == "search_web"
     assert tool["id"] == "t1"
+    assert tool["input"] == {"input": "test"}
 
 
 def test_extract_tool_call_none():
     from orchestrator import _extract_tool_call
 
-    response = {"content": [{"type": "text", "text": "thinking..."}]}
+    response = {"choices": [{"message": {}}]}
     assert _extract_tool_call(response) is None
 
 
 def test_extract_text():
     from orchestrator import _extract_text
 
-    response = {
-        "content": [
-            {"type": "text", "text": "Part 1"},
-            {"type": "tool_use", "id": "t1", "name": "x", "input": {}},
-            {"type": "text", "text": "Part 2"},
-        ]
-    }
+    response = {"choices": [{"message": {"content": "Part 1 and Part 2"}}]}
     assert "Part 1" in _extract_text(response)
     assert "Part 2" in _extract_text(response)

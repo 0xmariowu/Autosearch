@@ -285,7 +285,7 @@ def run_task(
             max_steps=max_steps,
             budget_status="unlimited" if not budget else json.dumps(budget),
             learnings_context="Historical learnings from past sessions:\n"
-            + "\n".join(f"- {l}" for l in all_learnings[:10]),
+            + "\n".join(f"- {learning}" for learning in all_learnings[:10]),
         )
         messages[-1] = {"role": "user", "content": task_msg}
     step_history: list[dict] = []
