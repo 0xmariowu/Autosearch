@@ -24,39 +24,24 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: |
-          pip install -e ".[dev]" 2>/dev/null || pip install -r requirements.txt 2>/dev/null || pip install pytest ruff
-          pip install ruff
+        run: pip install pytest ruff
 
       - name: Ruff lint
-        run: ruff check . || echo "::warning::Ruff lint issues found"
-        continue-on-error: true
+        run: ruff check .
 
       - name: Ruff format check
-        run: ruff format --check . || echo "::warning::Ruff format issues found"
-        continue-on-error: true
+        run: ruff format --check .
 
       - name: Test
-        run: pytest -x -q || echo "::warning::Tests failed or not configured"
-        continue-on-error: true
+        run: pytest -x -q
 
   quality:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
       - uses: actions/checkout@v6
-
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
-
-      - name: Install dependencies
-        run: |
-          pip install -e ".[dev]" 2>/dev/null || pip install -r requirements.txt 2>/dev/null || true
-          pip install pip-audit
-
-      - name: Security audit
-        run: pip-audit || true
 
       - name: Lint workflows
         uses: raven-actions/actionlint@v2
