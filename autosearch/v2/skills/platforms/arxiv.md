@@ -30,7 +30,7 @@ export QUERY LIMIT OUT NOW SINCE RAW
 ```
 2. Fetch recent matching entries from the arXiv API.
 ```bash
-curl -sG 'http://export.arxiv.org/api/query' \
+curl -sG 'https://export.arxiv.org/api/query' \
   --data-urlencode "search_query=all:$QUERY" \
   --data-urlencode 'start=0' \
   --data-urlencode "max_results=$LIMIT" \
