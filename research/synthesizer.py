@@ -66,23 +66,31 @@ CLAIM_STOP_WORDS = {
 }
 
 
-def _query_cluster(bundle: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _query_cluster(
+    bundle: list[dict[str, Any]], limit: int = 8
+) -> list[dict[str, Any]]:
     counts: Counter[str] = Counter()
     for item in list(bundle or []):
         query = str(item.get("query") or "").strip()
         if query:
             counts[query] += 1
-    return [{"query": query, "count": count} for query, count in counts.most_common(8)]
+    return [
+        {"query": query, "count": count}
+        for query, count in counts.most_common(max(int(limit or 0), 0))
+    ]
 
 
-def _domain_cluster(bundle: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _domain_cluster(
+    bundle: list[dict[str, Any]], limit: int = 8
+) -> list[dict[str, Any]]:
     counts: Counter[str] = Counter()
     for item in list(bundle or []):
         domain = str(item.get("domain") or "").strip()
         if domain:
             counts[domain] += 1
     return [
-        {"domain": domain, "count": count} for domain, count in counts.most_common(8)
+        {"domain": domain, "count": count}
+        for domain, count in counts.most_common(max(int(limit or 0), 0))
     ]
 
 
@@ -91,8 +99,10 @@ def _graph_scheduler_hints(
     bundle: list[dict[str, Any]],
     judge_result: dict[str, Any],
     graph_plan: dict[str, Any] | None,
+    synthesis_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     graph_plan = dict(graph_plan or {})
+    cfg = dict(synthesis_config or {})
     weakest_dimension = ""
     dimension_scores = dict(judge_result.get("dimension_scores") or {})
     if dimension_scores:
@@ -105,8 +115,11 @@ def _graph_scheduler_hints(
         for item in list(graph_plan.get("branch_targets") or [])
         if str(item).strip()
     ]
-    query_clusters = _query_cluster(bundle)
-    domain_clusters = _domain_cluster(bundle)
+    query_clusters = _query_cluster(bundle, limit=int(cfg.get("query_cluster_limit", 8)))
+    domain_clusters = _domain_cluster(
+        bundle,
+        limit=int(cfg.get("domain_cluster_limit", 8)),
+    )
     merge_candidates = [
         item["query"] for item in query_clusters if int(item.get("count", 0) or 0) >= 2
     ][:4]
@@ -137,6 +150,7 @@ def _cross_verification_summary(
     *,
     bundle: list[dict[str, Any]],
     graph_plan: dict[str, Any] | None,
+    synthesis_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     graph_plan = dict(graph_plan or {})
     decision = dict(graph_plan.get("decision") or {})
@@ -172,7 +186,7 @@ def _cross_verification_summary(
             set(str(item.get("title") or "").lower().split())
         )
     ][:6]
-    claim_alignment = _align_claims(bundle)
+    claim_alignment = _align_claims(bundle, synthesis_config=synthesis_config)
     contradiction_pairs = list(claim_alignment.get("contradiction_pairs") or [])
     stance_counts = dict(
         claim_alignment.get("stance_counts")
@@ -236,16 +250,31 @@ def _claim_sentences(item: dict[str, Any]) -> list[str]:
     ][:5]
 
 
-def _claim_terms(text: str) -> list[str]:
+def _claim_terms(
+    text: str,
+    *,
+    claim_stop_words: set[str] | list[str] | tuple[str, ...] | None = None,
+) -> list[str]:
+    stop_words = {
+        str(token or "").strip().lower()
+        for token in (
+            CLAIM_STOP_WORDS if claim_stop_words is None else claim_stop_words
+        )
+        if str(token or "").strip()
+    }
     return [
         token
         for token in re.findall(r"[A-Za-z0-9_\-]{4,}", str(text or "").lower())
-        if token not in CLAIM_STOP_WORDS
+        if token not in stop_words
     ]
 
 
-def _claim_signature(text: str) -> str:
-    terms = _claim_terms(text)
+def _claim_signature(
+    text: str,
+    *,
+    claim_stop_words: set[str] | list[str] | tuple[str, ...] | None = None,
+) -> str:
+    terms = _claim_terms(text, claim_stop_words=claim_stop_words)
     if not terms:
         return ""
     counts = Counter(terms)
@@ -300,10 +329,25 @@ def _topic_signature(item: dict[str, Any], sentence: str) -> str:
     return " ".join(sorted(term for term, _ in counts.most_common(4)))
 
 
-def _claim_stance(text: str) -> str:
+def _claim_stance(
+    text: str,
+    *,
+    positive_claim_terms: set[str] | list[str] | tuple[str, ...] | None = None,
+    negative_claim_terms: set[str] | list[str] | tuple[str, ...] | None = None,
+) -> str:
     lowered = str(text or "").lower()
-    positive = any(term in lowered for term in POSITIVE_CLAIM_TERMS)
-    negative = any(term in lowered for term in NEGATIVE_CLAIM_TERMS)
+    positive_terms = (
+        POSITIVE_CLAIM_TERMS if positive_claim_terms is None else positive_claim_terms
+    )
+    negative_terms = (
+        NEGATIVE_CLAIM_TERMS if negative_claim_terms is None else negative_claim_terms
+    )
+    positive = any(
+        str(term or "").strip().lower() in lowered for term in positive_terms
+    )
+    negative = any(
+        str(term or "").strip().lower() in lowered for term in negative_terms
+    )
     if positive and not negative:
         return "positive"
     if negative and not positive:
@@ -311,18 +355,27 @@ def _claim_stance(text: str) -> str:
     return "neutral"
 
 
-def _claim_overlap(left: str, right: str) -> float:
-    left_terms = set(_claim_terms(left))
-    right_terms = set(_claim_terms(right))
+def _claim_overlap(
+    left: str,
+    right: str,
+    *,
+    claim_stop_words: set[str] | list[str] | tuple[str, ...] | None = None,
+) -> float:
+    left_terms = set(_claim_terms(left, claim_stop_words=claim_stop_words))
+    right_terms = set(_claim_terms(right, claim_stop_words=claim_stop_words))
     if not left_terms or not right_terms:
         return 0.0
     return len(left_terms & right_terms) / max(len(left_terms | right_terms), 1)
 
 
 def _find_claim_cluster(
-    clusters: list[dict[str, Any]], sentence: str, topic_signature: str
+    clusters: list[dict[str, Any]],
+    sentence: str,
+    topic_signature: str,
+    *,
+    claim_stop_words: set[str] | list[str] | tuple[str, ...] | None = None,
 ) -> dict[str, Any] | None:
-    signature = _claim_signature(sentence)
+    signature = _claim_signature(sentence, claim_stop_words=claim_stop_words)
     for cluster in clusters:
         representative = str(cluster.get("representative_claim") or "")
         if topic_signature and topic_signature == str(
@@ -332,13 +385,37 @@ def _find_claim_cluster(
         if signature and signature == str(cluster.get("signature") or ""):
             return cluster
         similarity = semantic_similarity(sentence, representative)
-        overlap = _claim_overlap(sentence, representative)
+        overlap = _claim_overlap(
+            sentence,
+            representative,
+            claim_stop_words=claim_stop_words,
+        )
         if similarity >= 0.72 or overlap >= 0.45:
             return cluster
     return None
 
 
-def _align_claims(bundle: list[dict[str, Any]]) -> dict[str, Any]:
+def _align_claims(
+    bundle: list[dict[str, Any]],
+    synthesis_config: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    cfg = dict(synthesis_config or {})
+    claim_stop_words = (
+        list(cfg["claim_stop_words"])
+        if "claim_stop_words" in cfg
+        else list(CLAIM_STOP_WORDS)
+    )
+    positive_claim_terms = (
+        list(cfg["positive_claim_terms"])
+        if "positive_claim_terms" in cfg
+        else list(POSITIVE_CLAIM_TERMS)
+    )
+    negative_claim_terms = (
+        list(cfg["negative_claim_terms"])
+        if "negative_claim_terms" in cfg
+        else list(NEGATIVE_CLAIM_TERMS)
+    )
+    multi_source_threshold = int(cfg.get("multi_source_threshold", 2))
     clusters: list[dict[str, Any]] = []
     stance_counts = {"positive": 0, "negative": 0, "neutral": 0}
     source_dispute_map: dict[str, dict[str, Any]] = {}
@@ -347,14 +424,26 @@ def _align_claims(bundle: list[dict[str, Any]]) -> dict[str, Any]:
         item_url = str(item.get("url") or "").strip()
         item_title = str(item.get("title") or "").strip()
         for sentence in _claim_sentences(item):
-            stance = _claim_stance(sentence)
+            stance = _claim_stance(
+                sentence,
+                positive_claim_terms=positive_claim_terms,
+                negative_claim_terms=negative_claim_terms,
+            )
             stance_counts[stance] += 1
             topic_signature = _topic_signature(item, sentence)
-            cluster = _find_claim_cluster(clusters, sentence, topic_signature)
+            cluster = _find_claim_cluster(
+                clusters,
+                sentence,
+                topic_signature,
+                claim_stop_words=claim_stop_words,
+            )
             if cluster is None:
                 cluster = {
                     "cluster_id": f"claim-{len(clusters) + 1}",
-                    "signature": _claim_signature(sentence),
+                    "signature": _claim_signature(
+                        sentence,
+                        claim_stop_words=claim_stop_words,
+                    ),
                     "topic_signature": topic_signature,
                     "representative_claim": sentence,
                     "stances": Counter(),
@@ -402,7 +491,7 @@ def _align_claims(bundle: list[dict[str, Any]]) -> dict[str, Any]:
                 if str(item.get("source") or "").strip()
             }
         )
-        if len(unique_sources) >= 2:
+        if len(unique_sources) >= multi_source_threshold:
             multi_source_claims += 1
         payload = {
             "cluster_id": str(cluster.get("cluster_id") or ""),
@@ -510,6 +599,7 @@ def synthesize_research_round(
     gap_queue: list[dict[str, Any]] | None = None,
     planning_ops: list[dict[str, Any]] | None = None,
     effective_target_score: int | None = None,
+    synthesis_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     bundle = build_bundle(
         coerce_evidence_records(existing_findings),
@@ -539,10 +629,12 @@ def synthesize_research_round(
         bundle=bundle,
         judge_result=judge_result,
         graph_plan=graph_plan,
+        synthesis_config=synthesis_config,
     )
     cross_verification = _cross_verification_summary(
         bundle=bundle,
         graph_plan=graph_plan,
+        synthesis_config=synthesis_config,
     )
     updated_gap_queue = _gap_queue_update(
         goal_case=goal_case, gap_queue=gap_queue, judge_result=judge_result

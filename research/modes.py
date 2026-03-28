@@ -120,8 +120,24 @@ def normalize_mode(mode: str | None) -> ResearchModeName:
 
 
 def get_mode_policy(
-    mode: str | None, overrides: dict[str, Any] | None = None
+    mode: str | None,
+    overrides: dict[str, Any] | None = None,
+    genome: Any | None = None,
 ) -> ResearchModePolicy:
+    if genome is not None:
+        from genome.schema import ModeSection
+
+        mode_data = genome.modes.get(normalize_mode(mode))
+        if mode_data:
+            base = {
+                key: getattr(mode_data, key)
+                for key in ModeSection.__dataclass_fields__
+            }
+            for key, value in dict(overrides or {}).items():
+                if key in base and value is not None:
+                    base[key] = value
+            base["disabled_actions"] = tuple(base.get("disabled_actions") or ())
+            return ResearchModePolicy(**base)  # type: ignore[arg-type]
     normalized = normalize_mode(mode)
     base = MODE_POLICIES[normalized].to_dict()
     for key, value in dict(overrides or {}).items():

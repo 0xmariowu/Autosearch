@@ -211,3 +211,27 @@ python3 ~/Dev/autosearch/cli.py --config task.json
 | outcome_score 全是 0 | `python outcomes.py track` | intaked repos 还没产出 WHEN/USE |
 | Twitter 结果全空 | `xreach auth check` | cookies 过期 |
 | Exa/Reddit/HN 全空 | `mcporter --version` | mcporter config 或 cwd 问题 |
+
+---
+
+## Genome-Runtime-Primitives Architecture (AVO v2)
+
+Added 2026-03-28. Replaces hardcoded strategy with evolvable JSON genomes.
+
+```
+AVO Controller  →  vary genome  →  Runtime executes  →  Judge scores  →  commit/discard
+     ↑                                                      │
+     └────────── lineage (evolution.jsonl) ←────────────────┘
+```
+
+Three-layer separation:
+
+| Layer | File | Purpose |
+|-------|------|---------|
+| Genome | `genome/defaults/*.json`, `genome/seeds/*.json`, `genome/evolved/*.json` | Evolvable strategy JSON |
+| Runtime | `genome/runtime.py` (~400 lines) | Generic interpreter, no strategy |
+| Primitives | `genome/primitives.py` (13 ops) | Minimal atomic operations |
+
+AVO genome evolution (`avo.py --genome`): select parent → vary (5 mutation types) → execute → evaluate → commit/discard. Mutations: micro, structural, crossover, supervisor_redirect, knowledge_injection.
+
+All original entry points unchanged. Each module accepts optional `genome=` param with fallback to hardcoded defaults.
