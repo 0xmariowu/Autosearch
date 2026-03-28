@@ -556,7 +556,7 @@ class InterfaceTests(unittest.TestCase):
                 api,
                 "_normalize_evidence_record",
                 return_value={"record_type": "evidence"},
-            ) as mocked_normalize_evidence,
+            ) as _mocked_normalize_evidence,
             patch.object(
                 api, "_coerce_evidence_record", return_value={"record_type": "evidence"}
             ) as mocked_coerce_one,

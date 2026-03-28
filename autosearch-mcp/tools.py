@@ -182,9 +182,6 @@ async def _handle_search(arguments: dict) -> list[types.TextContent]:
     from interface import AutoSearchInterface
 
     query = arguments["query"]
-    providers_raw = arguments.get("providers", "")
-    provider_list = [p.strip() for p in providers_raw.split(",") if p.strip()] or None
-
     iface = AutoSearchInterface()
     result = iface.run_orchestrated(
         query,

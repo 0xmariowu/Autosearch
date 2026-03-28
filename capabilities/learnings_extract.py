@@ -165,5 +165,5 @@ def test():
     result = run(sample_hits, query="AI agent framework")
     assert isinstance(result, list)
     assert len(result) > 0
-    assert all(isinstance(l, str) for l in result)
+    assert all(isinstance(item, str) for item in result)
     return "ok"

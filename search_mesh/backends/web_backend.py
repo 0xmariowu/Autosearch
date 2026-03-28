@@ -1,6 +1,7 @@
 """Generic web and auxiliary backend wrappers."""
 
 from __future__ import annotations
+from typing import Any
 
 from engine import PlatformConnector
 from .base import SearchProvider, extract_entities, quote_entities
