@@ -1,7 +1,7 @@
 {
   "platform_weights": {
     "github": 1.0,
-    "web_ddgs": 0.8,
+    "web-ddgs": 0.8,
     "reddit": 0.6,
     "hackernews": 0.5,
     "arxiv": 0.4
