@@ -76,7 +76,7 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           # Escape dots for awk regex (1.2.3 -> 1\.2\.3)
-          SAFE_VERSION=$(echo "$VERSION" | sed 's/\./\\./g')
+          SAFE_VERSION="${VERSION//./\\.}"
           NOTES=""
           if [ -f CHANGELOG.md ]; then
             # Match "## X.Y.Z" optionally followed by space+anything (date, dash, etc.) or end of line

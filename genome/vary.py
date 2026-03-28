@@ -329,7 +329,6 @@ def _knowledge_injection(
     pattern = random.choice(winning) if winning else random.choice(knowledge)
 
     finding = str(pattern.get("finding", ""))
-    platform = str(pattern.get("platform", ""))
 
     # Inject: add pattern's winning words as query generation hints
     if finding:
