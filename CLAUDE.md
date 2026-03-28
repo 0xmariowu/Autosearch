@@ -72,6 +72,21 @@ AIMD
 8. Update `AIMD/experience/INDEX.jsonl` (path relative to Dev/ root).
 9. If anything changed beyond search runs (code, rules, architecture): prepend entry to `CHANGELOG.md`.
 
+## v2 rules (skills-native architecture)
+
+12. Don't modify `judge.py`. It is the fixed evaluation contract. AI must not self-assess quality — always run judge.py. Because: AVO paper §3.1 requires f to be a fixed contract; self-evaluation defeats the evolutionary signal.
+
+13. Don't modify AVO skill files (`skills/avo/*.md`), `PROTOCOL.md`, or `skill-spec.md`. These are immutable protocol definitions. Because: if the evolution engine can change its own rules, behavior becomes unpredictable.
+
+14. Don't delete or rewrite lines in `state/worklog.jsonl` or `state/patterns.jsonl`. They are append-only. Because: the AVO loop learns from history — deleting entries resets accumulated intelligence.
+
+15. Don't use paid APIs in platform skills. All search must use free access methods (gh CLI, curl to public APIs, ddgs). Because: zero marginal cost is a core design constraint.
+
+16. Config and skill changes during AVO must go through `git commit`. Failed changes get `git revert`. Because: git history IS the lineage that AVO uses to learn from failures.
+
+17. Use Python 3.11+ to run `judge.py` and tests. System python3 may be 3.9 which lacks union type syntax. Command: `~/.local/share/uv/python/cpython-3.11-macos-aarch64-none/bin/python3.11` or `uv run --python 3.11`.
+
 ---
 
 For methodology details, algorithm documentation, and system architecture, see `docs/` or inline comments in `engine.py`.
+For v2 architecture, see `autosearch/v2/PROTOCOL.md` (the system) and `autosearch/v2/skill-spec.md` (the format).
