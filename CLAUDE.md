@@ -32,6 +32,14 @@ A self-improving search system. The human provides intent. The AI does everythin
 
 11. Don't run the legacy `run-template.py` for actual searches. Instead, use `pipeline.py` or `cli.py`. Because: the legacy script predates the modular engine and lacks LLMEvaluator, PatternStore, and newer connectors.
 
+## Genome rules
+
+12. Don't manually edit files in `genome/evolved/`. Those are AVO output. Because: manual edits break the lineage chain in evolution.jsonl — AVO can't trace what changed or why.
+
+13. Don't put new strategy decisions in Python code. Instead, add them to `genome/defaults/*.json`. Because: Python changes require code review; genome JSON changes are instantly evolvable by AVO.
+
+14. Don't delete `genome/evolved/` files without checking evolution.jsonl. Because: JSONL records reference genome file paths — deleting breaks load_best_genome().
+
 ## Cross-directory relationships
 
 ```

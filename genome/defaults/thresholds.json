@@ -1,0 +1,20 @@
+{
+  "recent_run_window": 12,
+  "preferred_min_attempts": 8,
+  "cooldown_min_attempts": 8,
+  "high_value_new_url_rate": 0.08,
+  "cooldown_error_rate": 0.7,
+  "per_query_cap": 5,
+  "per_source_cap": 18,
+  "per_domain_cap": 18,
+  "max_source_concentration": 0.82,
+  "max_query_concentration": 0.7,
+  "min_new_unique_urls": 1,
+  "min_novelty_ratio": 0.01,
+  "min_source_diversity": 0.15,
+  "stagnation_window": 3,
+  "stagnation_threshold": 1.01,
+  "dedup_jaccard": 0.85,
+  "convergence_jaccard": 0.42,
+  "relevance_min": 0.0
+}

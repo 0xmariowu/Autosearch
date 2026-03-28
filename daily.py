@@ -195,7 +195,7 @@ def extract_query_family_maps(
     return query_family_map, word_map
 
 
-def main():
+def main(genome_path: str = ""):
     # Optional: use orchestrator mode
     if os.environ.get("AUTOSEARCH_USE_ORCHESTRATOR", "").strip().lower() in (
         "1",
@@ -205,7 +205,7 @@ def main():
         from orchestrator import run_task
 
         task_spec = "Daily discovery: find new AI repositories, tools, and articles across all configured topics"
-        result = run_task(task_spec, max_steps=30)
+        result = run_task(task_spec, max_steps=30, genome_path=genome_path)
         # Write results to standard daily output path
         output_path = (
             f"/tmp/autosearch-daily-orchestrated-{time.strftime('%Y%m%d')}.json"
@@ -250,10 +250,35 @@ def main():
         type=int,
         help="Override queries per round for smoke tests or shorter runs",
     )
+    parser.add_argument(
+        "--genome",
+        type=str,
+        help="Optional genome JSON path for loading daily config",
+    )
     args = parser.parse_args()
 
-    max_rounds = args.max_rounds or DAILY_MAX_ROUNDS
-    queries_per_round = args.queries_per_round or DAILY_QUERIES_PER_ROUND
+    selected_genome_path = genome_path or args.genome or ""
+    genome = None
+    daily_platforms = list(DAILY_PLATFORMS)
+    daily_llm_model = DAILY_LLM_MODEL
+    max_rounds_default = DAILY_MAX_ROUNDS
+    queries_per_round_default = DAILY_QUERIES_PER_ROUND
+    if selected_genome_path:
+        from genome import load_genome
+
+        genome = load_genome(selected_genome_path)
+        daily_platforms = list(
+            getattr(genome.platform_routing, "default_providers", DAILY_PLATFORMS)
+            or DAILY_PLATFORMS
+        )
+        daily_llm_model = str(genome.engine.llm_model or DAILY_LLM_MODEL)
+        max_rounds_default = int(genome.engine.max_rounds or DAILY_MAX_ROUNDS)
+        queries_per_round_default = int(
+            genome.engine.queries_per_round or DAILY_QUERIES_PER_ROUND
+        )
+
+    max_rounds = args.max_rounds or max_rounds_default
+    queries_per_round = args.queries_per_round or queries_per_round_default
 
     # Locate queries.json
     if args.queries:
@@ -276,7 +301,7 @@ def main():
     output_path = args.output or f"/tmp/autosearch-daily-{today}.jsonl"
     query_family_map, query_family_word_map = extract_query_family_maps(data)
     experience_policy = load_project_experience_policy()
-    capability_names = [str(p.get("name") or "") for p in DAILY_PLATFORMS]
+    capability_names = [str(p.get("name") or "") for p in daily_platforms]
     capability_report = (
         load_source_capability_report()
         if args.skip_health_check
@@ -295,38 +320,43 @@ def main():
         run_id=run_id,
     )
 
-    config = EngineConfig(
-        genes=genes,
-        platforms=DAILY_PLATFORMS,
-        target_spec=(
+    config_kwargs = {
+        "genes": genes,
+        "platforms": daily_platforms,
+        "target_spec": (
             "Repositories, articles, discussions, or tools related to "
             "AI agent development, coding agents, context engineering, "
             "MCP servers, prompt engineering, evaluation frameworks, "
             "or harness/devtool configurations. High-quality means: "
             "learnable architecture, real usage evidence, or novel approach."
         ),
-        task_name=run_id,
-        run_id=run_id,
-        output_path=output_path,
-        query_family_map=query_family_map,
-        query_family_word_map=query_family_word_map,
-        experience_policy=experience_policy,
-        capability_report=capability_report,
-        max_rounds=max_rounds,
-        queries_per_round=queries_per_round,
-        llm_model=DAILY_LLM_MODEL,
+        "task_name": run_id,
+        "run_id": run_id,
+        "output_path": output_path,
+        "query_family_map": query_family_map,
+        "query_family_word_map": query_family_word_map,
+        "experience_policy": experience_policy,
+        "capability_report": capability_report,
+        "max_rounds": max_rounds,
+        "queries_per_round": queries_per_round,
+        "llm_model": daily_llm_model,
+    }
+    config = (
+        EngineConfig.from_genome(genome, **config_kwargs)
+        if genome is not None
+        else EngineConfig(**config_kwargs)
     )
 
     if args.dry_run:
         print("=== Daily Mode Config ===")
         print(f"Queries file: {queries_path}")
         print(f"Output: {output_path}")
-        print(f"LLM model: {DAILY_LLM_MODEL}")
+        print(f"LLM model: {daily_llm_model}")
         print(f"Run ID: {run_id}")
         print(f"Rounds: {max_rounds}")
         print(f"Queries/round: {queries_per_round}")
-        print(f"\nPlatforms ({len(DAILY_PLATFORMS)}):")
-        for p in DAILY_PLATFORMS:
+        print(f"\nPlatforms ({len(daily_platforms)}):")
+        for p in daily_platforms:
             print(f"  {p['name']}")
         print("\nGenes:")
         for cat, words in genes.items():
@@ -360,11 +390,17 @@ def main():
     print(f"=== AutoSearch Daily Run: {today} ===")
     print(f"  Seed queries: {len(seed_queries)} from queries.json")
     print(f"  Gene pool: {sum(len(v) for v in genes.values())} words")
-    print(f"  LLM model: {DAILY_LLM_MODEL}")
+    print(f"  LLM model: {daily_llm_model}")
     print()
 
     summary = engine.run()
-    experience = refresh_project_experience(list(engine.search_events))
+    experience_thresholds = (
+        dict(getattr(genome, "thresholds").__dict__) if genome is not None else None
+    )
+    experience = refresh_project_experience(
+        list(engine.search_events),
+        thresholds=experience_thresholds,
+    )
     experience_policy = experience.get("policy") or load_project_experience_policy()
     control_plane = refresh_control_plane(
         target_spec=config.target_spec,
@@ -381,7 +417,7 @@ def main():
     ).get("cooldown_providers", [])
     summary["unavailable_providers"] = [
         p["name"]
-        for p in DAILY_PLATFORMS
+        for p in daily_platforms
         if get_source_decision(capability_report, str(p.get("name") or ""))[
             "should_skip"
         ]
@@ -397,3 +433,13 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def run_with_genome(genome_path: str, task: str, **kwargs) -> dict:
+    """Execute daily discovery using a genome instead of hardcoded config."""
+    from genome import load_genome
+    from genome.runtime import execute
+
+    genome = load_genome(genome_path)
+    result = execute(genome, task, **kwargs)
+    return result.to_dict()

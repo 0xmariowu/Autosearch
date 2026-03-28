@@ -1,0 +1,57 @@
+{
+  "generic_anchor_tokens": [
+    "https",
+    "http",
+    "github",
+    "issue",
+    "issues",
+    "about",
+    "using",
+    "validation",
+    "report",
+    "implementation",
+    "details",
+    "failure",
+    "modes",
+    "dataset",
+    "public",
+    "release"
+  ],
+  "strong_evidence_types": [
+    "code",
+    "repository",
+    "issue",
+    "reference",
+    "web"
+  ],
+  "anchor_token_limit": 4,
+  "recursive_depth_limit": 4,
+  "branch_budget_defaults": {
+    "breadth": 1,
+    "repair": 2,
+    "followup": 1,
+    "probe": 1,
+    "research": 1
+  },
+  "intent_patterns": {
+    "how_to": "(?i)\\b(how\\s+to|setup|install|configure|deploy)\\b",
+    "comparison": "(?i)\\b(vs\\.?|versus|compared?\\s+to|alternative)\\b",
+    "opinion": "(?i)\\b(best|worst|review|recommend|should\\s+i)\\b",
+    "debug": "(?i)\\b(error|bug|fix|crash|traceback|exception|fail)\\b",
+    "breaking": "(?i)\\b(new|launch|announce|release|breaking)\\b",
+    "research": "(?i)\\b(paper|study|survey|benchmark|evaluation)\\b",
+    "prediction": "(?i)\\b(future|predict|trend|forecast|roadmap)\\b"
+  },
+  "mutation_kinds": {
+    "breadth": 0.3,
+    "repair": 0.25,
+    "followup": 0.2,
+    "probe": 0.15,
+    "research": 0.1
+  },
+  "entity_extraction": {
+    "handle_pattern": "@[\\w]+",
+    "org_pattern": "(?:by|from|at)\\s+([A-Z][\\w]+(?:\\s+[A-Z][\\w]+)*)",
+    "subreddit_pattern": "r/[\\w]+"
+  }
+}

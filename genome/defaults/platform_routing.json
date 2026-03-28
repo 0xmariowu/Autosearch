@@ -1,0 +1,86 @@
+{
+  "status_priority": {
+    "ok": 0,
+    "warn": 1,
+    "off": 9,
+    "error": 9
+  },
+  "tier_priority": {
+    "free_default": 0,
+    "specialized_free": 1,
+    "premium_fallback": 3
+  },
+  "default_providers": [
+    {
+      "name": "github_repos"
+    },
+    {
+      "name": "github_issues"
+    },
+    {
+      "name": "searxng"
+    },
+    {
+      "name": "ddgs"
+    },
+    {
+      "name": "reddit",
+      "sub": "all"
+    },
+    {
+      "name": "hn"
+    }
+  ],
+  "premium_providers": [
+    {
+      "name": "exa"
+    },
+    {
+      "name": "tavily"
+    },
+    {
+      "name": "twitter_xreach"
+    },
+    {
+      "name": "huggingface_datasets"
+    }
+  ],
+  "intent_routing": {
+    "how_to": [
+      "github_repos",
+      "searxng",
+      "ddgs"
+    ],
+    "comparison": [
+      "searxng",
+      "ddgs",
+      "reddit",
+      "hn"
+    ],
+    "opinion": [
+      "reddit",
+      "hn",
+      "twitter_xreach"
+    ],
+    "debug": [
+      "github_issues",
+      "searxng",
+      "ddgs"
+    ],
+    "breaking": [
+      "twitter_xreach",
+      "hn",
+      "reddit"
+    ],
+    "research": [
+      "github_repos",
+      "searxng",
+      "semantic_scholar"
+    ],
+    "prediction": [
+      "twitter_xreach",
+      "reddit",
+      "hn"
+    ]
+  }
+}

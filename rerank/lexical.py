@@ -92,8 +92,20 @@ def _query_terms(query: str) -> list[str]:
 
 
 def lexical_score(
-    query: str, hit: SearchHit, *, preferred_content_types: list[str] | None = None
+    query: str,
+    hit: SearchHit,
+    *,
+    preferred_content_types: list[str] | None = None,
+    scoring_config: dict[str, object] | None = None,
 ) -> int:
+    cfg = dict(scoring_config or {})
+    weights = dict(
+        cfg.get(
+            "term_weights",
+            {"title": 4, "snippet": 2, "url": 1, "source": 1},
+        )
+        or {}
+    )
     terms = _query_terms(query)
     title = str(hit.title or "").lower()
     snippet = str(hit.snippet or "").lower()
@@ -102,13 +114,13 @@ def lexical_score(
     score = 0
     for term in terms:
         if term in title:
-            score += 4
+            score += int(weights.get("title", 4))
         if term in snippet:
-            score += 2
+            score += int(weights.get("snippet", 2))
         if term in url:
-            score += 1
+            score += int(weights.get("url", 1))
         if term in source:
-            score += 1
+            score += int(weights.get("source", 1))
     if preferred_content_types:
         lowered = {
             str(item or "").strip().lower()
@@ -116,7 +128,7 @@ def lexical_score(
             if str(item or "").strip()
         }
         if hit.source.lower() in lowered or hit.backend.lower() in lowered:
-            score += 2
+            score += int(cfg.get("content_type_bonus", 2))
     return score
 
 

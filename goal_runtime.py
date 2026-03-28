@@ -33,6 +33,38 @@ DEFAULT_HARNESS = {
 }
 
 
+def _copy_harness(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "version": int(payload.get("version", 1) or 1),
+        "bundle_policy": dict(payload.get("bundle_policy") or {}),
+        "anti_cheat": dict(payload.get("anti_cheat") or {}),
+    }
+
+
+def get_harness(genome: Any | None = None) -> dict[str, Any]:
+    if genome is not None:
+        thresholds = genome.thresholds
+        return {
+            "version": 1,
+            "bundle_policy": {
+                "per_query_cap": int(thresholds.per_query_cap),
+                "per_source_cap": int(thresholds.per_source_cap),
+                "per_domain_cap": int(thresholds.per_domain_cap),
+            },
+            "anti_cheat": {
+                "min_new_unique_urls": int(thresholds.min_new_unique_urls),
+                "min_novelty_ratio": float(thresholds.min_novelty_ratio),
+                "min_source_diversity": float(thresholds.min_source_diversity),
+                "max_source_concentration": float(thresholds.max_source_concentration),
+                "max_query_concentration": float(thresholds.max_query_concentration),
+                "min_new_sources_when_score_improves": int(
+                    DEFAULT_HARNESS["anti_cheat"]["min_new_sources_when_score_improves"]
+                ),
+            },
+        }
+    return _copy_harness(DEFAULT_HARNESS)
+
+
 def _read_json(path: Path, default: dict[str, Any] | None = None) -> dict[str, Any]:
     if not path.exists():
         return dict(default or {})
@@ -65,7 +97,10 @@ def runtime_paths(goal_id: str) -> dict[str, Path]:
     }
 
 
-def ensure_harness(goal_case: dict[str, Any]) -> dict[str, Any]:
+def ensure_harness(
+    goal_case: dict[str, Any],
+    genome: Any | None = None,
+) -> dict[str, Any]:
     goal_id = str(goal_case.get("id") or "goal")
     paths = runtime_paths(goal_id)
     payload = _read_json(paths["harness"])
@@ -73,7 +108,7 @@ def ensure_harness(goal_case: dict[str, Any]) -> dict[str, Any]:
         payload = {
             "goal_id": goal_id,
             "created_at": datetime.now().astimezone().isoformat(),
-            **DEFAULT_HARNESS,
+            **get_harness(genome),
         }
         _write_json(paths["harness"], payload)
     return payload
