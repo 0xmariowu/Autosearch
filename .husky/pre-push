@@ -7,12 +7,29 @@ if [ "$branch" = "main" ]; then
   exit 0
 fi
 
-git fetch origin main --quiet
-if ! git rebase origin/main --quiet; then
-  echo "Rebase on main failed — resolve conflicts first."
-  git rebase --abort
-  exit 1
+# Rebase on main, then re-exec to pick up any hook changes from rebased commits
+if [ "${_HUSKY_POST_REBASE:-}" != "1" ]; then
+  git fetch origin main --quiet
+  if ! git rebase origin/main --quiet; then
+    echo "Rebase on main failed — resolve conflicts first."
+    git rebase --abort
+    exit 1
+  fi
+  echo "Rebased on origin/main"
+  export _HUSKY_POST_REBASE=1
+  exec bash "$(git rev-parse --show-toplevel)/.husky/pre-push" "$@"
 fi
-echo "Rebased on origin/main"
 
-python3 -m unittest discover -s tests -q
+# Use uv-managed Python 3.11+ (codebase uses X | Y union syntax requiring 3.10+)
+PYTHON=$(command -v python3.11 || command -v python3.12 || echo "")
+if [ -z "$PYTHON" ]; then
+  for p in "$HOME"/.local/share/uv/python/cpython-3.1*/bin/python3; do
+    [ -x "$p" ] && PYTHON="$p" && break
+  done
+fi
+if [ -z "$PYTHON" ]; then
+  echo "warning: Python 3.10+ not found, skipping tests"
+  exit 0
+fi
+
+"$PYTHON" -m unittest discover -s tests -q

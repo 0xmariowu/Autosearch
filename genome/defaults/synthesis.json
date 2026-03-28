@@ -1,0 +1,116 @@
+{
+  "positive_claim_terms": [
+    "works",
+    "working",
+    "passes",
+    "passed",
+    "verified",
+    "reliable",
+    "success",
+    "successful",
+    "stable"
+  ],
+  "negative_claim_terms": [
+    "fails",
+    "failed",
+    "failing",
+    "broken",
+    "issue",
+    "issues",
+    "bug",
+    "bugs",
+    "limitation",
+    "limitations",
+    "criticism",
+    "tradeoff",
+    "tradeoffs",
+    "regression"
+  ],
+  "claim_stop_words": [
+    "the",
+    "and",
+    "with",
+    "that",
+    "this",
+    "from",
+    "into",
+    "using",
+    "implementation",
+    "system",
+    "approach",
+    "method",
+    "results",
+    "result",
+    "page",
+    "report",
+    "study"
+  ],
+  "query_cluster_limit": 8,
+  "domain_cluster_limit": 8,
+  "multi_source_threshold": 2,
+  "intent_templates": {
+    "how_to": {
+      "sections": [
+        "summary",
+        "step_by_step",
+        "tools",
+        "references"
+      ]
+    },
+    "comparison": {
+      "sections": [
+        "summary",
+        "side_by_side_table",
+        "pros_cons",
+        "verdict"
+      ]
+    },
+    "opinion": {
+      "sections": [
+        "summary",
+        "consensus_view",
+        "dissenting_views",
+        "sources"
+      ]
+    },
+    "debug": {
+      "sections": [
+        "error_description",
+        "root_cause",
+        "fix_steps",
+        "related_issues"
+      ]
+    },
+    "breaking": {
+      "sections": [
+        "summary",
+        "timeline",
+        "impact",
+        "reactions"
+      ]
+    },
+    "research": {
+      "sections": [
+        "abstract",
+        "findings",
+        "methodology",
+        "gaps"
+      ]
+    },
+    "prediction": {
+      "sections": [
+        "summary",
+        "signals",
+        "scenarios",
+        "confidence"
+      ]
+    }
+  },
+  "report_sections": [
+    "summary",
+    "findings",
+    "claim_alignment",
+    "clusters",
+    "gaps"
+  ]
+}

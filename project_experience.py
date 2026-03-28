@@ -185,7 +185,9 @@ def _merge_stats(target: dict[str, int], source: dict[str, Any]) -> None:
 
 def _recent_events(
     events: list[dict[str, Any]],
+    thresholds: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
+    threshold_config = dict(thresholds or {})
     run_ids: list[str] = []
     seen: set[str] = set()
     for event in events:
@@ -193,7 +195,12 @@ def _recent_events(
         if run_id and run_id not in seen:
             run_ids.append(run_id)
             seen.add(run_id)
-    recent_run_ids = run_ids[-RECENT_RUN_WINDOW:]
+    recent_run_window = int(
+        threshold_config["recent_run_window"]
+        if "recent_run_window" in threshold_config
+        else RECENT_RUN_WINDOW
+    )
+    recent_run_ids = run_ids[-recent_run_window:]
     if not recent_run_ids:
         return [], []
     allowed = set(recent_run_ids)
@@ -203,33 +210,58 @@ def _recent_events(
     return recent_events, recent_run_ids
 
 
-def _finalize_provider_record(provider: str, stats: dict[str, int]) -> dict[str, Any]:
+def _finalize_provider_record(
+    provider: str,
+    stats: dict[str, int],
+    thresholds: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    threshold_config = dict(thresholds or {})
     attempts = int(stats.get("attempts") or 0)
     results = int(stats.get("results") or 0)
     new_urls = int(stats.get("new_urls") or 0)
     errors = int(stats.get("errors") or 0)
     new_url_rate = round(new_urls / max(attempts, 1), 4)
     error_rate = round(errors / max(attempts, 1), 4)
+    cooldown_min_attempts = int(
+        threshold_config["cooldown_min_attempts"]
+        if "cooldown_min_attempts" in threshold_config
+        else COOLDOWN_MIN_ATTEMPTS
+    )
+    cooldown_error_rate = float(
+        threshold_config["cooldown_error_rate"]
+        if "cooldown_error_rate" in threshold_config
+        else COOLDOWN_ERROR_RATE
+    )
+    preferred_min_attempts = int(
+        threshold_config["preferred_min_attempts"]
+        if "preferred_min_attempts" in threshold_config
+        else PREFERRED_MIN_ATTEMPTS
+    )
+    high_value_new_url_rate = float(
+        threshold_config["high_value_new_url_rate"]
+        if "high_value_new_url_rate" in threshold_config
+        else HIGH_VALUE_NEW_URL_RATE
+    )
 
     if (
-        attempts >= COOLDOWN_MIN_ATTEMPTS
-        and error_rate >= COOLDOWN_ERROR_RATE
+        attempts >= cooldown_min_attempts
+        and error_rate >= cooldown_error_rate
         and new_urls == 0
     ):
         status = "cooldown"
         reason = "high recent error rate with no new urls"
     elif (
         not is_error_provider(provider)
-        and attempts >= PREFERRED_MIN_ATTEMPTS
+        and attempts >= preferred_min_attempts
         and errors == 0
-        and new_url_rate >= HIGH_VALUE_NEW_URL_RATE
+        and new_url_rate >= high_value_new_url_rate
         and new_urls > 0
     ):
         status = "preferred"
         reason = "enough recent attempts with strong new-url rate"
     else:
         status = "active"
-        if attempts < min(PREFERRED_MIN_ATTEMPTS, COOLDOWN_MIN_ATTEMPTS):
+        if attempts < min(preferred_min_attempts, cooldown_min_attempts):
             reason = "insufficient recent samples for promotion or cooldown"
         elif errors > 0 and new_urls > 0:
             reason = "mixed recent signal with both errors and useful output"
@@ -250,9 +282,15 @@ def _finalize_provider_record(provider: str, stats: dict[str, int]) -> dict[str,
     }
 
 
-def build_project_experience_index(events: list[dict[str, Any]]) -> dict[str, Any]:
+def build_project_experience_index(
+    events: list[dict[str, Any]],
+    thresholds: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     search_events = [event for event in events if event.get("aspect") == SEARCH_ASPECT]
-    recent_events, recent_run_ids = _recent_events(search_events)
+    recent_events, recent_run_ids = _recent_events(
+        search_events,
+        thresholds=thresholds,
+    )
 
     raw_provider_stats: dict[str, dict[str, int]] = defaultdict(_empty_stats)
     canonical_provider_stats: dict[str, dict[str, int]] = defaultdict(_empty_stats)
@@ -273,16 +311,20 @@ def build_project_experience_index(events: list[dict[str, Any]]) -> dict[str, An
                 )
 
     providers = {
-        provider: _finalize_provider_record(provider, stats)
+        provider: _finalize_provider_record(provider, stats, thresholds=thresholds)
         for provider, stats in sorted(raw_provider_stats.items())
     }
     canonical_providers = {
-        provider: _finalize_provider_record(provider, stats)
+        provider: _finalize_provider_record(provider, stats, thresholds=thresholds)
         for provider, stats in sorted(canonical_provider_stats.items())
     }
     query_families = {
         family: {
-            provider: _finalize_provider_record(provider, stats)
+            provider: _finalize_provider_record(
+                provider,
+                stats,
+                thresholds=thresholds,
+            )
             for provider, stats in sorted(provider_stats.items())
         }
         for family, provider_stats in sorted(query_family_stats.items())
@@ -403,12 +445,13 @@ def summarize_search_experience_for_health(
 
 def refresh_project_experience(
     new_events: list[dict[str, Any]] | None = None,
+    thresholds: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     ensure_experience_files()
     if new_events:
         append_jsonl(EXPERIENCE_LEDGER_PATH, new_events)
     all_events = load_jsonl(EXPERIENCE_LEDGER_PATH)
-    index = build_project_experience_index(all_events)
+    index = build_project_experience_index(all_events, thresholds=thresholds)
     policy = build_project_experience_policy(index)
     health = summarize_search_experience_for_health(index=index, policy=policy)
     write_json(EXPERIENCE_INDEX_PATH, index)

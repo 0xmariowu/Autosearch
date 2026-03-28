@@ -109,6 +109,20 @@ class EngineConfig:
     # LLM model (daily=sonnet, manual=haiku for cost)
     llm_model: str = "claude-haiku-4-5-20251001"
 
+    @classmethod
+    def from_genome(cls, genome: Any, **overrides: Any) -> "EngineConfig":
+        return cls(
+            max_stale=int(genome.engine.max_stale),
+            max_rounds=int(genome.engine.max_rounds),
+            queries_per_round=int(genome.engine.queries_per_round),
+            harvest_since=str(genome.engine.harvest_since),
+            llm_ratio=float(genome.engine.llm_ratio),
+            pattern_ratio=float(genome.engine.pattern_ratio),
+            gene_ratio=float(genome.engine.gene_ratio),
+            llm_model=str(genome.engine.llm_model),
+            **overrides,
+        )
+
 
 # ============================================================
 # PATTERN STORE
@@ -1644,3 +1658,13 @@ class Engine:
             all_results.extend(outcome.results)
             time.sleep(0.15)
         return all_results
+
+
+def run_with_genome(genome_path: str, task: str, **kwargs) -> dict:
+    """Execute engine search using a genome instead of hardcoded config."""
+    from genome import load_genome
+    from genome.runtime import execute
+
+    genome = load_genome(genome_path)
+    result = execute(genome, task, **kwargs)
+    return result.to_dict()
