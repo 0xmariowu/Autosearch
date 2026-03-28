@@ -12,7 +12,11 @@ input_schema = {
         "context": {
             "type": "object",
             "properties": {
-                "limit": {"type": "integer", "default": 150, "description": "Max results to return"},
+                "limit": {
+                    "type": "integer",
+                    "default": 150,
+                    "description": "Max results to return",
+                },
                 "query_family": {"type": "string", "default": "unknown"},
             },
         },
@@ -40,6 +44,7 @@ def run(query, **context):
     # Try to add premium providers if available
     try:
         from source_capability import refresh_source_capability
+
         report = refresh_source_capability()
         sources = report.get("sources", {})
         if sources.get("exa", {}).get("available"):
@@ -90,4 +95,5 @@ def run(query, **context):
 def test():
     from search_mesh.router import search_platform  # noqa: F401
     from concurrent.futures import ThreadPoolExecutor  # noqa: F401
+
     return "ok"
