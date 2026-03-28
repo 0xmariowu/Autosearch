@@ -63,3 +63,4 @@ print(f"Found {result.unique_urls} unique URLs in {result.elapsed_seconds:.1f}s"
 - New strategy decisions go in `genome/defaults/`, not Python code
 - `evolution.jsonl` is append-only
 - Engagement formulas use `safe_eval` whitelist (no arbitrary code execution)
+
