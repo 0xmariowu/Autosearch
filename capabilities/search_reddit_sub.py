@@ -19,15 +19,21 @@ input_schema = {
     "required": ["input"],
 }
 
+
 def run(query, **context):
     from search_mesh.router import search_platform
+
     sub = context.get("subreddit", "MachineLearning")
     try:
-        batch = search_platform({"name": "reddit", "sub": sub}, str(query), query_family="social")
-        return batch.to_hit_dicts()[:context.get("limit", 20)]
+        batch = search_platform(
+            {"name": "reddit", "sub": sub}, str(query), query_family="social"
+        )
+        return batch.to_hit_dicts()[: context.get("limit", 20)]
     except Exception:
         return []
 
+
 def test():
     from search_mesh.router import search_platform  # noqa: F401
+
     return "ok"

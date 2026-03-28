@@ -24,22 +24,45 @@ input_schema = {
 }
 
 _HIGH_VALUE_DOMAINS = {
-    "github.com", "arxiv.org", "huggingface.co", "pytorch.org", "tensorflow.org",
-    "docs.python.org", "learn.microsoft.com", "developer.mozilla.org",
-    "en.wikipedia.org", "stackoverflow.com", "news.ycombinator.com",
-    "paperswithcode.com", "kaggle.com", "openai.com", "anthropic.com",
-    "deepmind.google", "ai.meta.com",
+    "github.com",
+    "arxiv.org",
+    "huggingface.co",
+    "pytorch.org",
+    "tensorflow.org",
+    "docs.python.org",
+    "learn.microsoft.com",
+    "developer.mozilla.org",
+    "en.wikipedia.org",
+    "stackoverflow.com",
+    "news.ycombinator.com",
+    "paperswithcode.com",
+    "kaggle.com",
+    "openai.com",
+    "anthropic.com",
+    "deepmind.google",
+    "ai.meta.com",
 }
 
 _LOW_VALUE_DOMAINS = {
-    "linkedin.com", "facebook.com", "instagram.com", "tiktok.com",
-    "pinterest.com", "slideshare.net", "quora.com",
+    "linkedin.com",
+    "facebook.com",
+    "instagram.com",
+    "tiktok.com",
+    "pinterest.com",
+    "slideshare.net",
+    "quora.com",
     "youtube.com",  # usually not useful as a link (no code/text)
 }
 
 _SKIP_PATTERNS = [
-    "/login", "/signup", "/register", "/pricing",
-    "/careers", "/jobs", "/about-us", "/contact",
+    "/login",
+    "/signup",
+    "/register",
+    "/pricing",
+    "/careers",
+    "/jobs",
+    "/about-us",
+    "/contact",
 ]
 
 
@@ -72,6 +95,7 @@ def run(hits, **context):
 
         # Extract domain
         from urllib.parse import urlparse
+
         try:
             domain = urlparse(url).netloc.lower().replace("www.", "")
         except Exception:
@@ -99,16 +123,38 @@ def run(hits, **context):
 
 def test():
     sample = [
-        {"url": "https://github.com/org/repo", "title": "Great AI Framework", "score_hint": 100},
-        {"url": "https://linkedin.com/posts/someone", "title": "My thoughts on AI", "score_hint": 50},
-        {"url": "https://arxiv.org/abs/2301.00001", "title": "A Paper on LLMs", "score_hint": 30},
-        {"url": "https://example.com/signup", "title": "Sign up for free", "score_hint": 200},
-        {"url": "https://blog.example.com/ai-tools", "title": "Top AI Tools 2026", "score_hint": 80},
+        {
+            "url": "https://github.com/org/repo",
+            "title": "Great AI Framework",
+            "score_hint": 100,
+        },
+        {
+            "url": "https://linkedin.com/posts/someone",
+            "title": "My thoughts on AI",
+            "score_hint": 50,
+        },
+        {
+            "url": "https://arxiv.org/abs/2301.00001",
+            "title": "A Paper on LLMs",
+            "score_hint": 30,
+        },
+        {
+            "url": "https://example.com/signup",
+            "title": "Sign up for free",
+            "score_hint": 200,
+        },
+        {
+            "url": "https://blog.example.com/ai-tools",
+            "title": "Top AI Tools 2026",
+            "score_hint": 80,
+        },
     ]
     result = run(sample)
     # LinkedIn and signup should be removed
     urls = [h["url"] for h in result]
-    assert "https://linkedin.com/posts/someone" not in urls, "LinkedIn should be filtered"
+    assert "https://linkedin.com/posts/someone" not in urls, (
+        "LinkedIn should be filtered"
+    )
     assert "https://example.com/signup" not in urls, "Signup page should be filtered"
     assert len(result) == 3
     # GitHub should be first (high value)

@@ -67,6 +67,7 @@ def _save_learnings(learnings, task_spec):
 
     if entries:
         import fcntl
+
         with open(_PATTERNS_PATH, "a") as f:
             fcntl.flock(f, fcntl.LOCK_EX)
             for entry in entries:

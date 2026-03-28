@@ -27,7 +27,9 @@ def run(query, **context):
 
     # Step 1: Search all available providers concurrently
     try:
-        raw_hits = dispatch("search_all", query, **{k: v for k, v in context.items() if k != "limit"})
+        raw_hits = dispatch(
+            "search_all", query, **{k: v for k, v in context.items() if k != "limit"}
+        )
     except Exception:
         # Fallback to basic web search
         raw_hits = dispatch("search_web", query, limit=limit)
@@ -65,5 +67,4 @@ def run(query, **context):
 
 def test():
     # Verify imports work
-    from capabilities import dispatch
     return "ok"
