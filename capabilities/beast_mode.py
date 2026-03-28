@@ -61,8 +61,8 @@ def run(evidence, **context):
 
     if learnings:
         summary_lines.append("### Key Learnings")
-        for l in learnings[:10]:
-            summary_lines.append(f"- {l}")
+        for learning in learnings[:10]:
+            summary_lines.append(f"- {learning}")
         summary_lines.append("")
 
     summary_lines.append("### Top Results")

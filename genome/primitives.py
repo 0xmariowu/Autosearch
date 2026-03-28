@@ -280,10 +280,12 @@ def _primitive_cross_ref(
     for hit in boosted:
         source = str(hit.get("source") or hit.get("provider") or "")
         url = str(hit.get("url") or "")
-        related = lambda item: (
-            url in list(item.get("urls") or [])
-            or source in list(item.get("sources") or [])
-        )
+
+        def related(item: dict) -> bool:
+            return url in list(item.get("urls") or []) or source in list(
+                item.get("sources") or []
+            )
+
         result.append(
             {
                 **hit,

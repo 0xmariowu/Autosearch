@@ -1,6 +1,7 @@
 """ddgs backend wrapper."""
 
 from __future__ import annotations
+from typing import Any
 
 from engine import PlatformConnector
 from .base import SearchProvider

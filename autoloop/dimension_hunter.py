@@ -95,7 +95,6 @@ def current_keyword_state(
 
 def query_variations(keyword: str, dim_id: str, attempt: int) -> list[str]:
     """Generate query variations for a keyword. Different attempts try different angles."""
-    base = keyword.lower()
     dim_text = dim_id.replace("_", " ")
 
     variations_pool = [
