@@ -184,7 +184,9 @@ def score_results(
 
     match_count = 0
     for item in results:
-        metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+        metadata = (
+            item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+        )
         if "llm_relevant" in metadata:
             if metadata.get("llm_relevant") is True:
                 match_count += 1
@@ -203,7 +205,9 @@ def score_results(
     fresh_cutoff = now - dt.timedelta(days=183)
     fresh_count = 0
     for item in results:
-        metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+        metadata = (
+            item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+        )
         parsed = None
         for name in DATE_FIELDS:
             parsed = parse_date(metadata.get(name))
