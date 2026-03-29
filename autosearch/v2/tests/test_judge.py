@@ -10,6 +10,15 @@ from autosearch.v2 import judge
 
 
 NOW = dt.datetime(2026, 3, 28, tzinfo=dt.timezone.utc)
+DIMENSION_NAMES = {
+    "quantity",
+    "diversity",
+    "relevance",
+    "freshness",
+    "efficiency",
+    "latency",
+    "adoption",
+}
 
 
 def write_jsonl(path: Path, rows: list[object]) -> Path:
@@ -20,6 +29,13 @@ def write_jsonl(path: Path, rows: list[object]) -> Path:
         ),
         encoding="utf-8",
     )
+    return path
+
+
+def write_state_json(base: Path, filename: str, payload: dict) -> Path:
+    path = base / "state" / filename
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload), encoding="utf-8")
     return path
 
 
@@ -48,10 +64,28 @@ def score_file(path: Path, target: int = 30) -> dict:
     )
 
 
+def assert_dimensions(score: dict, **expected: float) -> None:
+    assert set(score["dimensions"]) == DIMENSION_NAMES
+    for name, value in expected.items():
+        assert score["dimensions"][name] == pytest.approx(value)
+
+
 def test_empty_input(tmp_path: Path) -> None:
     score = score_file(write_jsonl(tmp_path / "empty.jsonl", []))
-    assert score["total"] == 0.0
-    assert all(value == 0.0 for value in score["dimensions"].values())
+    assert_dimensions(
+        score,
+        quantity=0.0,
+        diversity=0.0,
+        relevance=0.0,
+        freshness=0.0,
+        efficiency=0.0,
+        latency=0.5,
+        adoption=0.5,
+    )
+    expected_total = (
+        judge.DEFAULT_WEIGHTS["latency"] * 0.5 + judge.DEFAULT_WEIGHTS["adoption"] * 0.5
+    ) / sum(judge.DEFAULT_WEIGHTS.values())
+    assert score["total"] == pytest.approx(expected_total)
 
 
 def test_single_result(tmp_path: Path) -> None:
@@ -59,9 +93,14 @@ def test_single_result(tmp_path: Path) -> None:
         "https://example.com/1", "github", "python judge", title="Python judge"
     )
     score = score_file(write_jsonl(tmp_path / "single.jsonl", [row]))
-    assert score["dimensions"]["quantity"] == pytest.approx(1 / 30)
-    assert score["dimensions"]["diversity"] == 0.0
-    assert score["dimensions"]["relevance"] == 1.0
+    assert_dimensions(
+        score,
+        quantity=1 / 30,
+        diversity=0.0,
+        relevance=1.0,
+        latency=0.5,
+        adoption=0.5,
+    )
 
 
 def test_multi_platform_diversity(tmp_path: Path) -> None:
@@ -73,7 +112,10 @@ def test_multi_platform_diversity(tmp_path: Path) -> None:
         )
     ]
     score = score_file(write_jsonl(tmp_path / "diverse.jsonl", rows))
+    assert set(score["dimensions"]) == DIMENSION_NAMES
     assert score["dimensions"]["diversity"] > 0.5
+    assert score["dimensions"]["latency"] == pytest.approx(0.5)
+    assert score["dimensions"]["adoption"] == pytest.approx(0.5)
 
 
 def test_single_platform_low_diversity(tmp_path: Path) -> None:
@@ -82,7 +124,10 @@ def test_single_platform_low_diversity(tmp_path: Path) -> None:
         for idx in range(10)
     ]
     score = score_file(write_jsonl(tmp_path / "single-platform.jsonl", rows))
+    assert set(score["dimensions"]) == DIMENSION_NAMES
     assert score["dimensions"]["diversity"] == 0.0
+    assert score["dimensions"]["latency"] == pytest.approx(0.5)
+    assert score["dimensions"]["adoption"] == pytest.approx(0.5)
 
 
 def test_relevance_all_match(tmp_path: Path) -> None:
@@ -96,7 +141,7 @@ def test_relevance_all_match(tmp_path: Path) -> None:
         for idx in range(3)
     ]
     score = score_file(write_jsonl(tmp_path / "all-match.jsonl", rows))
-    assert score["dimensions"]["relevance"] == 1.0
+    assert_dimensions(score, relevance=1.0, latency=0.5, adoption=0.5)
 
 
 def test_relevance_none_match(tmp_path: Path) -> None:
@@ -111,7 +156,50 @@ def test_relevance_none_match(tmp_path: Path) -> None:
         for idx in range(3)
     ]
     score = score_file(write_jsonl(tmp_path / "none-match.jsonl", rows))
-    assert score["dimensions"]["relevance"] == 0.0
+    assert_dimensions(score, relevance=0.0, latency=0.5, adoption=0.5)
+
+
+def test_llm_relevance(tmp_path: Path) -> None:
+    rows = [
+        result(
+            "https://example.com/1",
+            "github",
+            "agent search",
+            title="database tuning",
+            metadata={"llm_relevant": True},
+        ),
+        result(
+            "https://example.com/2",
+            "github",
+            "agent search",
+            title="agent search guide",
+            metadata={"llm_relevant": False},
+        ),
+    ]
+    score = score_file(write_jsonl(tmp_path / "llm-relevance.jsonl", rows))
+    assert_dimensions(score, relevance=0.5, latency=0.5, adoption=0.5)
+
+
+def test_llm_relevance_fallback(tmp_path: Path) -> None:
+    rows = [
+        result(
+            "https://example.com/1",
+            "github",
+            "agent search",
+            title="agent systems handbook",
+            metadata={"published_at": NOW.isoformat().replace("+00:00", "Z")},
+        ),
+        result(
+            "https://example.com/2",
+            "github",
+            "agent search",
+            title="database tuning",
+            snippet="sql indexes",
+            metadata={"published_at": NOW.isoformat().replace("+00:00", "Z")},
+        ),
+    ]
+    score = score_file(write_jsonl(tmp_path / "llm-fallback.jsonl", rows))
+    assert_dimensions(score, relevance=0.5, latency=0.5, adoption=0.5)
 
 
 def test_freshness_all_recent(tmp_path: Path) -> None:
@@ -126,7 +214,7 @@ def test_freshness_all_recent(tmp_path: Path) -> None:
         for idx in range(3)
     ]
     score = score_file(write_jsonl(tmp_path / "fresh.jsonl", rows))
-    assert score["dimensions"]["freshness"] == 1.0
+    assert_dimensions(score, freshness=1.0, latency=0.5, adoption=0.5)
 
 
 def test_freshness_all_old(tmp_path: Path) -> None:
@@ -141,7 +229,7 @@ def test_freshness_all_old(tmp_path: Path) -> None:
         for idx in range(3)
     ]
     score = score_file(write_jsonl(tmp_path / "old.jsonl", rows))
-    assert score["dimensions"]["freshness"] == 0.0
+    assert_dimensions(score, freshness=0.0, latency=0.5, adoption=0.5)
 
 
 def test_freshness_unix_timestamp(tmp_path: Path) -> None:
@@ -159,7 +247,43 @@ def test_freshness_unix_timestamp(tmp_path: Path) -> None:
         ),
     ]
     score = score_file(write_jsonl(tmp_path / "unix.jsonl", rows))
-    assert score["dimensions"]["freshness"] == 0.5
+    assert_dimensions(score, freshness=0.5, latency=0.5, adoption=0.5)
+
+
+def test_latency_dimension(tmp_path: Path) -> None:
+    start = NOW - dt.timedelta(seconds=30)
+    end = NOW
+    write_state_json(
+        tmp_path,
+        "config.json",
+        {"scoring": {"latency_budget_seconds": 60}},
+    )
+    write_state_json(
+        tmp_path,
+        "timing.json",
+        {
+            "start_ts": start.isoformat().replace("+00:00", "Z"),
+            "end_ts": end.isoformat().replace("+00:00", "Z"),
+        },
+    )
+    score = score_file(
+        write_jsonl(
+            tmp_path / "latency.jsonl",
+            [result("https://example.com/1", "github", "judge", title="judge")],
+        )
+    )
+    assert_dimensions(score, latency=0.5, adoption=0.5)
+
+
+def test_adoption_dimension(tmp_path: Path) -> None:
+    write_state_json(tmp_path, "adoption.json", {"score": 0.8})
+    score = score_file(
+        write_jsonl(
+            tmp_path / "adoption.jsonl",
+            [result("https://example.com/1", "github", "judge", title="judge")],
+        )
+    )
+    assert_dimensions(score, latency=0.5, adoption=0.8)
 
 
 def test_custom_target(tmp_path: Path) -> None:
@@ -168,7 +292,7 @@ def test_custom_target(tmp_path: Path) -> None:
         for idx in range(10)
     ]
     score = score_file(write_jsonl(tmp_path / "target.jsonl", rows), target=10)
-    assert score["dimensions"]["quantity"] == 1.0
+    assert_dimensions(score, quantity=1.0, latency=0.5, adoption=0.5)
 
 
 def test_invalid_json_lines(tmp_path: Path) -> None:
@@ -178,8 +302,11 @@ def test_invalid_json_lines(tmp_path: Path) -> None:
         result("https://example.com/2", "reddit", "judge", title="judge"),
     ]
     score = score_file(write_jsonl(tmp_path / "invalid.jsonl", rows))
+    assert set(score["dimensions"]) == DIMENSION_NAMES
     assert score["meta"]["total_results"] == 2
     assert score["meta"]["unique_urls"] == 2
+    assert score["dimensions"]["latency"] == pytest.approx(0.5)
+    assert score["dimensions"]["adoption"] == pytest.approx(0.5)
 
 
 def test_cli_exit_codes(tmp_path: Path) -> None:
@@ -197,5 +324,7 @@ def test_cli_exit_codes(tmp_path: Path) -> None:
         text=True,
     )
     assert success.returncode == 0
-    assert json.loads(success.stdout)["meta"]["total_results"] == 1
+    payload = json.loads(success.stdout)
+    assert payload["meta"]["total_results"] == 1
+    assert set(payload["dimensions"]) == DIMENSION_NAMES
     assert missing.returncode == 1
