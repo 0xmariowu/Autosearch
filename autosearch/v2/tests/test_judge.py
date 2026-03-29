@@ -83,8 +83,7 @@ def test_empty_input(tmp_path: Path) -> None:
         adoption=0.5,
     )
     expected_total = (
-        judge.DEFAULT_WEIGHTS["latency"] * 0.5
-        + judge.DEFAULT_WEIGHTS["adoption"] * 0.5
+        judge.DEFAULT_WEIGHTS["latency"] * 0.5 + judge.DEFAULT_WEIGHTS["adoption"] * 0.5
     ) / sum(judge.DEFAULT_WEIGHTS.values())
     assert score["total"] == pytest.approx(expected_total)
 
