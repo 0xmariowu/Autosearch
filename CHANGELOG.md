@@ -4,7 +4,15 @@ All changes to AutoSearch. Every entry includes **what** changed and **why**.
 
 ---
 
-## 2026-03-28
+## 2026-03-29 (v2.2)
+- You can now run `/autosearch` with V1's full capabilities restored as evolvable skills: LLM-based relevance scoring (not keyword matching), 5-dimensional gene query generation, 14 platform connectors (8 free + 6 paid), goal-driven research cycles, anti-cheat validation, provider health tracking, and outcome-based query boosting. Why: v2.0 was an amputation — it removed V1's computational capabilities. v2.2 brings them back as skills that AVO can evolve.
+- AutoSearch now uses your own knowledge as a research source alongside API searches. Claude's training data covers foundational works, key researchers, and domain concepts that no API search can find. Why: comparison testing showed native Claude outperformed AutoSearch specifically because of training knowledge + conceptual synthesis.
+- Search results are now organized by concept (categories, design patterns, risk analysis) instead of by platform (GitHub results, Reddit results). Why: users need insight frameworks for decision-making, not URL lists sorted by source.
+- judge.py expanded to 7 dimensions: +latency (time to delivery), +adoption (user feedback), relevance switched from keyword counting to LLM-based scoring. Why: V2.0's judge gave 0.993 relevance to irrelevant results because it only matched keywords.
+- V1 accumulated intelligence migrated: 27 patterns, 290 evolution entries, 31 outcomes, 30 playbook entries. Why: V1 ran hundreds of sessions — that experience shouldn't be lost in a rewrite.
+- 29 skills total in superpowers format (name + description, free-form body), including 5 meta-skills for self-evolution: create-skill, observe-user, extract-knowledge, interact-user, discover-environment.
+
+## 2026-03-28 (v2.0)
 - You can now run `/autosearch "find AI agent frameworks"` to execute a self-evolving search session. The system autonomously searches 5 platforms, scores results with judge.py, reflects, evolves its strategy, and delivers. Why: v2 replaces ~7000 lines of Python with ~100 lines of code + ~2500 lines of Markdown skills. Everything is now skills-native and AVO-driven.
 - Added `autosearch/v2/` — complete skills-native architecture: PROTOCOL.md (operating protocol), skill-spec.md (skill format), judge.py (deterministic scorer), 14 skills (5 platform + 4 strategy + 5 AVO), state management. Why: v1's Python runtime was hard to evolve; v2 lets the AVO loop modify skills directly as Markdown.
 - End-to-end validated: 43 results from 4 platforms, judge score 0.853, full worklog cycle from task_spec to delivery.

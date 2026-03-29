@@ -1,32 +1,53 @@
 # AutoSearch Handoff
 
-## feat/v2-skills-architecture
+## feat/v2.2-unified-architecture
 
-**Last session**: 2026-03-28 — v2 Skills Architecture: F001-F008 complete, PR ready
+**Last session**: 2026-03-29 — v2.2 built, PR #14 open, needs validation + merge
 
-### Completed
+### What is v2.2
 
-- F001: PROTOCOL.md + skill-spec.md + config.json + directory structure
-- F002: 5 platform skills (github, web-ddgs, reddit, hackernews, arxiv)
-- F003: 4 strategy skills (query-expand, score, deduplicate, synthesize)
-- F004: judge.py (157 lines, 12 tests passing) — the only code
-- F005: 5 AVO self-evolution skills (reflect, evolve, diagnose, create-skill, stuck)
-- F006: End-to-end validated — 43 results, score 0.853, full worklog cycle
-- F007: `/autosearch` Claude Code skill entry point
-- F008: CLAUDE.md v2 rules, CHANGELOG, plan moved to completed
+V1's proven capabilities (LLM scoring, gene pool, 14 connectors, goal system, anti-cheat, outcome tracking) restored as evolvable skills in superpowers format (name + description, free-form body). Agent autonomy per AVO paper §3 (not pipeline). 29 skills, 7-dimension judge, 378 migrated V1 data entries.
 
-### Known Issues
+### What's done
 
-- ddgs (DuckDuckGo) fails on Python 3.9 due to SSL — works on 3.11+
-- judge.py requires Python 3.11+ (union type syntax)
-- arXiv skill fixed to use HTTPS
+F000-F005 + F007 complete. 4 commits on branch. 16/16 judge tests passing. 194/194 V1 tests passing.
 
-### Next Steps
+### What the new session needs to do
 
-- Merge PR to main
-- F007-S3: MCP server (thin shell, optional)
-- F007-S4: Cron/schedule entry (optional)
+1. **F006: End-to-end validation** — Run `/autosearch "find open-source self-evolving AI agent frameworks and research"` and compare output quality to the native Claude benchmark at `~/self-evolving-agents-research.md`. Key checks:
+   - Does llm-evaluate.md filter irrelevant results? (v2.0 gave 0.993 relevance to junk)
+   - Does use-own-knowledge.md contribute foundational works? (STaR, Reflexion, Voyager)
+   - Does synthesize-knowledge.md produce conceptual framework? (not platform-organized list)
+   - Are migrated V1 patterns read during search? (state/patterns.jsonl has 32 entries)
+   - Does judge.py output 7 dimensions including latency?
+
+2. **Merge PR #14** after validation passes
+
+3. **Fix any issues found during validation** — skill quality may need refinement after first real run
+
+### Key files
+
+| File | What it is |
+|------|-----------|
+| `autosearch/v2/PROTOCOL.md` | Agent protocol (106 lines, read this first) |
+| `autosearch/v2/judge.py` | 7-dimension scorer (only Python code) |
+| `autosearch/v2/skills/` | 29 skills, flat directory |
+| `autosearch/v2/state/` | config + migrated V1 data |
+| `docs/exec-plans/active/autosearch-0328-v2.2-unified-architecture.md` | Full plan with design rationale |
+| `~/self-evolving-agents-research.md` | Native Claude benchmark to compare against |
+
+### Critical context
+
+- Python 3.11+ required for judge.py (`uv run --python 3.11`)
+- ddgs package needs Python 3.11+ for SSL
+- Pre-push hook auto-rebases on main and runs 194 V1 tests
+- v2.0 skill-spec.md was deleted — format is now just name + description
+- Meta-skills (create-skill, observe-user, extract-knowledge, interact-user, discover-environment) are IMMUTABLE by AVO
+
+### Experience note
+
+Full session findings at `AIMD/experience/autosearch/2026-03-29-v2.2-unified-architecture.md`. Key lesson: v2.0 was an amputation — removing V1's computational capabilities was the opposite of bitter lesson.
 
 ## main
 
-v1 Genome architecture live (PR #11 + PR #9). 194 tests passing.
+V1 (12,760 lines Python) + V2.0 (PR #12 merged). V2.2 on feature branch (PR #14).
