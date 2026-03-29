@@ -72,21 +72,23 @@ AIMD
 8. Update `AIMD/experience/INDEX.jsonl` (path relative to Dev/ root).
 9. If anything changed beyond search runs (code, rules, architecture): prepend entry to `CHANGELOG.md`.
 
-## v2 rules (skills-native architecture)
+## v2.2 rules (unified architecture: V1 capabilities + V2 evolvability)
 
-12. Don't modify `judge.py`. It is the fixed evaluation contract. AI must not self-assess quality — always run judge.py. Because: AVO paper §3.1 requires f to be a fixed contract; self-evaluation defeats the evolutionary signal.
+12. Don't modify `judge.py` or `PROTOCOL.md`. These are the fixed contracts. judge.py is the scoring function f (AVO paper §3.1). PROTOCOL.md is the operating protocol. Because: if AVO can change its own evaluation or rules, behavior becomes unpredictable.
 
-13. Don't modify AVO skill files (`skills/avo/*.md`), `PROTOCOL.md`, or `skill-spec.md`. These are immutable protocol definitions. Because: if the evolution engine can change its own rules, behavior becomes unpredictable.
+13. Don't modify meta-skills: `create-skill.md`, `observe-user.md`, `extract-knowledge.md`, `interact-user.md`, `discover-environment.md`. These define HOW to evolve, not WHAT to evolve. AVO can modify all OTHER skills. Because: meta-skills are the "DNA replication machinery" — evolution changes genes, not the replication mechanism.
 
-14. Don't delete or rewrite lines in `state/worklog.jsonl` or `state/patterns.jsonl`. They are append-only. Because: the AVO loop learns from history — deleting entries resets accumulated intelligence.
+14. Don't delete or rewrite lines in append-only state files: `worklog.jsonl`, `patterns.jsonl`, `evolution-v1.jsonl`, `outcomes.jsonl`. Because: the AVO loop learns from history — deleting entries resets accumulated intelligence.
 
-15. Don't use paid APIs in platform skills. All search must use free access methods (gh CLI, curl to public APIs, ddgs). Because: zero marginal cost is a core design constraint.
+15. Skill changes during AVO go through `git commit`. Failed changes get `git revert`. Because: git history IS the lineage P_t that AVO uses to learn from failures.
 
-16. Config and skill changes during AVO must go through `git commit`. Failed changes get `git revert`. Because: git history IS the lineage that AVO uses to learn from failures.
+16. Skill format follows superpowers standard: YAML frontmatter with `name` + `description`, free-form markdown body. No required sections. Description IS the dispatch mechanism. Because: skills are strategy guides for a capable agent, not bash templates for a dumb executor.
 
-17. Use Python 3.11+ to run `judge.py` and tests. System python3 may be 3.9 which lacks union type syntax. Command: `~/.local/share/uv/python/cpython-3.11-macos-aarch64-none/bin/python3.11` or `uv run --python 3.11`.
+17. Use Python 3.11+ to run `judge.py` and tests. System python3 may be 3.9 which lacks union type syntax.
+
+18. Platform skills can use free OR paid APIs. AVO discovers what's available via `discover-environment.md` and selects accordingly. Because: V1 had 14 connectors (8 free, 6 paid) — restricting to free-only was V2.0's mistake.
 
 ---
 
-For methodology details, algorithm documentation, and system architecture, see `docs/` or inline comments in `engine.py`.
-For v2 architecture, see `autosearch/v2/PROTOCOL.md` (the system) and `autosearch/v2/skill-spec.md` (the format).
+For V1 code reference, see `engine.py`, `goal_judge.py`, `goal_loop.py`, `outcomes.py`.
+For v2.2 architecture, see `autosearch/v2/PROTOCOL.md` (the protocol) and `autosearch/v2/skills/` (flat skill directory).
