@@ -38,6 +38,19 @@ Add or update these metadata fields on each evaluated result:
 - `metadata.llm_reason`: one short sentence explaining the judgment
 - `metadata.llm_evaluated_at`: evaluation timestamp if you need provenance
 
+Additionally, always extract and populate date metadata for freshness scoring:
+
+- `metadata.published_at`: publication or creation date in ISO 8601 format
+- `metadata.updated_at`: last update date in ISO 8601 format
+- `metadata.created_utc`: creation date in ISO 8601 format
+
+Extract dates from: snippet text, title year mentions, URL path date segments (e.g. `/2026/03/`), known publication dates of referenced papers (arXiv IDs encode submission date), GitHub `updatedAt` fields, and any other available signals.
+For arXiv papers, derive the date from the paper ID: `YYMM.NNNNN` means year 20YY, month MM.
+For GitHub repos, use the `updated_at` or `updatedAt` field from the search result.
+For web results, look for date patterns in URLs and snippets.
+If you can confidently determine a date, write it. If not, omit the field rather than guessing.
+Missing date fields score as zero freshness in judge.py, so extracting dates has high impact on scores.
+
 At batch level, extract a small list of concrete follow-up queries:
 
 - `next_queries` should come from missing concepts, missing entities, missing evidence types, or overly broad framing
