@@ -47,9 +47,33 @@ For each GAP dimension in the knowledge map, add the channel most likely to fill
 | Implementation details | StackOverflow, GitHub Code, CSDN |
 | Design patterns | Dev.to, Zhihu, InfoQ |
 
-## Rule 4: Check patterns for proven matches
+## Rule 4: Use channel effectiveness scores
 
-Read `state/patterns-v2.jsonl` for entries with type "platform". If a pattern says "zhihu is best for Chinese dev experience" and the topic matches, include zhihu.
+Read `state/channel-scores.jsonl` for proven channel performance data. Each entry records:
+
+```json
+{
+  "channel": "github",
+  "topic_type": "open-source-tools",
+  "incremental_rate": 0.45,
+  "relevance_rate": 0.85,
+  "avg_results": 20,
+  "sessions_tested": 3
+}
+```
+
+- `incremental_rate` = fraction of results that were genuinely new (not in Claude's knowledge)
+- `relevance_rate` = fraction of results marked relevant by llm-evaluate
+
+Prefer channels with higher `incremental_rate` for the matching `topic_type`.
+A channel with `incremental_rate: 0.05` for a topic type should be deprioritized.
+A channel with `incremental_rate: 0.50` should be strongly prioritized.
+
+If no score exists for a channel+topic_type combo, treat it as untested — include it with medium priority to gather data.
+
+After each search session, update `channel-scores.jsonl` with new data. This is how AVO learns which channels are most valuable for which topics.
+
+Also read `state/patterns-v2.jsonl` for entries with type "platform". If a pattern says "zhihu is best for Chinese dev experience" and the topic matches, include zhihu.
 
 ## Rule 5: Cap at 10 channels
 
