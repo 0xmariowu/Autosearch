@@ -93,3 +93,32 @@ Each result should normally preserve:
 - short task-fit note
 
 Expect this platform to contribute structured ML ecosystem evidence, especially around datasets.
+
+# Standard Output Schema
+
+Write each result as a JSON line conforming to the canonical evidence schema:
+
+- url: canonical URL
+- title: result title
+- snippet: description or summary
+- source: "hf"
+- query: the query that found this
+- metadata: object with llm_relevant, llm_reason, date fields
+
+The source field must be exactly "hf" for this platform.
+judge.py uses source for diversity scoring — inconsistent tags hurt the diversity dimension.
+
+Preserve platform-native fields from Hugging Face, but map final emitted results to this schema.
+After collecting results, pass them to `normalize-results.md` for cross-platform dedup and `extract-dates.md` for freshness metadata.
+
+# Date Metadata
+
+Extract dates from platform-specific fields and write to metadata:
+
+- metadata.published_at — when the content was created (ISO 8601)
+- metadata.updated_at — when the content was last modified (ISO 8601)
+- metadata.created_utc — creation timestamp (ISO 8601)
+
+Use Hugging Face asset metadata such as created or lastModified when available, and normalize them to ISO 8601 in the output metadata.
+See `extract-dates.md` for the full extraction priority and format rules.
+Missing dates score as zero freshness in judge.py.

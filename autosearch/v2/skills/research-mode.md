@@ -66,6 +66,19 @@ You can escalate one level when the task proves harder than first estimated.
 You can de-escalate when a target is already reached cleanly.
 Do not keep changing modes every round without a clear reason.
 
+# Scope Definition
+
+Before starting any search, answer three questions:
+
+- **What's in scope?** — the specific aspects of the topic to investigate
+- **What's out of scope?** — what to explicitly exclude (adjacent topics, time periods, etc.)
+- **What does done look like?** — concrete criteria for a complete answer (e.g., "covers open-source projects, papers, and commercial products with a conceptual framework")
+
+If the task is complex enough for decompose-task.md, the scope definition informs the sub-question generation.
+
+Write the scope answers in the worklog before searching.
+If mid-search you discover the scope was wrong, update it and note the change.
+
 # Quality Bar
 
 Mode choice is a strategy decision.

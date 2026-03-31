@@ -89,3 +89,31 @@ Each result should normally preserve:
 - short relevance note
 
 If the connector is empty or unstable, treat that as provider-health evidence and route Twitter/X discovery to `search-twitter-exa.md` instead.
+
+# Standard Output Schema
+
+Write each result as a JSON line conforming to the canonical evidence schema:
+
+- url: canonical URL
+- title: result title
+- snippet: description or summary
+- source: "twitter"
+- query: the query that found this
+- metadata: object with llm_relevant, llm_reason, date fields
+
+The source field must be exactly "twitter" for this platform.
+`judge.py` uses `source` for diversity scoring, so inconsistent tags reduce the diversity dimension.
+
+After collecting results, pass them to `normalize-results.md` for cross-platform dedup and `extract-dates.md` for freshness metadata.
+
+# Date Metadata
+
+Extract dates from platform-specific fields and write them to `metadata`:
+
+- `metadata.published_at`: when the content was created (ISO 8601)
+- `metadata.updated_at`: when the content was last modified (ISO 8601)
+- `metadata.created_utc`: creation timestamp (ISO 8601)
+
+For XReach, map native created-time fields into these canonical keys when available.
+See `extract-dates.md` for the full extraction priority and format rules.
+Missing dates score as zero freshness in `judge.py`.

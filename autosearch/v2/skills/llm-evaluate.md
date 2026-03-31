@@ -74,6 +74,19 @@ Mark `true` when a result:
 - is likely to be cited or used in delivery
 - closes a known gap in the current bundle
 
+# Structured Gap Detection
+
+After evaluating a batch, perform an explicit gap analysis:
+
+1. List the task dimensions (from research-mode scope or decompose-task sub-questions)
+2. For each dimension, count how many relevant results cover it
+3. Identify dimensions with 0-2 results — these are critical gaps
+4. Identify dimensions with only snippet-level coverage (no fetched full content) — these are depth gaps
+5. Check content type distribution: are we heavy on repos but missing papers? Heavy on papers but missing tutorials?
+
+Output the gap analysis as part of `next_queries` reasoning.
+Gaps should directly drive follow-up query generation: each gap becomes a targeted query.
+
 # Next Query Strategy
 
 `next_queries` are for steering the loop, not for brainstorming endlessly.

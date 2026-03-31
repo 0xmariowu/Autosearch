@@ -103,3 +103,31 @@ If `createdAt` is also available, write it to `metadata.created_utc`.
 The judge uses these fields for the freshness dimension — missing dates score as zero freshness.
 
 Expect strong precision for code ecosystems and decent recall when the query uses concrete topic nouns.
+
+# Standard Output Schema
+
+Write each result as a JSON line conforming to the canonical evidence schema:
+
+- `url`: canonical URL
+- `title`: result title
+- `snippet`: description or summary
+- `source`: `"github"`
+- `query`: the query that found this
+- `metadata`: object with `llm_relevant`, `llm_reason`, and date fields
+
+The `source` field must be exactly `"github"` for this platform.
+`judge.py` uses `source` for diversity scoring, so inconsistent tags hurt the diversity dimension.
+
+After collecting results, pass them to `normalize-results.md` for cross-platform dedup and `extract-dates.md` for freshness metadata.
+
+# Date Metadata
+
+Extract dates from platform-specific fields and write them to `metadata`:
+
+- `metadata.published_at`: when the content was created (ISO 8601)
+- `metadata.updated_at`: when the content was last modified (ISO 8601)
+- `metadata.created_utc`: creation timestamp (ISO 8601)
+
+For GitHub repository results, map repository creation time to both `metadata.published_at` and `metadata.created_utc` when available, and map the most recent repository modification time to `metadata.updated_at`.
+See `extract-dates.md` for the full extraction priority and format rules.
+Missing dates score as zero freshness in `judge.py`.

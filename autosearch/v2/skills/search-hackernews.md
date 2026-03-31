@@ -94,3 +94,32 @@ Each result should normally preserve:
 - short relevance note
 
 Expect this source to contribute strong developer-discussion signal when exact products are known.
+
+# Standard Output Schema
+
+Write each result as a JSON line conforming to the canonical evidence schema.
+Map the story-level fields above into that schema rather than inventing a platform-specific output shape.
+
+- `url`: canonical URL
+- `title`: result title
+- `snippet`: description or summary
+- `source`: `"hn"`
+- `query`: the query that found this
+- `metadata`: object with `llm_relevant`, `llm_reason`, and date fields
+
+The `source` field must be exactly `"hn"` for this platform.
+`judge.py` uses `source` for diversity scoring, so inconsistent tags reduce the diversity dimension.
+
+After collecting results, pass them to [normalize-results.md](normalize-results.md) for cross-platform dedup and [extract-dates.md](extract-dates.md) for freshness metadata.
+
+# Date Metadata
+
+Extract dates from platform-specific fields and write them into `metadata`.
+For Hacker News, the story created time is the primary source for creation metadata.
+
+- `metadata.published_at`: when the content was created (ISO 8601)
+- `metadata.updated_at`: when the content was last modified (ISO 8601)
+- `metadata.created_utc`: creation timestamp (ISO 8601)
+
+See [extract-dates.md](extract-dates.md) for the full extraction priority and format rules.
+Missing dates score as zero freshness in `judge.py`.
