@@ -131,3 +131,7 @@ Extract dates from platform-specific fields and write them to `metadata`:
 For GitHub repository results, map repository creation time to both `metadata.published_at` and `metadata.created_utc` when available, and map the most recent repository modification time to `metadata.updated_at`.
 See `extract-dates.md` for the full extraction priority and format rules.
 Missing dates score as zero freshness in `judge.py`.
+
+# Quality Bar
+
+This platform skill is working when results have accurate source tags, populated date metadata, and conform to the canonical evidence schema defined in normalize-results.md.

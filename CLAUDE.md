@@ -82,7 +82,39 @@ AIMD
 
 15. Skill changes during AVO go through `git commit`. Failed changes get `git revert`. Because: git history IS the lineage P_t that AVO uses to learn from failures.
 
-16. Skill format follows superpowers standard: YAML frontmatter with `name` + `description`, free-form markdown body. No required sections. Description IS the dispatch mechanism. Because: skills are strategy guides for a capable agent, not bash templates for a dumb executor.
+16. Skill format standard (compatible with Claude Code Agent Skills spec + superpowers). AVO MUST follow these rules when creating or modifying skills:
+
+**File**: `autosearch/v2/skills/{name}.md` — one file per skill, flat directory.
+
+**Name rules** (enforced, not optional):
+- Lowercase a-z, 0-9, hyphens only. Regex: `^[a-z0-9]+(-[a-z0-9]+)*$`
+- Max 64 characters
+- No consecutive hyphens (`--`), no leading/trailing hyphens
+- Name must match the filename (without `.md`)
+- Bad: `My_Skill.md`, `UPPERCASE.md`, `search tool.md`. Good: `normalize-results.md`, `llm-evaluate.md`
+
+**Frontmatter** (YAML between `---` markers, required):
+```yaml
+---
+name: skill-name
+description: "When to use this skill. Front-load the trigger condition. Max 250 chars for the key sentence."
+---
+```
+- `name`: required, must match filename
+- `description`: required, max 1024 chars. First sentence must state WHEN to use the skill, not WHAT it does internally. Because: description IS the dispatch mechanism — Claude reads it to decide whether to load the skill.
+
+**Body** (free-form markdown):
+- Strategy guide for a capable agent, not bash template for a dumb executor
+- Max 500 lines recommended. If longer, the skill is trying to do too much — split it.
+- Must have a `# Quality Bar` section at the end defining what "working correctly" looks like
+- No required sections beyond that — structure serves the content, not a template
+
+**What skills are NOT**:
+- Not executable scripts (Claude reads them, not a parser)
+- Not config files (use state/config.json for parameters)
+- Not documentation (use docs/ for that)
+
+Because: without format constraints, AVO will drift — creating skills with bad names, empty descriptions, 2000-line monsters, or files that are half code half prose. The constraints keep skills small, discoverable, and evolvable.
 
 17. Use Python 3.11+ to run `judge.py` and tests. System python3 may be 3.9 which lacks union type syntax.
 

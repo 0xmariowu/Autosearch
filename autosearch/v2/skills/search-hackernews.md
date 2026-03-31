@@ -123,3 +123,7 @@ For Hacker News, the story created time is the primary source for creation metad
 
 See [extract-dates.md](extract-dates.md) for the full extraction priority and format rules.
 Missing dates score as zero freshness in `judge.py`.
+
+# Quality Bar
+
+This platform skill is working when results have accurate source tags, populated date metadata, and conform to the canonical evidence schema defined in normalize-results.md.
