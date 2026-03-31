@@ -96,4 +96,10 @@ Each result should normally preserve:
 - last update time
 - short note on why it matched
 
+Write date metadata for freshness scoring.
+The `updatedAt` field from `gh search repos` is available for every result.
+Write it to `metadata.updated_at` in ISO 8601 format.
+If `createdAt` is also available, write it to `metadata.created_utc`.
+The judge uses these fields for the freshness dimension — missing dates score as zero freshness.
+
 Expect strong precision for code ecosystems and decent recall when the query uses concrete topic nouns.

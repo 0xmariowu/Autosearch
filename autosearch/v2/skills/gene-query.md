@@ -8,16 +8,21 @@ description: "Use when you need to expand a task into diverse search queries bui
 Generate queries from five gene dimensions instead of improvising all search text from scratch.
 This restores a reusable query grammar that turns vague tasks into targeted searches.
 
-# The Five Dimensions
+# The Six Dimensions
 
 - `entity` = WHO is involved
 - `pain_verb` = ACTION or failure mode
 - `object` = WHAT artifact, tool, concept, or target is involved
 - `symptom` = HOW the problem appears
 - `context` = WHERE or under what condition it happens
+- `content_type` = WHAT KIND of result you want (repo, paper, blog, tutorial, company, video, awesome-list)
 
 Good queries usually need only 2 or 3 dimensions.
-Do not cram all five into every query.
+Do not cram all six into every query.
+
+Use `content_type` to steer queries toward underrepresented evidence.
+If the current bundle is heavy on repos and light on papers or blogs, generate queries that explicitly target the missing types.
+Examples: "self-evolving agent tutorial", "self-improving AI startup company", "self-evolving agent survey paper".
 
 # Input Sources
 

@@ -88,6 +88,10 @@ AIMD
 
 18. Platform skills can use free OR paid APIs. AVO discovers what's available via `discover-environment.md` and selects accordingly. Because: V1 had 14 connectors (8 free, 6 paid) — restricting to free-only was V2.0's mistake.
 
+19. Every validation run MUST include a native Claude baseline comparison. Run the same query with native Claude (no AutoSearch skills/protocol), then compare in a table: result count by type, conceptual framework depth, content coverage gaps. Because: AutoSearch's value proposition is "better than native Claude at research" — if it's not, the system hasn't earned its complexity.
+
+20. AVO self-evolution MUST be validated separately from search quality. Search quality tests (like F006) prove the pipeline works. Evolution tests prove the system improves itself. An evolution test requires: (a) baseline score, (b) agent-initiated skill modification, (c) re-score showing improvement, (d) git commit on improvement, (e) git revert on regression, (f) pattern written to state. Without this test passing, AutoSearch is a search agent, not a self-evolving search agent.
+
 ---
 
 For V1 code reference, see `engine.py`, `goal_judge.py`, `goal_loop.py`, `outcomes.py`.

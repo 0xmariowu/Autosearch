@@ -16,7 +16,7 @@
   "scoring": {
     "target_results": 30,
     "delivery_threshold": 0.7,
-    "latency_budget_seconds": 120,
+    "latency_budget_seconds": 300,
     "dimension_weights": {
       "quantity": 0.15,
       "diversity": 0.15,

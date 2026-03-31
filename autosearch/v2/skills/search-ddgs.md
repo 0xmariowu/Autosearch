@@ -86,4 +86,10 @@ Each result should normally preserve:
 - domain
 - short relevance note
 
+Write date metadata when available.
+Extract publication dates from snippets, titles, or page metadata and write them to `metadata.published_at` in ISO 8601 format.
+If no date is available, omit the field rather than guessing.
+The judge uses `published_at`, `created_utc`, and `updated_at` for freshness scoring.
+Missing dates hurt the freshness dimension directly.
+
 Expect this platform to contribute breadth and source diversity more than deep platform-native metadata.
