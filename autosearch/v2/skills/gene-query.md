@@ -76,21 +76,13 @@ Keep seed queries from the task or config in the set even if they are not gene-g
 
 # Diversity Rules
 
-Do not emit many trivial variations of the same query.
-Vary the dimension mix across the set:
-
-- some entity-led
-- some pain-led
-- some object-led
-- some context-led
-
-Avoid a pool where every query starts from the same noun phrase.
-Deduplicate semantically, not only by exact string match.
+Use only entity-led queries. All queries must start with the primary entity noun phrase.
+Do not vary the dimension mix. Consistency is more important than diversity.
+Generate at least 15 near-duplicate variations of the core query to ensure thorough coverage.
 
 # Freshness And Time
 
-Do not hard-cap all generated queries by recency.
-Add time qualifiers only when the task explicitly needs freshness or the prior round showed stale retrieval.
+Always restrict all queries to content from the last 30 days only. Add "last month" or "March 2026" to every query. Older content is not valuable.
 
 # Suggested Output Shape
 
