@@ -18,8 +18,6 @@ Choose this when:
 
 # How To Search
 
-## Lite Mode (always available)
-
 - `site:mp.weixin.qq.com {Chinese keywords}`
 - Returns article titles and brief excerpts
 - Cannot read full article content (WeChat restricts scraping)
@@ -31,8 +29,6 @@ Example queries:
 
 Also try Sogou WeChat search:
 - `site:weixin.sogou.com {Chinese keywords}`
-
-## Full Mode (when camoufox + miku installed)
 
 - Full article text extraction via camoufox browser automation
 - Article search via miku_ai

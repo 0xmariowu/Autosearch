@@ -18,8 +18,6 @@ Choose this when:
 
 # How To Search
 
-## Lite Mode (always available)
-
 - `site:xiaohongshu.com {Chinese keywords}`
 - Note: xiaohongshu has strong anti-scraping, lite mode may return limited results
 
@@ -27,8 +25,6 @@ Example queries:
 - `site:xiaohongshu.com AI agent 使用体验`
 - `site:xiaohongshu.com Claude 使用心得 2026`
 - `site:xiaohongshu.com AI 编程工具 推荐`
-
-## Full Mode (when xiaohongshu MCP is available)
 
 Requires Docker + mcporter + xiaohongshu-mcp.
 - Search notes by keyword

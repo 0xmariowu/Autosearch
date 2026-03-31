@@ -17,12 +17,8 @@ Choose this when:
 
 # How To Search
 
-## Lite Mode (limited)
-
 - `site:douyin.com {Chinese keywords}` — limited results due to app-first design
 - Better: `WebSearch "抖音 {keywords}"` to find content shared/discussed on other platforms
-
-## Full Mode (when douyin-mcp-server installed)
 
 - Parse share links for video metadata
 - Watermark-free content access

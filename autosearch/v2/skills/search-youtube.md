@@ -18,16 +18,12 @@ Choose this when:
 
 # How To Search
 
-## Lite Mode (always available)
-
 - `site:youtube.com {keywords}`
 
 Example queries:
 - `site:youtube.com "self-evolving agent" talk 2026`
 - `site:youtube.com NeurIPS 2025 agent memory`
 - `site:youtube.com LLM tool use tutorial`
-
-## Full Mode (when yt-dlp is installed)
 
 - `yt-dlp --dump-json URL` — full metadata (title, description, upload date, view count, duration)
 - `yt-dlp --write-auto-subs --sub-lang en --skip-download URL` — English transcript

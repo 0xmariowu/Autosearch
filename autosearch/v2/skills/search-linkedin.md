@@ -18,8 +18,6 @@ Choose this when:
 
 # How To Search
 
-## Lite Mode (always available)
-
 - `site:linkedin.com {keywords}`
 - Works for public profiles, company pages, public posts
 
@@ -27,8 +25,6 @@ Example queries:
 - `site:linkedin.com "self-evolving agent" engineer hiring`
 - `site:linkedin.com AI agent startup founder`
 - `site:linkedin.com LLM tool company`
-
-## Full Mode (when linkedin-mcp installed)
 
 - Full profile reading
 - Connection-based search

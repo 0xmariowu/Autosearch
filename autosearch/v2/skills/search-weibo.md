@@ -18,11 +18,7 @@ Choose this when:
 
 # How To Search
 
-## Lite Mode (always available)
-
 - `site:weibo.com {Chinese keywords}`
-
-## Full Mode (when mcporter + mcp-server-weibo installed)
 
 - Hot search trending topics
 - User feed content

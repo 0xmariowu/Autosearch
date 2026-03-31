@@ -18,13 +18,9 @@ Choose this when:
 
 # How To Search
 
-## Lite Mode (always available)
-
 Cannot search RSS feeds via WebSearch. Use WebSearch to find RSS feed URLs first:
 - `{blog name} RSS feed URL`
 - Then use `curl {feed_url}` to read the XML directly
-
-## Full Mode (when feedparser installed)
 
 - Parse any RSS/Atom feed into structured entries
 - Extract: title, link, summary, published date, author

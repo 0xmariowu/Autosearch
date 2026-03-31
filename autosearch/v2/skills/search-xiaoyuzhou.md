@@ -17,16 +17,12 @@ Choose this when:
 
 # How To Search
 
-## Lite Mode (always available)
-
 - `site:xiaoyuzhoufm.com {Chinese keywords}`
 - Returns episode titles and descriptions (not transcript)
 
 Example queries:
 - `site:xiaoyuzhoufm.com AI agent 自进化`
 - `site:xiaoyuzhoufm.com 大模型 创业 访谈`
-
-## Full Mode (when ffmpeg + Whisper installed)
 
 - Download audio
 - Transcribe to text via Whisper

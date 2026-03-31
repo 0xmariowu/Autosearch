@@ -18,15 +18,11 @@ Choose this when:
 
 # How To Search
 
-## Lite Mode (always available)
-
 - `site:xueqiu.com {Chinese keywords}`
 
 Example queries:
 - `site:xueqiu.com AI agent 公司 投资分析`
 - `site:xueqiu.com 大模型 创业 估值 2026`
-
-## Full Mode (when xueqiu API configured)
 
 - Real-time stock quotes
 - Community post search
