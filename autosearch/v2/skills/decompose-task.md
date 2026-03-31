@@ -27,7 +27,22 @@ Do NOT decompose when:
 - decomposition would produce overlapping sub-questions
 - you are already in a focused sub-search from a prior decomposition
 
-# How To Decompose
+# Knowledge-First Decomposition (Claude-First Mode)
+
+Before decomposing into search sub-questions, run systematic-recall.md first.
+Use the knowledge map to decompose SMARTER:
+
+1. Run systematic-recall.md → get knowledge map with confidence levels
+2. Identify which dimensions have HIGH confidence (Claude already knows) → no search needed
+3. Identify which dimensions have MEDIUM/LOW confidence → verify and enrich
+4. Identify GAP dimensions → discover through search
+5. Generate sub-questions ONLY for MEDIUM/LOW/GAP dimensions
+6. Assign platforms per sub-question based on what you need to find
+
+This means: if Claude already knows 60% of the answer with HIGH confidence, only 40% needs searching.
+The knowledge map IS the decomposition input.
+
+# How To Decompose (General)
 
 1. Read the task statement
 2. List the distinct dimensions of a complete answer (max 5)

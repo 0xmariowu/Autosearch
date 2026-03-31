@@ -141,9 +141,103 @@ AutoSearch 的价值不在单次搜索，在**累积进化**。native Claude 每
 
 ---
 
+---
+
+## Phase 2: Claude-First 架构升级
+
+### 架构转变
+
+从"替代 Claude 搜索"变成"增强 Claude"。核心变化：Claude 的训练知识从被动补充变为主动先导。
+
+```
+旧流程：搜索 → 评估 → 综合（Claude 是后处理器）
+新流程：Claude 系统回忆 → 识别缺口 → 只搜缺口 → Claude 综合
+```
+
+### F009: Claude-first 核心 skills — todo
+
+#### Steps
+
+- [ ] S1: 新建 systematic-recall.md — 替代 use-own-knowledge.md 的被动模式。8 维度系统回忆 + 确信度标注（高/中/低/不知道）。维度：方法论、人物机构、标志项目、顶会论文、设计模式、风险局限、商业玩家、争议观点 ← verify: 有维度清单、有确信度标注规则、有输出格式（知识地图 JSONL）
+
+- [ ] S2: 新建 knowledge-map.md — 存储和加载跨 session 的知识地图。格式：per-topic JSONL in state/knowledge-maps/。每条记录 entity+confidence+source+last_verified ← verify: 有 CRUD 操作定义、有 session 间加载规则、有 freshness decay（confidence 随时间衰减）
+
+- [ ] S3: 改 decompose-task.md — 加 Claude-first 流程："先回忆 → 画知识地图 → 识别缺口 → 只为缺口生成 sub-questions" ← verify: 现有内容保留，新增 "Knowledge-First Decomposition" section
+
+- [ ] S4: 改 gene-query.md — 加 gap-driven 模式：从知识地图的空白区/低确信区生成 query，不从 task 文本生成 ← verify: 新增 "Gap-Driven Queries" section，和现有 gene combination 并存
+
+### F010: 新渠道 skills — todo
+
+#### Steps
+
+- [ ] S1: 新建 search-citation-graph.md — 用 Semantic Scholar API 查引用关系。输入：paper title 或 arXiv ID → 输出：citing papers + referenced papers ← verify: 有 API 调用示例、有 rate limit 说明、符合 platform skill 标准（output schema + date + source tag "semantic-scholar"）
+
+- [ ] S2: 新建 search-author-track.md — 查特定作者的其他工作。输入：author name → 输出：该作者所有论文按时间排序 ← verify: 同上
+
+- [ ] S3: 新建 search-openreview.md — 查顶会 accepted papers。输入：conference + year → 输出：accepted paper list ← verify: 有 OpenReview API 格式、source tag "openreview"
+
+### F011: 三路对比验证 — todo
+
+**核心验证**：同一个 query，三个版本，全方位对比。
+
+Query: "find open-source self-evolving AI agent frameworks and research"
+
+| Version | 说明 |
+|---------|------|
+| **A: v2.3 Search-First** | 当前版本，搜索优先，use-own-knowledge 被动补充 |
+| **B: v2.4 Claude-First** | 新版本，系统回忆先导，只搜缺口 |
+| **C: Native Claude** | 无 AutoSearch，纯 Claude 回答 |
+
+#### Steps
+
+- [ ] S1: 跑 Version A（v2.3 search-first）← verify: evidence JSONL + judge score + delivery.md
+
+- [ ] S2: 跑 Version B（v2.4 claude-first）← verify: evidence JSONL + judge score + delivery.md + knowledge-map output
+
+- [ ] S3: 跑 Version C（native Claude baseline）← verify: 输出保存
+
+- [ ] S4: 三路对比报告 ← verify: 表格覆盖以下维度
+
+**对比维度**：
+
+| 维度 | 怎么测 |
+|------|--------|
+| 速度 | wall clock time（秒） |
+| 结果数量 | unique URLs |
+| 内容类型覆盖 | repos / papers / products / blogs / videos 分别计数 |
+| 概念框架深度 | 有几个维度、几个 design patterns、有无 risk analysis |
+| 引用完整度 | claims with source / total claims |
+| judge.py 7 维 | quantity, diversity, relevance, freshness, efficiency, latency, adoption |
+| 知识利用率 | own-knowledge entries / total entries |
+| 搜索效率 | unique relevant URLs / total queries |
+
+- [ ] S5: 写结论 — 哪个版本在哪些维度赢，综合评判 ← verify: 有明确推荐
+
+### F012: 多 session 进化轨迹（用胜出版本）— todo
+
+用 F011 胜出的版本，跑 5 个不同 topic，验证累积优势。
+
+#### Steps
+
+- [ ] S1: 定义 5 个 topic ← verify: 列表确认
+- [ ] S2: 每个 topic 先跑 native Claude baseline ← verify: 5 份保存
+- [ ] S3: 跑 5 个 session，每个 AVO 进化 1-2 代 ← verify: patterns 累积数据
+- [ ] S4: 轨迹分析 — score 曲线 + patterns 增长 ← verify: 可视化或表格
+
+### F013: 文档收尾 — todo
+
+#### Steps
+- [ ] S1: CHANGELOG.md — v2.4 entry
+- [ ] S2: HANDOFF.md — 更新
+- [ ] S3: AIMD 经验笔记
+- [ ] S4: CLAUDE.md 更新
+
+---
+
 ## Decision Log
 
 - 2026-03-31: **重心转移** — 从"我们手动优化 skills"变为"给 AVO 最好的学习环境"。1,009 skills 做参考库而不是手动提取。
+- 2026-03-31: **Claude-first 架构** — 从"替代 Claude"变为"增强 Claude"。系统回忆先导，搜索只补缺口。三路对比验证。
 - 2026-03-31: rerank-evidence 用 LLM（Claude 自己）做 ranking，不需要外部 embedding API。本地模型是未来优化路径，不是现在的依赖。
 - 2026-03-31: PROTOCOL.md 不可改，patterns 格式变更通过 extract-knowledge.md（mutable skill）引导。
 - 2026-03-31: 参考库放 state/skill-reference.jsonl，和 patterns.jsonl 同级，AVO 在 startup 时可以发现它。

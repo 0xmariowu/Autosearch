@@ -24,7 +24,24 @@ Use `content_type` to steer queries toward underrepresented evidence.
 If the current bundle is heavy on repos and light on papers or blogs, generate queries that explicitly target the missing types.
 Examples: "self-evolving agent tutorial", "self-improving AI startup company", "self-evolving agent survey paper".
 
-# Input Sources
+# Gap-Driven Query Generation (Claude-First Mode)
+
+When systematic-recall.md has produced a knowledge map, generate queries from GAPS, not from the task text.
+
+For each GAP or LOW confidence item in the knowledge map:
+- Convert the gap into a specific search query
+- Target the platform most likely to fill that gap
+- Example: GAP in "commercial players" → query "self-evolving AI agent startup 2026" on web-ddgs
+
+For each MEDIUM confidence item:
+- Generate a verification query
+- Example: MEDIUM on "STOP framework" → query "STOP self-taught optimizer latest" on arxiv/web
+
+Do NOT generate queries for HIGH confidence items — those are already in the evidence bundle from own-knowledge.
+
+This is the most efficient use of search budget: every query targets a known gap.
+
+# Input Sources (General)
 
 Build the gene pool from three places:
 
