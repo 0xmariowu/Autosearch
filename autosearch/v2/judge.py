@@ -8,13 +8,14 @@ from pathlib import Path
 
 
 DEFAULT_WEIGHTS = {
-    "quantity": 0.15,
-    "diversity": 0.15,
-    "relevance": 0.25,
+    "quantity": 0.12,
+    "diversity": 0.13,
+    "relevance": 0.22,
     "freshness": 0.10,
     "efficiency": 0.10,
-    "latency": 0.10,
-    "adoption": 0.15,
+    "latency": 0.08,
+    "adoption": 0.12,
+    "knowledge_growth": 0.13,
 }
 WORD_RE = re.compile(r"\w+")
 DATE_FIELDS = ("published_at", "created_utc", "updated_at")
@@ -152,6 +153,52 @@ def score_adoption(evidence_file: str) -> float:
     )
 
 
+def score_knowledge_growth(evidence_file: str) -> float:
+    """Score cumulative knowledge growth across sessions.
+
+    Reads state/knowledge-growth.json with fields:
+    - initial_entries: knowledge map size at session start
+    - final_entries: knowledge map size at session end
+    - initial_gaps: GAP-tagged items at session start
+    - remaining_gaps: GAP-tagged items at session end
+    - high_confidence: HIGH-tagged items at session end
+
+    Score = weighted combination of:
+    - growth_ratio: new entries / max(initial, 1) (capped at 1.0 for 100% growth)
+    - gap_closure: (initial_gaps - remaining_gaps) / max(initial_gaps, 1)
+    - confidence_ratio: high_confidence / max(final_entries, 1)
+
+    Returns NEUTRAL (0.5) when the file does not exist (single-session mode).
+    """
+    kg = load_state_json(evidence_file, "knowledge-growth.json")
+    if not kg:
+        return NEUTRAL_DIMENSION_SCORE
+
+    initial = coerce_float(kg.get("initial_entries"), 0)
+    final = coerce_float(kg.get("final_entries"), 0)
+    initial_gaps = coerce_float(kg.get("initial_gaps"), 0)
+    remaining_gaps = coerce_float(kg.get("remaining_gaps"), 0)
+    high_confidence = coerce_float(kg.get("high_confidence"), 0)
+
+    # Growth: how much did the knowledge map expand?
+    growth_ratio = (
+        min((final - initial) / max(initial, 1), 1.0) if final > initial else 0.0
+    )
+
+    # Gap closure: how many unknowns were resolved?
+    gap_closure = (
+        (initial_gaps - remaining_gaps) / max(initial_gaps, 1)
+        if initial_gaps > remaining_gaps
+        else 0.0
+    )
+
+    # Confidence: what fraction of knowledge is HIGH confidence?
+    confidence_ratio = high_confidence / max(final, 1) if final > 0 else 0.0
+
+    # Weighted combination: gap closure most important, then confidence, then growth
+    return 0.4 * gap_closure + 0.35 * confidence_ratio + 0.25 * growth_ratio
+
+
 def score_results(
     results: list[dict],
     evidence_file: str,
@@ -220,6 +267,7 @@ def score_results(
     efficiency = min(len(unique_urls) / max(len(queries) * 3, 1), 1.0)
     latency = score_latency(evidence_file, scoring_config["latency_budget_seconds"])
     adoption = score_adoption(evidence_file)
+    knowledge_growth = score_knowledge_growth(evidence_file)
     dimensions = {
         "quantity": quantity,
         "diversity": diversity,
@@ -228,6 +276,7 @@ def score_results(
         "efficiency": efficiency,
         "latency": latency,
         "adoption": adoption,
+        "knowledge_growth": knowledge_growth,
     }
     weight_sum = sum(float(weights.get(name, 0.0)) for name in dimensions)
     total = (

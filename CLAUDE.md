@@ -74,7 +74,7 @@ AIMD
 
 ## v2.2 rules (unified architecture: V1 capabilities + V2 evolvability)
 
-12. Don't modify `judge.py` or `PROTOCOL.md`. These are the fixed contracts. judge.py is the scoring function f (AVO paper §3.1). PROTOCOL.md is the operating protocol. Because: if AVO can change its own evaluation or rules, behavior becomes unpredictable.
+12. Don't modify `judge.py` or `PROTOCOL.md` without explicit user authorization. These are the fixed contracts. judge.py is the scoring function f (AVO paper §3.1). PROTOCOL.md is the operating protocol. Because: if AVO can change its own evaluation or rules, behavior becomes unpredictable. Exception: judge.py was authorized to add `knowledge_growth` dimension on 2026-03-31 to enable multi-session cumulative evaluation. AVO still MUST NOT modify judge.py on its own.
 
 13. Don't modify meta-skills: `create-skill.md`, `observe-user.md`, `extract-knowledge.md`, `interact-user.md`, `discover-environment.md`. These define HOW to evolve, not WHAT to evolve. AVO can modify all OTHER skills. Because: meta-skills are the "DNA replication machinery" — evolution changes genes, not the replication mechanism.
 
