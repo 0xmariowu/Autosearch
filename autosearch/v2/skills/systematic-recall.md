@@ -16,7 +16,7 @@ This is the foundation of the Claude-first architecture: your knowledge leads, s
 Use at the very start of every research task, before generating any search queries.
 The output of this skill feeds directly into decompose-task.md and gene-query.md.
 
-# The 8 Dimensions
+# The 9 Dimensions
 
 Scan your knowledge along these dimensions for the given topic:
 
@@ -51,6 +51,13 @@ Example: Letta, Mem0, Devin, Sierra AI, Sakana AI.
 ## 8. Controversies and Open Questions
 Where experts disagree, what remains unresolved.
 Example: "Can prompt/workflow evolution rival weight updates?" debate.
+
+## 9. Recent Developments (Last 6 Months)
+The newest work you are aware of from your training data: papers, releases, announcements, benchmarks, or shifts that happened most recently.
+Focus specifically on what is NEW — not established classics repackaged, but genuinely recent contributions.
+Example: MAGMA (Jan 2026), LifeBench (Mar 2026), ICLR 2026 MemAgents workshop.
+Tag these items with the most precise date you can recall (month + year minimum).
+If you cannot recall anything from the last 6 months, mark this entire dimension as GAP — it signals the topic may have evolved beyond your training data and search should prioritize freshness.
 
 # Confidence Levels
 
@@ -104,6 +111,7 @@ After the search session, save the updated map via knowledge-map.md.
 
 # Quality Bar
 
-A good systematic recall produces 30-60 items across all 8 dimensions with honest confidence tags.
+A good systematic recall produces 30-60 items across all 9 dimensions with honest confidence tags.
 If you produce fewer than 15 items, the topic may be outside your training data — flag this and rely more on search.
 If you produce more than 60 items, you know this topic well — search budget should be minimal, focused on freshness and verification.
+Dimension 9 (Recent Developments) should have at least 3-5 items if the topic is active. If it has 0 items, search must heavily prioritize freshness.
