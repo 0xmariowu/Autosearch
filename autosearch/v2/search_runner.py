@@ -223,6 +223,7 @@ async def search_gh_repos(query: str, max_results: int = 20) -> list[dict]:
             "repos",
             query,
             f"--limit={max_results}",
+            "--sort=stars",
             "--json=fullName,url,description,stargazersCount,updatedAt,language",
         ]
         proc = await asyncio.create_subprocess_exec(
@@ -305,6 +306,23 @@ async def search_gh_issues(query: str, max_results: int = 10) -> list[dict]:
         return []
 
 
+SEMANTIC_SCHOLAR_RETRY_DELAYS = [2.0, 5.0]  # seconds between retries on 429
+
+
+async def _ss_get(client: httpx.AsyncClient, url: str, **kwargs) -> httpx.Response:
+    """Semantic Scholar GET with retry on 429 rate limit."""
+    resp = await client.get(url, **kwargs)
+    for delay in SEMANTIC_SCHOLAR_RETRY_DELAYS:
+        if resp.status_code != 429:
+            break
+        print(
+            f"[search_runner] semantic scholar 429, retry in {delay}s", file=sys.stderr
+        )
+        await asyncio.sleep(delay)
+        resp = await client.get(url, **kwargs)
+    return resp
+
+
 async def search_semantic_scholar(
     query: str, max_results: int = 10, mode: str = "search"
 ) -> list[dict]:
@@ -314,7 +332,8 @@ async def search_semantic_scholar(
             if mode == "citations":
                 # query should be a paper ID or title
                 # First find the paper
-                resp = await client.get(
+                resp = await _ss_get(
+                    client,
                     "https://api.semanticscholar.org/graph/v1/paper/search",
                     params={"query": query, "limit": 1, "fields": "paperId,title"},
                 )
@@ -326,7 +345,8 @@ async def search_semantic_scholar(
                 paper_id = papers[0]["paperId"]
 
                 # Get citations
-                resp = await client.get(
+                resp = await _ss_get(
+                    client,
                     f"https://api.semanticscholar.org/graph/v1/paper/{paper_id}/citations",
                     params={
                         "limit": max_results,
@@ -363,7 +383,8 @@ async def search_semantic_scholar(
                 return results
             else:
                 # Regular search
-                resp = await client.get(
+                resp = await _ss_get(
+                    client,
                     "https://api.semanticscholar.org/graph/v1/paper/search",
                     params={
                         "query": query,
@@ -401,6 +422,68 @@ async def search_semantic_scholar(
                 return results
     except Exception as e:
         print(f"[search_runner] semantic scholar error: {e}", file=sys.stderr)
+        return []
+
+
+async def search_arxiv(query: str, max_results: int = 10) -> list[dict]:
+    """Search arXiv API (Atom feed)."""
+    try:
+        import xml.etree.ElementTree as ET
+
+        ns = {"a": "http://www.w3.org/2005/Atom"}
+        search_terms = " AND ".join(f"all:{w}" for w in query.split()[:4])
+        async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+            resp = await client.get(
+                "https://export.arxiv.org/api/query",
+                params={
+                    "search_query": search_terms,
+                    "max_results": max_results,
+                    "sortBy": "relevance",
+                },
+            )
+            if resp.status_code != 200:
+                print(f"[search_runner] arxiv {resp.status_code}", file=sys.stderr)
+                return []
+            root = ET.fromstring(resp.text)
+            results = []
+            for entry in root.findall("a:entry", ns):
+                title_el = entry.find("a:title", ns)
+                id_el = entry.find("a:id", ns)
+                summary_el = entry.find("a:summary", ns)
+                published_el = entry.find("a:published", ns)
+                if title_el is None or id_el is None:
+                    continue
+                title = (
+                    title_el.text.strip().replace("\n", " ") if title_el.text else ""
+                )
+                url = id_el.text.strip() if id_el.text else ""
+                snippet = (
+                    summary_el.text.strip()[:300]
+                    if summary_el is not None and summary_el.text
+                    else ""
+                )
+                metadata = {}
+                if published_el is not None and published_el.text:
+                    metadata["published_at"] = published_el.text.strip()
+                authors = [a.find("a:name", ns) for a in entry.findall("a:author", ns)]
+                author_names = ", ".join(
+                    a.text for a in authors[:3] if a is not None and a.text
+                )
+                if author_names:
+                    metadata["authors"] = author_names
+                results.append(
+                    make_result(
+                        url=url,
+                        title=title,
+                        snippet=snippet,
+                        source="arxiv",
+                        query=query,
+                        extra_metadata=metadata,
+                    )
+                )
+            return results
+    except Exception as e:
+        print(f"[search_runner] arxiv error: {e}", file=sys.stderr)
         return []
 
 
@@ -466,7 +549,9 @@ CHANNEL_METHODS = {
     "producthunt": lambda q, n: search_ddgs_site(q, "producthunt.com", n),
     "crunchbase": lambda q, n: search_ddgs_site(q, "crunchbase.com", n),
     "g2": lambda q, n: search_ddgs_site(q, "g2.com", n),
-    "papers-with-code": lambda q, n: search_ddgs_site(q, "paperswithcode.com", n),
+    "papers-with-code": lambda q, n: search_arxiv(q, n),
+    "arxiv": lambda q, n: search_arxiv(q, n),
+    "reddit": lambda q, n: search_ddgs_site(q, "reddit.com", n),
     "google-scholar": lambda q, n: search_ddgs_site(q, "scholar.google.com", n),
     "linkedin": lambda q, n: search_ddgs_site(q, "linkedin.com", n),
     "weibo": lambda q, n: search_ddgs_site(q, "weibo.com", n),
