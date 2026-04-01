@@ -30,7 +30,7 @@ import httpx
 # --- Configuration ---
 
 CHANNELS_FILE = Path(__file__).parent / "state" / "channels.json"
-DEFAULT_TIMEOUT = 15  # seconds per channel
+DEFAULT_TIMEOUT = 30  # seconds per channel
 DEFAULT_MAX_RESULTS = 10
 
 
@@ -540,13 +540,62 @@ def dedup_results(results: list[dict]) -> list[dict]:
 
 
 async def main(queries: list[dict]) -> None:
-    """Run all queries in parallel, dedup, output JSONL."""
+    """Run queries with smart batching: API queries parallel, ddgs queries batched."""
     if not queries:
         return
 
-    # Run all queries concurrently
-    tasks = [run_single_query(q) for q in queries]
-    results_lists = await asyncio.gather(*tasks, return_exceptions=True)
+    # Split: dedicated API queries (parallel) vs ddgs queries (batched)
+    DDGS_METHODS = {"site_search", "ddgs_web"}
+    ddgs_queries = []
+    api_queries = []
+
+    channels_config = load_channels()
+    for q in queries:
+        channel = q.get("channel", "web-ddgs")
+        method_name = CHANNEL_METHODS.get(channel)
+        ch_config = channels_config.get(channel, {})
+        ch_method = ch_config.get("method", "")
+
+        if (
+            channel in ("web-ddgs", "rss")
+            or ch_config.get("site")
+            or ch_method in DDGS_METHODS
+        ):
+            ddgs_queries.append(q)
+        else:
+            api_queries.append(q)
+
+    # API queries: run all in parallel (each has independent rate limits)
+    api_tasks = [run_single_query(q) for q in api_queries]
+
+    # DDGS queries: batch 3 at a time with 1.5s delay between batches
+    DDGS_BATCH_SIZE = 3
+    DDGS_BATCH_DELAY = 1.5
+
+    async def run_ddgs_batched() -> list[list[dict]]:
+        all_results = []
+        for i in range(0, len(ddgs_queries), DDGS_BATCH_SIZE):
+            batch = ddgs_queries[i : i + DDGS_BATCH_SIZE]
+            batch_tasks = [run_single_query(q) for q in batch]
+            batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
+            all_results.extend(batch_results)
+            if i + DDGS_BATCH_SIZE < len(ddgs_queries):
+                await asyncio.sleep(DDGS_BATCH_DELAY)
+        return all_results
+
+    # Run API and DDGS concurrently (but DDGS internally batched)
+    async def empty_results():
+        return []
+
+    api_future = (
+        asyncio.gather(*api_tasks, return_exceptions=True)
+        if api_tasks
+        else empty_results()
+    )
+    ddgs_future = run_ddgs_batched()
+
+    api_results, ddgs_results = await asyncio.gather(api_future, ddgs_future)
+    results_lists = list(api_results) + list(ddgs_results)
 
     # Flatten
     all_results = []
