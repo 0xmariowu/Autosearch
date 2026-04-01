@@ -26,6 +26,7 @@ from typing import Any
 from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
 
 import httpx
+from autosearch.v2.channels import load_channels as load_channel_plugins
 
 # --- Configuration ---
 
@@ -529,7 +530,7 @@ async def search_hn(query: str, max_results: int = 10) -> list[dict]:
 
 
 # Load channel config
-def load_channels() -> dict:
+def load_channel_config() -> dict:
     """Load channels.json config."""
     if CHANNELS_FILE.exists():
         return json.loads(CHANNELS_FILE.read_text())
@@ -574,6 +575,9 @@ CHANNEL_METHODS = {
     "hn": lambda q, n: search_hn(q, n),
 }
 
+# Merge plugin channels (override inline lambdas)
+CHANNEL_METHODS.update(load_channel_plugins())
+
 
 async def run_single_query(query_obj: dict) -> list[dict]:
     """Execute a single query on its channel."""
@@ -587,7 +591,7 @@ async def run_single_query(query_obj: dict) -> list[dict]:
     method = CHANNEL_METHODS.get(channel)
     if method is None:
         # Try dynamic site search from channels.json
-        channels_config = load_channels()
+        channels_config = load_channel_config()
         ch_config = channels_config.get(channel, {})
         site = ch_config.get("site")
         if site:
@@ -634,7 +638,7 @@ async def main(queries: list[dict]) -> None:
     ddgs_queries = []
     api_queries = []
 
-    channels_config = load_channels()
+    channels_config = load_channel_config()
     for q in queries:
         channel = q.get("channel", "web-ddgs")
         ch_config = channels_config.get(channel, {})
