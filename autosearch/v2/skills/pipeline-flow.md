@@ -23,29 +23,47 @@ After Phase 1, you should have:
 
 # Phase 2: Incremental Search (only search what Claude doesn't know)
 
-For each selected channel:
-1. Read the channel's skill file
-2. Execute the search using the gap-driven queries
-3. Collect raw results
+Generate a queries JSON array for search_runner.py:
+
+```json
+[
+  {"channel": "zhihu", "query": "自进化 AI agent 框架", "max_results": 10},
+  {"channel": "github-repos", "query": "self-evolving agent", "max_results": 15},
+  {"channel": "producthunt", "query": "AI agent 2026", "max_results": 10}
+]
+```
+
+Execute all searches in one Bash call:
+
+```bash
+python autosearch/v2/search_runner.py 'THE_JSON_ARRAY' > results.jsonl
+```
+
+search_runner.py handles: parallel execution, URL normalization, dedup, date extraction.
+All channels searched simultaneously in 5-15 seconds.
+
+After search_runner returns, read results.jsonl. Use `fetch-webpage.md` for high-value pages needing full content. Use `follow-links.md` for awesome-lists.
 
 Key principles:
 - Do NOT search for things you already know with HIGH confidence
 - Focus search budget on: fresh content, real-time data, community voice, verification
-- Use `fetch-webpage.md` for high-value pages that need full content
-- Use `follow-links.md` for awesome-lists and survey pages
+- Let search_runner.py do the mechanical work. Claude decides WHAT to search.
 
-After Phase 2, you should have raw search results from 5-10 channels.
+After Phase 2, you should have clean, deduplicated search results.
 
-# Phase 3: Clean + Evaluate (quality control)
+# Phase 3: Evaluate (quality control)
 
-1. Run `normalize-results.md` — canonical format, URL dedup, cross-platform merge
-2. Run `extract-dates.md` — freshness metadata from all available signals
-3. Run `llm-evaluate.md` — relevance judgment + gap detection on search results only
+search_runner.py already did normalization, dedup, and date extraction. Claude only needs to:
+
+1. Run `llm-evaluate.md` — relevance judgment + gap detection on search results
    - Do NOT evaluate own-knowledge items (they are relevant by definition)
-   - Focus evaluation on search-discovered items
-4. If AVO is running: check `anti-cheat.md`
+   - Focus on: is this result genuinely new? Does it add something Claude doesn't know?
+   - Tag each result: metadata.llm_relevant + metadata.llm_reason
+2. Identify remaining gaps — what did the search NOT find?
 
-After Phase 3, you should have clean, evaluated evidence.
+Do NOT re-run normalize or extract-dates — search_runner.py already handled those.
+
+After Phase 3, you should have evaluated search results ready for synthesis.
 
 # Phase 4: Synthesize + Deliver
 
@@ -78,11 +96,11 @@ This data makes the next session on the same topic faster and better.
 | Phase | Target time | Notes |
 |-------|------------|-------|
 | Phase 1 | 30-60 seconds | Claude recalls from memory, fast |
-| Phase 2 | 2-5 minutes | Depends on channel count and query count |
+| Phase 2 | 10-20 seconds | search_runner.py parallel execution |
 | Phase 3 | 30-60 seconds | Evaluation of search results only |
 | Phase 4 | 1-2 minutes | Synthesis |
-| Phase 5 | 10 seconds | Write state files |
-| **Total** | **4-8 minutes** | Should be faster than native Claude (17 min in T1 test) |
+| Phase 5 | 10 seconds | Write state files + auto-evolve |
+| **Total** | **2-4 minutes** | 3x faster than native Claude |
 
 # Quality Bar
 

@@ -109,14 +109,22 @@ Deduplicate semantically, not only by exact string match.
 Do not hard-cap all generated queries by recency.
 Add time qualifiers only when the task explicitly needs freshness or the prior round showed stale retrieval.
 
-# Suggested Output Shape
+# Output Format
 
-For each query, keep lightweight provenance if useful:
+Output a JSON array compatible with search_runner.py:
 
-- query text
-- source bucket: `llm`, `pattern`, or `gene`
-- chosen dimensions
-- optional `query_family` label for provider-health or outcome tracking
+```json
+[
+  {"channel": "github-repos", "query": "self-evolving agent", "max_results": 15},
+  {"channel": "zhihu", "query": "自进化 AI agent 框架", "max_results": 10},
+  {"channel": "web-ddgs", "query": "self-evolving agent startup 2026", "max_results": 10}
+]
+```
+
+Each entry needs: `channel` (from select-channels output), `query` (the search text), `max_results` (optional, default 10).
+
+For Chinese channels, use Chinese query text. For English channels, use English.
+Keep proper nouns in original language on all channels.
 
 # Quality Bar
 
