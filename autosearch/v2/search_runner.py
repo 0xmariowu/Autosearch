@@ -552,7 +552,6 @@ async def main(queries: list[dict]) -> None:
     channels_config = load_channels()
     for q in queries:
         channel = q.get("channel", "web-ddgs")
-        method_name = CHANNEL_METHODS.get(channel)
         ch_config = channels_config.get(channel, {})
         ch_method = ch_config.get("method", "")
 
