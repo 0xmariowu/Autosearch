@@ -16,15 +16,16 @@
   "scoring": {
     "target_results": 30,
     "delivery_threshold": 0.7,
-    "latency_budget_seconds": 120,
+    "latency_budget_seconds": 300,
     "dimension_weights": {
-      "quantity": 0.15,
-      "diversity": 0.15,
-      "relevance": 0.25,
-      "freshness": 0.1,
-      "efficiency": 0.1,
-      "latency": 0.1,
-      "adoption": 0.15
+      "quantity": 0.12,
+      "diversity": 0.13,
+      "relevance": 0.22,
+      "freshness": 0.10,
+      "efficiency": 0.10,
+      "latency": 0.08,
+      "adoption": 0.12,
+      "knowledge_growth": 0.13
     }
   },
   "model_routing": {

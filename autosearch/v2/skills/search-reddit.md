@@ -95,3 +95,34 @@ Each result should normally preserve:
 - short note on the discussion angle
 
 Expect this source to explain what communities are saying and how strongly they are reacting.
+
+# Standard Output Schema
+
+Write each result as a JSON line conforming to the canonical evidence schema:
+
+- `url`: canonical URL
+- `title`: result title
+- `snippet`: description or summary
+- `source`: `"reddit"`
+- `query`: the query that found this
+- `metadata`: object with `llm_relevant`, `llm_reason`, `date` fields
+
+The `source` field must be exactly `"reddit"` for this platform.
+`judge.py` uses `source` for diversity scoring; inconsistent tags hurt the diversity dimension.
+
+After collecting results, pass them to `normalize-results.md` for cross-platform dedup and `extract-dates.md` for freshness metadata.
+
+# Date Metadata
+
+Extract dates from platform-specific fields and write to `metadata`:
+
+- `metadata.published_at` — when the content was created (ISO 8601)
+- `metadata.updated_at` — when the content was last modified (ISO 8601)
+- `metadata.created_utc` — creation timestamp (ISO 8601)
+
+See `extract-dates.md` for the full extraction priority and format rules.
+Missing dates score as zero freshness in `judge.py`.
+
+# Quality Bar
+
+This platform skill is working when results have accurate source tags, populated date metadata, and conform to the canonical evidence schema defined in normalize-results.md.
