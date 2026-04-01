@@ -16,9 +16,12 @@ A self-improving search system. The human provides intent. The AI does everythin
 
 - Branch: `feature/{desc}`, `fix/{desc}` — don't develop on main
 - Commit: `{type}: {description}` (feat/fix/refactor/test/docs/chore)
-- One commit = one logical change. Code and tests in separate commits. Don't batch. Because: reviewers need to verify tests cover exactly the code that changed.
+- One commit = one logical change. Commit sequence: source code first, tests second, docs/config third. Don't batch. Because: reviewers need to verify tests cover exactly the code that changed.
+- Feature commits without corresponding test commits will not pass review. Because: untested features are untested assumptions.
 - Don't stage the entire repo (`git add .` / `git add -A`). Stage specific files only. Because: prevents accidental inclusion of debug files, env changes, or unrelated edits.
+- Don't stage `.env*`, credentials, `node_modules/`, `__pycache__/`, or `.git/` internals. Because: these files contain secrets or generated content that must not enter version control.
 - Don't modify linter or formatter config to suppress errors. Fix the code, not the config. Because: suppressing errors hides real problems and compounds technical debt.
+- Run `ruff check && ruff format --check` before commit. Because: pushing lint failures wastes CI time and blocks other PRs.
 - Tests: `pytest -x -q` must pass before push.
 - PR stays under 5 commits. Larger → split into smaller PRs first. Because: oversized PRs don't get meaningful review.
 - PR requires review before merge — don't self-merge. Because: self-review misses what a second pair of eyes catches.

@@ -1,0 +1,25 @@
+{"id": "r001", "category": "information-recall", "rubric": "Lists at least 5 foundational self-improvement methods (e.g., STaR, Reflexion, Voyager, DSPy, ADAS)", "priority": "high"}
+{"id": "r002", "category": "information-recall", "rubric": "Names at least 4 key researchers or labs driving the field (e.g., Shinn, Hu, Stanford NLP, Sakana AI)", "priority": "high"}
+{"id": "r003", "category": "information-recall", "rubric": "Lists at least 6 open-source frameworks or tools for building self-evolving agents", "priority": "high"}
+{"id": "r004", "category": "information-recall", "rubric": "Covers at least 3 academic papers from 2024-2026 with venue information", "priority": "high"}
+{"id": "r005", "category": "information-recall", "rubric": "Identifies at least 3 commercial companies building self-evolving agent products", "priority": "high"}
+{"id": "r006", "category": "information-recall", "rubric": "Includes at least 2 benchmark datasets or evaluation frameworks for measuring agent self-improvement", "priority": "medium"}
+{"id": "r007", "category": "information-recall", "rubric": "Covers at least 3 distinct evolution mechanisms (e.g., prompt evolution, skill library, weight updates, code generation)", "priority": "high"}
+{"id": "r008", "category": "information-recall", "rubric": "Names at least 2 projects released or significantly updated in the last 6 months", "priority": "high"}
+{"id": "r009", "category": "information-recall", "rubric": "Includes at least 1 Chinese-language source or Chinese platform project", "priority": "medium"}
+{"id": "r010", "category": "information-recall", "rubric": "Lists at least 3 design patterns used across multiple self-evolving agent projects", "priority": "high"}
+{"id": "r011", "category": "information-recall", "rubric": "Includes GitHub star counts or citation counts for at least 5 mentioned projects", "priority": "medium"}
+{"id": "r012", "category": "information-recall", "rubric": "Covers both LLM-based and RL-based approaches to agent self-improvement", "priority": "medium"}
+{"id": "r013", "category": "information-recall", "rubric": "Mentions at least 2 conference workshops or tracks dedicated to self-evolving agents (2024-2026)", "priority": "low"}
+{"id": "r014", "category": "information-recall", "rubric": "Includes a timeline covering at least 3 milestones from 2022 to 2026", "priority": "medium"}
+{"id": "r015", "category": "information-recall", "rubric": "Names at least 1 meta-agent-search or automated architecture discovery approach", "priority": "medium"}
+{"id": "r016", "category": "analysis", "rubric": "Compares at least 3 evolution mechanisms and states one tradeoff for each", "priority": "high"}
+{"id": "r017", "category": "analysis", "rubric": "Identifies at least 1 directional trend in the field with evidence from multiple sources", "priority": "high"}
+{"id": "r018", "category": "analysis", "rubric": "Explains why prompt/workflow evolution has gained traction over weight-update approaches for agent improvement", "priority": "medium"}
+{"id": "r019", "category": "analysis", "rubric": "States a recommendation for which framework to use depending on use case (research vs production)", "priority": "high"}
+{"id": "r020", "category": "analysis", "rubric": "Identifies at least 2 open problems or areas where experts disagree", "priority": "medium"}
+{"id": "r021", "category": "analysis", "rubric": "Provides a taxonomy or categorization framework that organizes the landscape into at least 3 segments", "priority": "high"}
+{"id": "r022", "category": "analysis", "rubric": "Discusses at least 2 risks or failure modes of self-evolving agents (e.g., reward hacking, capability regression)", "priority": "medium"}
+{"id": "r023", "category": "presentation", "rubric": "Every mentioned project or paper includes a URL or citation link", "priority": "high"}
+{"id": "r024", "category": "presentation", "rubric": "Includes an explicit section for gaps or unknowns that the search did not cover", "priority": "medium"}
+{"id": "r025", "category": "presentation", "rubric": "Uses sources from at least 3 distinct source types (GitHub, academic, blog, commercial, community)", "priority": "medium"}
