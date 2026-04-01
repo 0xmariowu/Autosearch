@@ -168,7 +168,7 @@ def score_knowledge_growth(evidence_file: str) -> float:
     - gap_closure: (initial_gaps - remaining_gaps) / max(initial_gaps, 1)
     - confidence_ratio: high_confidence / max(final_entries, 1)
 
-    Returns NEUTRAL (0.5) when the file does not exist (single-session mode).
+    Returns NEUTRAL (0.5) when the file does not exist or has no meaningful data.
     """
     kg = load_state_json(evidence_file, "knowledge-growth.json")
     if not kg:
@@ -179,6 +179,10 @@ def score_knowledge_growth(evidence_file: str) -> float:
     initial_gaps = coerce_float(kg.get("initial_gaps"), 0)
     remaining_gaps = coerce_float(kg.get("remaining_gaps"), 0)
     high_confidence = coerce_float(kg.get("high_confidence"), 0)
+
+    # No meaningful data yet — return neutral instead of penalizing
+    if initial == 0 and final == 0 and initial_gaps == 0:
+        return NEUTRAL_DIMENSION_SCORE
 
     # Growth: how much did the knowledge map expand?
     growth_ratio = (
