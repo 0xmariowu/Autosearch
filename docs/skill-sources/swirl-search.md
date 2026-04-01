@@ -1,0 +1,13 @@
+### swirl-search (ai-search) — 74 skills
+- **Platform & API**: bootstrap_django_runtime, route_http_endpoints, enforce_token_authentication, enforce_rag_request_timeout, serialize_api_models
+- **Search Lifecycle**: create_search_records, select_query_providers, parse_query_tags, execute_pre_query_pipeline, dispatch_provider_tasks, execute_post_result_pipeline, finalize_search_states, build_result_navigation_urls
+- **Connector Framework**: allocate_connector_classes, bind_query_mappings, validate_provider_queries, process_provider_results, persist_result_records
+- **Source Connectors**: execute_http_api_search, map_jsonpath_responses, query_sqlite_sources, query_bigquery_sources, query_postgresql_sources, query_mongodb_sources, query_snowflake_sources, query_oracle_sources, query_elastic_sources, query_opensearch_sources, query_microsoft_graph_sources
+- **AI & Vector Connectors**: embed_query_vectors, query_qdrant_vectors, query_pinecone_vectors, generate_connector_answers, select_openai_backends
+- **Query Processing**: clean_query_text, adapt_provider_tag_queries, preserve_tagless_queries, spellcheck_query_text, remove_query_pii, rewrite_query_with_llm, apply_saved_query_transforms
+- **Result Mapping & Cleanup**: create_swirl_result_schema, map_provider_fields, auto_map_payload_fields, extract_date_fields, limit_result_fields, sanitize_result_text, require_title_term_matches, redact_result_pii
+- **Ranking & Deduplication**: parse_relevancy_queries, score_result_relevancy, rescore_federated_results, drop_low_score_results, dedupe_provider_results, dedupe_cross_provider_results, dedupe_similarity_results
+- **Mixers & Delivery**: mix_by_relevancy, mix_new_relevancy_results, mix_by_date, mix_new_date_results, mix_round_robin_results, mix_stacked_results
+- **RAG & Page Retrieval**: allocate_page_fetchers, fetch_web_pages, extract_readable_page_text, select_rag_candidates, pack_rag_prompts, synthesize_rag_answers
+- **Auth & Automation**: persist_session_tokens, initiate_microsoft_oauth, complete_microsoft_oauth, refresh_microsoft_oauth, rerun_subscribed_searches, expire_search_history
+- Unique: Swirl’s most distinctive pattern is its DB-configured query-transform fallback, where processor names can resolve either to Python classes or user-managed `QueryTransform` records at runtime. It also uses a two-pass relevancy design that pushes provider-side feedback into post-result rescoring, then layers RAG page fetching with summary fallback on top of the federated result set.

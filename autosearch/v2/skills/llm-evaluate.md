@@ -38,6 +38,19 @@ Add or update these metadata fields on each evaluated result:
 - `metadata.llm_reason`: one short sentence explaining the judgment
 - `metadata.llm_evaluated_at`: evaluation timestamp if you need provenance
 
+Additionally, always extract and populate date metadata for freshness scoring:
+
+- `metadata.published_at`: publication or creation date in ISO 8601 format
+- `metadata.updated_at`: last update date in ISO 8601 format
+- `metadata.created_utc`: creation date in ISO 8601 format
+
+Extract dates from: snippet text, title year mentions, URL path date segments (e.g. `/2026/03/`), known publication dates of referenced papers (arXiv IDs encode submission date), GitHub `updatedAt` fields, and any other available signals.
+For arXiv papers, derive the date from the paper ID: `YYMM.NNNNN` means year 20YY, month MM.
+For GitHub repos, use the `updated_at` or `updatedAt` field from the search result.
+For web results, look for date patterns in URLs and snippets.
+If you can confidently determine a date, write it. If not, omit the field rather than guessing.
+Missing date fields score as zero freshness in judge.py, so extracting dates has high impact on scores.
+
 At batch level, extract a small list of concrete follow-up queries:
 
 - `next_queries` should come from missing concepts, missing entities, missing evidence types, or overly broad framing
@@ -60,6 +73,19 @@ Mark `true` when a result:
 - supplies concrete evidence, examples, code, data, or strong synthesis
 - is likely to be cited or used in delivery
 - closes a known gap in the current bundle
+
+# Structured Gap Detection
+
+After evaluating a batch, perform an explicit gap analysis:
+
+1. List the task dimensions (from research-mode scope or decompose-task sub-questions)
+2. For each dimension, count how many relevant results cover it
+3. Identify dimensions with 0-2 results — these are critical gaps
+4. Identify dimensions with only snippet-level coverage (no fetched full content) — these are depth gaps
+5. Check content type distribution: are we heavy on repos but missing papers? Heavy on papers but missing tutorials?
+
+Output the gap analysis as part of `next_queries` reasoning.
+Gaps should directly drive follow-up query generation: each gap becomes a targeted query.
 
 # Next Query Strategy
 

@@ -74,7 +74,7 @@ AIMD
 
 ## v2.2 rules (unified architecture: V1 capabilities + V2 evolvability)
 
-12. Don't modify `judge.py` or `PROTOCOL.md`. These are the fixed contracts. judge.py is the scoring function f (AVO paper §3.1). PROTOCOL.md is the operating protocol. Because: if AVO can change its own evaluation or rules, behavior becomes unpredictable.
+12. Don't modify `judge.py` or `PROTOCOL.md` without explicit user authorization. These are the fixed contracts. judge.py is the scoring function f (AVO paper §3.1). PROTOCOL.md is the operating protocol. Because: if AVO can change its own evaluation or rules, behavior becomes unpredictable. Exception: judge.py was authorized to add `knowledge_growth` dimension on 2026-03-31 to enable multi-session cumulative evaluation. AVO still MUST NOT modify judge.py on its own.
 
 13. Don't modify meta-skills: `create-skill.md`, `observe-user.md`, `extract-knowledge.md`, `interact-user.md`, `discover-environment.md`. These define HOW to evolve, not WHAT to evolve. AVO can modify all OTHER skills. Because: meta-skills are the "DNA replication machinery" — evolution changes genes, not the replication mechanism.
 
@@ -82,11 +82,47 @@ AIMD
 
 15. Skill changes during AVO go through `git commit`. Failed changes get `git revert`. Because: git history IS the lineage P_t that AVO uses to learn from failures.
 
-16. Skill format follows superpowers standard: YAML frontmatter with `name` + `description`, free-form markdown body. No required sections. Description IS the dispatch mechanism. Because: skills are strategy guides for a capable agent, not bash templates for a dumb executor.
+16. Skill format standard (compatible with Claude Code Agent Skills spec + superpowers). AVO MUST follow these rules when creating or modifying skills:
+
+**File**: `autosearch/v2/skills/{name}.md` — one file per skill, flat directory.
+
+**Name rules** (enforced, not optional):
+- Lowercase a-z, 0-9, hyphens only. Regex: `^[a-z0-9]+(-[a-z0-9]+)*$`
+- Max 64 characters
+- No consecutive hyphens (`--`), no leading/trailing hyphens
+- Name must match the filename (without `.md`)
+- Bad: `My_Skill.md`, `UPPERCASE.md`, `search tool.md`. Good: `normalize-results.md`, `llm-evaluate.md`
+
+**Frontmatter** (YAML between `---` markers, required):
+```yaml
+---
+name: skill-name
+description: "When to use this skill. Front-load the trigger condition. Max 250 chars for the key sentence."
+---
+```
+- `name`: required, must match filename
+- `description`: required, max 1024 chars. First sentence must state WHEN to use the skill, not WHAT it does internally. Because: description IS the dispatch mechanism — Claude reads it to decide whether to load the skill.
+
+**Body** (free-form markdown):
+- Strategy guide for a capable agent, not bash template for a dumb executor
+- Max 500 lines recommended. If longer, the skill is trying to do too much — split it.
+- Must have a `# Quality Bar` section at the end defining what "working correctly" looks like
+- No required sections beyond that — structure serves the content, not a template
+
+**What skills are NOT**:
+- Not executable scripts (Claude reads them, not a parser)
+- Not config files (use state/config.json for parameters)
+- Not documentation (use docs/ for that)
+
+Because: without format constraints, AVO will drift — creating skills with bad names, empty descriptions, 2000-line monsters, or files that are half code half prose. The constraints keep skills small, discoverable, and evolvable.
 
 17. Use Python 3.11+ to run `judge.py` and tests. System python3 may be 3.9 which lacks union type syntax.
 
 18. Platform skills can use free OR paid APIs. AVO discovers what's available via `discover-environment.md` and selects accordingly. Because: V1 had 14 connectors (8 free, 6 paid) — restricting to free-only was V2.0's mistake.
+
+19. Every validation run MUST include a native Claude baseline comparison. Run the same query with native Claude (no AutoSearch skills/protocol), then compare in a table: result count by type, conceptual framework depth, content coverage gaps. Because: AutoSearch's value proposition is "better than native Claude at research" — if it's not, the system hasn't earned its complexity.
+
+20. AVO self-evolution MUST be validated separately from search quality. Search quality tests (like F006) prove the pipeline works. Evolution tests prove the system improves itself. An evolution test requires: (a) baseline score, (b) agent-initiated skill modification, (c) re-score showing improvement, (d) git commit on improvement, (e) git revert on regression, (f) pattern written to state. Without this test passing, AutoSearch is a search agent, not a self-evolving search agent.
 
 ---
 

@@ -1,0 +1,4 @@
+{"channel":"github","topic_type":"open-source-tools","incremental_rate":0.45,"relevance_rate":0.85,"avg_results":20,"sessions_tested":3,"last_updated":"2026-03-31","notes":"Strong for repo discovery, high relevance"}
+{"channel":"web-ddgs","topic_type":"general","incremental_rate":0.30,"relevance_rate":0.70,"avg_results":15,"sessions_tested":3,"last_updated":"2026-03-31","notes":"Broad coverage but noisy"}
+{"channel":"arxiv","topic_type":"academic","incremental_rate":0.25,"relevance_rate":0.60,"avg_results":12,"sessions_tested":2,"last_updated":"2026-03-31","notes":"Good for papers but all: search returns noise, use title-only"}
+{"channel":"own-knowledge","topic_type":"established-field","incremental_rate":0.0,"relevance_rate":1.0,"avg_results":50,"sessions_tested":2,"last_updated":"2026-03-31","notes":"Not incremental by definition, but highest relevance"}
