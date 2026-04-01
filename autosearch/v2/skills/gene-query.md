@@ -8,18 +8,40 @@ description: "Use when you need to expand a task into diverse search queries bui
 Generate queries from five gene dimensions instead of improvising all search text from scratch.
 This restores a reusable query grammar that turns vague tasks into targeted searches.
 
-# The Five Dimensions
+# The Six Dimensions
 
 - `entity` = WHO is involved
 - `pain_verb` = ACTION or failure mode
 - `object` = WHAT artifact, tool, concept, or target is involved
 - `symptom` = HOW the problem appears
 - `context` = WHERE or under what condition it happens
+- `content_type` = WHAT KIND of result you want (repo, paper, blog, tutorial, company, video, awesome-list)
 
 Good queries usually need only 2 or 3 dimensions.
-Do not cram all five into every query.
+Do not cram all six into every query.
 
-# Input Sources
+Use `content_type` to steer queries toward underrepresented evidence.
+If the current bundle is heavy on repos and light on papers or blogs, generate queries that explicitly target the missing types.
+Examples: "self-evolving agent tutorial", "self-improving AI startup company", "self-evolving agent survey paper".
+
+# Gap-Driven Query Generation (Claude-First Mode)
+
+When systematic-recall.md has produced a knowledge map, generate queries from GAPS, not from the task text.
+
+For each GAP or LOW confidence item in the knowledge map:
+- Convert the gap into a specific search query
+- Target the platform most likely to fill that gap
+- Example: GAP in "commercial players" → query "self-evolving AI agent startup 2026" on web-ddgs
+
+For each MEDIUM confidence item:
+- Generate a verification query
+- Example: MEDIUM on "STOP framework" → query "STOP self-taught optimizer latest" on arxiv/web
+
+Do NOT generate queries for HIGH confidence items — those are already in the evidence bundle from own-knowledge.
+
+This is the most efficient use of search budget: every query targets a known gap.
+
+# Input Sources (General)
 
 Build the gene pool from three places:
 
@@ -87,14 +109,22 @@ Deduplicate semantically, not only by exact string match.
 Do not hard-cap all generated queries by recency.
 Add time qualifiers only when the task explicitly needs freshness or the prior round showed stale retrieval.
 
-# Suggested Output Shape
+# Output Format
 
-For each query, keep lightweight provenance if useful:
+Output a JSON array compatible with search_runner.py:
 
-- query text
-- source bucket: `llm`, `pattern`, or `gene`
-- chosen dimensions
-- optional `query_family` label for provider-health or outcome tracking
+```json
+[
+  {"channel": "github-repos", "query": "self-evolving agent", "max_results": 15},
+  {"channel": "zhihu", "query": "自进化 AI agent 框架", "max_results": 10},
+  {"channel": "web-ddgs", "query": "self-evolving agent startup 2026", "max_results": 10}
+]
+```
+
+Each entry needs: `channel` (from select-channels output), `query` (the search text), `max_results` (optional, default 10).
+
+For Chinese channels, use Chinese query text. For English channels, use English.
+Keep proper nouns in original language on all channels.
 
 # Quality Bar
 

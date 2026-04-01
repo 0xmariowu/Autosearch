@@ -1,0 +1,12 @@
+### searxng (meta-search) — 64 skills
+- **Bootstrap & config**: load_settings, merge_user_settings, initialize_logging, initialize_runtime_services
+- **Query & preferences**: parse_raw_query, parse_language_modifier, parse_timeout_modifier, parse_engine_bang, parse_external_bang, resolve_selected_categories, assemble_search_query
+- **Engine system**: load_engine_module, apply_engine_defaults, validate_engine_module, register_engine_shortcuts, activate_tor_engine_endpoint, fetch_engine_traits, inject_engine_traits
+- **Search pipeline**: initialize_engine_processors, dispatch_keyword_answerers, short_circuit_external_bang, build_engine_request_params, compute_effective_timeout, skip_suspended_engines, dispatch_engine_threads, execute_engine_search
+- **Network transport**: create_async_http_clients, randomize_tls_ciphers, rotate_source_addresses, rotate_proxy_endpoints, retry_http_requests, stream_http_responses
+- **Result processing**: normalize_result_fields, filter_result_urls, merge_duplicate_results, merge_infobox_results, collect_auxiliary_results, score_and_group_results
+- **Extensions**: load_plugins, execute_plugin_pre_search, execute_plugin_on_result, execute_plugin_post_search, load_answerers, route_keyword_answerers
+- **Built-in plugins & answerers**: evaluate_math_expression, hash_query_text, rewrite_result_hostnames, rewrite_doi_links, reveal_request_identity, convert_units, convert_timezones, inspect_tor_status
+- **Anti-abuse & trust**: resolve_client_network, trust_forwarded_proxies, apply_ip_lists, inspect_browser_headers, rate_limit_networks, mint_and_validate_link_tokens
+- **Serving & client**: render_search_responses, serve_autocomplete, persist_preferences, proxy_remote_media, publish_instance_config, enhance_client_interactions
+- Unique: SearXNG’s distinctive pattern is its runtime-loaded engine federation: one shared search pipeline adapts to hundreds of engine modules via traits, processor types, and hookable result normalization. It also couples that federation with first-class public-instance defenses, so anti-abuse, proxying, and observability are part of the core product rather than bolt-ons.

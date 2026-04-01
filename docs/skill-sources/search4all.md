@@ -1,0 +1,8 @@
+### search4all (ai-search) — 37 skills
+- **Search Retrieval**: select_search_backend, search_search1api, search_bing, search_google, search_serpapi, search_searxng, normalize_search_results, derive_source_metadata, extract_page_content
+- **LLM Synthesis**: create_llm_client, sanitize_query_text, build_rag_prompt, generate_related_questions, invoke_claude_tools, invoke_openai_tools, stream_claude_answer, stream_openai_answer
+- **Session & API**: configure_server_runtime, parse_request_payload, reuse_cached_response, restore_chat_history, reuse_prior_contexts, parse_stream_sections, append_chat_history, store_query_cache, serve_query_endpoint
+- **Streaming Client**: fetch_stream_chunks, parse_streaming_response, normalize_citation_markdown, render_answer_markdown, render_citation_popover
+- **Search UX**: navigate_search_session, render_source_grid, render_related_queries, render_error_overlay
+- **Localization & Delivery**: detect_preferred_language, switch_language, co_serve_static_ui, export_static_frontend, proxy_query_requests
+- Unique: The project’s most distinctive pattern is its sentinel-based streaming protocol, where one response interleaves serialized sources, answer text, and related questions using `__LLM_RESPONSE__` and `__RELATED_QUESTIONS__` markers. It also combines static-exported Next.js assets and the Sanic API into one deployable Python service, which is unusually compact for an AI-search stack.

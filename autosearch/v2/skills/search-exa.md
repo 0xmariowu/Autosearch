@@ -89,3 +89,34 @@ Each result should normally preserve:
 - short semantic-fit note
 
 Expect Exa to contribute fewer but cleaner candidates than broad free search layers.
+
+# Standard Output Schema
+
+Write each result as a JSON line conforming to the canonical evidence schema:
+
+- `url`: canonical URL
+- `title`: result title
+- `snippet`: description or summary
+- `source`: `"exa"`
+- `query`: the query that found this
+- `metadata`: object with `llm_relevant`, `llm_reason`, and date fields
+
+The `source` field must be exactly `"exa"` for this platform.
+`judge.py` uses `source` for diversity scoring, so inconsistent tags hurt the diversity dimension.
+
+After collecting results, pass them to `normalize-results.md` for cross-platform dedup and `extract-dates.md` for freshness metadata.
+
+# Date Metadata
+
+Extract dates from platform-specific fields and write them to `metadata`:
+
+- `metadata.published_at`: when the content was created (ISO 8601)
+- `metadata.updated_at`: when the content was last modified (ISO 8601)
+- `metadata.created_utc`: creation timestamp (ISO 8601)
+
+See `extract-dates.md` for the full extraction priority and format rules.
+Missing dates score as zero freshness in `judge.py`.
+
+# Quality Bar
+
+This platform skill is working when results have accurate source tags, populated date metadata, and conform to the canonical evidence schema defined in normalize-results.md.

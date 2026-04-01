@@ -1,0 +1,50 @@
+{
+  "pipeline_version": "v3.0",
+  "topic": "survey of LLM memory architectures and implementations",
+  "topic_id": "t2",
+  "started_at": "2026-03-31T12:00:00Z",
+  "phase1_end": 1774937593,
+  "phase2_end": 1774937789,
+  "phase3_end": 1774938005,
+  "phase4_end": 1774938114,
+  "phase5_end": 1774938143,
+  "total_seconds": 550,
+  "phases": {
+    "phase1_recall_plan": {
+      "duration_seconds": 45,
+      "knowledge_items": 55,
+      "gaps_identified": 8,
+      "channels_selected": 9,
+      "queries_generated": 15
+    },
+    "phase2_search": {
+      "duration_seconds": 196,
+      "search_calls": 19,
+      "channels_used": [
+        "web-ddgs",
+        "github",
+        "zhihu",
+        "csdn",
+        "hn",
+        "arxiv"
+      ],
+      "raw_results_collected": 190
+    },
+    "phase3_evaluate": {
+      "duration_seconds": 216,
+      "results_after_dedup": 52,
+      "relevant_count": 52,
+      "irrelevant_count": 0,
+      "date_extraction_rate": 1.0
+    },
+    "phase4_synthesize": {
+      "duration_seconds": 109,
+      "knowledge_items": 18,
+      "discovered_items": 37,
+      "verified_items": 5,
+      "design_patterns_identified": 8,
+      "risk_factors_identified": 5,
+      "gaps_declared": 5
+    }
+  }
+}

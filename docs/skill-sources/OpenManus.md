@@ -1,0 +1,11 @@
+### OpenManus (agent-framework) — 70 skills
+- **Agent Runtime**: manage_agent_state, store_message_memory, run_react_loop, detect_response_loops, adapt_next_step_prompt, format_toolcall_message, execute_toolcall_batch, cleanup_agent_runtime
+- **LLM Interface**: format_multimodal_messages, count_message_tokens, enforce_token_budget, request_text_completion, request_image_completion, request_tool_completion, translate_bedrock_protocol
+- **Planning & Orchestration**: create_execution_plan, track_plan_steps, select_executor_agent, execute_planned_step, render_plan_status, summarize_plan_completion
+- **Local Tools**: execute_python_code, execute_bash_session, view_filesystem_path, create_text_file, replace_file_string, insert_file_text, revert_file_edit, ask_human_question, emit_structured_response, emit_termination_status
+- **Web & Browser Automation**: initialize_browser_session, capture_browser_state, navigate_browser_url, search_web_results, fetch_webpage_content, click_browser_element, input_browser_text, scroll_browser_viewport, send_browser_keys, inspect_dropdown_options, select_dropdown_option, manage_browser_tabs, extract_page_content
+- **Search Backends**: query_google_search, query_duckduckgo_search, query_bing_search, query_baidu_search
+- **MCP & Service Protocols**: connect_mcp_sse, connect_mcp_stdio, proxy_mcp_tool, refresh_mcp_tools, disconnect_mcp_servers, register_mcp_tool_server, expose_a2a_agent
+- **Sandbox & Remote Execution**: create_daytona_sandbox, restart_daytona_sandbox, launch_supervisord_session, execute_sandbox_shell, monitor_sandbox_process, automate_sandbox_browser, edit_sandbox_files, inspect_sandbox_image, automate_desktop_session, manage_docker_sandbox, copy_sandbox_files, read_sandbox_file, write_sandbox_file
+- **Analytics & Crawling**: crawl_web_content, validate_crawl_urls, prepare_visualization_data, render_data_visualization, annotate_chart_insights, generate_analysis_report, resolve_visualization_paths
+- Unique: OpenManus’s distinctive pattern is that the same ReAct loop can swap between local tools, MCP-federated remote tools, and Daytona/Docker sandbox tools with minimal agent changes. It also feeds live browser state and screenshots back into the next-step prompt, so browser interaction is prompt-conditioned rather than just action-conditioned.

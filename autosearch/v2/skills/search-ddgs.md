@@ -86,4 +86,41 @@ Each result should normally preserve:
 - domain
 - short relevance note
 
+Write date metadata when available.
+Extract publication dates from snippets, titles, or page metadata and write them to `metadata.published_at` in ISO 8601 format.
+If no date is available, omit the field rather than guessing.
+The judge uses `published_at`, `created_utc`, and `updated_at` for freshness scoring.
+Missing dates hurt the freshness dimension directly.
+
 Expect this platform to contribute breadth and source diversity more than deep platform-native metadata.
+
+# Standard Output Schema
+
+Write each result as a JSON line conforming to the canonical evidence schema:
+
+- `url`: canonical URL
+- `title`: result title
+- `snippet`: description or summary
+- `source`: `"web-ddgs"`
+- `query`: the query that found this
+- `metadata`: object with `llm_relevant`, `llm_reason`, and date fields
+
+The `source` field must be exactly `"web-ddgs"` for this platform.
+`judge.py` uses `source` for diversity scoring, so inconsistent tags directly hurt the diversity dimension.
+
+After collecting results, pass them to `normalize-results.md` for cross-platform dedup and `extract-dates.md` for freshness metadata.
+
+# Date Metadata
+
+Standardize the date metadata expectations above by extracting dates from platform-specific fields and writing them to `metadata`:
+
+- `metadata.published_at`: when the content was created, in ISO 8601
+- `metadata.updated_at`: when the content was last modified, in ISO 8601
+- `metadata.created_utc`: creation timestamp, in ISO 8601
+
+See `extract-dates.md` for the full extraction priority and format rules.
+Missing dates score as zero freshness in `judge.py`.
+
+# Quality Bar
+
+This platform skill is working when results have accurate source tags, populated date metadata, and conform to the canonical evidence schema defined in normalize-results.md.

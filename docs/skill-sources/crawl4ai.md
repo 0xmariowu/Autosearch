@@ -1,0 +1,14 @@
+### crawl4ai (web-scraping) — 35 skills
+- **Fetch layer**: run_single_crawl, run_batch_crawl, fetch_http_document, ingest_local_or_raw_source, extract_pdf_document
+- **Browser management**: provision_browser_context, reuse_session_page, persist_browser_profile
+- **Page interaction**: wait_for_page_readiness, execute_page_script, transform_live_dom
+- **Artifact capture**: capture_page_artifacts, capture_runtime_telemetry
+- **Anti-bot/proxy**: rotate_proxy, detect_antibot_block, fallback_fetch
+- **DOM processing**: sanitize_dom_content, extract_media_links_metadata
+- **Content conversion**: generate_markdown, filter_relevant_content
+- **Structured extraction**: extract_llm_data, extract_selector_data, extract_regex_entities, cluster_semantic_sections
+- **Table/link enrichment**: extract_structured_tables, preview_link_targets
+- **Cache**: read_write_cache, validate_cache_freshness
+- **Batch orchestration**: schedule_memory_adaptive_batch, rate_limit_domains, track_crawl_metrics
+- **Deep crawling**: traverse_breadth_first, traverse_depth_first, traverse_best_first, filter_candidate_urls, score_candidate_urls
+- Unique: deep crawl as decorator on arun(), split-brain cache (SQLite+FS), freshness via HTTP+head fingerprint, browser version recycling
