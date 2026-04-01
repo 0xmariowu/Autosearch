@@ -6,6 +6,23 @@
 
 A self-improving search system. The human provides intent. The AI does everything else: understand the goal, generate strategies, run them across all platforms, score results, reflect, iterate, and harvest.
 
+## Session Checklist
+
+1. If working on v2.2 AVO/skills → read § v2.2 rules below
+2. If working on search quality → read `docs/methodology/principles.md`
+3. If touching genome → read § Genome rules below
+
+## Workflow
+
+- Branch: `feature/{desc}`, `fix/{desc}` — don't develop on main
+- Commit: `{type}: {description}` (feat/fix/refactor/test/docs/chore)
+- One commit = one logical change. Code and tests in separate commits. Don't batch. Because: reviewers need to verify tests cover exactly the code that changed.
+- Don't stage the entire repo (`git add .` / `git add -A`). Stage specific files only. Because: prevents accidental inclusion of debug files, env changes, or unrelated edits.
+- Don't modify linter or formatter config to suppress errors. Fix the code, not the config. Because: suppressing errors hides real problems and compounds technical debt.
+- Tests: `pytest -x -q` must pass before push.
+- PR stays under 5 commits. Larger → split into smaller PRs first. Because: oversized PRs don't get meaningful review.
+- PR requires review before merge — don't self-merge. Because: self-review misses what a second pair of eyes catches.
+
 ## Search rules
 
 1. Don't skip platforms. Instead, run every configured platform on every search. Because: each platform surfaces different content types — skipping one creates blind spots that compound across sessions. Exception: a platform is explicitly disabled in `standard.json`.
@@ -66,8 +83,8 @@ AIMD
 2. Verify `evolution.jsonl` has new session entries.
 3. If findings are Armory-worthy, append to `/Volumes/4TB/AIMD/recs/master.md`.
 4. If the session produced a design/analysis doc, store in AIMD.
-5. Check if new `patterns.jsonl` entries should sync to `autosearch/docs/methodology/platforms/*.md` — new validated patterns get added, failed patterns get added to Known Failures.
-6. If a new search technique was discovered, write an `autosearch/docs/methodology/methods/` file per its CLAUDE.md write protocol.
+5. Check if new `patterns.jsonl` entries should sync to `docs/methodology/platforms/*.md` — new validated patterns get added, failed patterns get added to Known Failures.
+6. If a new search technique was discovered, write a `docs/methodology/methods/` file per its CLAUDE.md write protocol.
 7. Write experience note to `experience/{YYYY-MM-DD}-{topic}.md`.
 8. Update `AIMD/experience/INDEX.jsonl` (path relative to Dev/ root).
 9. If anything changed beyond search runs (code, rules, architecture): prepend entry to `CHANGELOG.md`.
