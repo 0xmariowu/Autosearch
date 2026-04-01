@@ -1,0 +1,1 @@
+{"topic":"ai-code-review-tools-2026","timestamp":"2026-04-01T05:05:40Z","total_rubrics":23,"passed":15,"failed":8,"pass_rate":0.652,"by_category":{"information-recall":{"total":13,"passed":8,"rate":0.615},"analysis":{"total":7,"passed":5,"rate":0.714},"presentation":{"total":3,"passed":2,"rate":0.667}},"failed_rubrics":["r003","r006","r008","r011","r012","r018","r020","r022"]}
