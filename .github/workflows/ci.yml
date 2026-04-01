@@ -32,6 +32,12 @@ jobs:
       - name: Ruff format check
         run: ruff format --check .
 
+      - name: Type check
+        run: |
+          pip install pyright
+          pyright
+        continue-on-error: true
+
       - name: Test
         run: pytest -x -q
 
