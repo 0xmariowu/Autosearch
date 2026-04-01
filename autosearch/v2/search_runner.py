@@ -572,12 +572,16 @@ async def main(queries: list[dict]) -> None:
     DDGS_BATCH_DELAY = 1.5
 
     async def run_ddgs_batched() -> list[list[dict]]:
-        all_results = []
+        all_results: list[list[dict]] = []
         for i in range(0, len(ddgs_queries), DDGS_BATCH_SIZE):
             batch = ddgs_queries[i : i + DDGS_BATCH_SIZE]
             batch_tasks = [run_single_query(q) for q in batch]
             batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
-            all_results.extend(batch_results)
+            for br in batch_results:
+                if isinstance(br, Exception):
+                    print(f"[search_runner] ddgs batch error: {br}", file=sys.stderr)
+                else:
+                    all_results.append(br)
             if i + DDGS_BATCH_SIZE < len(ddgs_queries):
                 await asyncio.sleep(DDGS_BATCH_DELAY)
         return all_results

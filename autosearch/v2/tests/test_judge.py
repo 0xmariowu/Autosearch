@@ -315,6 +315,91 @@ def test_invalid_json_lines(tmp_path: Path) -> None:
     assert score["dimensions"]["adoption"] == pytest.approx(0.5)
 
 
+def test_knowledge_growth_no_file(tmp_path: Path) -> None:
+    """Returns NEUTRAL when knowledge-growth.json does not exist."""
+    score = score_file(
+        write_jsonl(
+            tmp_path / "kg-none.jsonl",
+            [result("https://example.com/1", "github", "judge", title="judge")],
+        )
+    )
+    assert_dimensions(score, knowledge_growth=0.5)
+
+
+def test_knowledge_growth_empty_data(tmp_path: Path) -> None:
+    """Returns NEUTRAL when file exists but all values are zero."""
+    write_state_json(
+        tmp_path,
+        "knowledge-growth.json",
+        {
+            "initial_entries": 0,
+            "final_entries": 0,
+            "initial_gaps": 0,
+            "remaining_gaps": 0,
+            "high_confidence": 0,
+        },
+    )
+    score = score_file(
+        write_jsonl(
+            tmp_path / "kg-empty.jsonl",
+            [result("https://example.com/1", "github", "judge", title="judge")],
+        )
+    )
+    assert_dimensions(score, knowledge_growth=0.5)
+
+
+def test_knowledge_growth_full_session(tmp_path: Path) -> None:
+    """Scores growth, gap closure, and confidence correctly."""
+    write_state_json(
+        tmp_path,
+        "knowledge-growth.json",
+        {
+            "initial_entries": 10,
+            "final_entries": 20,
+            "initial_gaps": 8,
+            "remaining_gaps": 2,
+            "high_confidence": 15,
+        },
+    )
+    score = score_file(
+        write_jsonl(
+            tmp_path / "kg-full.jsonl",
+            [result("https://example.com/1", "github", "judge", title="judge")],
+        )
+    )
+    # growth_ratio = min((20-10)/max(10,1), 1.0) = 1.0
+    # gap_closure = (8-2)/max(8,1) = 0.75
+    # confidence_ratio = 15/max(20,1) = 0.75
+    # score = 0.4*0.75 + 0.35*0.75 + 0.25*1.0 = 0.3 + 0.2625 + 0.25 = 0.8125
+    assert_dimensions(score, knowledge_growth=pytest.approx(0.8125))
+
+
+def test_knowledge_growth_gaps_regressed(tmp_path: Path) -> None:
+    """Gap regression (more gaps than before) returns 0 for gap_closure."""
+    write_state_json(
+        tmp_path,
+        "knowledge-growth.json",
+        {
+            "initial_entries": 10,
+            "final_entries": 10,
+            "initial_gaps": 3,
+            "remaining_gaps": 5,
+            "high_confidence": 5,
+        },
+    )
+    score = score_file(
+        write_jsonl(
+            tmp_path / "kg-regress.jsonl",
+            [result("https://example.com/1", "github", "judge", title="judge")],
+        )
+    )
+    # growth_ratio = 0.0 (no growth)
+    # gap_closure = 0.0 (regression)
+    # confidence_ratio = 5/10 = 0.5
+    # score = 0.4*0 + 0.35*0.5 + 0.25*0 = 0.175
+    assert_dimensions(score, knowledge_growth=pytest.approx(0.175))
+
+
 def test_cli_exit_codes(tmp_path: Path) -> None:
     evidence = write_jsonl(
         tmp_path / "cli.jsonl",
