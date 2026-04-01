@@ -18,6 +18,7 @@ DIMENSION_NAMES = {
     "efficiency",
     "latency",
     "adoption",
+    "knowledge_growth",
 }
 
 
@@ -59,6 +60,9 @@ def result(
 
 
 def score_file(path: Path, target: int = 30) -> dict:
+    # Ensure test has its own state/ dir so judge doesn't fall back to real state/
+    state_dir = path.parent / "state"
+    state_dir.mkdir(parents=True, exist_ok=True)
     return judge.score_results(
         judge.load_results(path), str(path), target=target, now=NOW
     )
@@ -83,7 +87,9 @@ def test_empty_input(tmp_path: Path) -> None:
         adoption=0.5,
     )
     expected_total = (
-        judge.DEFAULT_WEIGHTS["latency"] * 0.5 + judge.DEFAULT_WEIGHTS["adoption"] * 0.5
+        judge.DEFAULT_WEIGHTS["latency"] * 0.5
+        + judge.DEFAULT_WEIGHTS["adoption"] * 0.5
+        + judge.DEFAULT_WEIGHTS["knowledge_growth"] * 0.5
     ) / sum(judge.DEFAULT_WEIGHTS.values())
     assert score["total"] == pytest.approx(expected_total)
 
