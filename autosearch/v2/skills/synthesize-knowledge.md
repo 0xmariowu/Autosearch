@@ -65,6 +65,41 @@ Explain:
 
 This is the difference between a search log and a report.
 
+# Analysis Requirements
+
+Beyond organizing what was found, synthesis must produce original analysis.
+Every delivery should contain at least three of these five analysis types:
+
+## 1. Comparison
+
+Compare at least 3 approaches, tools, or methods head-to-head.
+State concrete differences, not just "A is different from B."
+Include at least one tradeoff for each comparison (what you gain vs what you lose).
+
+## 2. Trend
+
+Identify at least one directional shift in the field.
+Explain what changed, when, and why.
+Use evidence from multiple sources to support the trend claim.
+
+## 3. Causal Reasoning
+
+For at least one major pattern or outcome, explain WHY it happened.
+Go beyond correlation to mechanism.
+If the cause is uncertain, say so explicitly rather than implying certainty.
+
+## 4. Recommendation
+
+For at least one decision the user might face, state which option to choose and why.
+Ground the recommendation in evidence from the search, not personal preference.
+Acknowledge when the right answer depends on context and explain the deciding factors.
+
+## 5. Controversy or Open Problem
+
+Identify at least one area where experts disagree or where the problem is unsolved.
+Present the strongest argument on each side.
+Do not resolve the disagreement artificially — state what is genuinely uncertain.
+
 # Delivery Structure
 
 Organize the delivery as typed blocks, not one monolithic document:

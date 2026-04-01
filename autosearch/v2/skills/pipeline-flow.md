@@ -1,11 +1,19 @@
 ---
 name: pipeline-flow
-description: "Use at the start of every AutoSearch session to follow the correct 5-phase pipeline. Ensures Claude-first architecture, gap-driven search, and quality delivery."
+description: "Use at the start of every AutoSearch session to follow the correct 7-phase pipeline. Ensures rubric-defined quality, Claude-first architecture, gap-driven search, and AVO evolution."
 ---
 
 # Purpose
 
-This skill defines the 5-phase pipeline that makes AutoSearch produce results better than native Claude. Follow these phases in order.
+This skill defines the 7-phase pipeline that makes AutoSearch produce results better than native Claude. Follow these phases in order.
+
+# Phase 0: Define Rubrics (what does a complete answer look like?)
+
+1. Run `generate-rubrics.md` — produces 20-30 binary rubrics
+2. Store to `evidence/rubrics-{topic-slug}.jsonl`
+3. These rubrics become the session's quality contract
+
+Time: ~15 seconds
 
 # Phase 1: Recall + Plan (Claude's knowledge leads)
 
@@ -82,30 +90,47 @@ The delivery should clearly show AutoSearch's incremental value:
 - "Verified M items with real-time data (star counts, funding, etc.)"
 - "Searched N platforms including [Chinese platforms / video / commercial]"
 
-# Phase 5: Learn
+# Phase 5: Rubric Check (did we deliver what we promised?)
+
+1. Run `check-rubrics.md` — checks each rubric pass/fail with evidence
+2. Output `checked-rubrics.jsonl`
+3. Append summary to `rubric-history.jsonl`
+
+Time: ~30 seconds
+
+# Phase 6: Learn + Evolve
 
 1. Save updated knowledge map via `knowledge-map.md`
 2. Record which channels produced incremental discoveries
 3. Record which query patterns worked best
 4. Append patterns to `state/patterns-v2.jsonl`
+5. Run `auto-evolve.md`
+   - AVO performs one evolution step: diagnose failed rubrics -> modify one skill -> commit -> record
 
 This data makes the next session on the same topic faster and better.
+
+Time: ~30 seconds
 
 # Time Budget
 
 | Phase | Target time | Notes |
 |-------|------------|-------|
-| Phase 1 | 30-60 seconds | Claude recalls from memory, fast |
-| Phase 2 | 10-20 seconds | search_runner.py parallel execution |
-| Phase 3 | 30-60 seconds | Evaluation of search results only |
+| Phase 0 | 15 seconds | Rubric generation |
+| Phase 1 | 30-60 seconds | Claude recalls from memory |
+| Phase 2 | 10-20 seconds | search_runner.py parallel |
+| Phase 3 | 30-60 seconds | Evaluation |
 | Phase 4 | 1-2 minutes | Synthesis |
-| Phase 5 | 10 seconds | Write state files + auto-evolve |
-| **Total** | **2-4 minutes** | 3x faster than native Claude |
+| Phase 5 | 30 seconds | Rubric checking |
+| Phase 6 | 30 seconds | Write state + auto-evolve |
+| **Total** | **3-5 minutes** | |
 
 # Quality Bar
 
 The pipeline is working when:
+- Phase 0 produces 20-30 topic-specific rubrics
 - Phase 1 produces 30+ knowledge items before any search
 - Phase 2 searches only GAPs (fewer queries than search-first mode)
 - Phase 4 delivery clearly shows incremental value over native Claude
+- Phase 5 produces strict pass/fail verdicts for every rubric
+- Phase 6 produces one evolution step (or a logged skip)
 - Total time is under 10 minutes
