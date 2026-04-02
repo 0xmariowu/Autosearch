@@ -115,7 +115,7 @@ def test_aliases_list(channels_dir):
     make_channel(
         channels_dir,
         "arxiv",
-        skill_md="---\naliases:\n  - alt-one\n  - \"alt-two\"\n---\n",
+        skill_md='---\naliases:\n  - alt-one\n  - "alt-two"\n---\n',
     )
 
     channels = channel_loader.load_channels()

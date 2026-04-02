@@ -24,9 +24,7 @@ async def _ss_get(client: httpx.AsyncClient, url: str, **kwargs) -> httpx.Respon
     return resp
 
 
-async def search(
-    query: str, max_results: int = 10, mode: str = "search"
-) -> list[dict]:
+async def search(query: str, max_results: int = 10, mode: str = "search") -> list[dict]:
     """Search Semantic Scholar API."""
     try:
         async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:

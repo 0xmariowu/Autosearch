@@ -199,7 +199,10 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
                         },
                         "continuation": next_page_token,
                     },
-                    headers={"Content-Type": "application/json", "User-Agent": USER_AGENT},
+                    headers={
+                        "Content-Type": "application/json",
+                        "User-Agent": USER_AGENT,
+                    },
                 )
                 next_response.raise_for_status()
                 batch, next_page_token = _parse_next_page_response(next_response.text)

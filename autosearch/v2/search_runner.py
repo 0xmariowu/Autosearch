@@ -24,12 +24,38 @@ import sys
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
-import httpx
 from autosearch.v2.channels import load_channels as load_channel_plugins
+
 DEFAULT_TIMEOUT = 30
 DEFAULT_MAX_RESULTS = 10
-TRACKING_PARAMS = {"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "ref", "source", "fbclid", "gclid", "mc_cid", "mc_eid"}
-MONTH_MAP = {"jan": "01", "feb": "02", "mar": "03", "apr": "04", "may": "05", "jun": "06", "jul": "07", "aug": "08", "sep": "09", "oct": "10", "nov": "11", "dec": "12"}
+TRACKING_PARAMS = {
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "utm_term",
+    "utm_content",
+    "ref",
+    "source",
+    "fbclid",
+    "gclid",
+    "mc_cid",
+    "mc_eid",
+}
+MONTH_MAP = {
+    "jan": "01",
+    "feb": "02",
+    "mar": "03",
+    "apr": "04",
+    "may": "05",
+    "jun": "06",
+    "jul": "07",
+    "aug": "08",
+    "sep": "09",
+    "oct": "10",
+    "nov": "11",
+    "dec": "12",
+}
+
 
 def normalize_url(url: str) -> str:
     try:
@@ -37,13 +63,19 @@ def normalize_url(url: str) -> str:
         query = ""
         if parsed.query:
             params = parse_qs(parsed.query, keep_blank_values=True)
-            query = urlencode({k: v for k, v in params.items() if k.lower() not in TRACKING_PARAMS}, doseq=True)
+            query = urlencode(
+                {k: v for k, v in params.items() if k.lower() not in TRACKING_PARAMS},
+                doseq=True,
+            )
         path = parsed.path.rstrip("/") or "/"
         if "github.com" in parsed.netloc.lower():
             path = re.sub(r"/(tree|blob)/(main|master)/?$", "", path)
-        return urlunparse((parsed.scheme, parsed.netloc.lower(), path, parsed.params, query, ""))
+        return urlunparse(
+            (parsed.scheme, parsed.netloc.lower(), path, parsed.params, query, "")
+        )
     except Exception:
         return url
+
 
 def extract_date(text: str, url: str = "") -> str | None:
     combined = f"{url} {text}"
@@ -68,7 +100,15 @@ def extract_date(text: str, url: str = "") -> str | None:
             return f"{year}-01-01T00:00:00Z"
     return None
 
-def make_result(url: str, title: str, snippet: str, source: str, query: str, extra_metadata: dict | None = None) -> dict:
+
+def make_result(
+    url: str,
+    title: str,
+    snippet: str,
+    source: str,
+    query: str,
+    extra_metadata: dict | None = None,
+) -> dict:
     metadata: dict[str, Any] = {}
     if date := extract_date(f"{snippet} {title}", url):
         metadata["published_at"] = date
@@ -82,7 +122,10 @@ def make_result(url: str, title: str, snippet: str, source: str, query: str, ext
         "query": query,
         "metadata": metadata,
     }
+
+
 CHANNEL_METHODS = load_channel_plugins()
+
 
 async def run_single_query(query_obj: dict) -> list[dict]:
     channel = query_obj.get("channel", "web-ddgs")
@@ -95,10 +138,13 @@ async def run_single_query(query_obj: dict) -> list[dict]:
         print(f"[search_runner] unknown channel: {channel}", file=sys.stderr)
         return []
     try:
-        return await asyncio.wait_for(method(query, max_results), timeout=DEFAULT_TIMEOUT)
+        return await asyncio.wait_for(
+            method(query, max_results), timeout=DEFAULT_TIMEOUT
+        )
     except asyncio.TimeoutError:
         print(f"[search_runner] timeout: {channel} '{query}'", file=sys.stderr)
         return []
+
 
 def dedup_results(results: list[dict]) -> list[dict]:
     seen: dict[str, dict] = {}
@@ -113,10 +159,13 @@ def dedup_results(results: list[dict]) -> list[dict]:
             seen[key] = result
     return list(seen.values())
 
+
 async def main(queries: list[dict]) -> None:
     if not queries:
         return
-    results_lists = await asyncio.gather(*(run_single_query(query) for query in queries), return_exceptions=True)
+    results_lists = await asyncio.gather(
+        *(run_single_query(query) for query in queries), return_exceptions=True
+    )
     all_results: list[dict] = []
     for index, result in enumerate(results_lists):
         if isinstance(result, Exception):
@@ -131,6 +180,7 @@ async def main(queries: list[dict]) -> None:
         file=sys.stderr,
     )
 
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python search_runner.py queries.json", file=sys.stderr)
@@ -140,7 +190,13 @@ if __name__ == "__main__":
         )
         sys.exit(2)
     arg = sys.argv[1]
-    raw = sys.stdin.read() if arg == "-" else arg if arg.startswith("[") else Path(arg).read_text()
+    raw = (
+        sys.stdin.read()
+        if arg == "-"
+        else arg
+        if arg.startswith("[")
+        else Path(arg).read_text()
+    )
     try:
         queries = json.loads(raw)
     except json.JSONDecodeError as exc:

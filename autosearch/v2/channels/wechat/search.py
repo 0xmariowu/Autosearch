@@ -60,7 +60,9 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
 
                     snippet = _text(item.xpath('.//p[@class="txt-info"]'))
                     if not snippet:
-                        snippet = _text(item.xpath('.//p[contains(@class, "txt-info")]'))
+                        snippet = _text(
+                            item.xpath('.//p[contains(@class, "txt-info")]')
+                        )
 
                     thumbnails = item.xpath('.//div[@class="img-box"]/a/img/@src')
                     thumbnail = (thumbnails[0] if thumbnails else "").strip()

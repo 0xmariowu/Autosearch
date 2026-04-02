@@ -6,7 +6,6 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
-from autosearch.v2.search_runner import make_result
 
 SearchFunction = Callable[..., Awaitable[list[dict[str, Any]]]]
 
