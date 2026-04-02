@@ -3,6 +3,10 @@ name: gene-query
 description: "Use when you need to expand a task into diverse search queries built from entity, pain_verb, object, symptom, and context genes."
 ---
 
+# Model Recommendation
+
+Query generation is a structured expansion task. Use Haiku when possible — it generates diverse queries effectively at lower cost. When spawning an agent for query generation, set `model: "haiku"`.
+
 # Purpose
 
 Generate queries from five gene dimensions instead of improvising all search text from scratch.
@@ -15,7 +19,7 @@ This restores a reusable query grammar that turns vague tasks into targeted sear
 - `object` = WHAT artifact, tool, concept, or target is involved
 - `symptom` = HOW the problem appears
 - `context` = WHERE or under what condition it happens
-- `content_type` = WHAT KIND of result you want (repo, paper, blog, tutorial, company, video, awesome-list)
+- `content_type` = WHAT KIND of result you want (repo, paper, blog, tutorial, company, video, awesome-list, conference-workshop, company-product, comparison)
 
 Good queries usually need only 2 or 3 dimensions.
 Do not cram all six into every query.
@@ -40,6 +44,27 @@ For each MEDIUM confidence item:
 Do NOT generate queries for HIGH confidence items — those are already in the evidence bundle from own-knowledge.
 
 This is the most efficient use of search budget: every query targets a known gap.
+
+# Mandatory Query Rules
+
+Certain topic types MUST generate specific query types to avoid systematic coverage gaps.
+
+## Academic/research topics
+
+- MUST generate at least 1 query with `content_type=conference-workshop` (e.g., "topic workshop NeurIPS ICML 2025")
+- MUST generate at least 1 query targeting `arxiv` or `semantic-scholar` channel
+
+## Tool/product topics
+
+- MUST generate at least 1 query with `content_type=company-product` (e.g., "topic startup company funding")
+- MUST generate at least 1 query targeting `producthunt` or `crunchbase` channel
+
+## Any topic
+
+- MUST generate at least 1 query targeting `twitter` channel for recent announcements
+- MUST generate at least 1 Chinese-language query if any Chinese channel is selected
+
+These rules exist because AVO analysis found that r005 (commercial companies) and r013 (conference info) consistently fail when these query types are missing.
 
 # Input Sources (General)
 
@@ -123,8 +148,14 @@ Output a JSON array compatible with search_runner.py:
 
 Each entry needs: `channel` (from select-channels output), `query` (the search text), `max_results` (optional, default 10).
 
-For Chinese channels, use Chinese query text. For English channels, use English.
-Keep proper nouns in original language on all channels.
+# Language Adaptation Rules
+
+| Channel | Query language | Example |
+|---|---|---|
+| zhihu, bilibili, csdn, juejin, 36kr, infoq-cn, weibo, xueqiu, xiaoyuzhou, xiaohongshu, douyin, wechat | Chinese | "AI智能体自进化框架" |
+| All other channels | English | "self-evolving AI agent framework" |
+
+Translate the core search intent, don't just transliterate. Keep proper nouns (project names, paper titles) in original language on all channels.
 
 # Quality Bar
 

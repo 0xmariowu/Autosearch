@@ -41,6 +41,12 @@ If a prior entry has `expected_flips` that appear in the current session's rubri
 - if a rubric flipped, record that the prior evolution was validated
 - if a rubric did not flip, record that the prior evolution failed verification
 
+If a prior evolution modified `state/channel-scores.jsonl`:
+- Check whether the affected channel's results improved in the current session
+- Compare: did the channel return more relevant results this time?
+- If yes, mark the evolution as validated
+- If no (channel still underperforming), consider reverting the score change
+
 If a prior change had no verified positive effect, consider `git revert` for that commit before making a new change.
 Only revert when the evidence is clear and the revert will not undo unrelated work.
 Record the verification result in the new evolution entry.
@@ -85,15 +91,13 @@ Read the relevant mutable skill or state file first so the diagnosis reflects cu
 
 Diagnosis map:
 
-| Category failed | Likely root cause | Where to look |
-|---|---|---|
-| information-recall | Wrong channels selected | `autosearch/v2/skills/select-channels.md`, `autosearch/v2/state/channel-scores.jsonl` |
-| information-recall | Queries missed the target | `autosearch/v2/skills/gene-query.md`, patterns |
-| information-recall | Results found but not synthesized | `autosearch/v2/skills/synthesize-knowledge.md` |
-| analysis | Synthesis lacks analysis instructions | `autosearch/v2/skills/synthesize-knowledge.md` |
-| analysis | No comparison or trend framework | `autosearch/v2/skills/synthesize-knowledge.md` |
-| presentation | Missing structure rules | `autosearch/v2/skills/synthesize-knowledge.md` |
-| presentation | Citation rules not followed | `autosearch/v2/skills/synthesize-knowledge.md` |
+| Category failed | Root cause | First action (data) | Second action (skill rule) |
+|---|---|---|---|
+| information-recall: wrong channels | channel-scores.jsonl outdated | Update `state/channel-scores.jsonl` — increase/decrease scores | Add topic→channel rule in `select-channels.md` |
+| information-recall: query missed | Missing query type | Add mandatory query rule in `gene-query.md` | Add pattern to `state/patterns-v2.jsonl` |
+| information-recall: found but not synthesized | Synthesis dropped results | Add citation enforcement rule in `synthesize-knowledge.md` | — |
+| analysis: insufficient depth | Missing analysis template | Add analysis requirement in `synthesize-knowledge.md` | — |
+| presentation: URL missing | Citation rules too weak | Strengthen citation rules in `synthesize-knowledge.md` | — |
 
 Write a one-line diagnosis that names the concrete failure mode.
 Good diagnosis: `product topics were not forcing Product Hunt, so commercial launch coverage was missing`.
@@ -107,6 +111,15 @@ Allowed change types:
 - update weights in `autosearch/v2/state/channel-scores.jsonl`
 - add one pattern entry to `autosearch/v2/state/patterns-v2.jsonl`
 - add analysis or presentation instructions to `autosearch/v2/skills/synthesize-knowledge.md`
+
+### Evolution priority order
+
+When multiple changes could fix the target rubrics, prefer:
+1. **Data file update** (`state/channel-scores.jsonl`, `state/patterns-v2.jsonl`) — most precise, easiest to verify and revert
+2. **Specific rule addition** (add one heuristic/rule to a skill) — targeted, testable
+3. **Structural change** (rewrite a skill section) — last resort, hardest to verify
+
+Data-driven evolution > rule-based evolution > structural evolution.
 
 Rules:
 - modify only ONE file
