@@ -32,7 +32,7 @@ A self-improving search system. The human provides intent. The AI does everythin
 
 2. Don't rank by engagement alone. Instead, use LLM relevance scoring to separate signal from popularity. Because: a 10-like post with a specific rule violation is more valuable than a 1000-like cheatsheet — engagement measures attention, not goal-match.
 
-3. Don't just score results and move on. Instead, after each round, reflect: what patterns appear in high-scoring queries? What angles haven't produced results? What failed? Because: reflection is what turns random search into directed search — without it, the system never learns within a session.
+3. Don't just score results and move on. Instead, after each round, write a reflection block to the session log: (a) top 3 patterns from high-scoring queries, (b) angles that returned zero results, (c) one hypothesis for next round. Because: reflection is what turns random search into directed search — without it, the system never learns within a session.
 
 4. Don't skip Phase 3 (post-mortem). Instead, let the engine write winning/losing patterns to `patterns.jsonl` after every session. Because: the outer loop is what makes this system self-improving — skipping it means next session starts no smarter than this one.
 
@@ -62,39 +62,23 @@ A self-improving search system. The human provides intent. The AI does everythin
 
 ## Cross-directory relationships
 
-```
-search-methodology (principles + methods + platform knowledge)
-       | guides
-autosearch (execution code)
-       | finds repos
-Armory (analyzes + indexes)
-       | stores docs
-AIMD
-```
+- **Methodology** → `docs/methodology/principles.md` (evidence standards), `platforms/*.md` (per-platform patterns)
+- **Armory dependency**: `pipeline.py` calls scripts from `/Volumes/4TB/Armory/scripts/scout/` + reads `queries.json`, `state.json`. Don't remove without updating pipeline.py.
+- **Canonical copy**: `~/Projects/autosearch/` is source of truth. Armory copy is rsync artifact.
+- **Findings output**: Armory-worthy repos → `/Volumes/4TB/AIMD/recs/master.md`. Session docs → AIMD.
+- **Before searching**: check `/Volumes/4TB/Armory/when-blocks.jsonl` for existing knowledge.
 
-- **From search-methodology**: Read `autosearch/docs/methodology/principles.md` for evidence standards. Read `platforms/*.md` for per-platform patterns. These guide how queries are designed.
-- **To search-methodology**: After each session, check if `patterns.jsonl` findings should sync to `autosearch/docs/methodology/platforms/*.md`.
-- **Depends on Armory/scripts/scout/**: `pipeline.py` calls `score-and-stage.js`, `auto-intake.sh`, `send-email.sh` from `/Volumes/4TB/Armory/scripts/scout/`. It also reads `queries.json` (seed genes) and `state.json` (dedup state) from there. Don't remove these dependencies without updating pipeline.py. Because: pipeline.py fails silently without them.
-- **Canonical copy**: `~/Projects/autosearch/` is the source of truth.
-- **Findings to Armory**: Valuable repos/articles found during search go to `/Volumes/4TB/AIMD/recs/master.md` (not directly to Armory). Because: Armory intake has its own review protocol.
-- **Findings to AIMD**: Session analysis docs go to AIMD under the relevant project.
-- **From Armory**: Before searching, check `/Volumes/4TB/Armory/when-blocks.jsonl` for existing knowledge on the topic. Because: re-searching what Armory already knows wastes API calls and produces duplicates.
+## Session Protocol — After completing a search session
 
-## After completing a search session
-
-1. Verify Phase 3 (post-mortem) ran — `patterns.jsonl` should have new entries.
-2. Verify `evolution.jsonl` has new session entries.
-3. If findings are Armory-worthy, append to `/Volumes/4TB/AIMD/recs/master.md`.
-4. If the session produced a design/analysis doc, store in AIMD.
-5. Check if new `patterns.jsonl` entries should sync to `docs/methodology/platforms/*.md` — new validated patterns get added, failed patterns get added to Known Failures.
-6. If a new search technique was discovered, write a `docs/methodology/methods/` file per its CLAUDE.md write protocol.
-7. Write experience note to `experience/{YYYY-MM-DD}-{topic}.md`.
-8. Update `AIMD/experience/INDEX.jsonl` (path relative to Dev/ root).
-9. If anything changed beyond search runs (code, rules, architecture): prepend entry to `CHANGELOG.md`.
+1. Verify `patterns.jsonl` and `evolution.jsonl` have new entries (Phase 3 ran).
+2. Armory-worthy findings → `/Volumes/4TB/AIMD/recs/master.md`. Analysis docs → AIMD.
+3. Sync patterns to `docs/methodology/platforms/*.md`: win_rate ≥ 0.6 across 3+ sessions → add; win_rate = 0 across 3+ sessions → Known Failures.
+4. Write experience note to `experience/{YYYY-MM-DD}-{topic}.md`, update `AIMD/experience/INDEX.jsonl`.
+5. If code/config/CLAUDE.md changed (not just search data): prepend to `CHANGELOG.md`.
 
 ## v2.2 rules (unified architecture: V1 capabilities + V2 evolvability)
 
-12. Don't modify `judge.py` or `PROTOCOL.md` without explicit user authorization. These are the fixed contracts. judge.py is the scoring function f (AVO paper §3.1). PROTOCOL.md is the operating protocol. Because: if AVO can change its own evaluation or rules, behavior becomes unpredictable. Exception: judge.py was authorized to add `knowledge_growth` dimension on 2026-03-31 to enable multi-session cumulative evaluation. AVO still MUST NOT modify judge.py on its own.
+12. Don't modify `judge.py` or `PROTOCOL.md` without explicit user authorization. These are the fixed contracts. judge.py is the scoring function f (AVO paper §3.1). PROTOCOL.md is the operating protocol. Because: if AVO can change its own evaluation or rules, behavior becomes unpredictable. Exception: adding new scoring dimensions requires explicit user authorization per instance. AVO MUST NOT modify judge.py on its own.
 
 13. Don't modify meta-skills: `create-skill.md`, `observe-user.md`, `extract-knowledge.md`, `interact-user.md`, `discover-environment.md`. These define HOW to evolve, not WHAT to evolve. AVO can modify all OTHER skills. Because: meta-skills are the "DNA replication machinery" — evolution changes genes, not the replication mechanism.
 
@@ -102,39 +86,7 @@ AIMD
 
 15. Skill changes during AVO go through `git commit`. Failed changes get `git revert`. Because: git history IS the lineage P_t that AVO uses to learn from failures.
 
-16. Skill format standard (compatible with Claude Code Agent Skills spec + superpowers). AVO MUST follow these rules when creating or modifying skills:
-
-**File**: `autosearch/v2/skills/{name}.md` — one file per skill, flat directory.
-
-**Name rules** (enforced, not optional):
-- Lowercase a-z, 0-9, hyphens only. Regex: `^[a-z0-9]+(-[a-z0-9]+)*$`
-- Max 64 characters
-- No consecutive hyphens (`--`), no leading/trailing hyphens
-- Name must match the filename (without `.md`)
-- Bad: `My_Skill.md`, `UPPERCASE.md`, `search tool.md`. Good: `normalize-results.md`, `llm-evaluate.md`
-
-**Frontmatter** (YAML between `---` markers, required):
-```yaml
----
-name: skill-name
-description: "When to use this skill. Front-load the trigger condition. Max 250 chars for the key sentence."
----
-```
-- `name`: required, must match filename
-- `description`: required, max 1024 chars. First sentence must state WHEN to use the skill, not WHAT it does internally. Because: description IS the dispatch mechanism — Claude reads it to decide whether to load the skill.
-
-**Body** (free-form markdown):
-- Strategy guide for a capable agent, not bash template for a dumb executor
-- Max 500 lines recommended. If longer, the skill is trying to do too much — split it.
-- Must have a `# Quality Bar` section at the end defining what "working correctly" looks like
-- No required sections beyond that — structure serves the content, not a template
-
-**What skills are NOT**:
-- Not executable scripts (Claude reads them, not a parser)
-- Not config files (use state/config.json for parameters)
-- Not documentation (use docs/ for that)
-
-Because: without format constraints, AVO will drift — creating skills with bad names, empty descriptions, 2000-line monsters, or files that are half code half prose. The constraints keep skills small, discoverable, and evolvable.
+16. Skill format: `v2/skills/{name}.md`, one file per skill, flat directory. Name: lowercase a-z, 0-9, hyphens, max 64 chars, matches filename. Frontmatter: `name` + `description` (first sentence = WHEN to use, not what it does). Body: strategy guide, max 500 lines, ends with `# Quality Bar`. Full spec: `docs/skill-format-standard.md`. Because: without format constraints, AVO drifts toward bad names and 2000-line monsters.
 
 17. Use Python 3.11+ to run `judge.py` and tests. System python3 may be 3.9 which lacks union type syntax.
 
@@ -144,7 +96,4 @@ Because: without format constraints, AVO will drift — creating skills with bad
 
 20. AVO self-evolution MUST be validated separately from search quality. Search quality tests (like F006) prove the pipeline works. Evolution tests prove the system improves itself. An evolution test requires: (a) baseline score, (b) agent-initiated skill modification, (c) re-score showing improvement, (d) git commit on improvement, (e) git revert on regression, (f) pattern written to state. Without this test passing, AutoSearch is a search agent, not a self-evolving search agent.
 
----
-
-For V1 code reference, see `engine.py`, `goal_judge.py`, `goal_loop.py`, `outcomes.py`.
-For v2.2 architecture, see `autosearch/v2/PROTOCOL.md` (the protocol) and `autosearch/v2/skills/` (flat skill directory).
+V1 reference: `engine.py`, `goal_judge.py`, `goal_loop.py`, `outcomes.py`. V2.2: `v2/PROTOCOL.md` + `v2/skills/`.
