@@ -3,6 +3,22 @@ name: pipeline-flow
 description: "Use at the start of every AutoSearch session to follow the correct 7-phase pipeline. Ensures rubric-defined quality, Claude-first architecture, gap-driven search, and AVO evolution."
 ---
 
+# Model Routing
+
+Not all phases need the same model. Use cheaper models for structured/batch tasks:
+
+| Phase | Model | Reason |
+|---|---|---|
+| Phase 1: Own knowledge | Session model | Needs full reasoning |
+| Phase 2: Generate queries | Haiku | Structured expansion, no deep reasoning needed |
+| Phase 3: Search + evaluate | Haiku for scoring | Batch classification task |
+| Phase 4: Reflect on gaps | Session model | Needs reasoning about what's missing |
+| Phase 5: Synthesize | Sonnet | Quality-critical, needs strong writing |
+| Phase 6: Check rubrics | Haiku | Pass/fail classification |
+| Phase 7: AVO evolution | Sonnet | Needs diagnostic reasoning |
+
+When spawning agents for batch tasks (scoring, rubric checking), use `model: "haiku"`.
+
 # Purpose
 
 This skill defines the 7-phase pipeline that makes AutoSearch produce results better than native Claude. Follow these phases in order.
@@ -74,6 +90,15 @@ Do NOT re-run normalize or extract-dates — search_runner.py already handled th
 After Phase 3, you should have evaluated search results ready for synthesis.
 
 # Phase 4: Synthesize + Deliver
+
+### Citation Lock (before synthesis)
+
+Compile all search result URLs into a numbered reference list:
+[1] Title — URL
+[2] Title — URL
+...
+
+This list is the ONLY source of URLs for the synthesis phase. Pass it to synthesize-knowledge.md as the citation index.
 
 1. Run `synthesize-knowledge.md` to produce the delivery:
    - Blend knowledge backbone (Phase 1) with search discoveries (Phase 2-3)
