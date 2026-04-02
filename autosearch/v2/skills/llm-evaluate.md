@@ -3,6 +3,10 @@ name: llm-evaluate
 description: "Use after collecting raw results when you need semantic relevance judgment instead of keyword overlap."
 ---
 
+# Model Recommendation
+
+This is a batch scoring task. Use Haiku when possible — it handles relevance classification well at much lower cost. When spawning an agent for scoring, set `model: "haiku"`.
+
 # Purpose
 
 Use this skill to decide whether a result found the right thing, not merely matching words from the query.
