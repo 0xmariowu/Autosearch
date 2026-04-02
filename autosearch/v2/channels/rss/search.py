@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from autosearch.v2.search_runner import search_ddgs_web
+from autosearch.v2.channels._engines.ddgs import search_ddgs_web
 
 
 async def search(query: str, max_results: int = 10) -> list[dict]:
