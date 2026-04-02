@@ -3,9 +3,8 @@ from __future__ import annotations
 import asyncio
 import sys
 
+
 import httpx
-from dateutil import parser as date_parser
-from lxml import html as lxml_html
 
 from autosearch.v2.search_runner import DEFAULT_TIMEOUT, make_result
 
@@ -20,8 +19,16 @@ USER_AGENT = (
 
 
 def _safe_isoformat(value: str) -> str | None:
+    """Parse ISO 8601 dates without external deps."""
+    if not value:
+        return None
     try:
-        return date_parser.parse(value).isoformat()
+        # npm dates are like "2024-03-15T10:30:00.000Z"
+        # PyPI dates are like "2024-03-15T10:30:00+00:00"
+        cleaned = value.strip()
+        if re.match(r"\d{4}-\d{2}-\d{2}", cleaned):
+            return cleaned
+        return None
     except Exception:
         return None
 
@@ -93,76 +100,68 @@ async def _search_npm(query: str, max_results: int) -> list[dict]:
 
 async def _search_pypi(query: str, max_results: int) -> list[dict]:
     results: list[dict] = []
-    total_pages = max(1, (max_results + PYPI_PAGE_SIZE - 1) // PYPI_PAGE_SIZE)
 
     try:
         async with httpx.AsyncClient(
             timeout=DEFAULT_TIMEOUT,
             headers={"User-Agent": USER_AGENT},
         ) as client:
-            for page in range(1, total_pages + 1):
-                response = await client.get(
-                    f"{PYPI_BASE_URL}/search/",
-                    params={"q": query, "page": page},
+            response = await client.get(
+                f"{PYPI_BASE_URL}/search/",
+                params={"q": query, "page": 1},
+            )
+            response.raise_for_status()
+            text = response.text
+
+            # Parse package snippets with regex (no lxml dependency)
+            snippets = re.findall(
+                r'<a\s+class="package-snippet"\s+href="(/project/[^"]+/)"[^>]*>'
+                r"(.*?)</a>",
+                text,
+                re.DOTALL,
+            )
+
+            for href, snippet_html in snippets:
+                name_match = re.search(
+                    r"package-snippet__name[^>]*>([^<]+)", snippet_html
                 )
-                response.raise_for_status()
-                dom = lxml_html.fromstring(response.text)
-                entries = dom.xpath(
-                    '/html/body/main/div/div/div/form/div/ul/li/a[@class="package-snippet"]'
+                version_match = re.search(
+                    r"package-snippet__version[^>]*>([^<]+)", snippet_html
                 )
-                if not entries:
-                    break
+                desc_match = re.search(
+                    r"package-snippet__description[^>]*>([^<]*)", snippet_html
+                )
+                date_match = re.search(r'datetime="([^"]+)"', snippet_html)
 
-                for entry in entries:
-                    href = "".join(entry.xpath("./@href")).strip()
-                    name = "".join(
-                        text.strip()
-                        for text in entry.xpath(
-                            './h3/span[@class="package-snippet__name"]/text()'
-                        )
-                        if text.strip()
-                    )
-                    version = "".join(
-                        text.strip()
-                        for text in entry.xpath(
-                            './h3/span[@class="package-snippet__version"]/text()'
-                        )
-                        if text.strip()
-                    )
-                    description = " ".join(
-                        text.strip() for text in entry.xpath("./p//text()") if text.strip()
-                    )
-                    published_at = "".join(
-                        text.strip()
-                        for text in entry.xpath(
-                            './h3/span[@class="package-snippet__created"]/time/@datetime'
-                        )
-                        if text.strip()
-                    )
-                    if not href or not name:
-                        continue
+                name = name_match.group(1).strip() if name_match else ""
+                if not name:
+                    continue
 
-                    metadata = {
-                        "ecosystem": "pypi",
-                        "package_name": name,
-                        "version": version,
-                    }
-                    parsed_date = _safe_isoformat(published_at)
-                    if parsed_date:
-                        metadata["published_at"] = parsed_date
+                version = version_match.group(1).strip() if version_match else ""
+                description = desc_match.group(1).strip() if desc_match else ""
+                published_at = date_match.group(1).strip() if date_match else ""
 
-                    results.append(
-                        make_result(
-                            url=f"{PYPI_BASE_URL}{href}",
-                            title=name,
-                            snippet=description,
-                            source="npm-pypi",
-                            query=query,
-                            extra_metadata=metadata,
-                        )
+                metadata: dict[str, str] = {
+                    "ecosystem": "pypi",
+                    "package_name": name,
+                    "version": version,
+                }
+                parsed_date = _safe_isoformat(published_at)
+                if parsed_date:
+                    metadata["published_at"] = parsed_date
+
+                results.append(
+                    make_result(
+                        url=f"{PYPI_BASE_URL}{href}",
+                        title=name,
+                        snippet=description,
+                        source="npm-pypi",
+                        query=query,
+                        extra_metadata=metadata,
                     )
-                    if len(results) >= max_results:
-                        return results[:max_results]
+                )
+                if len(results) >= max_results:
+                    return results[:max_results]
 
         return results[:max_results]
     except Exception as exc:
