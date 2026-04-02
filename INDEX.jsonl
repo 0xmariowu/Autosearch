@@ -1,0 +1,15 @@
+{"file":"CLAUDE.md","type":"config","status":"active","tags":["rules","project-config"]}
+{"file":"CHANGELOG.md","type":"docs","status":"active","tags":["changelog"]}
+{"file":"HANDOFF.md","type":"docs","status":"active","tags":["handoff"]}
+{"file":"pipeline.py","type":"code","status":"active","tags":["pipeline","main-entry"]}
+{"file":"engine.py","type":"code","status":"active","tags":["v1","search-engine"]}
+{"file":"cli.py","type":"code","status":"active","tags":["cli","entry"]}
+{"file":"avo.py","type":"code","status":"active","tags":["avo","self-evolution"]}
+{"file":"orchestrator.py","type":"code","status":"active","tags":["orchestration"]}
+{"file":"autosearch/","type":"code","status":"active","tags":["v2","modular"]}
+{"file":"genome/","type":"data","status":"active","tags":["avo","gene-pool"]}
+{"file":"docs/","type":"docs","status":"active","tags":["methodology","design"]}
+{"file":"config/","type":"config","status":"active","tags":["configuration"]}
+{"file":"patterns.jsonl","type":"data","status":"active","tags":["patterns","append-only"]}
+{"file":"evolution.jsonl","type":"data","status":"active","tags":["evolution","append-only"]}
+{"file":"experience/","type":"docs","status":"active","tags":["session-notes"]}
