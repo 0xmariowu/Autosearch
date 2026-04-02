@@ -1,24 +1,28 @@
 ---
 name: google-scholar
-description: "Use this channel for Google Scholar search when academic papers, citations, authors, journals, and publisher metadata are the main evidence you need."
+description: "Finds scholarly papers and citation-linked academic records from Google Scholar."
 categories: [academic]
 platform: scholar.google.com
 api_key_required: false
 aliases: []
 ---
 
-## When to use
+## Content types
 
-Use when the query is research-oriented and Google Scholar is likely to surface papers, preprints, book chapters, or citation-linked scholarly results that broad web search would miss.
+Academic papers, preprints, books, theses, and publisher-linked scholarly records surfaced through Google Scholar. It is broader than most single-source paper indexes and often connects multiple versions of the same work.
+
+## Language
+
+Primarily English. Some multilingual academic content appears, but English query terms usually work best.
+
+## Best for
+
+Finding older or established papers, broad academic search across publishers, and catching important scholarly work that may not rank as well in more specialized paper APIs. It is especially useful when you want breadth across academic sources.
+
+## Blind spots
+
+It still does not provide code, tutorials, or practitioner explanations. Metadata quality is uneven, search can be noisy, and the source mixes many document types, so not every hit is a clean peer-reviewed paper.
 
 ## Quality signals
 
-- Strong title and abstract-style snippet match
-- Recognizable authors, journal names, or publishers
-- Citation links and document links such as PDF mirrors
-
-## Known limits
-
-- Google Scholar can trigger redirects or CAPTCHA blocks
-- HTML structure is brittle and may change without notice
-- Citation and suggestion blocks are not full-paper results
+Citation count is the strongest signal. Recognizable venues, author names, and versions linked to reputable publishers or PDF sources make a result more credible than a vague low-citation match.

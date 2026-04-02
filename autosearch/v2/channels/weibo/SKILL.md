@@ -1,24 +1,28 @@
 ---
 name: weibo
-description: "Use this channel for Weibo search when Chinese social reactions, trending discussion, or public commentary are likely to contain the strongest evidence."
+description: "Finds Weibo posts and social chatter about Chinese public topics, brands, and trends."
 categories: [social, chinese-social]
 platform: weibo.com
 api_key_required: false
 aliases: []
 ---
 
-## When to use
+## Content types
 
-Use when the query benefits from Chinese social chatter, public reactions, trend tracking, or fast-moving discourse that is likely to surface on Weibo.
+Chinese short social posts, reactions, trend chatter, and public commentary from Weibo. The content is fast-moving and heavily shaped by platform virality.
+
+## Language
+
+Chinese only. This channel is built around Chinese social discourse and is not useful for English technical search.
+
+## Best for
+
+Chinese public sentiment, trending tech topics in China, and fast reaction monitoring around brands, launches, or controversies. It is mainly a pulse-check source.
+
+## Blind spots
+
+Noise is extreme, technical depth is low, and context disappears quickly. This is not a serious channel for precise technical questions, reliable sourcing, or durable explanation.
 
 ## Quality signals
 
-- Clear entity overlap with names, brands, or event terms
-- Snippets that show specific claims rather than generic discussion
-- Recent result timestamps for active topics
-
-## Known limits
-
-- Results depend on Baidu indexing quality for Weibo
-- Social posts are noisy and often lack durable context
-- Ranking can skew toward viral rather than reliable posts
+Quality is poor overall, so specificity matters. Posts that mention exact entities or claims are more useful than generic trend chatter, but even then results should be treated as weak evidence.

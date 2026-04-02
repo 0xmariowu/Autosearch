@@ -1,24 +1,28 @@
 ---
 name: xueqiu
-description: "Use this channel for Xueqiu search when Chinese investment discussion, market commentary, or company analysis is likely to provide the strongest evidence."
+description: "Finds Chinese investment posts and company analysis from Xueqiu."
 categories: [business, finance, chinese-social]
 platform: xueqiu.com
 api_key_required: false
 aliases: []
 ---
 
-## When to use
+## Content types
 
-Use when the query is about Chinese equities, investor sentiment, company analysis, or market commentary that is likely to be discussed on Xueqiu.
+Chinese investment commentary, stock discussions, company analysis, and market-view posts from Xueqiu. The content is finance-first, even when the company is a tech company.
+
+## Language
+
+Chinese only for practical use. Chinese company names, tickers, and market terms work best.
+
+## Best for
+
+Chinese company financial analysis, stock-market views on tech companies, and investor sentiment around listed firms. It is useful when the lens is valuation, earnings, or market perception rather than product or engineering.
+
+## Blind spots
+
+It is limited to the finance and investment angle. It does not help with technical implementation, product architecture, or neutral business reporting, and some posts are pure speculation.
 
 ## Quality signals
 
-- Recognizable tickers, company names, or sector terms
-- Snippets that contain concrete analysis instead of hype
-- Recent posts for market-sensitive questions
-
-## Known limits
-
-- Results depend on Baidu indexing quality for Xueqiu
-- Community commentary can mix strong analysis with speculation
-- Snippets may not capture charts, threads, or follow-up context
+Quality varies widely. Posts with specific financial reasoning, ticker precision, and concrete business metrics are much stronger than hype-driven commentary or vague bullish narratives.

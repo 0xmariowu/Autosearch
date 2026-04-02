@@ -1,24 +1,28 @@
 ---
 name: xiaoyuzhou
-description: "Use this channel for Xiaoyuzhou search when Chinese podcast episodes, host discussions, or show notes are likely to provide the strongest evidence."
+description: "Finds Xiaoyuzhou podcast episode pages and related Chinese audio discussions."
 categories: [audio, chinese-social]
 platform: xiaoyuzhoufm.com
 api_key_required: false
 aliases: []
 ---
 
-## When to use
+## Content types
 
-Use when the query is likely to be answered by Chinese podcast episodes, creator commentary, interview discussions, or episode pages indexed from Xiaoyuzhou.
+Chinese podcast episode pages, host discussions, interview episodes, and show-note style metadata from Xiaoyuzhou. The underlying content is audio, so searchable text is limited and indirect.
+
+## Language
+
+Chinese only. Search quality depends on matching Chinese episode titles, hosts, or themes.
+
+## Best for
+
+Chinese tech podcast discussions, interviews, and occasional long-form audio conversations around industry topics. It is useful when you specifically want podcast-format coverage.
+
+## Blind spots
+
+The content base is small, and text search over audio metadata is inherently imprecise. It is a niche channel that will miss most topics and is weak for exact fact lookup.
 
 ## Quality signals
 
-- Strong overlap with podcast titles, hosts, or episode themes
-- Snippets that suggest episode summaries or show-note text
-- Recent indexing for active shows and current topics
-
-## Known limits
-
-- Results depend on Baidu indexing quality for Xiaoyuzhou
-- Audio-first content may have sparse text snippets
-- Episode pages can be harder to rank precisely for niche queries
+This channel is niche but can be valuable when the match is exact. Strong episode-title overlap, recognizable hosts, and snippets that clearly reference the topic are the best available signals.

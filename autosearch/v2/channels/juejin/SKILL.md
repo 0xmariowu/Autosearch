@@ -1,24 +1,28 @@
 ---
 name: juejin
-description: "Use this channel for Juejin search when Chinese engineering blog posts, frontend articles, or practical build notes are likely to be the strongest evidence."
+description: "Finds Chinese tech blog posts and tutorials from Juejin, especially practical engineering articles."
 categories: [developer, chinese-tech]
 platform: juejin.cn
 api_key_required: false
 aliases: []
 ---
 
-## When to use
+## Content types
 
-Use when the query is likely to be answered by Chinese technical blog posts, engineering walkthroughs, or product-development notes published on Juejin.
+Chinese technical blog posts, tutorials, frontend and backend engineering notes, and architecture discussions published on Juejin. Compared with broader blogs, it tends to skew toward hands-on developer writing.
+
+## Language
+
+Chinese only for reliable use. Chinese tech vocabulary and framework names work best.
+
+## Best for
+
+Chinese frontend or backend tutorials, practical engineering writeups, and architecture discussions from active developers. It is often a better Chinese blog source than CSDN when you want somewhat higher average quality.
+
+## Blind spots
+
+It is still noisy, still engagement-driven, and still full of repetitive topic churn. It is not a strong source for academic work, primary documentation, or anything that depends on rigorous editorial standards.
 
 ## Quality signals
 
-- Strong overlap with framework names, libraries, or engineering terms
-- Snippets that imply hands-on implementation detail
-- Recent posts for toolchain or ecosystem topics
-
-## Known limits
-
-- Results depend on Baidu indexing quality for Juejin
-- High-engagement posts can outrank more precise niche articles
-- Snippets may omit code-heavy parts of the original post
+Likes are the clearest visible signal. Results with precise titles, concrete technical terms, and authors who clearly built or measured something are better than generic trend-chasing posts.

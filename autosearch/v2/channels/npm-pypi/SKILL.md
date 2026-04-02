@@ -1,24 +1,28 @@
 ---
 name: npm-pypi
-description: "Use this channel for package discovery across npm and PyPI when libraries, package metadata, versions, and repository links matter more than general web pages."
+description: "Finds npm and PyPI package listings with package names, descriptions, and version metadata."
 categories: [developer]
 platform: npms.io
 api_key_required: false
 aliases: []
 ---
 
-## When to use
+## Content types
 
-Use when the query is about libraries, SDKs, frameworks, or package names and you want direct registry evidence from the JavaScript and Python ecosystems.
+Package registry listings from npm and PyPI with names, descriptions, versions, and basic package metadata. This channel is about package existence and identity, not about how to use the package.
+
+## Language
+
+Mostly English because package names and descriptions are usually English-like identifiers. Code ecosystem terms work better than natural-language questions.
+
+## Best for
+
+Finding libraries or packages by function, checking whether a package exists, and narrowing down likely candidates before reading docs or repos. It is good for "is there a package for X" and "what is the exact package name" queries.
+
+## Blind spots
+
+It does not provide usage guides, tutorials, package comparisons, or nuanced quality judgments. Search results are just listings, so a package showing up here does not mean it is maintained, safe, or widely adopted.
 
 ## Quality signals
 
-- Package names that closely match the query
-- Descriptions, versions, and publish dates that look current
-- Homepage or repository links that point to an active upstream project
-
-## Known limits
-
-- Results merge npm and PyPI and are not cross-ecosystem deduplicated
-- PyPI metadata is parsed from HTML and can break if markup changes
-- Registry ranking may prioritize name overlap over package quality
+Download count is the best signal when available, though it may not always appear in results. Recent versions, clear descriptions, and links to active upstream repos are better signs than name similarity alone.

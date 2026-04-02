@@ -1,24 +1,28 @@
 ---
 name: 36kr
-description: "Use this channel for 36Kr search when Chinese tech business reporting, startup coverage, or market news is likely to provide the strongest evidence."
+description: "Finds Chinese tech-business news articles, startup coverage, and market analysis from 36Kr."
 categories: [news, business, chinese-tech]
 platform: 36kr.com
 api_key_required: false
 aliases: []
 ---
 
-## When to use
+## Content types
 
-Use when the query involves Chinese startups, funding, product launches, company strategy, or broader tech-business reporting where 36Kr is a likely source.
+Chinese tech-business news, startup reporting, funding stories, company strategy coverage, and market analysis from 36Kr. The content is business-oriented rather than deeply technical.
+
+## Language
+
+Chinese only. Queries should use Chinese company names, sectors, and business terms for best results.
+
+## Best for
+
+Chinese startup ecosystem research, funding rounds, market positioning, and business strategy questions. It is a good fit when the core question is commercial rather than technical.
+
+## Blind spots
+
+It does not provide technical depth, code, architecture detail, or rigorous product evaluation. Coverage is also skewed toward high-visibility startup and business narratives, which means hype is part of the channel.
 
 ## Quality signals
 
-- Recognizable company names and business terms in the title
-- Snippets that mention funding rounds, launches, or market context
-- Recent timestamps for news-driven topics
-
-## Known limits
-
-- Results depend on Baidu indexing quality for 36Kr
-- Breaking news coverage may lag if indexing is delayed
-- Snippets can be thin for article pages behind heavy layouts
+Quality varies, so prioritize recognizable company names, concrete funding or strategy details, and recent timestamps. Strong title specificity is a better signal than general market buzz.

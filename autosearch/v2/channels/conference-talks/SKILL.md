@@ -1,24 +1,28 @@
 ---
 name: conference-talks
-description: "Use this channel when the query is likely to be best answered by conference talks, keynote videos, or recorded presentations."
+description: "Finds conference and keynote-style YouTube videos related to a topic."
 categories: [developer, video]
 platform: youtube.com
 api_key_required: false
 aliases: []
 ---
 
-## When to use
+## Content types
 
-Use when you want conference presentations, keynote talks, meetup recordings, or speaker sessions that are likely hosted on YouTube.
+Conference presentations, keynote recordings, meetup talks, and event videos pulled from YouTube with a conference-oriented bias. It is essentially a filtered subset of YouTube results aimed at talks rather than generic videos.
+
+## Language
+
+English primarily. This channel is tuned for English conference metadata and speaker naming patterns.
+
+## Best for
+
+Finding conference presentations on a topic, especially when the user wants speaker sessions rather than tutorials or product marketing videos. It works well for event-driven discovery across technical domains.
+
+## Blind spots
+
+It only sees a subset of YouTube and will miss talks that do not mention conference-like words in the metadata. It also ignores non-YouTube hosting, so many relevant talks are simply out of scope.
 
 ## Quality signals
 
-- Conference, event, or speaker names appear directly in the title
-- Video metadata suggests a full talk rather than a short clip
-- Recognizable event brands or official channel uploads are present
-
-## Known limits
-
-- Results inherit YouTube ranking and indexing noise
-- The fixed query prefix may over-bias toward keynote-style content
-- Some relevant talks live on platforms other than YouTube
+Use the same signals as YouTube, with extra weight on official conference channels, recognizable event brands, and titles that clearly indicate a full talk rather than a clip or trailer.

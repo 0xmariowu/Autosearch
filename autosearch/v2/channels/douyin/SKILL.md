@@ -1,24 +1,28 @@
 ---
 name: douyin
-description: "Use this channel when the query is likely to be best answered by Douyin videos, creators, or Chinese short-form clips."
+description: "Finds Douyin short-video pages and related indexed Chinese social video content."
 categories: [video, chinese-social]
 platform: douyin.com
 api_key_required: false
 aliases: []
 ---
 
-## When to use
+## Content types
 
-Use when the query is likely to surface relevant Douyin creators, short videos, product demos, event clips, or Chinese-language trend content.
+Short-video pages, creator posts, and indexed Douyin clips discovered through web search. The visible metadata is usually thin because the actual content is audiovisual and short-form.
+
+## Language
+
+Chinese only. Search works mainly when the query matches Chinese names, products, or trend terms.
+
+## Best for
+
+Trending Chinese video content and quick checks for whether a topic is surfacing on Douyin. It can help with public-trend reconnaissance more than with factual research.
+
+## Blind spots
+
+Text search over short video content is imprecise, technical depth is very low, and entertainment noise dominates many queries. This is a weak channel for developer research or anything requiring exact retrieval.
 
 ## Quality signals
 
-- Titles and snippets closely match the target product, person, or topic
-- Results appear to come from official or recognizable creator accounts
-- Recent indexing matters for trend-sensitive or consumer topics
-
-## Known limits
-
-- Results depend on Baidu indexing quality for Douyin pages
-- Snippets are often sparse and may not reflect the full video content
-- Short-form entertainment noise can overwhelm niche searches
+Quality is poor for technical topics. Exact title/entity overlap and recognizable official accounts help a bit, but most results still need skeptical handling.

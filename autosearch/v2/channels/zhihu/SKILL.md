@@ -1,24 +1,28 @@
 ---
 name: zhihu
-description: "Use this channel for Chinese-language Zhihu search when technical Q&A, practitioner explanations, or experience reports are likely to be the strongest evidence."
+description: "Finds Zhihu questions and answers in Chinese, including long-form explanations and practitioner opinions."
 categories: [developer, chinese-tech]
 platform: zhihu.com
 api_key_required: false
 aliases: []
 ---
 
-## When to use
+## Content types
 
-Use when the query is likely to be answered by Zhihu posts, technical discussions, or experience-based Chinese Q&A rather than general web pages.
+Chinese Q&A pages, long-form answers, explainers, opinionated comparisons, and practitioner experience reports. Zhihu content often sits between forum discussion and essay-style writing.
+
+## Language
+
+Chinese only in any useful sense. English queries are the wrong fit unless they contain proper nouns that also appear in Chinese results.
+
+## Best for
+
+Chinese-language technical explanations, practitioner perspectives, and "how does X work" style answers in a Chinese context. It is often useful for nuanced discussions that are longer than forum replies but less formal than articles.
+
+## Blind spots
+
+It does not cover English content, code repositories, or structured technical references well. Ranking is engagement-biased, so popular answers can crowd out more precise but less visible ones.
 
 ## Quality signals
 
-- Strong title overlap with the query
-- Recognizable authors, product names, or technical terminology
-- Snippets that show concrete answers instead of generic discussion
-
-## Known limits
-
-- Results depend on Baidu indexing quality for Zhihu
-- Ranking can favor older or more engagement-heavy pages
-- Snippets may not capture the full answer context
+Upvotes are a useful signal, and author credentials matter when visible. Answers that show specific mechanisms, concrete examples, or domain expertise are much stronger than generic opinion pieces.

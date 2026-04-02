@@ -1,24 +1,28 @@
 ---
 name: rss
-description: "Use this channel when the query is best answered by discovering RSS feeds related to a topic, company, publication, or niche."
+description: "Finds RSS and Atom feed URLs or feed-discovery pages related to a topic, site, or creator."
 categories: [meta, discovery]
 platform: duckduckgo.com
 api_key_required: false
 aliases: []
 ---
 
-## When to use
+## Content types
 
-Use when you want to discover RSS feeds for a topic, brand, site, newsletter, podcast, or publication rather than searching the underlying content directly.
+RSS or Atom feed URLs, feed landing pages, and web pages that expose or mention feeds. This channel is about discovering subscription endpoints, not the articles inside them.
+
+## Language
+
+Any language can work because feed discovery is mostly about URLs and site structure. Query quality still depends on whether the target site or topic is indexed well.
+
+## Best for
+
+Finding RSS feeds for a topic, publication, creator, company, or niche so you can subscribe later. It is useful when the output you want is a feed endpoint rather than content from the feed.
+
+## Blind spots
+
+It does not search article content. Hidden feeds, dynamically generated feeds, or platforms that do not expose RSS cleanly are easy to miss, and results can be polluted by feed readers or aggregators.
 
 ## Quality signals
 
-- Titles or snippets explicitly mention RSS, Atom, or feed URLs
-- Results map to the exact site, creator, or topic requested
-- URLs look like feed endpoints, subscribe pages, or documentation pages
-
-## Known limits
-
-- Results depend on web indexing and may miss hidden feed endpoints
-- Some pages mention RSS without linking to a usable feed
-- General web search can return feed readers and aggregators instead of source feeds
+Quality varies a lot. Direct feed URLs, pages that explicitly mention RSS or Atom, and results that map to the exact site or creator are the strongest signals.

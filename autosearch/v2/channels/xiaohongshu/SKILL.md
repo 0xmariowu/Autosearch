@@ -1,24 +1,28 @@
 ---
 name: xiaohongshu
-description: "Use this channel for Xiaohongshu search when Chinese product reviews, consumer notes, or lifestyle recommendations are likely to provide the strongest evidence."
+description: "Finds Xiaohongshu posts about products, experiences, and consumer reviews in Chinese."
 categories: [social, chinese-social]
 platform: xiaohongshu.com
 api_key_required: false
 aliases: []
 ---
 
-## When to use
+## Content types
 
-Use when the query is likely to be answered by Chinese product reviews, buying notes, user-generated recommendations, or experience posts published on Xiaohongshu.
+Chinese lifestyle and consumer posts, product reviews, shopping notes, and experience sharing from Xiaohongshu. The platform is built around personal recommendation content, not technical documentation.
+
+## Language
+
+Chinese only. Queries should use Chinese product names or consumer terms.
+
+## Best for
+
+Chinese consumer product reviews, gadget opinions, app experience posts, and lifestyle-tech recommendations. It is strongest for buyer-experience questions, not technical analysis.
+
+## Blind spots
+
+There is almost no serious developer or technical content here. Posts are consumer-focused, highly subjective, and often optimized for aesthetics or shopping intent rather than factual depth.
 
 ## Quality signals
 
-- Clear product, brand, or use-case overlap in the title
-- Snippets that imply firsthand evaluation or comparison
-- Recent results for products, pricing, or trend-sensitive topics
-
-## Known limits
-
-- Results depend on Baidu indexing quality for Xiaohongshu
-- User-generated content quality varies widely
-- Snippets may be too short to show the actual recommendation
+For technical use the quality is generally poor. Specific firsthand comparisons are better than generic recommendation posts, but this channel should still be treated as soft consumer sentiment rather than reliable evidence.
