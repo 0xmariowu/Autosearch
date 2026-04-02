@@ -5,9 +5,11 @@ import sys
 from autosearch.v2.search_runner import make_result
 
 
-async def search_ddgs_web(query: str, max_results: int = 10, source: str = "web-ddgs") -> list[dict]:
+async def search_ddgs_web(
+    query: str, max_results: int = 10, source: str = "web-ddgs"
+) -> list[dict]:
     try:
-        from duckduckgo_search import DDGS
+        from ddgs import DDGS
 
         results = []
         with DDGS() as ddgs:
