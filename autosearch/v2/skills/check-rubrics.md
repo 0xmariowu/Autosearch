@@ -2,6 +2,11 @@
 name: check-rubrics
 description: "Use after delivery to evaluate each rubric as pass/fail with evidence. Produces checked-rubrics.jsonl and summary scores by category."
 ---
+
+# Model Recommendation
+
+Rubric pass/fail checking is a structured classification task. Use Haiku when possible. When spawning an agent for rubric checking, set `model: "haiku"`.
+
 # Purpose
 This skill performs the strict post-delivery audit.
 It checks whether the synthesized delivery actually satisfies the rubric contract defined earlier.
