@@ -2,196 +2,107 @@ from __future__ import annotations
 
 import re
 import sys
-from datetime import datetime
 
 import httpx
-from lxml import html as lxml_html
 
 from autosearch.v2.search_runner import DEFAULT_TIMEOUT, make_result
 
-BASE_URL = "https://scholar.google.com/scholar"
-PAGE_SIZE = 10
+SCHOLAR_URL = "https://scholar.google.com/scholar"
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
 )
 
 
-def _extract_text(nodes: object) -> str:
-    if nodes is None:
-        return ""
-    if isinstance(nodes, list):
-        parts: list[str] = []
-        for node in nodes:
-            if hasattr(node, "text_content"):
-                parts.append(node.text_content())
-            elif isinstance(node, str):
-                parts.append(node)
-        return " ".join(part.strip() for part in parts if part and part.strip()).strip()
-    if hasattr(nodes, "text_content"):
-        return nodes.text_content().strip()
-    if isinstance(nodes, str):
-        return nodes.strip()
-    return ""
+async def _search_scholar_html(query: str, max_results: int) -> list[dict]:
+    """Try Google Scholar HTML scraping (may 403)."""
+    async with httpx.AsyncClient(
+        timeout=DEFAULT_TIMEOUT,
+        headers={"User-Agent": USER_AGENT},
+    ) as client:
+        resp = await client.get(
+            SCHOLAR_URL,
+            params={
+                "q": query,
+                "hl": "en",
+                "ie": "UTF-8",
+                "oe": "UTF-8",
+                "start": 0,
+                "as_sdt": "2007",
+                "as_vis": "0",
+            },
+        )
+        resp.raise_for_status()
+        text = resp.text
+
+        results: list[dict] = []
+        # Parse search result blocks
+        blocks = re.findall(
+            r'<div\s+class="gs_ri">(.*?)</div>\s*</div>',
+            text,
+            re.DOTALL,
+        )
+        for block in blocks:
+            title_match = re.search(
+                r'<h3[^>]*>.*?<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>', block, re.DOTALL
+            )
+            if not title_match:
+                continue
+            url = title_match.group(1)
+            title = re.sub(r"<[^>]+>", "", title_match.group(2)).strip()
+
+            snippet_match = re.search(
+                r'<div\s+class="gs_rs">(.*?)</div>', block, re.DOTALL
+            )
+            snippet = (
+                re.sub(r"<[^>]+>", "", snippet_match.group(1)).strip()
+                if snippet_match
+                else ""
+            )
+
+            year_match = re.search(r"(\d{4})\s*-\s*", block)
+            metadata: dict = {}
+            if year_match:
+                metadata["published_at"] = f"{year_match.group(1)}-01-01T00:00:00Z"
+
+            cited_match = re.search(r"Cited by (\d+)", block)
+            if cited_match:
+                metadata["citations"] = int(cited_match.group(1))
+
+            results.append(
+                make_result(
+                    url=url,
+                    title=title,
+                    snippet=snippet,
+                    source="google-scholar",
+                    query=query,
+                    extra_metadata=metadata,
+                )
+            )
+            if len(results) >= max_results:
+                break
+
+        return results
 
 
-def _parse_gs_a(text: str | None) -> tuple[list[str], str, str, datetime | None]:
-    if not text:
-        return [], "", "", None
+async def _search_ddgs_fallback(query: str, max_results: int) -> list[dict]:
+    """Fallback: search Google Scholar via DuckDuckGo site: filter."""
+    from autosearch.v2.channels._engines.ddgs import search_ddgs_site
 
-    segments = text.split(" - ")
-    authors = segments[0].split(", ")
-    publisher = segments[-1]
-    if len(segments) != 3:
-        return authors, "", publisher, None
-
-    journal_year = segments[1].split(", ")
-    if len(journal_year) > 1:
-        journal = ", ".join(journal_year[:-1])
-        if journal == "…":
-            journal = ""
-    else:
-        journal = ""
-
-    try:
-        published_at = datetime.strptime(journal_year[-1].strip(), "%Y")
-    except ValueError:
-        published_at = None
-
-    return authors, journal, publisher, published_at
-
-
-def _build_metadata(
-    pub_type: str,
-    authors: list[str],
-    journal: str,
-    publisher: str,
-    published_at: datetime | None,
-    cited_by: str,
-    html_url: str,
-    pdf_url: str,
-) -> dict:
-    metadata = {
-        "type": pub_type,
-        "authors": authors,
-        "journal": journal,
-        "publisher": publisher,
-        "cited_by": cited_by,
-        "html_url": html_url,
-        "pdf_url": pdf_url,
-    }
-    if published_at is not None:
-        metadata["published_at"] = published_at.isoformat()
-    return metadata
+    return await search_ddgs_site(query, "scholar.google.com", max_results)
 
 
 async def search(query: str, max_results: int = 10) -> list[dict]:
-    results: list[dict] = []
-    total_pages = max(1, (max_results + PAGE_SIZE - 1) // PAGE_SIZE)
+    # Try direct scraping first, fall back to ddgs
+    try:
+        results = await _search_scholar_html(query, max_results)
+        if results:
+            return results
+    except Exception:
+        pass
 
     try:
-        async with httpx.AsyncClient(
-            timeout=DEFAULT_TIMEOUT,
-            headers={"User-Agent": USER_AGENT},
-            follow_redirects=False,
-        ) as client:
-            for page in range(total_pages):
-                response = await client.get(
-                    BASE_URL,
-                    params={
-                        "q": query,
-                        "hl": "en",
-                        "ie": "UTF-8",
-                        "oe": "UTF-8",
-                        "start": page * PAGE_SIZE,
-                        "as_sdt": "2007",
-                        "as_vis": "0",
-                    },
-                )
-
-                if response.status_code in {301, 302, 303, 307, 308}:
-                    location = response.headers.get("Location", "")
-                    if "/sorry/index?continue" in location:
-                        print(
-                            "[google-scholar] access denied: unusual traffic detected",
-                            file=sys.stderr,
-                        )
-                    else:
-                        print(
-                            f"[google-scholar] redirect blocked: {location.split('?')[0]}",
-                            file=sys.stderr,
-                        )
-                    return []
-
-                response.raise_for_status()
-                dom = lxml_html.fromstring(response.text)
-
-                if dom.xpath("//form[@id='gs_captcha_f']"):
-                    print("[google-scholar] captcha encountered", file=sys.stderr)
-                    return []
-
-                page_items = dom.xpath("//div[@data-rp]")
-                if not page_items:
-                    break
-
-                for item in page_items:
-                    title = _extract_text(item.xpath(".//h3[1]//a"))
-                    if not title:
-                        continue
-
-                    urls = item.xpath(".//h3[1]//a/@href")
-                    url = urls[0].strip() if urls else ""
-                    if not url:
-                        continue
-
-                    pub_type = _extract_text(item.xpath(".//span[@class='gs_ctg2']"))
-                    if pub_type.startswith("[") and pub_type.endswith("]"):
-                        pub_type = pub_type[1:-1].lower()
-
-                    content = _extract_text(item.xpath(".//div[@class='gs_rs']"))
-                    authors, journal, publisher, published_at = _parse_gs_a(
-                        _extract_text(item.xpath(".//div[@class='gs_a']"))
-                    )
-                    if publisher and publisher in url:
-                        publisher = ""
-
-                    cited_by = _extract_text(
-                        item.xpath(
-                            ".//div[@class='gs_fl']/a[starts-with(@href,'/scholar?cites=')]"
-                        )
-                    )
-
-                    doc_urls = item.xpath(".//div[@class='gs_or_ggsm']/a/@href")
-                    doc_url = doc_urls[0].strip() if doc_urls else ""
-                    doc_type = _extract_text(item.xpath(".//div[@class='gs_or_ggsm']//span[@class='gs_ctg2']"))
-                    if not doc_type:
-                        doc_type = _extract_text(item.xpath(".//span[@class='gs_ctg2']"))
-                    pdf_url = doc_url if doc_type == "[PDF]" else ""
-                    html_url = "" if doc_type == "[PDF]" else doc_url
-
-                    results.append(
-                        make_result(
-                            url=url,
-                            title=title,
-                            snippet=content,
-                            source="google-scholar",
-                            query=query,
-                            extra_metadata=_build_metadata(
-                                pub_type=pub_type,
-                                authors=authors,
-                                journal=journal,
-                                publisher=publisher,
-                                published_at=published_at,
-                                cited_by=cited_by,
-                                html_url=html_url,
-                                pdf_url=pdf_url,
-                            ),
-                        )
-                    )
-                    if len(results) >= max_results:
-                        return results[:max_results]
-
-        return results[:max_results]
+        return await _search_ddgs_fallback(query, max_results)
     except Exception as exc:
-        print(f"[google-scholar] search failed: {exc}", file=sys.stderr)
+        print(f"[google-scholar] all search methods failed: {exc}", file=sys.stderr)
         return []
