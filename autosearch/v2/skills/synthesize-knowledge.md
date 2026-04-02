@@ -115,14 +115,45 @@ Each block should be self-contained and independently valuable.
 
 # Citation Rules
 
-Every factual claim must link to its source:
-- "[Project Name](url) — description" for tools and repos
-- "[Paper Title](url) (Venue Year)" for academic work
-- "[Author/Org](url)" for blog posts and articles
+## Mandatory inline citations
 
-Do not claim facts that are not in the evidence bundle.
-If your training knowledge adds context, mark it explicitly as background knowledge.
-Do not mix cited evidence with uncited assertions — the user cannot tell which is grounded.
+Every factual claim, data point, project description, or paper reference MUST include an inline citation linking to a search result URL:
+- Tools/repos: `[Project Name](url) — description`
+- Papers: `[Paper Title](url) (Venue Year)`
+- Articles/posts: `[Author/Org](url)`
+
+## URL source restriction
+
+URLs MUST come from the search results collected during this session. Do NOT use URLs recalled from training data — they may be outdated, broken, or fabricated.
+
+If your training knowledge adds context that was not found in search results, mark it explicitly:
+- `[background knowledge]` — for facts from training data without a search result URL
+- Never present background knowledge as if it has a source URL
+
+## Two-stage citation lock
+
+Before writing the final report, first compile a numbered reference list from all search results:
+
+```
+[1] Project Name — https://url1
+[2] Paper Title — https://url2
+...
+```
+
+During synthesis, cite ONLY by these numbers: `[1]`, `[2]`. This prevents URL fabrication.
+
+Append the full reference list as `## Sources` at the end of every delivery.
+
+## Citation completeness check
+
+After writing the report, verify:
+1. Every project/tool mentioned has a `[N]` citation
+2. Every paper mentioned has a `[N]` citation
+3. Every specific data point (star count, funding amount, benchmark score) has a `[N]` citation
+4. No URL appears that is not in the numbered reference list
+5. Background knowledge items are marked `[background knowledge]`, not cited with fake URLs
+
+If any item fails this check, fix it before delivering.
 
 # Failure Modes
 
