@@ -63,15 +63,15 @@ A self-improving search system. The human provides intent. The AI does everythin
 ## Cross-directory relationships
 
 - **Methodology** → `docs/methodology/principles.md` (evidence standards), `platforms/*.md` (per-platform patterns)
-- **Armory dependency**: `pipeline.py` calls scripts from `/Volumes/4TB/Armory/scripts/scout/` + reads `queries.json`, `state.json`. Don't remove without updating pipeline.py.
+- **Armory dependency**: `pipeline.py` calls scripts from `~/Armory/scripts/scout/` + reads `queries.json`, `state.json`. Don't remove without updating pipeline.py.
 - **Canonical copy**: `~/Projects/autosearch/` is source of truth. Armory copy is rsync artifact.
-- **Findings output**: Armory-worthy repos → `/Volumes/4TB/AIMD/recs/master.md`. Session docs → AIMD.
-- **Before searching**: check `/Volumes/4TB/Armory/when-blocks.jsonl` for existing knowledge.
+- **Findings output**: Armory-worthy repos → `~/AIMD/recs/master.md`. Session docs → AIMD.
+- **Before searching**: check `~/Armory/when-blocks.jsonl` for existing knowledge.
 
 ## Session Protocol — After completing a search session
 
 1. Verify `patterns.jsonl` and `evolution.jsonl` have new entries (Phase 3 ran).
-2. Armory-worthy findings → `/Volumes/4TB/AIMD/recs/master.md`. Analysis docs → AIMD.
+2. Armory-worthy findings → `~/AIMD/recs/master.md`. Analysis docs → AIMD.
 3. Sync patterns to `docs/methodology/platforms/*.md`: win_rate ≥ 0.6 across 3+ sessions → add; win_rate = 0 across 3+ sessions → Known Failures.
 4. Write experience note to `experience/{YYYY-MM-DD}-{topic}.md`, update `AIMD/experience/INDEX.jsonl`.
 5. If code/config/CLAUDE.md changed (not just search data): prepend to `CHANGELOG.md`.
