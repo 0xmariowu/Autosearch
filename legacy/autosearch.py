@@ -22,7 +22,7 @@ import time
 import random
 from datetime import datetime
 
-ARMORY_ROOT = os.environ.get("ARMORY_ROOT", "/Volumes/4TB/Armory")
+ARMORY_ROOT = os.environ.get("ARMORY_ROOT", "/Users/dev/Armory")
 DEST = os.path.join(ARMORY_ROOT, "dataset", "_search")
 
 # ============================================================

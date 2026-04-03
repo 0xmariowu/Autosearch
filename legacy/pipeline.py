@@ -31,8 +31,8 @@ HOME = Path.home()
 
 
 # Support override via env vars (for launchd rsync mode)
-ARMORY_ROOT = Path(os.environ.get("ARMORY_ROOT", "/Volumes/4TB/Armory"))
-AIMD_ROOT = Path(os.environ.get("AIMD_ROOT", "/Volumes/4TB/AIMD"))
+ARMORY_ROOT = Path(os.environ.get("ARMORY_ROOT", "/Users/dev/Armory"))
+AIMD_ROOT = Path(os.environ.get("AIMD_ROOT", "/Users/dev/AIMD"))
 SCOUT_DIR = Path(os.environ.get("SCOUT_DIR", str(ARMORY_ROOT / "scripts/scout")))
 AUTOSEARCH_DIR = Path(__file__).parent
 
