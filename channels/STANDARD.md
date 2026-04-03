@@ -1,6 +1,6 @@
 # Channel Plugin Standard
 
-This document defines the required structure and runtime contract for channel plugins under `autosearch/v2/channels/`.
+This document defines the required structure and runtime contract for channel plugins under `channels/`.
 
 ## 1. Directory Structure
 

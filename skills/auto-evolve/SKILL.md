@@ -16,8 +16,8 @@ The goal is controlled adaptation that can be verified later.
 # When To Use
 
 Use immediately after `check-rubrics.md` has written:
-- `autosearch/v2/evidence/checked-rubrics-{topic-slug}.jsonl`
-- the matching rubric summary in `autosearch/v2/state/rubric-history.jsonl` if it exists
+- `evidence/checked-rubrics-{topic-slug}.jsonl`
+- the matching rubric summary in `state/rubric-history.jsonl` if it exists
 
 Run exactly once per session.
 Use the same `topic-slug` and session identifier as the delivery and rubric check.
@@ -33,7 +33,7 @@ Do not turn a weak session into a multi-file cleanup.
 
 ## Step 0: Verify Prior Evolutions First
 
-Before making a new change, read `autosearch/v2/state/evolution-log.jsonl` if it exists.
+Before making a new change, read `state/evolution-log.jsonl` if it exists.
 Look for prior entries on the same topic or a clearly similar topic.
 
 If a prior entry has `expected_flips` that appear in the current session's rubrics:
@@ -53,14 +53,14 @@ Record the verification result in the new evolution entry.
 
 ## Step 1: Read Failures
 
-Read `autosearch/v2/evidence/checked-rubrics-{topic-slug}.jsonl`.
+Read `evidence/checked-rubrics-{topic-slug}.jsonl`.
 Find every rubric with `passed: false`.
 
-Get `pass_rate` from the latest matching summary in `autosearch/v2/state/rubric-history.jsonl` when available.
+Get `pass_rate` from the latest matching summary in `state/rubric-history.jsonl` when available.
 If that summary does not exist yet, compute `pass_rate` from the checked rubrics file.
 
 If `pass_rate >= 0.90`, skip evolution.
-Still append a skip entry to `autosearch/v2/state/evolution-log.jsonl` with the topic, timestamp, pass rate, failed rubric ids, and reason: `skip: pass rate already >= 0.90`.
+Still append a skip entry to `state/evolution-log.jsonl` with the topic, timestamp, pass rate, failed rubric ids, and reason: `skip: pass rate already >= 0.90`.
 Do not modify any skill or config file in this case.
 
 ## Step 2: Aggregate By Category
@@ -108,9 +108,9 @@ Bad diagnosis: `search quality was low`.
 Choose the single most impactful change that could flip the target rubrics.
 Allowed change types:
 - add a rule or heuristic to one skill file
-- update weights in `autosearch/v2/state/channel-scores.jsonl`
-- add one pattern entry to `autosearch/v2/state/patterns-v2.jsonl`
-- add analysis or presentation instructions to `autosearch/v2/skills/synthesize-knowledge.md`
+- update weights in `state/channel-scores.jsonl`
+- add one pattern entry to `state/patterns-v2.jsonl`
+- add analysis or presentation instructions to `skills/synthesize-knowledge/SKILL.md`
 
 ### Evolution priority order
 
@@ -128,16 +128,16 @@ Rules:
 - keep the evaluation function stable
 
 Do NOT modify:
-- `autosearch/v2/skills/auto-evolve.md`
-- `autosearch/v2/skills/create-skill.md`
-- `autosearch/v2/skills/observe-user.md`
-- `autosearch/v2/skills/extract-knowledge.md`
-- `autosearch/v2/skills/interact-user.md`
-- `autosearch/v2/skills/discover-environment.md`
-- `autosearch/v2/skills/generate-rubrics.md`
-- `autosearch/v2/skills/check-rubrics.md`
-- `autosearch/v2/judge.py`
-- `autosearch/v2/PROTOCOL.md`
+- `skills/auto-evolve/SKILL.md`
+- `skills/create-skill/SKILL.md`
+- `skills/observe-user/SKILL.md`
+- `skills/extract-knowledge/SKILL.md`
+- `skills/interact-user/SKILL.md`
+- `skills/discover-environment/SKILL.md`
+- `skills/generate-rubrics/SKILL.md`
+- `skills/check-rubrics/SKILL.md`
+- `lib/judge.py`
+- `PROTOCOL.md`
 
 If multiple files appear responsible, pick the earliest upstream file that offers the cleanest leverage.
 If no single-file change is credible, record that the session is blocked by diagnosis ambiguity and do not make a random edit.
@@ -162,7 +162,7 @@ The commit should correspond to exactly one file change for the evolution step.
 
 ## Step 7: Record
 
-Append one JSON object to `autosearch/v2/state/evolution-log.jsonl`.
+Append one JSON object to `state/evolution-log.jsonl`.
 Use append-only logging.
 Do not rewrite prior entries.
 
@@ -179,7 +179,7 @@ Base schema:
   "target_rubrics": ["r003", "r015", "r019"],
   "diagnosis": "producthunt channel not selected for product-related topics",
   "action": "added producthunt to select-channels.md for product-type topics",
-  "modified_file": "autosearch/v2/skills/select-channels.md",
+  "modified_file": "skills/select-channels/SKILL.md",
   "commit_hash": "abc1234",
   "expected_flips": ["r003", "r015"]
 }
