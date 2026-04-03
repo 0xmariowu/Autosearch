@@ -1,0 +1,16 @@
+{
+  "description": "AutoSearch plugin hooks",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -d \"$HOME/.autosearch/venv\" ] && echo 'AutoSearch ready' || echo '[AutoSearch] Dependencies not installed. Run /autosearch:setup'",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
