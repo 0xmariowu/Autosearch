@@ -116,6 +116,29 @@ Use a layered parse strategy:
 
 If extraction still fails, keep going with your own explicit per-result judgments rather than leaving relevance unset.
 
+# Output Writing
+
+After completing all evaluation batches, collect all `next_queries` suggested across batches.
+Deduplicate them (same intent = same query, drop the duplicate).
+Write the deduplicated list to a session-scoped file:
+
+`evidence/{session_id}-next-queries.jsonl`
+
+One line per query, in search_runner.py format with gap metadata:
+
+```json
+{"channel": "arxiv", "query": "self-evolving search multi-round", "max_results": 10, "gap_dimension": "academic-papers", "current_relevant": 0}
+```
+
+Fields:
+- `channel`: the platform most likely to fill this gap
+- `query`: the search query text (3-7 words)
+- `max_results`: default 10
+- `gap_dimension`: which task dimension this query addresses (from the gap analysis)
+- `current_relevant`: count of relevant results already covering this dimension — allows Phase 3b to filter by critical gaps (current_relevant <= 1)
+
+If no gaps were found, write an empty file. The file must always exist after Phase 3 so Phase 3b can check it without error handling.
+
 # Quality Bar
 
 This skill exists because keyword overlap confuses "found matching keywords" with "found the right thing."
