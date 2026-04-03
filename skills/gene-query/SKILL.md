@@ -142,6 +142,13 @@ The final query set after dedup MUST NOT exceed `max_total_queries` from config.
 Do not hard-cap all generated queries by recency.
 Add time qualifiers only when the task explicitly needs freshness or the prior round showed stale retrieval.
 
+## Mandatory Freshness Queries (Standard and Deep depth)
+
+For Standard or Deep depth sessions, MUST generate at least 2 queries with explicit year markers targeting the current year (e.g., "topic 2026", "topic latest 2026").
+Reason: Freshness dimension scores 0.47 on average without year-targeted queries — the judge treats undated results as old. Year markers bias retrieval toward recent papers and repos without requiring a paid API date filter.
+Placement: target the arxiv channel for one freshness query and web-ddgs for the other.
+Example: {"channel": "arxiv", "query": "self-evolving search 2026", "max_results": 10}
+
 # Output Format
 
 Output a JSON array compatible with search_runner.py:
