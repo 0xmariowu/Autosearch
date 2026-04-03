@@ -1,0 +1,19 @@
+{
+  "name": "autosearch",
+  "version": "1.0.0",
+  "description": "Self-evolving research agent. Searches 32+ free channels, synthesizes reports better than native Claude, learns from each session.",
+  "author": {
+    "name": "0xmariowu"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/0xmariowu/autosearch",
+  "repository": "https://github.com/0xmariowu/autosearch",
+  "keywords": [
+    "search",
+    "research",
+    "RAG",
+    "self-evolving",
+    "agent",
+    "deep-research"
+  ]
+}
