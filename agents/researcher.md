@@ -21,7 +21,11 @@ When given a research task:
 5. Produce a report with two-stage citation lock (all URLs from search results)
 
 Key rules:
-- Use Haiku for batch tasks (scoring, rubric checking)
-- Use Sonnet for synthesis and analysis
 - Every claim needs a citation from search results
 - Background knowledge must be marked [background knowledge]
+
+Model routing (mandatory — see pipeline-flow for full table):
+- You (researcher) run in Sonnet — this is your default for reasoning and writing
+- For Haiku-designated phases (rubrics, queries, scoring, rubric-check): spawn a sub-agent with `model: "haiku"`. Do NOT run these in your own Sonnet context — it wastes capacity without improving quality
+- For search (Phase 3): call search_runner.py via Bash — this is HTTP, no model needed
+- The pipeline-flow routing table is the contract, not a suggestion
