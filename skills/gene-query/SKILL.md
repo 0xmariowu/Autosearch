@@ -70,18 +70,20 @@ These rules exist because AVO analysis found that r005 (commercial companies) an
 
 # Input Sources (General)
 
-Build the gene pool from three places:
+Build the gene pool from four places:
 
 - The task itself: entities, artifacts, constraints, and pain language from the user or goal case
 - Winning history: patterns from `state/patterns.jsonl` (filter to `winning_pattern` and `platform_insight` types only — ignore `session_stats`, `outcome_boost`, and `winning_words` entries, which are statistical noise that does not inform query strategy) and proven queries from `state/outcomes.jsonl`
+- Query performance data: read `state/query-outcomes.jsonl` if it exists. Group by query text or semantic family (queries sharing 2+ content words). Boost: include queries with `relevant_rate >= 0.7` AND `results_count >= 3` — these are proven performers. Suppress: do not generate queries that closely match patterns with `relevant_rate <= 0.2` OR `results_count == 0` for the same `topic_type` — these are proven failures.
 - Your own judgment: missing synonyms, domain terms, and alternate framings not yet present in state
 
 # Mix Ratio
 
 Generate candidate queries with this mix:
 
-- 20% LLM suggestions
-- 20% winning patterns
+- 15% LLM suggestions
+- 15% winning patterns (from state/patterns.jsonl)
+- 10% high-performing queries (from state/query-outcomes.jsonl, boost proven winners)
 - 60% gene combinations
 
 Keep the ratio in spirit, not as rigid bookkeeping.
@@ -109,6 +111,8 @@ Prefer specific combinations that narrow meaning without becoming long natural-l
 Keep one anchor term that strongly binds the topic.
 Add one discriminator that changes what results appear.
 Add a third term only when it meaningfully sharpens retrieval.
+
+Target query length: 3-5 words for most channels. Academic channels (arxiv, semantic-scholar, google-scholar) may use up to 7 words when specificity demands it. If a gene combination produces a query longer than the limit, split it into two shorter queries rather than keeping one long one. Short, precise queries consistently outperform long natural-language phrases on search APIs (SE-Search found 33.8% improvement with atomic queries).
 
 Prefer concrete tokens over generic prose.
 Prefer symptoms over emotional adjectives.
