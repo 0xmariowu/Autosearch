@@ -1,0 +1,26 @@
+{
+  "name": "autosearch",
+  "owner": {
+    "name": "0xmariowu"
+  },
+  "metadata": {
+    "description": "Self-evolving research agent for Claude Code",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "autosearch",
+      "source": "./",
+      "description": "Self-evolving research agent. Searches 32+ free channels, synthesizes cited reports better than native Claude, learns from each session.",
+      "version": "1.0.0",
+      "author": {
+        "name": "0xmariowu"
+      },
+      "homepage": "https://github.com/0xmariowu/autosearch",
+      "repository": "https://github.com/0xmariowu/autosearch",
+      "license": "MIT",
+      "keywords": ["search", "research", "RAG", "self-evolving", "agent", "deep-research"],
+      "category": "research"
+    }
+  ]
+}
