@@ -23,13 +23,13 @@ Process every rubric before writing the history record.
 # Required Inputs
 Read:
 - the full delivery text
-- `autosearch/v2/evidence/rubrics-{topic-slug}.jsonl`
+- `evidence/rubrics-{topic-slug}.jsonl`
 Do not judge from memory, search results, or outside knowledge.
 The delivery text is the only scoring surface.
 
 # Output Contract
 Write one checked rubric per line to:
-`autosearch/v2/evidence/checked-rubrics-{topic-slug}.jsonl`
+`evidence/checked-rubrics-{topic-slug}.jsonl`
 Each line must be one JSON object:
 
 ```json
@@ -50,7 +50,7 @@ Required fields:
 - `passed`
 - `evidence`
 After all rubrics are checked, append one summary JSON object to:
-`autosearch/v2/state/rubric-history.jsonl`
+`state/rubric-history.jsonl`
 Summary shape:
 ```json
 {

@@ -48,52 +48,42 @@ A self-improving search system. The human provides intent. The AI does everythin
 
 9. Don't delete `evolution.jsonl`. Instead, treat it as the append-only experiment log. Because: it's the raw data that enables cross-session analysis and debugging.
 
-10. Don't edit files in `Armory/scripts/scout/autosearch/`. Instead, edit the canonical copy here (`~/Projects/autosearch/`). Because: the Armory copy is a sync artifact from launchd rsync — edits there get overwritten silently.
-
-11. Don't run the legacy `run-template.py` for actual searches. Instead, use `pipeline.py` or `cli.py`. Because: the legacy script predates the modular engine and lacks LLMEvaluator, PatternStore, and newer connectors.
+10. Don't run the legacy `run-template.py` for actual searches. Instead, use `pipeline.py` or `cli.py`. Because: the legacy script predates the modular engine and lacks LLMEvaluator, PatternStore, and newer connectors.
 
 ## Genome rules
 
-12. Don't manually edit files in `genome/evolved/`. Those are AVO output. Because: manual edits break the lineage chain in evolution.jsonl — AVO can't trace what changed or why.
+11. Don't manually edit files in `genome/evolved/`. Those are AVO output. Because: manual edits break the lineage chain in evolution.jsonl — AVO can't trace what changed or why.
 
-13. Don't put new strategy decisions in Python code. Instead, add them to `genome/defaults/*.json`. Because: Python changes require code review; genome JSON changes are instantly evolvable by AVO.
+12. Don't put new strategy decisions in Python code. Instead, add them to `genome/defaults/*.json`. Because: Python changes require code review; genome JSON changes are instantly evolvable by AVO.
 
-14. Don't delete `genome/evolved/` files without checking evolution.jsonl. Because: JSONL records reference genome file paths — deleting breaks load_best_genome().
-
-## Cross-directory relationships
-
-- **Methodology** → `docs/methodology/principles.md` (evidence standards), `platforms/*.md` (per-platform patterns)
-- **Armory dependency**: `pipeline.py` calls scripts from `~/Armory/scripts/scout/` + reads `queries.json`, `state.json`. Don't remove without updating pipeline.py.
-- **Canonical copy**: `~/Projects/autosearch/` is source of truth. Armory copy is rsync artifact.
-- **Findings output**: Armory-worthy repos → `~/AIMD/recs/master.md`. Session docs → AIMD.
-- **Before searching**: check `~/Armory/when-blocks.jsonl` for existing knowledge.
+13. Don't delete `genome/evolved/` files without checking evolution.jsonl. Because: JSONL records reference genome file paths — deleting breaks load_best_genome().
 
 ## Session Protocol — After completing a search session
 
 1. Verify `patterns.jsonl` and `evolution.jsonl` have new entries (Phase 3 ran).
-2. Armory-worthy findings → `~/AIMD/recs/master.md`. Analysis docs → AIMD.
+2. Save any durable findings or analysis in repo-local artifacts, not external personal directories.
 3. Sync patterns to `docs/methodology/platforms/*.md`: win_rate ≥ 0.6 across 3+ sessions → add; win_rate = 0 across 3+ sessions → Known Failures.
-4. Write experience note to `experience/{YYYY-MM-DD}-{topic}.md`, update `AIMD/experience/INDEX.jsonl`.
+4. If this repo maintains an active `experience/` log, write `experience/{YYYY-MM-DD}-{topic}.md` and update its index.
 5. If code/config/CLAUDE.md changed (not just search data): prepend to `CHANGELOG.md`.
 
 ## v2.2 rules (unified architecture: V1 capabilities + V2 evolvability)
 
-12. Don't modify `judge.py` or `PROTOCOL.md` without explicit user authorization. These are the fixed contracts. judge.py is the scoring function f (AVO paper §3.1). PROTOCOL.md is the operating protocol. Because: if AVO can change its own evaluation or rules, behavior becomes unpredictable. Exception: adding new scoring dimensions requires explicit user authorization per instance. AVO MUST NOT modify judge.py on its own.
+14. Don't modify `judge.py` or `PROTOCOL.md` without explicit user authorization. These are the fixed contracts. judge.py is the scoring function f (AVO paper §3.1). PROTOCOL.md is the operating protocol. Because: if AVO can change its own evaluation or rules, behavior becomes unpredictable. Exception: adding new scoring dimensions requires explicit user authorization per instance. AVO MUST NOT modify judge.py on its own.
 
-13. Don't modify meta-skills: `create-skill.md`, `observe-user.md`, `extract-knowledge.md`, `interact-user.md`, `discover-environment.md`. These define HOW to evolve, not WHAT to evolve. AVO can modify all OTHER skills. Because: meta-skills are the "DNA replication machinery" — evolution changes genes, not the replication mechanism.
+15. Don't modify meta-skills: `create-skill`, `observe-user`, `extract-knowledge`, `interact-user`, `discover-environment`. These define HOW to evolve, not WHAT to evolve. AVO can modify all OTHER skills. Because: meta-skills are the "DNA replication machinery" — evolution changes genes, not the replication mechanism.
 
-14. Don't delete or rewrite lines in append-only state files: `worklog.jsonl`, `patterns.jsonl`, `evolution-v1.jsonl`, `outcomes.jsonl`. Because: the AVO loop learns from history — deleting entries resets accumulated intelligence.
+16. Don't delete or rewrite lines in append-only state files: `worklog.jsonl`, `patterns.jsonl`, `evolution-v1.jsonl`, `outcomes.jsonl`. Because: the AVO loop learns from history — deleting entries resets accumulated intelligence.
 
-15. Skill changes during AVO go through `git commit`. Failed changes get `git revert`. Because: git history IS the lineage P_t that AVO uses to learn from failures.
+17. Skill changes during AVO go through `git commit`. Failed changes get `git revert`. Because: git history IS the lineage P_t that AVO uses to learn from failures.
 
-16. Skill format: `v2/skills/{name}.md`, one file per skill, flat directory. Name: lowercase a-z, 0-9, hyphens, max 64 chars, matches filename. Frontmatter: `name` + `description` (first sentence = WHEN to use, not what it does). Body: strategy guide, max 500 lines, ends with `# Quality Bar`. Full spec: `docs/skill-format-standard.md`. Because: without format constraints, AVO drifts toward bad names and 2000-line monsters.
+18. Skill format: `skills/{name}/SKILL.md`, one directory per skill. Name: lowercase a-z, 0-9, hyphens, max 64 chars, matches the directory name. Frontmatter: `name` + `description` (first sentence = WHEN to use, not what it does). Body: strategy guide, max 500 lines, ends with `# Quality Bar`. Full spec: `docs/skill-format-standard.md`. Because: without format constraints, AVO drifts toward bad names and 2000-line monsters.
 
-17. Use Python 3.11+ to run `judge.py` and tests. System python3 may be 3.9 which lacks union type syntax.
+19. Use Python 3.11+ to run `lib/judge.py` and tests. System python3 may be 3.9 which lacks union type syntax.
 
-18. Platform skills can use free OR paid APIs. AVO discovers what's available via `discover-environment.md` and selects accordingly. Because: V1 had 14 connectors (8 free, 6 paid) — restricting to free-only was V2.0's mistake.
+20. Platform skills can use free OR paid APIs. AVO discovers what's available via `discover-environment` and selects accordingly. Because: V1 had 14 connectors (8 free, 6 paid) — restricting to free-only was V2.0's mistake.
 
-19. Every validation run MUST include a native Claude baseline comparison. Run the same query with native Claude (no AutoSearch skills/protocol), then compare in a table: result count by type, conceptual framework depth, content coverage gaps. Because: AutoSearch's value proposition is "better than native Claude at research" — if it's not, the system hasn't earned its complexity.
+21. Every validation run MUST include a native Claude baseline comparison. Run the same query with native Claude (no AutoSearch skills/protocol), then compare in a table: result count by type, conceptual framework depth, content coverage gaps. Because: AutoSearch's value proposition is "better than native Claude at research" — if it's not, the system hasn't earned its complexity.
 
-20. AVO self-evolution MUST be validated separately from search quality. Search quality tests (like F006) prove the pipeline works. Evolution tests prove the system improves itself. An evolution test requires: (a) baseline score, (b) agent-initiated skill modification, (c) re-score showing improvement, (d) git commit on improvement, (e) git revert on regression, (f) pattern written to state. Without this test passing, AutoSearch is a search agent, not a self-evolving search agent.
+22. AVO self-evolution MUST be validated separately from search quality. Search quality tests (like F006) prove the pipeline works. Evolution tests prove the system improves itself. An evolution test requires: (a) baseline score, (b) agent-initiated skill modification, (c) re-score showing improvement, (d) git commit on improvement, (e) git revert on regression, (f) pattern written to state. Without this test passing, AutoSearch is a search agent, not a self-evolving search agent.
 
-V1 reference: `engine.py`, `goal_judge.py`, `goal_loop.py`, `outcomes.py`. V2.2: `v2/PROTOCOL.md` + `v2/skills/`.
+V1 reference: `engine.py`, `goal_judge.py`, `goal_loop.py`, `outcomes.py`. V2.2: `PROTOCOL.md` + `skills/`.

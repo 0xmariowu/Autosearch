@@ -132,7 +132,7 @@ Do not mark everything `high`.
 If more than half the rubrics are `high`, the set is probably not prioritized enough.
 # Storage
 Store rubrics at:
-`autosearch/v2/evidence/rubrics-{topic-slug}.jsonl`
+`evidence/rubrics-{topic-slug}.jsonl`
 One JSON object per line.
 Do not wrap the file in a JSON array.
 Generate `topic-slug` as:

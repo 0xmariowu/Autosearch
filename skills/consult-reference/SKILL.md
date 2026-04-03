@@ -32,7 +32,7 @@ Workflow:
 1. Identify the capability cluster you need (e.g., `result-normalization`, `date-extraction`, `relevance-scoring`)
 2. Grep `skill-reference.jsonl` for that cluster
 3. Read the matching entries to see which projects implement it
-4. For detailed heuristics, read the project source code at `/Volumes/4TB/Armory/Search/{project}/`
+4. For detailed heuristics, see the channel's `SKILL.md` for implementation details
 5. Also check `state/unique-patterns.jsonl` for novel approaches specific to individual projects
 6. Extract the applicable heuristics and incorporate them into your skill modification
 
