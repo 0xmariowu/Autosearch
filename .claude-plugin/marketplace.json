@@ -11,7 +11,7 @@
     {
       "name": "autosearch",
       "source": "./",
-      "description": "Self-evolving research agent. Searches 32+ free channels, synthesizes cited reports better than native Claude, learns from each session.",
+      "description": "Research better than Claude alone. Self-evolving agent that searches 32+ free channels in parallel, synthesizes cited reports (+20% vs native Claude), and gets smarter after every session.",
       "version": "1.0.0",
       "author": {
         "name": "0xmariowu"
