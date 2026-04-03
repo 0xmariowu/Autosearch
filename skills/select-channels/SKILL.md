@@ -15,6 +15,21 @@ The selected channels determine WHERE queries are sent.
 
 # Selection Rules
 
+## Rule 0: Language relevance filter
+
+Before applying any other rule, exclude channels whose language does not match the topic.
+
+Read each channel's `## Language` section in its SKILL.md. If the channel's language coverage has no overlap with the topic's language, exclude it and log the reason.
+
+Examples:
+- English technical topic → exclude zhihu, csdn, juejin, bilibili, 36kr, weibo, xiaohongshu, douyin, xiaoyuzhou, xueqiu, infoq-cn, wechat (Chinese-only channels)
+- Chinese topic → exclude devto, stackoverflow, reddit, hn (English-only channels with negligible Chinese content)
+- Mixed/multilingual topic → keep both, prioritize by relevance
+
+Do not hardcode channel lists. Read the SKILL.md Language section for each candidate channel. Channels evolve — the Language section is the source of truth.
+
+Log every exclusion: `excluded: {channel} — language mismatch ({channel_language} vs {topic_language})`
+
 ## Rule 1: Always include these (2-3 channels)
 
 - GitHub repos (`github-repos`) — for any topic involving code or tools
@@ -91,19 +106,24 @@ More than 10 channels produces diminishing returns. If the rules above suggest m
 
 # Output
 
-List the selected channels with one-line justification each:
+List both selected and excluded channels:
 
 ```
+Excluded channels:
+- xiaohongshu — language mismatch (Chinese-only vs English topic)
+- douyin — language mismatch (Chinese-only vs English topic)
+- xueqiu — language mismatch (Chinese-only vs English topic)
+
 Selected channels:
 1. github-repos — core tool discovery
 2. web-ddgs — broad web coverage
-3. zhihu — Chinese developer perspective (GAP: dimension 8)
-4. google-scholar — academic coverage (GAP: dimension 4)
-5. producthunt — recent product launches (GAP: dimension 7)
-6. reddit — community sentiment
+3. google-scholar — academic coverage (GAP: dimension 4)
+4. producthunt — recent product launches (GAP: dimension 7)
+5. reddit — community sentiment
+6. arxiv — academic papers (GAP: dimension 3)
 ```
 
-Pass this list to gene-query.md for platform-targeted query generation.
+Pass the selected list to gene-query.md for platform-targeted query generation.
 
 # Quality Bar
 
