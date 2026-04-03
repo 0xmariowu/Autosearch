@@ -24,7 +24,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: pip install pytest ruff
+        run: pip install pytest pytest-asyncio ruff -r requirements.txt
 
       - name: Ruff lint
         run: ruff check .
@@ -39,7 +39,7 @@ jobs:
         continue-on-error: true
 
       - name: Test
-        run: pytest -x -q
+        run: pytest -x -q -m "not network"
 
   integration:
     runs-on: ubuntu-latest

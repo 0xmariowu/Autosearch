@@ -70,7 +70,7 @@ A self-improving search system. The human provides intent. The AI does everythin
 
 18. Skill format: `skills/{name}/SKILL.md`, one directory per skill. Name: lowercase a-z, 0-9, hyphens, max 64 chars, matches the directory name. Frontmatter: `name` + `description` (first sentence = WHEN to use, not what it does). Body: strategy guide, max 500 lines, ends with `# Quality Bar`. Full spec: `docs/skill-format-standard.md`. Because: without format constraints, AVO drifts toward bad names and 2000-line monsters.
 
-19. Use Python 3.11+ to run `lib/judge.py` and tests. System python3 may be 3.9 which lacks union type syntax.
+19. Use Python 3.10+ to run `lib/judge.py` and tests. System python3 may be 3.9 which lacks union type syntax (`X | None` requires 3.10+).
 
 20. Platform skills can use free OR paid APIs. AVO discovers what's available via `discover-environment` and selects accordingly. Because: V1 had 14 connectors (8 free, 6 paid) — restricting to free-only was V2.0's mistake.
 
