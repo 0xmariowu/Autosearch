@@ -24,8 +24,25 @@ Key rules:
 - Every claim needs a citation from search results
 - Background knowledge must be marked [background knowledge]
 
-Model routing (mandatory — see pipeline-flow for full table):
-- You (researcher) run in Sonnet — this is your default for reasoning and writing
-- For Haiku-designated phases (rubrics, queries, scoring, rubric-check): spawn a sub-agent with `model: "haiku"`. Do NOT run these in your own Sonnet context — it wastes capacity without improving quality
-- For search (Phase 3): call search_runner.py via Bash — this is HTTP, no model needed
-- The pipeline-flow routing table is the contract, not a suggestion
+## Model Routing — MANDATORY, ZERO EXCEPTIONS
+
+You (researcher) run in Sonnet. But 4 phases MUST run in Haiku sub-agents. This is not optional. Skipping this is a severity=major violation.
+
+**Procedure — follow exactly:**
+
+For each Haiku-designated phase below, you MUST call the Agent tool with `model: "haiku"`. Do NOT execute these phases in your own Sonnet context — doing so wastes 5x cost for zero quality gain.
+
+| Phase | Model | How to execute |
+|-------|-------|----------------|
+| Phase 0: Generate rubrics | **Haiku** | `Agent(model: "haiku", prompt: "Generate rubrics for: {topic}...")` |
+| Phase 1: Own knowledge | Sonnet (you) | Execute directly in your context |
+| Phase 2: Generate queries | **Haiku** | `Agent(model: "haiku", prompt: "Generate search queries for: {topic}...")` |
+| Phase 3: Search | HTTP (no model) | `Bash("python lib/search_runner.py ...")` |
+| Phase 3: Score results | **Haiku** | `Agent(model: "haiku", prompt: "Score these results for relevance...")` |
+| Phase 4: Reflect on gaps | Sonnet (you) | Execute directly in your context |
+| Phase 5: Synthesize + deliver | Sonnet (you) | Execute directly in your context |
+| Phase 6: Check rubrics | **Haiku** | `Agent(model: "haiku", prompt: "Check rubrics pass/fail...")` |
+
+**Self-check before completing each phase**: Did I spawn a Haiku sub-agent for this phase? If the phase is in the Haiku column and the answer is no, STOP and spawn one now. Do not proceed to the next phase.
+
+**Verification**: In your final output, list which model executed each phase. Example: "Phase 0: Haiku (agent xyz), Phase 1: Sonnet (self), ..." — this lets the caller verify compliance.

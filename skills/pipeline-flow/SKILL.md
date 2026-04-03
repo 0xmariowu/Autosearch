@@ -18,7 +18,13 @@ Not all phases need the same model. Use cheaper models for structured/batch task
 | Phase 6: Check rubrics | Haiku | Pass/fail classification |
 | Phase 7: AVO evolution | Sonnet | Needs diagnostic reasoning |
 
-**This table is not advisory — it is the routing contract.** When executing a phase, spawn a sub-agent with the specified model. Do not run Haiku-designated phases in the session model. Each skill's `# Model Recommendation` section repeats the routing for that skill.
+**This table is not advisory — it is the routing contract. Violation is severity=major.**
+
+For every Haiku-designated phase: you MUST spawn a sub-agent with `model: "haiku"` via the Agent tool. Do NOT execute these phases in your own Sonnet context — it wastes 5x cost for zero quality gain. "I'll just do it myself since I'm already here" is the exact failure mode this rule prevents.
+
+**Self-check**: before moving to the next phase, verify: if the current phase is Haiku-designated, did I spawn a Haiku agent? If no → STOP, spawn one, get results, then proceed.
+
+**Verification output**: in your final summary, list which model executed each phase (e.g., "Phase 0: Haiku (agent abc123)"). This lets the caller audit compliance.
 
 | Model | When to use |
 |---|---|
