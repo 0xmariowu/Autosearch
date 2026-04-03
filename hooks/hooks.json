@@ -6,8 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -d \"$HOME/.autosearch/venv\" ] && echo 'AutoSearch ready' || echo '[AutoSearch] Dependencies not installed. Run /autosearch:setup'",
-            "timeout": 5
+            "command": "if [ ! -d \"$HOME/.autosearch/venv\" ]; then echo '[AutoSearch] Setting up dependencies...'; bash \"${CLAUDE_PLUGIN_ROOT}/scripts/setup.sh\" 2>&1; else echo 'AutoSearch ready'; fi",
+            "timeout": 60
           }
         ]
       }
