@@ -125,7 +125,56 @@ search_runner.py already did normalization, dedup, and date extraction. Claude o
 
 Do NOT re-run normalize or extract-dates — search_runner.py already handled those.
 
-After Phase 3, you should have evaluated search results ready for synthesis.
+After Phase 3, you should have evaluated search results and a next-queries file ready.
+
+# Phase 3a: Per-Query Outcome Tracking
+
+After llm-evaluate completes, compute per-query metrics from the evaluated results.
+
+For each unique `query` value in the results:
+1. `results_count` = total results with this query
+2. `relevant_count` = results where `metadata.llm_relevant == true`
+3. `relevant_rate` = relevant_count / results_count
+4. `new_urls_count` = results whose URLs were not in prior sessions (approximate: set to results_count if no prior data exists)
+5. `channel` = the `source` field from the first result with this query
+
+Append one record per query to `state/query-outcomes.jsonl` (create if absent):
+
+```json
+{"session": "{session_id}", "ts": "{ISO 8601 now}", "query": "{query text}", "channel": "{channel}", "results_count": 12, "relevant_count": 8, "relevant_rate": 0.67, "new_urls_count": 8, "topic_type": "{academic|tool|general}"}
+```
+
+This file is append-only. It feeds `gene-query` in future sessions to boost high-performing query patterns.
+
+Time: ~10 seconds (arithmetic on existing data, no API calls)
+
+# Phase 3b: Gap-Driven Loop-Back (conditional, at most once)
+
+Read `evidence/{session_id}-next-queries.jsonl` (written by llm-evaluate in Phase 3).
+
+**If the file is empty or absent**: skip Phase 3b, proceed to Phase 4.
+
+**If the file contains queries**:
+1. Keep only queries targeting CRITICAL gaps: `current_relevant <= 1`
+2. Drop queries for dimensions with 2+ relevant results (already adequate)
+3. Cap at 5 queries maximum
+
+**If no queries remain after filtering**: skip Phase 3b, proceed to Phase 4.
+
+**Run the gap queries**:
+```bash
+python lib/search_runner.py '[{...filtered queries...}]' >> results.jsonl
+```
+
+Re-run `llm-evaluate.md` on the NEW results only (those not already evaluated).
+Append new per-query tracking records to `state/query-outcomes.jsonl`.
+
+**Rules**:
+- Run Phase 3b at most ONCE per session — no recursive loops
+- If Phase 3b produces 0 new relevant results, log the gap as "unfillable this session"
+- Do NOT update `state/timing.json` end_ts after Phase 3b (latency measures the initial pipeline)
+
+Time: ~15-30 seconds (5 queries max)
 
 # Phase 4: Synthesize + Deliver
 
