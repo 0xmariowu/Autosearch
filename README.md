@@ -125,7 +125,7 @@ See `channels/STANDARD.md` for the full spec.
 ```
 autosearch/
   .claude-plugin/     Plugin manifest + marketplace catalog
-  commands/           /autosearch, /autosearch:setup
+  commands/           /autosearch:setup (auto-runs, hidden from user)
   agents/             Researcher agent definition
   skills/             70+ skills (pipeline, synthesis, evaluation, evolution)
   channels/           32 channel plugins (SKILL.md + search.py each)
