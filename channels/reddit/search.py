@@ -82,8 +82,8 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
         results = await _search_json_api(query, max_results)
         if results:
             return results
-    except Exception:
-        pass
+    except Exception as exc:
+        print(f"[reddit] JSON API failed, trying fallback: {exc}", file=sys.stderr)
 
     try:
         return await _search_ddgs_fallback(query, max_results)

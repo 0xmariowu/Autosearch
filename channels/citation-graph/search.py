@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import importlib.util
 import sys
 from collections.abc import Awaitable, Callable
@@ -9,15 +10,9 @@ from typing import Any
 
 SearchFunction = Callable[..., Awaitable[list[dict[str, Any]]]]
 
-_SEMANTIC_SCHOLAR_SEARCH: SearchFunction | None = None
 
-
+@functools.lru_cache(maxsize=1)
 def _load_semantic_scholar_search() -> SearchFunction:
-    global _SEMANTIC_SCHOLAR_SEARCH
-
-    if _SEMANTIC_SCHOLAR_SEARCH is not None:
-        return _SEMANTIC_SCHOLAR_SEARCH
-
     search_file = (
         Path(__file__).resolve().parent.parent / "semantic-scholar" / "search.py"
     )
@@ -36,7 +31,6 @@ def _load_semantic_scholar_search() -> SearchFunction:
     if not callable(search):
         raise ImportError("semantic-scholar search.py does not export search()")
 
-    _SEMANTIC_SCHOLAR_SEARCH = search
     return search
 
 

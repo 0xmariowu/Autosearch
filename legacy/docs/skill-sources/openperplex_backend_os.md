@@ -1,8 +1,0 @@
-### openperplex_backend_os (ai-search) — 35 skills
-- **API Orchestration**: load_env_configuration, initialize_fastapi_app, configure_cors, serve_root_status, serve_health_status, validate_query_input, orchestrate_search_pipeline, stream_sse_events
-- **Search Retrieval**: resolve_search_location, tune_result_count_by_mode, query_serper_search, extract_result_fields, collect_organic_results, collect_top_story_results, collect_visual_results, collect_answer_signals
-- **Source Enrichment**: select_sources_for_crawling, crawl_webpage_content, clean_page_content, truncate_page_content, attach_source_html
-- **Context Assembly**: merge_search_snippets, append_snippet_dates, merge_scraped_html, semantic_chunk_text, merge_top_story_titles, merge_graph_description, merge_answerbox_content, concatenate_contexts
-- **Ranking**: expand_query_with_date_context, rerank_contexts_jina, rerank_contexts_cohere
-- **LLM Synthesis**: apply_answer_prompt_template, stream_groq_answer, generate_followup_questions, enforce_json_followup_format, parse_followup_json
-- **Unique**: This project’s distinctive pattern is a lightweight live-search stack that fuses heterogeneous evidence types in one context window: organic snippets, scraped page text, top stories, knowledge graph data, and answer-box content. Its `pro_mode` is also unusual because it changes retrieval behavior end to end at once: fewer search hits, targeted page crawling, semantic chunking, and reranking before streamed answer generation.
