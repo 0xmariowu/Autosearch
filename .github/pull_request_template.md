@@ -6,13 +6,26 @@
 
 <!-- Why is this change needed? -->
 
-Closes #<!-- issue number, if applicable -->
+Closes #
+
+## Scope
+
+- [ ] Search pipeline
+- [ ] Channel (specify: )
+- [ ] Skills / PROTOCOL
+- [ ] CI / hooks / infra
+- [ ] Docs / config
 
 ## Test
 
-- [ ] Tests pass locally
-- [ ] New/changed code has corresponding tests
+- [ ] `pytest -m "not network"` passes
+- [ ] `ruff check && ruff format --check` passes
+- [ ] New/changed code has tests
+
+## CHANGELOG
+
+- [ ] Added entry to `## Unreleased` (or N/A for infra-only)
 
 ## Revert
 
-<!-- If this breaks something, how to roll back? (e.g., "revert this commit" or "feature flag X") -->
+<!-- If this breaks something, how to roll back? -->
