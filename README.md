@@ -8,9 +8,21 @@
 
 ## Install
 
+**One-liner** (paste in terminal):
+
 ```bash
-/plugin marketplace add 0xmariowu/autosearch
-/plugin install autosearch@autosearch
+claude plugin marketplace add 0xmariowu/autosearch && claude plugin install autosearch@autosearch
+```
+
+Or use the install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/0xmariowu/autosearch/main/scripts/install.sh | bash
+```
+
+Then open Claude Code and run:
+
+```
 /autosearch:setup
 ```
 
