@@ -74,7 +74,7 @@ Generate a queries JSON array for search_runner.py:
 Execute all searches in one Bash call:
 
 ```bash
-python autosearch/v2/search_runner.py 'THE_JSON_ARRAY' > results.jsonl
+python lib/search_runner.py 'THE_JSON_ARRAY' > results.jsonl
 ```
 
 search_runner.py handles: parallel execution, URL normalization, dedup, date extraction.

@@ -2,7 +2,7 @@
 
 > Read this before any search-related work.
 > This directory holds the **principles, methods, and platform knowledge** for finding high-quality resources.
-> It is knowledge, not code. Code lives in `~/Dev/autosearch/`.
+> It is knowledge, not code. AutoSearch code lives in this repository.
 
 ---
 
@@ -124,7 +124,7 @@ Copy-pasteable commands.
 - **Impact**: {what new resources this unlocks}
 ```
 
-3. **Update parent AIMD/INDEX.md**: Update the file count and add a row to the `projects/search-methodology/` table.
+3. Update any repo-local index that tracks this methodology directory.
 
 ### Step 4: Cross-update
 
@@ -147,7 +147,7 @@ Append new findings to the `## Validated Patterns` section with date.
 
 1. **If new file**: append to INDEX.jsonl
 2. **Always**: prepend to CHANGELOG.md
-3. **If new file**: update parent `AIMD/INDEX.md` — add row to `projects/search-methodology/` table, update file count
+3. **If new file**: update any repo-local index that tracks this methodology directory
 
 ### Step 3: Source tracking
 
@@ -206,32 +206,11 @@ Process:
 
 ---
 
-## Cross-Directory Relationships
-
-```
-search-methodology/          ← KNOWLEDGE (principles + methods + platform patterns)
-       ↓ guides
-~/Dev/autosearch/             ← CODE (engine + pipeline + connectors)
-       ↓ produces
-autosearch/patterns.jsonl     ← DATA (validated search patterns)
-       ↓ feeds back to
-search-methodology/platforms/ ← UPDATED KNOWLEDGE
-       ↓ discovers resources for
-Armory                        ← INTAKE (analyzed + indexed)
-```
-
-- **From autosearch**: `patterns.jsonl` findings → sync to `platforms/*.md` (AI does this after each session)
-- **From Armory**: `search_patterns` MCP tool → check before inventing new methods
-- **To AIMD INDEX.md**: this directory is listed under `projects/search-methodology/`
-- **To global CLAUDE.md**: if a principle proves universal → promote to § Lessons Learned
-
----
-
 ## Do NOT
 
 - Auto-update `principles.md` without user approval — principles are governance, not data
-- Store search results or raw findings here — those go to `AIMD/ai-recommendations/`
-- Duplicate AutoSearch code documentation — that stays in `~/Dev/autosearch/CLAUDE.md`
+- Store search results or raw findings here — keep this directory focused on methodology docs
+- Duplicate AutoSearch code documentation — keep code-level docs with the code they describe
 - Delete any file — supersede to `_archive/` instead
 - Skip index updates — INDEX.jsonl and CHANGELOG.md are how future sessions find your work
 - Write unvalidated patterns as if they were validated — use `## Unvalidated` sections
