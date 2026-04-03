@@ -1,7 +1,0 @@
-from __future__ import annotations
-
-from autosearch.v2.channels._engines.baidu import search_baidu
-
-
-async def search(query: str, max_results: int = 10) -> list[dict]:
-    return await search_baidu(query, site="csdn.net", max_results=max_results)

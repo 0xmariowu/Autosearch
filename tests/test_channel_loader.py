@@ -10,7 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from autosearch.v2 import channels as channel_loader
+import channels as channel_loader
 
 
 SEARCH_IMPL = """async def search(query, max_results=10):

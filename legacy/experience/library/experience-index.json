@@ -1,0 +1,1009 @@
+{
+  "aspects": {
+    "search": {
+      "canonical_providers": {
+        "exa": {
+          "attempts": 156,
+          "error_rate": 0.5833,
+          "errors": 91,
+          "new_url_rate": 1.9808,
+          "new_urls": 309,
+          "reason": "mixed recent signal with both errors and useful output",
+          "results": 325,
+          "status": "active"
+        },
+        "github_issues": {
+          "attempts": 160,
+          "error_rate": 0.0,
+          "errors": 0,
+          "new_url_rate": 2.1812,
+          "new_urls": 349,
+          "reason": "enough recent attempts with strong new-url rate",
+          "results": 517,
+          "status": "preferred"
+        },
+        "github_repos": {
+          "attempts": 160,
+          "error_rate": 0.0,
+          "errors": 0,
+          "new_url_rate": 0.45,
+          "new_urls": 72,
+          "reason": "enough recent attempts with strong new-url rate",
+          "results": 108,
+          "status": "preferred"
+        },
+        "hn_exa": {
+          "attempts": 156,
+          "error_rate": 0.5705,
+          "errors": 89,
+          "new_url_rate": 1.9615,
+          "new_urls": 306,
+          "reason": "mixed recent signal with both errors and useful output",
+          "results": 335,
+          "status": "active"
+        },
+        "reddit_exa": {
+          "attempts": 156,
+          "error_rate": 0.5833,
+          "errors": 91,
+          "new_url_rate": 1.9103,
+          "new_urls": 298,
+          "reason": "mixed recent signal with both errors and useful output",
+          "results": 325,
+          "status": "active"
+        },
+        "twitter_xreach": {
+          "attempts": 160,
+          "error_rate": 0.0,
+          "errors": 0,
+          "new_url_rate": 3.9188,
+          "new_urls": 627,
+          "reason": "enough recent attempts with strong new-url rate",
+          "results": 835,
+          "status": "preferred"
+        }
+      },
+      "providers": {
+        "exa": {
+          "attempts": 65,
+          "error_rate": 0.0,
+          "errors": 0,
+          "new_url_rate": 4.7538,
+          "new_urls": 309,
+          "reason": "enough recent attempts with strong new-url rate",
+          "results": 325,
+          "status": "preferred"
+        },
+        "exa_unavailable": {
+          "attempts": 91,
+          "error_rate": 1.0,
+          "errors": 91,
+          "new_url_rate": 0.0,
+          "new_urls": 0,
+          "reason": "high recent error rate with no new urls",
+          "results": 0,
+          "status": "cooldown"
+        },
+        "github_issues": {
+          "attempts": 160,
+          "error_rate": 0.0,
+          "errors": 0,
+          "new_url_rate": 2.1812,
+          "new_urls": 349,
+          "reason": "enough recent attempts with strong new-url rate",
+          "results": 517,
+          "status": "preferred"
+        },
+        "github_repos": {
+          "attempts": 160,
+          "error_rate": 0.0,
+          "errors": 0,
+          "new_url_rate": 0.45,
+          "new_urls": 72,
+          "reason": "enough recent attempts with strong new-url rate",
+          "results": 108,
+          "status": "preferred"
+        },
+        "hn_exa": {
+          "attempts": 67,
+          "error_rate": 0.0,
+          "errors": 0,
+          "new_url_rate": 4.5672,
+          "new_urls": 306,
+          "reason": "enough recent attempts with strong new-url rate",
+          "results": 335,
+          "status": "preferred"
+        },
+        "hn_exa_error": {
+          "attempts": 89,
+          "error_rate": 1.0,
+          "errors": 89,
+          "new_url_rate": 0.0,
+          "new_urls": 0,
+          "reason": "high recent error rate with no new urls",
+          "results": 0,
+          "status": "cooldown"
+        },
+        "reddit_exa": {
+          "attempts": 65,
+          "error_rate": 0.0,
+          "errors": 0,
+          "new_url_rate": 4.5846,
+          "new_urls": 298,
+          "reason": "enough recent attempts with strong new-url rate",
+          "results": 325,
+          "status": "preferred"
+        },
+        "reddit_exa_error": {
+          "attempts": 91,
+          "error_rate": 1.0,
+          "errors": 91,
+          "new_url_rate": 0.0,
+          "new_urls": 0,
+          "reason": "high recent error rate with no new urls",
+          "results": 0,
+          "status": "cooldown"
+        },
+        "twitter_xreach": {
+          "attempts": 160,
+          "error_rate": 0.0,
+          "errors": 0,
+          "new_url_rate": 3.9188,
+          "new_urls": 627,
+          "reason": "enough recent attempts with strong new-url rate",
+          "results": 835,
+          "status": "preferred"
+        }
+      },
+      "query_families": {
+        "agent-framework": {
+          "exa": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 5.0,
+            "new_urls": 5,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 5,
+            "status": "active"
+          },
+          "github_issues": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 5.0,
+            "new_urls": 5,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 5,
+            "status": "active"
+          },
+          "github_repos": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 0.0,
+            "new_urls": 0,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 0,
+            "status": "active"
+          },
+          "hn_exa": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 5.0,
+            "new_urls": 5,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 5,
+            "status": "active"
+          },
+          "reddit_exa": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 5.0,
+            "new_urls": 5,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 5,
+            "status": "active"
+          },
+          "twitter_xreach": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 2.0,
+            "new_urls": 2,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 2,
+            "status": "active"
+          }
+        },
+        "autonomous-loop": {
+          "exa": {
+            "attempts": 4,
+            "error_rate": 0.5,
+            "errors": 2,
+            "new_url_rate": 2.5,
+            "new_urls": 10,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 10,
+            "status": "active"
+          },
+          "github_issues": {
+            "attempts": 4,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 1.25,
+            "new_urls": 5,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 10,
+            "status": "active"
+          },
+          "github_repos": {
+            "attempts": 4,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 0.25,
+            "new_urls": 1,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 2,
+            "status": "active"
+          },
+          "hn_exa": {
+            "attempts": 4,
+            "error_rate": 0.5,
+            "errors": 2,
+            "new_url_rate": 2.25,
+            "new_urls": 9,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 10,
+            "status": "active"
+          },
+          "reddit_exa": {
+            "attempts": 4,
+            "error_rate": 0.5,
+            "errors": 2,
+            "new_url_rate": 2.0,
+            "new_urls": 8,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 10,
+            "status": "active"
+          },
+          "twitter_xreach": {
+            "attempts": 4,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 2.25,
+            "new_urls": 9,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 19,
+            "status": "active"
+          }
+        },
+        "browser-automation": {
+          "exa": {
+            "attempts": 5,
+            "error_rate": 0.4,
+            "errors": 2,
+            "new_url_rate": 2.2,
+            "new_urls": 11,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 15,
+            "status": "active"
+          },
+          "github_issues": {
+            "attempts": 5,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 1.0,
+            "new_urls": 5,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 15,
+            "status": "active"
+          },
+          "github_repos": {
+            "attempts": 5,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 0.0,
+            "new_urls": 0,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 0,
+            "status": "active"
+          },
+          "hn_exa": {
+            "attempts": 5,
+            "error_rate": 0.4,
+            "errors": 2,
+            "new_url_rate": 2.6,
+            "new_urls": 13,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 15,
+            "status": "active"
+          },
+          "reddit_exa": {
+            "attempts": 5,
+            "error_rate": 0.4,
+            "errors": 2,
+            "new_url_rate": 2.4,
+            "new_urls": 12,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 15,
+            "status": "active"
+          },
+          "twitter_xreach": {
+            "attempts": 5,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 3.4,
+            "new_urls": 17,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 31,
+            "status": "active"
+          }
+        },
+        "coding-agent": {
+          "exa": {
+            "attempts": 1,
+            "error_rate": 1.0,
+            "errors": 1,
+            "new_url_rate": 0.0,
+            "new_urls": 0,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 0,
+            "status": "active"
+          },
+          "github_issues": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 0.0,
+            "new_urls": 0,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 5,
+            "status": "active"
+          },
+          "github_repos": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 0.0,
+            "new_urls": 0,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 0,
+            "status": "active"
+          },
+          "hn_exa": {
+            "attempts": 1,
+            "error_rate": 1.0,
+            "errors": 1,
+            "new_url_rate": 0.0,
+            "new_urls": 0,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 0,
+            "status": "active"
+          },
+          "reddit_exa": {
+            "attempts": 1,
+            "error_rate": 1.0,
+            "errors": 1,
+            "new_url_rate": 0.0,
+            "new_urls": 0,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 0,
+            "status": "active"
+          },
+          "twitter_xreach": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 0.0,
+            "new_urls": 0,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 0,
+            "status": "active"
+          }
+        },
+        "context-engineering": {
+          "github_issues": {
+            "attempts": 2,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 2.5,
+            "new_urls": 5,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 10,
+            "status": "active"
+          },
+          "github_repos": {
+            "attempts": 2,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 1.5,
+            "new_urls": 3,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 6,
+            "status": "active"
+          },
+          "twitter_xreach": {
+            "attempts": 2,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 2.5,
+            "new_urls": 5,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 8,
+            "status": "active"
+          }
+        },
+        "eval": {
+          "exa": {
+            "attempts": 2,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 5.0,
+            "new_urls": 10,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 10,
+            "status": "active"
+          },
+          "github_issues": {
+            "attempts": 2,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 5.0,
+            "new_urls": 10,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 10,
+            "status": "active"
+          },
+          "github_repos": {
+            "attempts": 2,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 0.5,
+            "new_urls": 1,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 2,
+            "status": "active"
+          },
+          "hn_exa": {
+            "attempts": 2,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 5.0,
+            "new_urls": 10,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 10,
+            "status": "active"
+          },
+          "reddit_exa": {
+            "attempts": 2,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 4.5,
+            "new_urls": 9,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 10,
+            "status": "active"
+          },
+          "twitter_xreach": {
+            "attempts": 2,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 4.0,
+            "new_urls": 8,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 8,
+            "status": "active"
+          }
+        },
+        "harness-engineering": {
+          "exa": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 5.0,
+            "new_urls": 5,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 5,
+            "status": "active"
+          },
+          "github_issues": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 4.0,
+            "new_urls": 4,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 5,
+            "status": "active"
+          },
+          "github_repos": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 0.0,
+            "new_urls": 0,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 1,
+            "status": "active"
+          },
+          "hn_exa": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 5.0,
+            "new_urls": 5,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 5,
+            "status": "active"
+          },
+          "reddit_exa": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 5.0,
+            "new_urls": 5,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 5,
+            "status": "active"
+          },
+          "twitter_xreach": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 4.0,
+            "new_urls": 4,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 4,
+            "status": "active"
+          }
+        },
+        "memory": {
+          "exa": {
+            "attempts": 4,
+            "error_rate": 0.5,
+            "errors": 2,
+            "new_url_rate": 2.5,
+            "new_urls": 10,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 10,
+            "status": "active"
+          },
+          "github_issues": {
+            "attempts": 4,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 1.75,
+            "new_urls": 7,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 14,
+            "status": "active"
+          },
+          "github_repos": {
+            "attempts": 4,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 0.75,
+            "new_urls": 3,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 6,
+            "status": "active"
+          },
+          "hn_exa": {
+            "attempts": 4,
+            "error_rate": 0.5,
+            "errors": 2,
+            "new_url_rate": 2.5,
+            "new_urls": 10,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 10,
+            "status": "active"
+          },
+          "reddit_exa": {
+            "attempts": 4,
+            "error_rate": 0.5,
+            "errors": 2,
+            "new_url_rate": 2.5,
+            "new_urls": 10,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 10,
+            "status": "active"
+          },
+          "twitter_xreach": {
+            "attempts": 4,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 3.0,
+            "new_urls": 12,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 17,
+            "status": "active"
+          }
+        },
+        "prompt-engineering": {
+          "exa": {
+            "attempts": 4,
+            "error_rate": 0.75,
+            "errors": 3,
+            "new_url_rate": 1.25,
+            "new_urls": 5,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 5,
+            "status": "active"
+          },
+          "github_issues": {
+            "attempts": 4,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 2.5,
+            "new_urls": 10,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 20,
+            "status": "active"
+          },
+          "github_repos": {
+            "attempts": 4,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 0.25,
+            "new_urls": 1,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 1,
+            "status": "active"
+          },
+          "hn_exa": {
+            "attempts": 4,
+            "error_rate": 0.75,
+            "errors": 3,
+            "new_url_rate": 1.25,
+            "new_urls": 5,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 5,
+            "status": "active"
+          },
+          "reddit_exa": {
+            "attempts": 4,
+            "error_rate": 0.75,
+            "errors": 3,
+            "new_url_rate": 1.25,
+            "new_urls": 5,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 5,
+            "status": "active"
+          },
+          "twitter_xreach": {
+            "attempts": 4,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 5.25,
+            "new_urls": 21,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 26,
+            "status": "active"
+          }
+        },
+        "rules-config": {
+          "exa": {
+            "attempts": 7,
+            "error_rate": 0.5714,
+            "errors": 4,
+            "new_url_rate": 2.0,
+            "new_urls": 14,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 15,
+            "status": "active"
+          },
+          "github_issues": {
+            "attempts": 9,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 1.1111,
+            "new_urls": 10,
+            "reason": "enough recent attempts with strong new-url rate",
+            "results": 20,
+            "status": "preferred"
+          },
+          "github_repos": {
+            "attempts": 9,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 0.0,
+            "new_urls": 0,
+            "reason": "enough recent attempts but no strong positive signal",
+            "results": 0,
+            "status": "active"
+          },
+          "hn_exa": {
+            "attempts": 7,
+            "error_rate": 0.5714,
+            "errors": 4,
+            "new_url_rate": 2.0,
+            "new_urls": 14,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 15,
+            "status": "active"
+          },
+          "reddit_exa": {
+            "attempts": 7,
+            "error_rate": 0.5714,
+            "errors": 4,
+            "new_url_rate": 1.7143,
+            "new_urls": 12,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 15,
+            "status": "active"
+          },
+          "twitter_xreach": {
+            "attempts": 9,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 1.4444,
+            "new_urls": 13,
+            "reason": "enough recent attempts with strong new-url rate",
+            "results": 27,
+            "status": "preferred"
+          }
+        },
+        "skill-plugin": {
+          "exa": {
+            "attempts": 1,
+            "error_rate": 1.0,
+            "errors": 1,
+            "new_url_rate": 0.0,
+            "new_urls": 0,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 0,
+            "status": "active"
+          },
+          "github_issues": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 1.0,
+            "new_urls": 1,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 1,
+            "status": "active"
+          },
+          "github_repos": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 0.0,
+            "new_urls": 0,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 0,
+            "status": "active"
+          },
+          "hn_exa": {
+            "attempts": 1,
+            "error_rate": 1.0,
+            "errors": 1,
+            "new_url_rate": 0.0,
+            "new_urls": 0,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 0,
+            "status": "active"
+          },
+          "reddit_exa": {
+            "attempts": 1,
+            "error_rate": 1.0,
+            "errors": 1,
+            "new_url_rate": 0.0,
+            "new_urls": 0,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 0,
+            "status": "active"
+          },
+          "twitter_xreach": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 6.0,
+            "new_urls": 6,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 7,
+            "status": "active"
+          }
+        },
+        "structured-output": {
+          "exa": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 5.0,
+            "new_urls": 5,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 5,
+            "status": "active"
+          },
+          "github_issues": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 5.0,
+            "new_urls": 5,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 5,
+            "status": "active"
+          },
+          "github_repos": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 0.0,
+            "new_urls": 0,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 0,
+            "status": "active"
+          },
+          "hn_exa": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 4.0,
+            "new_urls": 4,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 5,
+            "status": "active"
+          },
+          "reddit_exa": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 5.0,
+            "new_urls": 5,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 5,
+            "status": "active"
+          },
+          "twitter_xreach": {
+            "attempts": 1,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 7.0,
+            "new_urls": 7,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 7,
+            "status": "active"
+          }
+        },
+        "tool-use": {
+          "exa": {
+            "attempts": 6,
+            "error_rate": 0.6667,
+            "errors": 4,
+            "new_url_rate": 1.6667,
+            "new_urls": 10,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 10,
+            "status": "active"
+          },
+          "github_issues": {
+            "attempts": 6,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 2.0,
+            "new_urls": 12,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 18,
+            "status": "active"
+          },
+          "github_repos": {
+            "attempts": 6,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 0.1667,
+            "new_urls": 1,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 2,
+            "status": "active"
+          },
+          "hn_exa": {
+            "attempts": 6,
+            "error_rate": 0.6667,
+            "errors": 4,
+            "new_url_rate": 1.6667,
+            "new_urls": 10,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 10,
+            "status": "active"
+          },
+          "reddit_exa": {
+            "attempts": 6,
+            "error_rate": 0.6667,
+            "errors": 4,
+            "new_url_rate": 1.5,
+            "new_urls": 9,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 10,
+            "status": "active"
+          },
+          "twitter_xreach": {
+            "attempts": 6,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 5.0,
+            "new_urls": 30,
+            "reason": "insufficient recent samples for promotion or cooldown",
+            "results": 46,
+            "status": "active"
+          }
+        },
+        "unknown": {
+          "exa": {
+            "attempts": 119,
+            "error_rate": 0.605,
+            "errors": 72,
+            "new_url_rate": 1.8824,
+            "new_urls": 224,
+            "reason": "mixed recent signal with both errors and useful output",
+            "results": 235,
+            "status": "active"
+          },
+          "github_issues": {
+            "attempts": 119,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 2.2689,
+            "new_urls": 270,
+            "reason": "enough recent attempts with strong new-url rate",
+            "results": 379,
+            "status": "preferred"
+          },
+          "github_repos": {
+            "attempts": 119,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 0.521,
+            "new_urls": 62,
+            "reason": "enough recent attempts with strong new-url rate",
+            "results": 88,
+            "status": "preferred"
+          },
+          "hn_exa": {
+            "attempts": 119,
+            "error_rate": 0.5882,
+            "errors": 70,
+            "new_url_rate": 1.8571,
+            "new_urls": 221,
+            "reason": "mixed recent signal with both errors and useful output",
+            "results": 245,
+            "status": "active"
+          },
+          "reddit_exa": {
+            "attempts": 119,
+            "error_rate": 0.605,
+            "errors": 72,
+            "new_url_rate": 1.8319,
+            "new_urls": 218,
+            "reason": "mixed recent signal with both errors and useful output",
+            "results": 235,
+            "status": "active"
+          },
+          "twitter_xreach": {
+            "attempts": 119,
+            "error_rate": 0.0,
+            "errors": 0,
+            "new_url_rate": 4.1429,
+            "new_urls": 493,
+            "reason": "enough recent attempts with strong new-url rate",
+            "results": 633,
+            "status": "preferred"
+          }
+        }
+      }
+    }
+  },
+  "generated_at": "2026-03-24T13:28:39.494653+08:00",
+  "recent_run_ids": [
+    "2026-03-24-daily-124251",
+    "2026-03-24-daily-124456",
+    "2026-03-24-daily-124033",
+    "2026-03-24-daily-124135",
+    "2026-03-24-daily-131721",
+    "2026-03-24-daily-132829"
+  ]
+}
