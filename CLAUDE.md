@@ -48,15 +48,7 @@ A self-improving search system. The human provides intent. The AI does everythin
 
 9. Don't delete `evolution.jsonl`. Instead, treat it as the append-only experiment log. Because: it's the raw data that enables cross-session analysis and debugging.
 
-10. Don't run the legacy `run-template.py` for actual searches. Instead, use `pipeline.py` or `cli.py`. Because: the legacy script predates the modular engine and lacks LLMEvaluator, PatternStore, and newer connectors.
-
-## Genome rules
-
-11. Don't manually edit files in `genome/evolved/`. Those are AVO output. Because: manual edits break the lineage chain in evolution.jsonl — AVO can't trace what changed or why.
-
-12. Don't put new strategy decisions in Python code. Instead, add them to `genome/defaults/*.json`. Because: Python changes require code review; genome JSON changes are instantly evolvable by AVO.
-
-13. Don't delete `genome/evolved/` files without checking evolution.jsonl. Because: JSONL records reference genome file paths — deleting breaks load_best_genome().
+10. V1 legacy code has been removed. All search runs use V2.2 architecture: `PROTOCOL.md` + `skills/` + `lib/search_runner.py`.
 
 ## Session Protocol — After completing a search session
 
@@ -86,4 +78,4 @@ A self-improving search system. The human provides intent. The AI does everythin
 
 22. AVO self-evolution MUST be validated separately from search quality. Search quality tests (like F006) prove the pipeline works. Evolution tests prove the system improves itself. An evolution test requires: (a) baseline score, (b) agent-initiated skill modification, (c) re-score showing improvement, (d) git commit on improvement, (e) git revert on regression, (f) pattern written to state. Without this test passing, AutoSearch is a search agent, not a self-evolving search agent.
 
-V1 reference: `engine.py`, `goal_judge.py`, `goal_loop.py`, `outcomes.py`. V2.2: `PROTOCOL.md` + `skills/`.
+V2.2 architecture: `PROTOCOL.md` + `skills/`. V1 code removed.

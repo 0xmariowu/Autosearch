@@ -1,9 +1,0 @@
-{
-  "max_steps": 50,
-  "temperature": 0.3,
-  "max_tokens": 2048,
-  "model": "google/gemini-2.5-flash",
-  "stuck_detect_interval": 3,
-  "search_timeout": 25,
-  "system_prompt_file": "genome/defaults/orchestrator-system-prompt.txt"
-}
