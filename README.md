@@ -1,7 +1,9 @@
 # AutoSearch
 
-**Deep research that gets smarter every time you use it.**
-Zero API keys. Claude Code plugin.
+**Self-evolving deep research.** Gets smarter every time you use it.
+
+Zero API keys. \
+Claude Code plugin.
 
 ```
 /autosearch "compare vector databases for RAG applications"
