@@ -4,6 +4,28 @@ All changes to AutoSearch. Every entry includes **what** changed and **why**.
 
 ---
 
+## 2026-04-03 (v1.0.0 — Plugin Release)
+
+- **AutoSearch is now a Claude Code Plugin.** Install with `/plugin marketplace add 0xmariowu/autosearch` + `/plugin install autosearch@autosearch`. Full plugin structure: commands, agents, skills, hooks, marketplace.json. Why: making AutoSearch distributable to any Claude Code user.
+- **32 search channels as independent plugins.** Each channel is a directory with SKILL.md (capability profile) + search.py (search implementation). Channels auto-discovered by convention-based loader. Why: each channel can be independently developed, tested, and evolved.
+- **Chinese channels work (0% → 100%).** Switched from DuckDuckGo (which doesn't index Chinese sites) to Baidu Kaifa Developer Search (kaifa.baidu.com). 10 Chinese channels now return results: zhihu, csdn, juejin, 36kr, infoq-cn, weibo, xueqiu, xiaoyuzhou, xiaohongshu, douyin. Why: ddgs site:zhihu.com returned 0 results; kaifa.baidu.com returns 10+ with no CAPTCHA.
+- **7 channels extracted from SearXNG.** bilibili (API), stackoverflow (StackExchange API), reddit (JSON API + ddgs fallback), google-scholar (HTML + ddgs fallback), youtube (HTML parsing), wechat (Sogou), npm-pypi (npm API + PyPI HTML). Why: real APIs beat ddgs site:X in quality and reliability.
+- **Twitter/X channel added.** Searches both twitter.com and x.com via ddgs, deduplicates by status ID. Why: many announcements, paper releases, and tech discussions happen on Twitter first.
+- **ddgs package upgraded to v9.12.** Old `duckduckgo_search` package was completely broken (0 results). New `ddgs` package restores all ddgs-dependent channels. Why: the old package was deprecated and stopped returning results.
+- **Two-stage citation lock.** Before synthesis, all search result URLs are compiled into a numbered reference list. Synthesis can only cite from this list. Background knowledge marked explicitly. Why: prevents URL hallucination (rubric r023 was failing).
+- **Mandatory query rules.** Academic topics must generate conference/workshop queries. Product topics must generate company/product queries. Chinese channels must use Chinese query text. Why: rubrics r005 (companies) and r013 (conferences) were failing due to missing query types.
+- **Model routing: Haiku for batch, Sonnet for quality.** Scoring, rubric checking, and query generation use Haiku. Synthesis and AVO evolution use Sonnet. Search itself uses no LLM. Why: 3-5x cost reduction on batch tasks without quality loss.
+- **AVO evolution targets refined.** Evolution now prefers data updates (channel-scores.jsonl) over skill text changes. Priority: data > rules > structure. Why: data changes are more precise, verifiable, and revertible.
+- **Benchmark: +20% vs native Claude.** 5 topics tested (academic, tools, business, Chinese, how-to). AutoSearch: 92%, Native Claude: 72%. Biggest gains: citations (+30%), fresh content (+20%), Chinese sources (+15%). Why: quantifiable proof of value.
+- **search_runner.py reduced from 735 to 149 lines.** All channel code moved to plugin directories. search_runner is now a thin dispatcher. Why: separation of concerns — channels are independent, runner just orchestrates.
+- **V1 code archived to legacy/.** 28 Python files, 14 directories moved. Root directory is clean plugin structure. Why: V1 code was prototype-era, not part of the distributable plugin.
+- **User interaction flow.** 3 questions before search (depth, focus, format) + 1 confirmation after search results. 4 output format templates (executive summary, comparison, full report, resource list). Why: different users need different search strategies and output styles.
+
+## 2026-04-01 (v4.0 — Rubric AVO)
+
+- Rubric-based evolution system: auto-generate topic-specific rubrics, score delivery against them, evolve skills based on failures. Why: generic quality metrics didn't catch specific content gaps.
+- Pipeline test: 0.880 pass rate (22/25 rubrics) on "self-evolving AI agent frameworks". 4/8 channels failed (reddit, zhihu, producthunt, papers-with-code). Why: established baseline for channel improvement work.
+
 ## 2026-03-29 (v2.2)
 - You can now run `/autosearch` with V1's full capabilities restored as evolvable skills: LLM-based relevance scoring (not keyword matching), 5-dimensional gene query generation, 14 platform connectors (8 free + 6 paid), goal-driven research cycles, anti-cheat validation, provider health tracking, and outcome-based query boosting. Why: v2.0 was an amputation — it removed V1's computational capabilities. v2.2 brings them back as skills that AVO can evolve.
 - AutoSearch now uses your own knowledge as a research source alongside API searches. Claude's training data covers foundational works, key researchers, and domain concepts that no API search can find. Why: comparison testing showed native Claude outperformed AutoSearch specifically because of training knowledge + conceptual synthesis.

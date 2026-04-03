@@ -284,7 +284,7 @@ def main(genome_path: str = ""):
     if args.queries:
         queries_path = Path(args.queries)
     else:
-        armory_root = Path(os.environ.get("ARMORY_ROOT", "/Volumes/4TB/Armory"))
+        armory_root = Path(os.environ.get("ARMORY_ROOT", "/Users/dev/Armory"))
         queries_path = armory_root / "scripts" / "scout" / "queries.json"
 
     if not queries_path.exists():

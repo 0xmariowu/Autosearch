@@ -1,18 +1,30 @@
+# Python
 __pycache__/
 *.pyc
-.DS_Store
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Environment
 .env
-goal_cases/runs/
-goal_cases/runtime/
-control/latest-program.json
-sources/latest-capability.json
-experience/latest-health.json
-20*-daily-*.md
-daily-20*.md
+.env.*
+.venv/
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Node (commitlint only)
 node_modules/
-sources/checkpoints/
-sources/evolved-prompt.txt
-sources/health-state.json
-sources/cache.sqlite
-autosearch/v2/state/timing.json
-autosearch/v2/state/adoption.json
+
+# Runtime state (not committed)
+state/timing.json
+state/adoption.json
+
+# Test artifacts
+.pytest_cache/
+.ruff_cache/
