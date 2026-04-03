@@ -168,38 +168,55 @@ Avoid:
 
 If the user could have gotten the same output from scrolling search results, the synthesis failed.
 
-# Output Format Templates
+# Content Structure (auto-determined by Depth)
 
-The user chooses one of four output formats before synthesis. Use the matching template.
+The content structure is chosen automatically based on the user's Depth selection. Do not ask the user to pick a content structure.
 
-## Format 1: Executive Summary (执行摘要)
+## Quick → Executive Summary
 - 1 page maximum
 - Lead with the key insight or recommendation
 - 3-5 bullet points covering: what exists, what matters, what to do
 - One comparison table (max 5 rows)
-- No deep analysis sections
 - End with "Next steps" (2-3 actionable items)
 
-## Format 2: Comparison Report (对比报告)
-- Tables are the primary content
-- Lead with a head-to-head comparison table (all major options × key dimensions)
-- For each option: 1 paragraph of strengths and weaknesses
-- Recommendation section: "Choose X if..., Choose Y if..."
-- Include pricing/cost table if relevant
-- Minimal prose — let the tables speak
-
-## Format 3: Full Report (全面报告) [default]
+## Standard → Full Report [default]
 - Use the standard Delivery Structure from this skill (executive framework, evidence tables, design patterns, risk analysis, gap declaration, resource index)
-- 5-10 pages equivalent
 - Include all five Analysis Requirements (comparison, trend, causal reasoning, recommendation, controversy)
-- This is the default when the user doesn't specify
 
-## Format 4: Resource List (资源清单)
-- Organized by category
-- Each entry: `[Name](url) — one-sentence description | key metric`
-- Group by: tools, papers, articles, communities, companies
-- Include a "Top 5 Picks" section at the top
-- Minimal analysis — focus on discoverability
+## Deep → Full Report + Evidence Appendix
+- Everything in Full Report, plus:
+- Appendix A: complete evidence table (every search result with score, source, date)
+- Appendix B: gap declaration with specific queries that returned zero results
+- Appendix C: methodology notes (channels used, rounds, patterns applied)
+
+# Delivery Format (user-selected)
+
+The user chooses the delivery medium. Write the output in the chosen format.
+
+## Markdown Report (.md) [default]
+- Write to `delivery/{date}-{topic-slug}.md`
+- Standard markdown with tables, headers, bullet lists
+- Citation reference list at the end as `## Sources`
+- This is the default when the user does not specify
+
+## Rich HTML Report
+- Write to `delivery/{date}-{topic-slug}.html`
+- Single self-contained HTML file with embedded CSS (no external dependencies)
+- Use a clean, professional stylesheet: max-width 900px, system font stack, good typography
+- Render comparison tables as styled HTML tables with alternating row colors
+- Use Mermaid.js (CDN) for framework/relationship diagrams where appropriate
+- Add `<details>` collapsible sections for evidence and methodology
+- Include a floating table of contents
+- Citation links should be clickable anchors
+
+## Presentation Slides
+- Write to `delivery/{date}-{topic-slug}-slides.html`
+- Single self-contained HTML file using reveal.js from CDN
+- One slide per major finding or section
+- Use tables and key quotes as slide content (not walls of text)
+- Add speaker notes (`<aside class="notes">`) with detailed evidence for each slide
+- Include a title slide with topic, date, and source count
+- End with a "Key Takeaways" slide and a "Sources" slide
 
 # Quality Bar
 
