@@ -21,9 +21,14 @@ if [ "${_HUSKY_POST_REBASE:-}" != "1" ]; then
 fi
 
 # Prefer project venv (has pytest and all deps), fall back to uv-managed Python 3.11+
+# In worktrees, --show-toplevel points to the worktree, not the main repo.
+# The .venv lives in the main repo, so also check --git-common-dir's parent.
 REPO_ROOT="$(git rev-parse --show-toplevel)"
+MAIN_ROOT="$(cd "$(git rev-parse --git-common-dir)/.." && pwd)"
 if [ -x "$REPO_ROOT/.venv/bin/python3" ]; then
   PYTHON="$REPO_ROOT/.venv/bin/python3"
+elif [ -x "$MAIN_ROOT/.venv/bin/python3" ]; then
+  PYTHON="$MAIN_ROOT/.venv/bin/python3"
 else
   PYTHON=$(command -v python3.11 || command -v python3.12 || echo "")
   if [ -z "$PYTHON" ]; then
