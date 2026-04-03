@@ -1,26 +1,53 @@
 # AutoSearch
 
-**Research better than Claude alone.** A self-evolving research agent that searches 32+ free channels in parallel, synthesizes cited reports, and gets smarter after every session.
+**Self-evolving deep research.** Gets smarter every time you use it.
+
+Zero API keys. \
+Claude Code plugin.
 
 ```
 /autosearch "compare vector databases for RAG applications"
 ```
 
-## Install
+AutoSearch is a self-evolving research agent. It searches across channels you'd never check manually — Chinese tech blogs, academic papers, GitHub repos, Reddit threads, conference talks — synthesizes everything into a cited report, and then learns from the experience. Next time you research a similar topic, it already knows which queries work and which channels matter.
 
-**One-liner** (paste in terminal):
+## Self-Evolution
 
-```bash
-claude plugin marketplace add 0xmariowu/autosearch && claude plugin install autosearch@autosearch
+This is the core differentiator. After every session, AutoSearch:
+
+1. **Tracks per-query performance** — which queries found relevant results, which returned nothing
+2. **Detects and fills gaps** — if a dimension has zero coverage, it automatically runs targeted follow-up searches
+3. **Checks quality against rubrics** — auto-generated pass/fail criteria for every delivery
+4. **Evolves its own skills** — diagnoses the weakest point, modifies search rules or channel selection, commits the improvement
+
+The system uses a fixed evaluator (`judge.py`) that it cannot modify — evolution happens in the search strategy, not the scoring. This prevents Goodhart's Law (optimizing the metric instead of actual quality).
+
+```
+Session 1: searches "vector database" → finds 30 results, misses pricing info
+Session 2: same topic → automatically includes pricing queries (learned from Session 1)
+Session 3: new topic → applies winning query patterns across topics
 ```
 
-Or use the install script:
+## How It Works
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/0xmariowu/autosearch/main/scripts/install.sh | bash
 ```
-
-That's it. Dependencies are installed automatically on first use (Python 3.10+ required).
+You: /autosearch "topic"
+ │
+ ▼
+[1] Recalls what Claude already knows → identifies gaps
+ │
+[2] Generates targeted queries (only for gaps, not what Claude already knows)
+ │
+[3] Searches channels in parallel via search_runner.py (~10 seconds)
+ │
+[4] Evaluates relevance, extracts dates, writes per-query outcomes
+ │
+[5] Detects critical gaps → runs follow-up search if needed (at most once)
+ │
+[6] Synthesizes report with citation lock (every URL from search results)
+ │
+[7] Checks quality rubrics → AVO evolution step → commits improvements
+```
 
 ## Benchmark: AutoSearch vs Native Claude
 
@@ -37,17 +64,13 @@ Tested on 5 topics across academic, tools, business, Chinese, and how-to categor
 
 Scored with auto-generated rubrics measuring information recall, analysis depth, and citation quality.
 
-## Why AutoSearch?
+## Install
 
-| | Native Claude | AutoSearch |
-|---|---|---|
-| Knowledge | Training data only | Real-time search across 32+ channels |
-| Citations | Often hallucinated URLs | Every URL verified from search results |
-| Chinese content | Limited | Zhihu, Bilibili, CSDN, WeChat, 36kr, and more |
-| GitHub projects | From memory (outdated) | Live search sorted by stars |
-| Community voice | None | Reddit, HN, Twitter discussions |
-| Cost efficiency | Uses one model for everything | Haiku for scoring, Sonnet for synthesis |
-| Improvement | Static | Self-evolving after each session |
+```bash
+claude plugin marketplace add 0xmariowu/autosearch && claude plugin install autosearch@autosearch
+```
+
+Dependencies install automatically on first use (Python 3.10+ required).
 
 ## Usage
 
@@ -57,56 +80,23 @@ Scored with auto-generated rubrics measuring information recall, analysis depth,
 
 AutoSearch asks 3 questions before searching:
 
-1. **Depth** — Quick (2 min, 5 channels) / Standard (5 min, 10 channels) / Deep (10+ min, 15+ channels)
-2. **Focus** — Open source / Academic / Commercial / Chinese / Community / Video / All
+1. **Depth** — Quick (2 min) / Standard (5 min) / Deep (10+ min)
+2. **Focus** — Open source / Academic / Commercial / Chinese / Community / All
 3. **Format** — Executive summary / Comparison table / Full report / Resource list
 
-Then runs a 7-phase pipeline: recall gaps, generate queries, search 32+ channels in parallel, evaluate relevance, synthesize with citation lock, check quality rubrics, learn and evolve.
+## Search Channels
 
-## 32 Free Search Channels
-
-No API keys required. Every channel has a capability profile and dedicated search implementation.
+No API keys required. Every channel has a dedicated search implementation.
 
 | Category | Channels |
 |---|---|
 | Code | github-repos, github-issues, npm-pypi, stackoverflow |
 | Academic | arxiv, semantic-scholar, google-scholar, citation-graph |
-| Community | reddit, hn, twitter/x, devto |
+| Community | reddit, hackernews, twitter/x, devto |
 | Chinese | zhihu, bilibili, csdn, juejin, 36kr, wechat, weibo, xiaohongshu, douyin, xiaoyuzhou, xueqiu, infoq-cn |
 | Video | youtube, bilibili, conference-talks |
 | Business | producthunt, crunchbase, g2, linkedin |
 | General | web-ddgs, rss |
-
-## How It Works
-
-```
-You: /autosearch "topic"
- |
- v
-[1] Claude recalls what it knows → identifies gaps
- |
-[2] Generates targeted queries (only for gaps, not what Claude already knows)
- |
-[3] Searches 32+ channels in parallel via search_runner.py (10 seconds)
- |
-[4] Evaluates relevance with Haiku (cheap, fast)
- |
-[5] Synthesizes report with Sonnet (citation lock: every URL from search results)
- |
-[6] Checks quality against auto-generated rubrics
- |
-[7] AVO evolution: diagnoses weakest point, updates channel scores or skills
-```
-
-## Self-Evolution
-
-After each session, AutoSearch:
-1. Checks which quality rubrics passed/failed
-2. Diagnoses the root cause (wrong channels? missed queries? weak synthesis?)
-3. Updates data files (channel scores) or skill rules
-4. Commits improvements, reverts if they don't help
-
-The system gets better at channel selection, query formulation, and report synthesis over time.
 
 ## Adding a Channel
 
@@ -124,16 +114,15 @@ See `channels/STANDARD.md` for the full spec.
 
 ```
 autosearch/
-  .claude-plugin/     Plugin manifest + marketplace catalog
-  commands/           /autosearch:setup (auto-runs, hidden from user)
+  .claude-plugin/     Plugin manifest
+  commands/           /autosearch:setup (auto-runs on first use)
   agents/             Researcher agent definition
   skills/             70+ skills (pipeline, synthesis, evaluation, evolution)
   channels/           32 channel plugins (SKILL.md + search.py each)
     _engines/         Shared backends (baidu, ddgs)
-  lib/                search_runner.py (149 lines), judge.py
-  state/              Append-only learning data (patterns, scores, evolution log)
-  scripts/            setup.sh, run_search.sh
-  hooks/              SessionStart dependency check
+  lib/                search_runner.py, judge.py (fixed evaluator)
+  state/              Append-only learning data (query outcomes, patterns, evolution log)
+  scripts/            Setup and utility scripts
 ```
 
 ## License
