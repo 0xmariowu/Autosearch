@@ -41,6 +41,59 @@ jobs:
       - name: Test
         run: pytest -x -q
 
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Run setup.sh
+        run: bash scripts/setup.sh
+
+      - name: Verify venv
+        run: |
+          ~/.autosearch/venv/bin/python -c "import ddgs; import httpx; print('Dependencies OK')"
+
+      - name: Verify channel loading
+        run: |
+          PYTHONPATH=. ~/.autosearch/venv/bin/python -c "
+          from channels import load_channels
+          ch = load_channels()
+          print(f'{len(ch)} channels loaded')
+          assert len(ch) >= 30, f'Expected >= 30, got {len(ch)}'
+          print('Channel loading OK')
+          "
+
+      - name: Verify search execution
+        run: |
+          RESULT=$(PYTHONPATH=. bash scripts/run_search.sh '[{"channel":"web-ddgs","query":"test","max_results":1}]' 2>/dev/null | head -1)
+          echo "$RESULT"
+          echo "$RESULT" | python3 -c "
+          import sys, json
+          r = json.loads(sys.stdin.readline())
+          assert 'url' in r, 'Missing url'
+          assert 'title' in r, 'Missing title'
+          assert 'snippet' in r, 'Missing snippet'
+          print('Search execution OK')
+          "
+
+      - name: Verify plugin structure
+        run: |
+          test -f .claude-plugin/plugin.json && echo "plugin.json OK"
+          test -f commands/autosearch.md && echo "commands/autosearch.md OK"
+          test -f commands/setup.md && echo "commands/setup.md OK"
+          test -f agents/researcher.md && echo "agents/researcher.md OK"
+          test -f PROTOCOL.md && echo "PROTOCOL.md OK"
+          test -f lib/search_runner.py && echo "search_runner.py OK"
+          test -f lib/judge.py && echo "judge.py OK"
+          test -d channels && echo "channels/ OK"
+          test -d skills && echo "skills/ OK"
+          test -d state && echo "state/ OK"
+          echo "Plugin structure OK"
+
   quality:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
