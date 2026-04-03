@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Self-evolving research agent for Claude Code",
-    "version": "1.0.0"
+    "version": "2026.4.3"
   },
   "plugins": [
     {
       "name": "autosearch",
       "source": "./",
       "description": "Research better than Claude alone. Self-evolving agent that searches 32+ free channels in parallel, synthesizes cited reports (+20% vs native Claude), and gets smarter after every session.",
-      "version": "1.0.0",
+      "version": "2026.4.3",
       "author": {
         "name": "0xmariowu"
       },
