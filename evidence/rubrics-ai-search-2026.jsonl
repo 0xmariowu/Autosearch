@@ -1,0 +1,28 @@
+{"id": "r001", "category": "information-recall", "rubric": "列出至少8个主流AI搜索引擎产品（如Perplexity, SearchGPT/ChatGPT Search, 秘塔AI搜索, Kimi, 天工AI搜索, Grok, You.com, Bing Chat/Copilot）", "priority": "high"}
+{"id": "r002", "category": "information-recall", "rubric": "涵盖至少4个中国市场AI搜索产品并说明各自的核心差异", "priority": "high"}
+{"id": "r003", "category": "information-recall", "rubric": "解释RAG（检索增强生成）的基本架构，包括检索、增强、生成三个阶段", "priority": "high"}
+{"id": "r004", "category": "information-recall", "rubric": "列出至少5个向量数据库/向量搜索工具（如Milvus, Weaviate, Qdrant, Pinecone, Chroma）并说明各自定位", "priority": "high"}
+{"id": "r005", "category": "information-recall", "rubric": "列出至少4个RAG/AI搜索开源框架（如LlamaIndex, LangChain, Haystack, DSPy）并说明用途", "priority": "high"}
+{"id": "r006", "category": "information-recall", "rubric": "包含AI搜索领域2025-2026年的关键产品发布或技术突破（至少3项）", "priority": "high"}
+{"id": "r007", "category": "information-recall", "rubric": "包含至少3个embedding模型（如text-embedding-3, BGE, E5, GTE系列）及其性能比较", "priority": "high"}
+{"id": "r008", "category": "information-recall", "rubric": "提及reranking（重排序）技术及至少2个reranker模型或方法", "priority": "medium"}
+{"id": "r009", "category": "information-recall", "rubric": "包含AI搜索的商业融资数据（Perplexity等至少2家公司的融资额或估值）", "priority": "medium"}
+{"id": "r010", "category": "information-recall", "rubric": "提及至少3个学术会议/期刊上的AI搜索相关研究方向（如SIGIR, EMNLP, ACL的RAG/dense retrieval论文）", "priority": "medium"}
+{"id": "r011", "category": "information-recall", "rubric": "涵盖semantic search（语义搜索）与traditional keyword search的对比，包括技术机制差异", "priority": "medium"}
+{"id": "r012", "category": "information-recall", "rubric": "提及GitHub上AI搜索相关项目的Star数或活跃度数据（至少2个项目）", "priority": "medium"}
+{"id": "r013", "category": "information-recall", "rubric": "包含多模态搜索（图像、视频、语音检索）趋势或产品", "priority": "low"}
+{"id": "r014", "category": "information-recall", "rubric": "提及agentic search / autonomous search agent概念及相关工具或论文", "priority": "medium"}
+{"id": "r015", "category": "information-recall", "rubric": "包含AI搜索的用户规模或市场规模数据（至少1个市场数据点）", "priority": "medium"}
+{"id": "r016", "category": "analysis", "rubric": "对至少3个AI搜索产品进行横向对比，明确说明差异点（功能、定价、目标用户等）", "priority": "high"}
+{"id": "r017", "category": "analysis", "rubric": "分析中国市场与国际市场在AI搜索格局上的核心差异（至少2个维度）", "priority": "high"}
+{"id": "r018", "category": "analysis", "rubric": "识别2024-2026年AI搜索领域的至少2个关键技术趋势，并解释驱动原因", "priority": "high"}
+{"id": "r019", "category": "analysis", "rubric": "分析RAG的主要局限性或失效场景，并提及至少1种改进方向（如HyDE, GraphRAG, Self-RAG）", "priority": "high"}
+{"id": "r020", "category": "analysis", "rubric": "对向量数据库选型给出具体建议，说明不同场景（小规模/大规模/云原生）的选择依据", "priority": "medium"}
+{"id": "r021", "category": "analysis", "rubric": "分析传统搜索引擎（Google/Baidu）与AI原生搜索的竞争关系和市场博弈", "priority": "medium"}
+{"id": "r022", "category": "analysis", "rubric": "解释为什么AI搜索在某些任务上优于、在某些任务上劣于传统搜索（因果推理，不只是对比）", "priority": "medium"}
+{"id": "r023", "category": "analysis", "rubric": "识别AI搜索领域的开放问题或专家争议（如幻觉、引用准确性、实时性 vs 质量的权衡）", "priority": "medium"}
+{"id": "r024", "category": "presentation", "rubric": "包含至少1个比较表格，呈现多个产品/工具的关键属性", "priority": "high"}
+{"id": "r025", "category": "presentation", "rubric": "所有引用的产品、论文、工具均附有可追溯的引用编号或URL", "priority": "high"}
+{"id": "r026", "category": "presentation", "rubric": "包含明确的知识缺口声明（gap declaration），说明本次研究未能覆盖的方面", "priority": "medium"}
+{"id": "r027", "category": "presentation", "rubric": "同时覆盖英文来源和中文来源（各至少3个）", "priority": "medium"}
+{"id": "r028", "category": "presentation", "rubric": "报告有清晰的层级结构（至少包含产品层、技术层、市场层三个层面）", "priority": "medium"}

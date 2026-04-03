@@ -1,0 +1,25 @@
+{"id": "r001", "category": "information-recall", "rubric": "Lists at least 5 named self-evolving search systems or frameworks (e.g. SE-Search, EvolveSearch, ASL, SSP, ConvSearch-R1)", "priority": "high"}
+{"id": "r002", "category": "information-recall", "rubric": "Identifies at least 4 distinct evolution mechanisms (e.g. RL-based, memory-driven, self-play, feedback-loop, knowledge distillation)", "priority": "high"}
+{"id": "r003", "category": "information-recall", "rubric": "Names at least 3 academic papers published in 2025 or 2026 on self-evolving search or retrieval", "priority": "high"}
+{"id": "r004", "category": "information-recall", "rubric": "Mentions at least 2 open-source GitHub repositories for self-evolving search with star counts or links", "priority": "high"}
+{"id": "r005", "category": "information-recall", "rubric": "Covers Chinese community perspectives or Chinese-language implementations of self-evolving search", "priority": "high"}
+{"id": "r006", "category": "information-recall", "rubric": "Includes at least 2 benchmark datasets used to evaluate self-evolving search systems (e.g. BEIR, TREC, HotpotQA, FRAMES)", "priority": "medium"}
+{"id": "r007", "category": "information-recall", "rubric": "Names at least 3 research institutions or labs active in self-evolving search (e.g. universities, AI labs)", "priority": "medium"}
+{"id": "r008", "category": "information-recall", "rubric": "Describes the role of reinforcement learning (RL) in at least one self-evolving search system with specific technique names", "priority": "high"}
+{"id": "r009", "category": "information-recall", "rubric": "Covers memory-based evolution: how systems accumulate and reuse past search trajectories or strategies", "priority": "high"}
+{"id": "r010", "category": "information-recall", "rubric": "Mentions self-play co-evolution where an LLM acts as both proposer and solver in a search context", "priority": "medium"}
+{"id": "r011", "category": "information-recall", "rubric": "Covers at least one commercial or product application of adaptive/self-evolving search beyond academic prototypes", "priority": "medium"}
+{"id": "r012", "category": "information-recall", "rubric": "Includes a timeline covering key milestones from 2023 through 2026 in self-evolving search development", "priority": "medium"}
+{"id": "r013", "category": "information-recall", "rubric": "Names at least 2 specific quantitative performance improvements reported by self-evolving systems (e.g. % gain on benchmark)", "priority": "medium"}
+{"id": "r014", "category": "information-recall", "rubric": "Mentions RAG (Retrieval-Augmented Generation) systems that incorporate self-evolving or adaptive retrieval", "priority": "medium"}
+{"id": "r015", "category": "information-recall", "rubric": "Covers agent-based search systems where the search agent evolves its own strategy (not just the model weights)", "priority": "high"}
+{"id": "r016", "category": "analysis", "rubric": "Provides a conceptual taxonomy or framework organizing self-evolving search approaches by mechanism or architecture", "priority": "high"}
+{"id": "r017", "category": "analysis", "rubric": "Compares at least 3 evolution mechanisms head-to-head with at least one concrete tradeoff stated for each", "priority": "high"}
+{"id": "r018", "category": "analysis", "rubric": "Identifies a directional trend in the field (e.g. shift from offline to online learning, from keyword to neural, from single to multi-agent)", "priority": "high"}
+{"id": "r019", "category": "analysis", "rubric": "Explains WHY a specific approach succeeded or failed with a causal mechanism, not just correlation", "priority": "medium"}
+{"id": "r020", "category": "analysis", "rubric": "States a recommendation for which self-evolving search approach fits which use case (e.g. enterprise vs research vs real-time)", "priority": "medium"}
+{"id": "r021", "category": "analysis", "rubric": "Identifies at least 2 known failure modes or limitations of current self-evolving search systems", "priority": "high"}
+{"id": "r022", "category": "analysis", "rubric": "Identifies at least one open research problem or unresolved controversy in self-evolving search", "priority": "medium"}
+{"id": "r023", "category": "analysis", "rubric": "Discusses the gap between academic self-evolving search research and production deployment realities", "priority": "medium"}
+{"id": "r024", "category": "presentation", "rubric": "Every major claim, system name, or paper reference is supported by at least one citation from search results", "priority": "high"}
+{"id": "r025", "category": "presentation", "rubric": "Includes an explicit gap declaration section stating what was NOT found or remains uncertain", "priority": "medium"}
