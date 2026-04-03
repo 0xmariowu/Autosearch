@@ -164,10 +164,10 @@ If no single-file change is credible, record that the session is blocked by diag
 Commit the change with `git commit`.
 Never amend.
 
-Use this exact message format:
+Use this exact message format (feat with avo scope for commitlint compatibility):
 
 ```text
-avo: [action summary]
+feat(avo): [action summary]
 
 Failed rubrics: [r003, r015]
 Diagnosis: [one-line diagnosis]
