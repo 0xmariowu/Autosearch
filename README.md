@@ -1,643 +1,143 @@
 # AutoSearch
 
-Self-improving search system. Finds repos, articles, and tools for Armory intake.
+A self-evolving research agent for Claude Code. Searches 32+ free channels, synthesizes cited reports, and learns from each session.
 
-## Quick Lookup
+## What it does
 
-| I need... | Go here |
-|----------|---------|
-| Current high-level architecture | `docs/2026-03-22-system-architecture.md` |
-| Search methodology and platform playbooks | `docs/methodology/` |
-| Stable contracts for demand, search, routing handoff, and experience | `standards/` |
-| Runtime search code | `engine.py`, `daily.py`, `pipeline.py` |
-| Feedback loop and outcome tracking | `outcomes.py`, `outcomes.jsonl` |
+You ask a research question. AutoSearch searches GitHub, arXiv, Reddit, Twitter, Hacker News, Zhihu, Bilibili, and 25+ other channels in parallel, evaluates results, and synthesizes a cited report with conceptual frameworks — not just a list of links.
 
-## How It Works
+```
+/autosearch "compare vector databases for RAG applications"
+```
 
-3-phase loop: Explore → Harvest → Post-mortem. Each phase uses LLM evaluation (Sonnet 4.6) to score relevance against a target spec. The post-mortem writes patterns to `patterns.jsonl` — accumulated intelligence that makes the next session smarter.
+## Why not just ask Claude?
 
-## Files
+| | Native Claude | AutoSearch |
+|---|---|---|
+| Knowledge cutoff | Training data only | Real-time search across 32+ channels |
+| Citations | Often hallucinated URLs | Every URL verified from search results |
+| Chinese content | Limited | Zhihu, Bilibili, CSDN, WeChat, and more |
+| GitHub projects | From memory (may be outdated) | Live search sorted by stars |
+| Community sentiment | None | Reddit, HN, Twitter discussions |
+| Improves over time | No | AVO self-evolution after each session |
 
-| File | Purpose |
-|------|---------|
-| `engine.py` | Core: 3-phase search (explore → harvest → post-mortem), gene pool + LLM eval |
-| `daily.py` | Daily mode: reads queries.json as seed genes, 3 rounds |
-| `cli.py` | Manual mode: AI fills genes/target/platforms per task |
-| `pipeline.py` | Orchestrator: engine → adapter → score-and-stage.js → intake → email |
-| `outcomes.py` | Feedback loop: query→repo tracking + WHEN/USE outcome scoring |
-| `project_experience.py` | Runtime experience layer: ledger → index → policy → health |
-| `source_capability.py` | Static source capability layer: catalog → doctor → latest-capability |
-| `evidence_records.py` | Normalizes raw search hits into stable evidence records with domain/content metadata |
-| `acquisition.py` | Minimal local page acquisition and visible-text extraction for optional page enrichment |
-| `control_plane.py` | Current operating program: objective + capability + experience |
-| `goal_judge.py` | Goal-specific evaluator with heuristic / OpenRouter modes |
-| `goal_loop.py` | Goal-driven search loop with keep/discard by score delta |
-| `interface.py` | Stable Python interface for other projects to call goal loops, doctor, and search tasks |
-| `standard.json` | Default config (early-stop thresholds, platform list) |
-| `patterns.jsonl` | Accumulated search intelligence (winning/losing words, outcome boosts) |
-| `evolution.jsonl` | Per-query experiment log across all sessions |
-| `outcomes.jsonl` | Query→repo→WHEN/USE outcome tracking |
-| `platforms.md` | Platform connector status and capabilities |
-| `standards/` | Stable contracts for demand, search, candidate storage, routeable handoff, and experience |
-| `tests/` | Minimal regression tests for runtime experience and outcome provenance |
-
-## Commands
+## Install
 
 ```bash
-python cli.py "search query"           # manual search
-python daily.py                         # daily automated run
-python pipeline.py                      # full pipeline (search → score → intake → email)
-python doctor.py                        # static source/provider capability report
-python goal_loop.py                     # goal-driven loop for one concrete project problem
+claude plugin install autosearch
+/autosearch:setup
 ```
 
-## Python Interface
+Setup creates a lightweight Python virtual environment at `~/.autosearch/venv/` with two dependencies (`ddgs`, `httpx`). Requires Python 3.10+.
 
-**Stable boundary**
+## Usage
 
-- External projects should depend only on `interface.py`.
-- All other modules should be treated as internal implementation by default, including `goal_*`, `pipeline.py`, `daily.py`, and `engine.py`.
-
-Other projects can import a stable interface instead of wiring internal modules:
-
-```python
-from interface import AutoSearchInterface
-
-client = AutoSearchInterface("/path/to/autosearch")
-health = client.doctor()
-result = client.run_goal_case("atoms-auto-mining-perfect", mode="deep", max_rounds=1)
-print(result.get("research_packet", {}).get("packet_id"))
+```bash
+/autosearch "your research topic"
 ```
 
-### Integration Guide
+AutoSearch asks 3 quick questions before searching:
 
-Use the smallest entry point that matches your need:
+1. **Search depth** — Quick (2 min) / Standard (5 min) / Deep (10+ min)
+2. **Focus areas** — Open source, academic, commercial, Chinese content, etc.
+3. **Output format** — Executive summary / Comparison table / Full report / Resource list
 
-- If you want to discover the API product itself:
-  `AutoSearchInterface.api_info()`
-  `AutoSearchInterface.api_method(...)`
-- If you just want to call search:
-  `AutoSearchInterface.run_search_task(...)`
-- If you want goal-scoped query execution without running the full loop:
-  `AutoSearchInterface.search_goal_query(...)`
-- If you want to replay multiple normalized queries through the same goal-scoped search stack:
-  `AutoSearchInterface.replay_goal_queries(...)`
-- If you have a fixed goal plus fixed judge and want explicit `搜索员 + 打分员` roles:
-  `AutoSearchInterface.build_searcher_judge_session(...)`
-- If you want planner / executor / synthesizer phases separately:
-  `AutoSearchInterface.build_research_plan(...)`
-  `AutoSearchInterface.execute_research_plan(...)`
-  `AutoSearchInterface.synthesize_research_round(...)`
-- If you only want acquisition / chunking / evidence normalization helpers:
-  `AutoSearchInterface.fetch_document(...)`
-  `AutoSearchInterface.enrich_record(...)`
-  `AutoSearchInterface.build_markdown_views(...)`
-  `AutoSearchInterface.chunk_document(...)`
-  `AutoSearchInterface.normalize_*` / `coerce_*`
-- If you already have a bundle and only want routeable artifacts:
-  `AutoSearchInterface.build_routeable_output(...)`
-  `AutoSearchInterface.build_research_packet(...)`
-- If you want to run the full goal loop directly:
-  `AutoSearchInterface.run_goal_case(...)`
-- If you want the simplest “push this goal toward a target score” entry:
-  `AutoSearchInterface.optimize_goal(...)`
-- If you want to optimize multiple goals with the same target settings:
-  `AutoSearchInterface.optimize_goals(...)`
-- If you want to run the same runtime across multiple goals:
-  `AutoSearchInterface.run_goal_benchmark(...)`
+Then it runs a 7-phase pipeline:
 
-If another project wants the explicit `搜索员 + 打分员` split, use a session:
+1. Recall what Claude already knows (identifies gaps)
+2. Generate targeted queries (only for gaps)
+3. Search 32+ channels in parallel (5-15 seconds)
+4. Evaluate results for relevance
+5. Synthesize into a cited report
+6. Check quality against rubrics
+7. Learn and evolve for next session
 
-```python
-from interface import AutoSearchInterface
+## Channels
 
-client = AutoSearchInterface("/path/to/autosearch")
-session = client.build_searcher_judge_session("atoms-auto-mining-perfect")
-plans = session.searcher_propose()
-round_result = session.run_searcher_round()
+32 search channels, all free, no API keys required:
+
+| Category | Channels |
+|---|---|
+| Code | github-repos, github-issues, npm-pypi, stackoverflow |
+| Academic | arxiv, semantic-scholar, google-scholar, citation-graph |
+| Community | reddit, hn, twitter/x, devto |
+| Chinese | zhihu, bilibili, csdn, juejin, 36kr, wechat, weibo, and more |
+| Video | youtube, bilibili, conference-talks |
+| Business | producthunt, crunchbase, g2, linkedin |
+| General | web-ddgs, rss |
+
+Each channel is a plugin with its own capability profile (`SKILL.md`) and search implementation (`search.py`). Add new channels by creating a directory under `channels/`.
+
+## How it works
+
+```
+User question
+    |
+    v
+[Phase 1] Claude recalls knowledge, identifies gaps
+    |
+    v
+[Phase 2] search_runner.py searches all channels in parallel
+    |        (32+ channels, 100+ results in 10 seconds)
+    v
+[Phase 3] LLM evaluates relevance (Haiku — fast and cheap)
+    |
+    v
+[Phase 4] Synthesize report (Sonnet — quality writing)
+    |        Two-stage citation lock: every URL from search results
+    v
+[Phase 5] Check rubrics (auto-generated quality contract)
+    |
+    v
+[Phase 6] AVO evolution (learn from this session)
 ```
 
-Current runtime default:
+## Model routing
 
-- Search is free-first by default: when a goal asks for broad premium web search (`exa` / `tavily`), the runtime injects local free web providers (`searxng`, `ddgs`) ahead of them when available.
-- Search now supports explicit research modes:
-  - `speed`: lightweight search, minimal planning, no heavy acquisition by default
-  - `balanced`: default mixed mode
-  - `deep`: planning + cross-verification + acquisition-friendly repair path
-- Search mesh providers are registered behind a stable provider interface. Runtime code uses provider roles/capabilities, and per-provider query transforms now adapt broad queries for GitHub, Reddit, HN, and free web backends before execution.
-- Searcher uses the local AutoSearch runtime and heuristic goal searcher.
-- Judge can use OpenRouter when `OPENROUTER_API_KEY` is configured.
-- Current default judge model is `google/gemini-3-flash-preview`.
-- The OpenRouter editor/searcher is disabled by default; enable it only intentionally with `OPENROUTER_ENABLE_EDITOR=1`.
-- Rubric-only goal cases are supported; if a goal does not define explicit `dimensions`, the runtime derives stable bundle dimensions from `rubric`.
-- The main bundle loop now supports rubric-only goals even when they have no `seed_queries`; round 1 falls back to synthesized candidate plans instead of terminating early.
-- Session mode now follows the same provider restrictions as the main loop; `provider_mix` limits both default platforms and structured per-query platform overrides.
-- Search results are normalized into evidence records before bundle scoring. Legacy fields (`title`, `url`, `body`, `source`, `query`) remain stable; new fields such as `domain`, `content_type`, `snippet`, and `canonical_text` are additive.
-- Cheap rerank now happens before bundle scoring: URL dedup and lexical/hybrid relevance ranking trim the candidate set before expensive judge evaluation.
-- Optional local acquisition is available through sampling policy flags such as `acquire_pages` and `page_fetch_limit`, which enrich top findings with `acquired_text` without changing the default lightweight path.
-- When acquisition is enabled, enriched evidence can also carry additive markdown/chunking fields such as `fit_markdown`, `chunk_scores`, and `selected_chunks`.
-- Accepted evidence is also persisted into a local goal-scoped evidence index so later repair rounds can reuse local evidence before hitting the open web again.
-- Deep-mode execution now records real `search` / `read` / `reason` traces in `deep_steps`, and research synthesis emits both `routeable_output` and a routeable `research_packet`.
-- Research synthesis now produces a `routeable_output` summary with route groups, citations, missing dimensions, score gap metadata, and deep-loop context.
-- Goal watches are supported as a first-class scheduling abstraction. A watch can pin its own goal, mode, budget, threshold, and cadence without sharing a single global daily profile.
+AutoSearch uses cheaper models for batch tasks to minimize cost:
 
-Cross-goal benchmark example:
+| Task | Model |
+|---|---|
+| Query generation, scoring, rubric check | Haiku |
+| Synthesis, AVO evolution | Sonnet |
+| Search (HTTP requests) | No LLM needed |
 
-```python
-from interface import AutoSearchInterface
+## Self-evolution (AVO)
 
-client = AutoSearchInterface("/path/to/autosearch")
-benchmark = client.run_goal_benchmark(
-    ["atoms-auto-mining-perfect", "autosearch-capability-doctor"],
-    max_rounds=1,
-    plan_count=1,
-    max_queries=1,
-)
+After each search session, AutoSearch:
+1. Checks which quality rubrics passed/failed
+2. Diagnoses the weakest point
+3. Updates channel scores or skill rules
+4. Commits the change (reverts if it doesn't help)
+
+This means the system gets better at selecting channels, formulating queries, and synthesizing reports over time.
+
+## Architecture
+
+```
+autosearch/
+├── commands/          # /autosearch, /autosearch:setup
+├── agents/            # Researcher agent definition
+├── skills/            # 70+ skills (pipeline, synthesis, evaluation, evolution)
+├── channels/          # 32 channel plugins (SKILL.md + search.py each)
+│   ├── _engines/      # Shared backends (baidu, ddgs)
+│   └── {channel}/     # One directory per channel
+├── lib/               # search_runner.py (149 lines), judge.py
+├── state/             # Append-only learning data
+├── scripts/           # setup.sh, run_search.sh
+└── hooks/             # SessionStart dependency check
 ```
 
-Optimize-to-target example:
+## Adding a channel
 
-```python
-from interface import AutoSearchInterface
-
-client = AutoSearchInterface("/path/to/autosearch")
-result = client.optimize_goal(
-    "autosearch-capability-doctor",
-    target_score=100,
-    max_rounds=8,
-    plateau_rounds=3,
-    persist_run=False,
-)
+```
+channels/my-channel/
+├── SKILL.md      # When to use, quality signals, blind spots
+└── search.py     # async def search(query, max_results) -> list[dict]
 ```
 
-Batch optimize example:
+See `channels/STANDARD.md` for the full spec.
 
-```python
-from interface import AutoSearchInterface
+## License
 
-client = AutoSearchInterface("/path/to/autosearch")
-summary = client.optimize_goals(
-    ["autosearch-capability-doctor", "autosearch-goal-judge"],
-    target_score=100,
-    max_rounds=4,
-    plateau_rounds=2,
-)
-```
-
-### Stable Return Shapes
-
-Public API product note:
-
-- Dict-returning public methods now include additive `_api` metadata.
-- `_api` is the standardized compatibility envelope and includes:
-  - `name`
-  - `version`
-  - `revision`
-  - `method`
-  - `stability`
-  - `result_kind`
-  - `doc_path`
-- Current product version:
-  - `autosearch-public-api`
-  - `v1alpha1`
-
-`api_info()`
-
-- Returns product metadata and the public method catalog.
-- Stable keys to rely on:
-  - `api_name`
-  - `api_version`
-  - `contract_revision`
-  - `doc_path`
-  - `methods`
-
-`api_method(name)`
-
-- Returns one public method contract summary.
-- Stable keys to rely on:
-  - `method`
-  - `stability`
-  - `result_kind`
-  - `summary`
-  - `doc_path`
-
-`doctor()`
-
-- Returns the capability report produced by `source_capability.py`.
-- Stable fields to rely on:
-  - top-level provider/source availability state
-  - per-provider decision data used for skip / priority
-
-`goal_capability_report(goal_case)` / `goal_platforms(goal_case)`
-
-- Return the capability report and effective platform configs for a resolved goal case.
-- Use these when another project wants the same provider gating the goal loop would use without starting a run.
-- Stable resource fields:
-  - `goal_capability_report(...)["capability_report"]`
-  - `goal_platforms(...)["platforms"]`
-
-`normalize_query(query)`
-
-- Returns the stable query-spec shape:
-  - `normalize_query(query)["query_spec"]["text"]`
-  - `normalize_query(query)["query_spec"]["platforms"]`
-
-`run_search_task(...)`
-
-- This is the stable facade for plain engine search.
-- Minimal return keys:
-  - `run_id`
-  - `experiments`
-  - `unique_urls`
-  - `harvested`
-  - `patterns_written`
-  - `confidence`
-  - `session_doc`
-- Contract note:
-  - callers should treat the method signature in `interface.py` as the stable API
-  - callers should not depend on raw `EngineConfig` internals beyond the exposed arguments
-
-`search_goal_query(...)`
-
-- Executes one normalized query against the goal-scoped provider set.
-- Stable keys to rely on:
-  - `query`
-  - `query_spec`
-  - `baseline_score`
-  - `findings`
-  - `partial_results`
-  - `timed_out_providers`
-
-`replay_goal_queries(...)`
-
-- Replays multiple normalized queries through the goal-scoped provider set.
-- Stable keys to rely on:
-  - `queries`
-  - `query_runs`
-  - `findings`
-
-`run_goal_case(...)`
-
-- Returns the full goal-loop result payload.
-- Stable keys to rely on:
-  - `generated_at`
-  - `goal_id`
-  - `problem`
-  - `target_score`
-  - `plateau_rounds_limit`
-  - `providers_used`
-  - `judge_model`
-  - `evaluation_harness`
-  - `accepted_program`
-  - `stop_reason`
-  - `plateau_state`
-  - optional `practical_ceiling`
-  - `goal_reached`
-  - `score_gap`
-  - `budget_policy`
-  - `gap_queue`
-  - `diary_summary`
-  - `warm_start`
-  - optional `baseline_best`
-  - `bundle_final`
-  - `routeable_output`
-  - `research_bundle`
-  - `search_graph`
-  - top-level `research_packet`
-  - top-level `deep_steps`
-  - `rounds`
-  - optional `run_path` when `persist_run=True`
-- Return-shape note:
-  - top-level `research_packet` is promoted from `routeable_output.research_packet` for callers that want a stable direct access path
-  - top-level `deep_steps` reflects the accepted final round when deep execution is enabled
-  - `search_graph` may include `deep_loop` metadata in deep mode
-- `bundle_final` stable fields:
-  - `score`
-  - `dimension_scores`
-  - `missing_dimensions`
-  - `matched_dimensions`
-  - `accepted_query_count`
-  - `accepted_finding_count`
-  - `sample_findings`
-  - `rationale`
-- `routeable_output` stable fields:
-  - `goal_id`
-  - `goal_title`
-  - `score`
-  - `score_gap`
-  - `matched_dimensions`
-  - `missing_dimensions`
-  - `weakest_dimension`
-  - `routes`
-  - `next_actions`
-  - `citations`
-  - `keywords`
-  - `handoff_packets`
-  - `research_packet`
-  - `graph_handoff`
-  - `planning_ops_summary`
-  - `gap_queue`
-  - `cross_verification`
-- `research_packet` stable fields:
-  - `packet_id`
-  - `goal_id`
-  - `query`
-  - `mode`
-  - `score`
-  - `citations`
-  - `claims`
-  - `contradictions`
-  - `next_actions`
-  - `evidence_refs`
-- `deep_steps` stable item fields:
-  - `kind`
-  - `summary`
-  - `metadata`
-- Stable tuning arguments:
-  - optional `mode`
-  - `max_rounds`
-  - optional `plan_count`
-  - optional `max_queries`
-  - optional `target_score`
-  - optional `plateau_rounds`
-
-`optimize_goal(...)`
-
-- Convenience wrapper around `run_goal_case(...)` for the common case:
-  “keep pushing this goal toward a target score until success or plateau”.
-- Stable arguments:
-  - optional `mode`
-  - `target_score`
-  - `max_rounds`
-  - `plateau_rounds`
-  - optional `plan_count`
-  - optional `max_queries`
-  - optional `persist_run`
-
-`optimize_goals(...)`
-
-- Convenience wrapper around `run_goal_benchmark(...)` for batch optimization.
-- Stable arguments:
-  - optional `mode`
-  - `target_score`
-  - `max_rounds`
-  - `plateau_rounds`
-  - optional `plan_count`
-  - optional `max_queries`
-
-`run_goal_benchmark(...)`
-
-- Returns a benchmark summary payload for multiple goal cases.
-- When `mode` is supplied, the interface applies it through temporary goal payloads and cleans them up after the benchmark run.
-- Input note:
-  - `goals` currently accepts goal ids or goal-case file paths
-  - inline dict goal cases are not accepted by `run_goal_benchmark(...)`
-- Result note:
-  - default return is the summary `payload`
-  - pass `include_results=True` to receive `{payload, results}`
-- Stable keys to rely on:
-  - `generated_at`
-  - `max_rounds`
-  - `plan_count`
-  - `max_queries`
-  - `target_score`
-  - `plateau_rounds`
-  - `goals`
-- Each `goals[*]` item guarantees:
-  - `goal_id`
-  - `problem`
-  - `target_score`
-  - `final_score`
-  - `goal_reached`
-  - `score_gap`
-  - `stop_reason`
-  - optional `practical_ceiling`
-  - `accepted_rounds`
-  - `rounds_run`
-
-`run_watch(...)`
-
-- Runs one independent goal watch using its own mode/budget/threshold profile.
-- Stable watch input fields:
-  - `watch_id`
-  - `goal_id`
-  - optional `mode`
-  - optional `budget`
-  - optional `target_score`
-  - optional `plateau_rounds`
-  - optional `provider_preferences`
-- Stable result fields:
-  - `watch_id`
-  - `goal_id`
-  - `mode`
-  - `frequency`
-  - `run_at`
-  - `target_score`
-  - `success_threshold`
-  - `goal_reached`
-  - `final_score`
-  - `score_gap`
-  - `stop_policy`
-  - `provider_preferences`
-  - `budget`
-  - `scheduler_summary`
-  - `result`
-
-`run_watches(...)`
-
-- Runs multiple independent watches and returns an aggregate payload.
-- Stable top-level fields:
-  - `watch_count`
-  - `reached_count`
-  - `results`
-
-`build_searcher_judge_session(...)`
-
-- Returns a `SearcherJudgeSession` object with stable methods:
-  - `initial_queries()`
-  - `searcher_propose()`
-  - `searcher_execute()`
-  - `judge_bundle()`
-  - `run_searcher_round()`
-
-`build_research_plan(...)`
-
-- Returns normalized planner output for one round.
-- Stable plan item fields to rely on:
-  - `build_research_plan(...)["plans"]`
-  - `label`
-  - `queries`
-  - `intents`
-  - `role`
-  - `branch_type`
-  - `branch_subgoal`
-  - `graph_node`
-  - `graph_edges`
-  - `branch_targets`
-  - `program_overrides`
-  - `decision`
-  - `planning_ops`
-
-`execute_research_plan(...)`
-
-- Executes one planner output against the goal-scoped provider set.
-- Stable keys to rely on:
-  - `label`
-  - `query_runs`
-  - `findings`
-  - `cross_verification`
-  - `deep_steps`
-  - `query_keys`
-
-`synthesize_research_round(...)`
-
-- Synthesizes bundle, judge result, graph, gap queue, and routeable outputs for one round.
-- Stable keys to rely on:
-  - `bundle`
-  - `research_bundle`
-  - `judge_result`
-  - `harness_metrics`
-  - `search_graph`
-  - `repair_hints`
-  - `gap_queue`
-  - `routeable_output`
-
-`run_searcher_round(...)`
-
-- Stable top-level keys:
-  - `goal_id`
-  - `plans`
-  - `capability_report`
-- Each `plans[*]` item guarantees:
-  - `label`
-  - optional `program_overrides`
-  - `queries`
-  - `query_runs`
-  - `finding_count`
-  - `judge_result`
-- Execution notes:
-  - `program_overrides.provider_mix` is applied during search execution
-  - `program_overrides.sampling_policy` is applied during per-query sampling and bundle construction
-
-`fetch_document(...)` / `enrich_record(...)`
-
-- Expose the acquisition pipeline without requiring a goal loop.
-- Use these when another project wants acquired text, markdown, references, and chunk-ranking fields for one URL / record.
-- Stable resource fields:
-  - `fetch_document(...)["document"]`
-  - `enrich_record(...)` returns the enriched record plus `_api`
-
-`build_markdown_views(...)` / `chunk_document(...)`
-
-- Expose the Crawl4AI-style chunk ranking and compact markdown shaping helpers directly.
-- Stable resource fields:
-  - `build_markdown_views(...)` returns the markdown view payload plus `_api`
-  - `chunk_document(...)["chunks"]`
-
-`normalize_result_record(...)` / `normalize_acquired_document(...)` / `normalize_evidence_record(...)` / `coerce_evidence_record(...)` / `coerce_evidence_records(...)`
-
-- Expose the stable evidence-normalization boundary for callers that already have their own search or crawl layer.
-- Stable resource fields:
-  - singular methods return `["record"]`
-  - plural coercion returns `["records"]`
-
-`build_routeable_output(...)` / `build_research_packet(...)`
-
-- Build routeable handoff artifacts from a bundle and judge result without rerunning the full goal loop.
-
-### Evidence Enrichment Contract
-
-- Search findings remain backward-compatible around the classic fields:
-  - `title`
-  - `url`
-  - `body`
-  - `source`
-  - `query`
-- Evidence normalization may also add these stable additive fields:
-  - `domain`
-  - `content_type`
-  - `snippet`
-  - `canonical_text`
-  - `clean_markdown`
-  - `fit_markdown`
-  - `chunk_scores`
-  - `selected_chunks`
-  - `references`
-- Chunking note:
-  - `chunk_scores` is an ordered list of query-ranked chunk metadata
-  - `selected_chunks` is the subset of chunk text chosen for the fitted markdown view
-
-### Maintenance Note
-
-- `interface.py` is the public compatibility target.
-- Internal goal-loop helpers are routed through internal service modules such as `goal_services.py`.
-- Those internal modules are still implementation details and are not part of the public contract.
-- If the internal implementation changes later, compatibility is measured against the exported surface of `interface.py`, not the modules underneath it.
-
-## Dependencies
-
-Pipeline depends on scripts in `Armory/scripts/scout/`:
-- `score-and-stage.js` — scoring + dedup + diversity + Chinese translation + daily report
-- `auto-intake.sh` — clone high-score repos + generate deep-research + rebuild indexes
-- `send-email.sh` — Resend API email delivery
-- `queries.json` — 15 topic groups (seed genes)
-- `state.json` — persistent state (seen URLs, trends, run history)
-
-## Scheduling
-
-- LaunchAgent: `com.vimala.armory-scout`
-- Trigger: `~/.local/bin/armory-scout.sh` → rsync to local → `python pipeline.py`
-- Output: `AIMD/recs/{YYYY-MM-DD}.md`
-
-## Search Methodology
-
-Evidence principles, search methods, and per-platform playbooks: `docs/methodology/`
-- `principles.md` — evidence reliability framework
-- `platforms/*.md` — GitHub, Reddit, HN, Exa, Twitter, HuggingFace patterns
-- `methods/*.md` — specific search techniques (e.g., reverse fingerprint search)
-
-Additional research MCP sources can be documented there even before they become runtime providers. Current example: `docs/methodology/platforms/alphaxiv.md`.
-
-## Standards
-
-AutoSearch standards define narrow contracts, not general architecture:
-
-- `standards/demand-standard.md` — how global demand becomes search briefs
-- `standards/search-standard.md` — what search owns and what it must preserve
-- `standards/content-candidate-standard.md` — the truth layer between findings and admission
-- `standards/routeable-map-standard.md` — the final search-side handoff to downstream routing
-- `standards/experience-standard.md` — how runtime experience is stored and consumed
-
-## Runtime Experience Files
-
-The runtime experience layer lives under `experience/`:
-
-- `experience/library/experience-ledger.jsonl` — append-only search events
-- `experience/library/experience-index.json` — aggregated recent index
-- `experience/library/experience-policy.json` — current runtime guidance
-- `experience/latest-health.json` — machine-readable provider/query-family health
-
-## Source Capability Files
-
-The static capability layer lives under `sources/`:
-
-- `sources/catalog.json` — source/provider registry
-- `sources/latest-capability.json` — machine-readable availability and doctor output
-
-Current runtime providers include `exa`, `tavily`, GitHub providers, `twitter_xreach`, and `huggingface_datasets`.
-
-## Control Plane Files
-
-The current operating program lives under `control/`:
-
-- `program.md` — human-readable operating brief
-- `control/latest-program.json` — machine-readable merged control plane
-
-## Goal Loop Files
-
-Goal-driven self-improvement lives under `goal_cases/` and the goal loop modules:
-
-- `goal_cases/*.json` — concrete project problems with target score + rubric
-- `goal_cases/runs/*.json` — run artifacts for baseline vs goal-judged comparisons
-- `goal_judge.py` — independent evaluator
-- `goal_loop.py` — iterative search / judge / keep-discard runner
+MIT

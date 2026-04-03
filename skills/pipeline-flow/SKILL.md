@@ -45,6 +45,20 @@ After Phase 1, you should have:
 - A list of specific gaps to fill
 - Selected channels and targeted queries
 
+## Search Depth Configuration
+
+The user chooses a depth level that controls search scope:
+
+| Depth | Channels | max_results/channel | Total queries | Time budget |
+|---|---|---|---|---|
+| ⚡ Quick (1) | 5 best-match | 5 | 8 max | 2 minutes |
+| ⚖️ Standard (2) | 10 | 10 | 15 max | 5 minutes |
+| 🔬 Deep (3) | 15+ | 15 | 25 max | 10+ minutes |
+
+Quick mode: select only Tier 1 channels. Standard: Tier 1 + Tier 2. Deep: all relevant channels.
+
+Apply this configuration when generating the queries JSON array for search_runner.
+
 # Phase 2: Incremental Search (only search what Claude doesn't know)
 
 Generate a queries JSON array for search_runner.py:

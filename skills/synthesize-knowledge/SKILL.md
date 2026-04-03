@@ -168,6 +168,39 @@ Avoid:
 
 If the user could have gotten the same output from scrolling search results, the synthesis failed.
 
+# Output Format Templates
+
+The user chooses one of four output formats before synthesis. Use the matching template.
+
+## Format 1: Executive Summary (执行摘要)
+- 1 page maximum
+- Lead with the key insight or recommendation
+- 3-5 bullet points covering: what exists, what matters, what to do
+- One comparison table (max 5 rows)
+- No deep analysis sections
+- End with "Next steps" (2-3 actionable items)
+
+## Format 2: Comparison Report (对比报告)
+- Tables are the primary content
+- Lead with a head-to-head comparison table (all major options × key dimensions)
+- For each option: 1 paragraph of strengths and weaknesses
+- Recommendation section: "Choose X if..., Choose Y if..."
+- Include pricing/cost table if relevant
+- Minimal prose — let the tables speak
+
+## Format 3: Full Report (全面报告) [default]
+- Use the standard Delivery Structure from this skill (executive framework, evidence tables, design patterns, risk analysis, gap declaration, resource index)
+- 5-10 pages equivalent
+- Include all five Analysis Requirements (comparison, trend, causal reasoning, recommendation, controversy)
+- This is the default when the user doesn't specify
+
+## Format 4: Resource List (资源清单)
+- Organized by category
+- Each entry: `[Name](url) — one-sentence description | key metric`
+- Group by: tools, papers, articles, communities, companies
+- Include a "Top 5 Picks" section at the top
+- Minimal analysis — focus on discoverability
+
 # Quality Bar
 
 A good synthesis gives the user conceptual compression.
