@@ -8,7 +8,21 @@ All changes to AutoSearch. Format: `## YYYY.M.D` with `### Changes` and `### Fix
 
 ### Changes
 
+- **Delivery format selection.** `/autosearch` now asks for delivery medium (Markdown / Rich HTML / Presentation slides) instead of content structure. Content structure auto-determined by Depth. (#29)
+- **Language auto-detection.** Output language and channel prioritization auto-detected from topic language. No extra question needed. (#29)
+- **Language pre-filter.** Channel selection reads SKILL.md Language section to exclude mismatched channels (e.g., English topic skips Chinese-only channels). Saves 10+ wasted channel calls. (#31)
+- **Progress output.** Each pipeline phase outputs `[Phase N/6] ✓ {name} — {metric}`. No more 15-minute black hole. (#31)
+- **Model routing.** Pipeline runs in Sonnet via researcher agent (5x cheaper than Opus). Command file split into Phase A (config, Opus) + Phase B (pipeline, Sonnet). (#31)
+- **CalVer versioning.** Switched from SemVer to CalVer `YYYY.M.D`. First tag: `v2026.4.3`. (#29)
+- **Test suite.** 9 → 279 tests: judge.py (27), search_runner (19), channel smoke (64), SKILL.md compliance (160). (#27)
+- **CI improvements.** Draft PRs skip CI. Runtime deps installed in test job. Network tests excluded. (#27, #29)
+- **PR template.** Added Scope checklist and CHANGELOG checkbox. (#29)
+- **STANDARD.md.** Body sections updated to match actual channel format. (#27)
+
 ### Fixes
+
+- **Pre-push hook.** Uses project venv for pytest instead of system Python. (#27)
+- **Python version.** Standardized to 3.10+ (was inconsistent 3.10/3.11). (#27)
 
 ---
 
