@@ -1,0 +1,7 @@
+[
+  {"id": "t1", "topic": "self-evolving AI agent frameworks", "category": "academic", "rubric_file": "evidence/rubrics-self-evolving-ai-agent-frameworks.jsonl"},
+  {"id": "t2", "topic": "vector databases for RAG applications", "category": "tools", "rubric_file": "evidence/rubrics-vector-db-rag.jsonl"},
+  {"id": "t3", "topic": "AI coding assistant market 2026", "category": "business"},
+  {"id": "t4", "topic": "中国大模型生态", "category": "chinese"},
+  {"id": "t5", "topic": "building production RAG systems", "category": "how-to"}
+]
