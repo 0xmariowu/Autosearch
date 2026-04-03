@@ -71,7 +71,7 @@ These rules exist because AVO analysis found that r005 (commercial companies) an
 Build the gene pool from three places:
 
 - The task itself: entities, artifacts, constraints, and pain language from the user or goal case
-- Winning history: patterns from `state/patterns.jsonl` and proven queries from `state/outcomes.jsonl`
+- Winning history: patterns from `state/patterns.jsonl` (filter to `winning_pattern` and `platform_insight` types only — ignore `session_stats`, `outcome_boost`, and `winning_words` entries, which are statistical noise that does not inform query strategy) and proven queries from `state/outcomes.jsonl`
 - Your own judgment: missing synonyms, domain terms, and alternate framings not yet present in state
 
 # Mix Ratio
@@ -128,6 +128,8 @@ Vary the dimension mix across the set:
 
 Avoid a pool where every query starts from the same noun phrase.
 Deduplicate semantically, not only by exact string match.
+After generating all candidate queries, run a final dedup pass: if two queries share 60% or more of their content words, keep the more specific one and drop the other.
+The final query set after dedup MUST NOT exceed `max_total_queries` from config.json.
 
 # Freshness And Time
 
