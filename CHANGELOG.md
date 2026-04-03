@@ -1,10 +1,18 @@
 # Changelog
 
-All changes to AutoSearch. Every entry includes **what** changed and **why**.
+All changes to AutoSearch. Format: `## YYYY.M.D` with `### Changes` and `### Fixes`.
 
 ---
 
-## 2026-04-03 (v1.0.0 — Plugin Release)
+## Unreleased
+
+### Changes
+
+### Fixes
+
+---
+
+## 2026.4.3
 
 - **AutoSearch is now a Claude Code Plugin.** Install with `/plugin marketplace add 0xmariowu/autosearch` + `/plugin install autosearch@autosearch`. Full plugin structure: commands, agents, skills, hooks, marketplace.json. Why: making AutoSearch distributable to any Claude Code user.
 - **32 search channels as independent plugins.** Each channel is a directory with SKILL.md (capability profile) + search.py (search implementation). Channels auto-discovered by convention-based loader. Why: each channel can be independently developed, tested, and evolved.
