@@ -11,7 +11,7 @@
     "expansion_method": "role_perspective",
     "include_negation": true,
     "min_queries": 3,
-    "max_total_queries": 25
+    "max_total_queries": 15
   },
   "scoring": {
     "target_results": 30,

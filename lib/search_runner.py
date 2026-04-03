@@ -68,7 +68,8 @@ def normalize_url(url: str) -> str:
                 doseq=True,
             )
         path = parsed.path.rstrip("/") or "/"
-        if "github.com" in parsed.netloc.lower():
+        netloc = parsed.netloc.lower()
+        if netloc == "github.com" or netloc.endswith(".github.com"):
             path = re.sub(r"/(tree|blob)/(main|master)/?$", "", path)
         return urlunparse(
             (parsed.scheme, parsed.netloc.lower(), path, parsed.params, query, "")

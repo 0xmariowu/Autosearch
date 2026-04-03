@@ -52,8 +52,8 @@ Extract dates from: snippet text, title year mentions, URL path date segments (e
 For arXiv papers, derive the date from the paper ID: `YYMM.NNNNN` means year 20YY, month MM.
 For GitHub repos, use the `updated_at` or `updatedAt` field from the search result.
 For web results, look for date patterns in URLs and snippets.
-If you can confidently determine a date, write it. If not, omit the field rather than guessing.
-Missing date fields score as zero freshness in judge.py, so extracting dates has high impact on scores.
+Always extract a date for every result. Use all available signals: arXiv IDs (YYMM.NNNNN = 20YY-MM), GitHub updatedAt fields, URL path date segments (/2026/03/), year mentions in titles or snippets, conference year (ICLR 2025 = 2025-04), blog post dates. Only omit the field when truly zero date signals exist in the entire record.
+Missing date fields score as zero freshness in judge.py — date extraction has the highest ROI of any metadata operation.
 
 At batch level, extract a small list of concrete follow-up queries:
 
