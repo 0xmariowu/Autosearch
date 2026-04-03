@@ -18,6 +18,9 @@ build/
 .idea/
 .vscode/
 
+# Claude Code plugin cache
+.claude/
+
 # Node (commitlint only)
 node_modules/
 

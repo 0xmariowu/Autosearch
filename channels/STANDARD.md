@@ -46,9 +46,11 @@ Each channel must provide `SKILL.md` with YAML frontmatter followed by a free-fo
 
 The Markdown body is free-form, but it must include these sections:
 
-- `When to use`
+- `Content types`
+- `Language`
+- `Best for`
+- `Blind spots`
 - `Quality signals`
-- `Known limits`
 
 Minimal shape:
 
@@ -62,20 +64,27 @@ api_key_required: false
 aliases: [bili]
 ---
 
-## When to use
+## Content types
 
-Use when the query is likely to be best answered by Bilibili videos or creator uploads.
+Chinese video content, creator uploads, tutorials, and tech commentary.
+
+## Language
+
+Chinese. English queries rarely produce useful results.
+
+## Best for
+
+Chinese-language tech tutorials, product reviews, and visual explainers.
+
+## Blind spots
+
+English content, academic papers, and code repositories.
 
 ## Quality signals
 
 - Official accounts
 - Strong engagement
 - Clear recency
-
-## Known limits
-
-- Search quality varies by keyword
-- Snippets may be sparse
 ```
 
 ## 3. `search.py` Interface
