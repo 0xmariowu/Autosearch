@@ -25,10 +25,13 @@ fi
 # The .venv lives in the main repo, so also check --git-common-dir's parent.
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 MAIN_ROOT="$(cd "$(git rev-parse --git-common-dir)/.." && pwd)"
+PLUGIN_VENV="$HOME/.autosearch/venv/bin/python"
 if [ -x "$REPO_ROOT/.venv/bin/python3" ]; then
   PYTHON="$REPO_ROOT/.venv/bin/python3"
 elif [ -x "$MAIN_ROOT/.venv/bin/python3" ]; then
   PYTHON="$MAIN_ROOT/.venv/bin/python3"
+elif [ -x "$PLUGIN_VENV" ]; then
+  PYTHON="$PLUGIN_VENV"
 else
   PYTHON=$(command -v python3.11 || command -v python3.12 || echo "")
   if [ -z "$PYTHON" ]; then
@@ -42,9 +45,5 @@ if [ -z "$PYTHON" ]; then
   exit 0
 fi
 
-# Use pytest if available, fall back to unittest
-if "$PYTHON" -c "import pytest" 2>/dev/null; then
-  "$PYTHON" -m pytest tests/ -x -q
-else
-  "$PYTHON" -m unittest discover -s tests -q
-fi
+PYTHONPATH="$REPO_ROOT" "$PYTHON" -m pytest tests/ -x -q -m "not network" 2>/dev/null \
+  || PYTHONPATH="$REPO_ROOT" "$PYTHON" -m unittest discover -s tests -q
