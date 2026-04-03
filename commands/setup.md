@@ -1,6 +1,6 @@
 ---
 description: "Set up AutoSearch dependencies (Python venv + packages)"
-user-invocable: true
+user-invocable: false
 ---
 
 # AutoSearch Setup
