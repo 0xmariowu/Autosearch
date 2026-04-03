@@ -2,6 +2,11 @@
 name: generate-rubrics
 description: "Use before search to define binary rubrics that specify what a complete answer must contain. Outputs 20-30 topic-specific rubrics for post-delivery evaluation."
 ---
+
+# Model Recommendation
+
+Rubric generation is a structured output task — binary rubrics with fixed schema. Use Haiku when possible. When spawning an agent for rubric generation, set `model: "haiku"`.
+
 # Purpose
 This skill defines the success criteria before any search begins.
 It turns a vague research goal into 20-30 binary rubrics that answer one question: what must the final delivery contain to count as complete?
