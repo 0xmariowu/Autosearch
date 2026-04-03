@@ -14,8 +14,20 @@ fi
 claude plugin marketplace add 0xmariowu/autosearch
 claude plugin install autosearch@autosearch
 
+# Install /autosearch global command (clean name without namespace)
+PLUGIN_CACHE="$HOME/.claude/plugins/cache/autosearch/autosearch"
+LATEST=$(ls -t "$PLUGIN_CACHE" 2>/dev/null | head -1)
+CMD_SRC="$PLUGIN_CACHE/$LATEST/commands/autosearch.md"
+CMD_DST="$HOME/.claude/commands/autosearch.md"
+
+if [ -f "$CMD_SRC" ]; then
+    mkdir -p "$HOME/.claude/commands"
+    cp "$CMD_SRC" "$CMD_DST"
+    echo "Installed /autosearch command"
+else
+    echo "Warning: could not find command template, use /autosearch:autosearch instead"
+fi
+
 echo ""
-echo "AutoSearch installed! Next steps:"
-echo "  1. Open Claude Code"
-echo "  2. Run: /autosearch:setup"
-echo "  3. Run: /autosearch \"your research topic\""
+echo "AutoSearch installed! Start a new Claude Code session and run:"
+echo "  /autosearch \"your research topic\""
