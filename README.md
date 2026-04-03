@@ -20,13 +20,7 @@ Or use the install script:
 curl -fsSL https://raw.githubusercontent.com/0xmariowu/autosearch/main/scripts/install.sh | bash
 ```
 
-Then open Claude Code and run:
-
-```
-/autosearch:setup
-```
-
-Setup creates a lightweight Python venv at `~/.autosearch/venv/` with two dependencies (`ddgs`, `httpx`). Requires Python 3.10+.
+That's it. Dependencies are installed automatically on first use (Python 3.10+ required).
 
 ## Benchmark: AutoSearch vs Native Claude
 
