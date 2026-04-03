@@ -31,6 +31,12 @@ This skill defines the 7-phase pipeline that makes AutoSearch produce results be
 
 Time: ~15 seconds
 
+# Phase 0.5: Timing (auto-write, never manual)
+
+At session start, write `state/timing.json` with `{"start_ts": "<ISO 8601 now>"}`.
+After Phase 2 (search) completes, update the file: `{"start_ts": "<original>", "end_ts": "<ISO 8601 now>"}`.
+This ensures the latency dimension is always measured. Never write timing.json manually elsewhere.
+
 # Phase 1: Recall + Plan (Claude's knowledge leads)
 
 1. Run `systematic-recall.md` — 9-dimension knowledge scan with confidence levels
