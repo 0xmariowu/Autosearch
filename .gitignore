@@ -24,9 +24,29 @@ build/
 # Node (commitlint only)
 node_modules/
 
-# Runtime state (not committed)
-state/timing.json
-state/adoption.json
+# Runtime state — only config.json and channels.json are shipped
+state/*.jsonl
+state/*.json
+!state/config.json
+!state/channels.json
+state/delivery/
+state/knowledge-maps/
+state/session-*
+
+# Evidence — generated search results (keep .gitkeep for directory structure)
+evidence/*.jsonl
+evidence/*.json
+evidence/*.md
+evidence/comparison/
+
+# Delivery — generated reports
+delivery/*.md
+delivery/*.html
+
+# Internal dev artifacts
+docs/exec-plans/
+HANDOFF.md
+experience/
 
 # Test artifacts
 .pytest_cache/
