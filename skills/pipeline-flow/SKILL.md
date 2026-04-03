@@ -19,6 +19,24 @@ Not all phases need the same model. Use cheaper models for structured/batch task
 
 When spawning agents for batch tasks (scoring, rubric checking), use `model: "haiku"`.
 
+# Progress Output
+
+After completing each phase, output a one-line progress summary the user can read. Use this exact format:
+
+```
+[Phase N/6] ✓ {phase name} — {key metric or finding}
+```
+
+Examples:
+- `[Phase 1/6] ✓ Recall — 47 items mapped, 8 gaps identified`
+- `[Phase 2/6] ✓ Search — 38 results from 8 channels (12 new discoveries)`
+- `[Phase 3/6] ✓ Evaluate — 31 relevant, 7 filtered out`
+- `[Phase 4/6] ✓ Synthesize — report drafted, 24 cited sources`
+- `[Phase 5/6] ✓ Rubrics — 21/25 passed (84%)`
+- `[Phase 6/6] ✓ Learn — 3 patterns saved, 1 skill evolved`
+
+This solves the "15-minute black hole" problem. Users need to see progress, not silence.
+
 # Purpose
 
 This skill defines the 7-phase pipeline that makes AutoSearch produce results better than native Claude. Follow these phases in order.
