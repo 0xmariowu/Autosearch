@@ -9,15 +9,23 @@ Not all phases need the same model. Use cheaper models for structured/batch task
 
 | Phase | Model | Reason |
 |---|---|---|
-| Phase 1: Own knowledge | Session model | Needs full reasoning |
+| Phase 0: Generate rubrics | Haiku | Structured output, fixed schema |
+| Phase 1: Own knowledge | Session model | Needs full reasoning for 9-dimension recall |
 | Phase 2: Generate queries | Haiku | Structured expansion, no deep reasoning needed |
-| Phase 3: Search + evaluate | Haiku for scoring | Batch classification task |
+| Phase 3: Search + evaluate | Free (HTTP) + Haiku | Search is HTTP; relevance scoring is classification |
 | Phase 4: Reflect on gaps | Session model | Needs reasoning about what's missing |
 | Phase 5: Synthesize | Sonnet | Quality-critical, needs strong writing |
 | Phase 6: Check rubrics | Haiku | Pass/fail classification |
 | Phase 7: AVO evolution | Sonnet | Needs diagnostic reasoning |
 
-When spawning agents for batch tasks (scoring, rubric checking), use `model: "haiku"`.
+**This table is not advisory — it is the routing contract.** When executing a phase, spawn a sub-agent with the specified model. Do not run Haiku-designated phases in the session model. Each skill's `# Model Recommendation` section repeats the routing for that skill.
+
+| Model | When to use |
+|---|---|
+| Haiku | Structured/classification tasks: rubrics, queries, scoring, pass/fail |
+| Sonnet | Reasoning + writing: synthesis, evolution diagnosis |
+| Session model | Deep recall, gap analysis (inherits from researcher agent) |
+| No model | HTTP search via search_runner.py — pure network calls |
 
 # Progress Output
 

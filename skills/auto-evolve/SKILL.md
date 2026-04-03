@@ -3,6 +3,10 @@ name: auto-evolve
 description: "Use after check-rubrics to run one AVO evolution step: diagnose failed rubrics, modify one skill or config, commit the change, and record the evolution for future verification."
 ---
 
+# Model Recommendation
+
+Evolution requires diagnostic reasoning — reading rubric failures, tracing root causes, deciding what to change. Use Sonnet. Haiku lacks the reasoning depth for reliable diagnosis.
+
 # Purpose
 
 This is the AVO core evolution skill.
