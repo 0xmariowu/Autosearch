@@ -59,9 +59,11 @@ Find every rubric with `passed: false`.
 Get `pass_rate` from the latest matching summary in `state/rubric-history.jsonl` when available.
 If that summary does not exist yet, compute `pass_rate` from the checked rubrics file.
 
-If `pass_rate >= 0.90`, skip evolution.
-Still append a skip entry to `state/evolution-log.jsonl` with the topic, timestamp, pass rate, failed rubric ids, and reason: `skip: pass rate already >= 0.90`.
+If `pass_rate >= 0.75` AND zero `high` priority rubrics failed, skip evolution.
+Still append a skip entry to `state/evolution-log.jsonl` with the topic, timestamp, pass rate, failed rubric ids, and reason: `skip: pass rate >= 0.75 with no high-priority failures`.
 Do not modify any skill or config file in this case.
+
+If `pass_rate >= 0.75` BUT one or more `high` priority rubrics failed, do NOT skip — proceed to Step 2. High-priority failures always warrant evolution regardless of overall pass rate.
 
 ## Step 2: Aggregate By Category
 
@@ -111,18 +113,33 @@ Allowed change types:
 - update weights in `state/channel-scores.jsonl`
 - add one pattern entry to `state/patterns-v2.jsonl`
 - add analysis or presentation instructions to `skills/synthesize-knowledge/SKILL.md`
+- **create a new skill** via `create-skill.md` when the diagnosis identifies a missing capability (see below)
+
+### When to create a new skill vs modify an existing one
+
+Create a new skill when the diagnosis shows:
+- a platform or data source the system cannot currently search (e.g., "no skill for searching patent databases")
+- a processing capability that no existing skill covers (e.g., "no skill for comparing pricing tables")
+- a recurring gap that has appeared in 2+ sessions and cannot be fixed by adding a rule to an existing skill
+
+Modify an existing skill when:
+- the capability exists but the rules are too weak or too narrow
+- the skill covers the right area but misses a specific heuristic
+
+When creating a skill, follow `create-skill.md` exactly. The new skill file counts as the ONE file change for this evolution step.
 
 ### Evolution priority order
 
 When multiple changes could fix the target rubrics, prefer:
 1. **Data file update** (`state/channel-scores.jsonl`, `state/patterns-v2.jsonl`) — most precise, easiest to verify and revert
 2. **Specific rule addition** (add one heuristic/rule to a skill) — targeted, testable
-3. **Structural change** (rewrite a skill section) — last resort, hardest to verify
+3. **New skill creation** (via `create-skill.md`) — when the capability is genuinely missing
+4. **Structural change** (rewrite a skill section) — last resort, hardest to verify
 
-Data-driven evolution > rule-based evolution > structural evolution.
+Data-driven evolution > rule-based evolution > capability expansion > structural evolution.
 
 Rules:
-- modify only ONE file
+- modify or create only ONE file
 - make the SMALLEST change likely to flip the target rubrics
 - prefer a local heuristic over a broad rewrite
 - keep the evaluation function stable
@@ -147,10 +164,10 @@ If no single-file change is credible, record that the session is blocked by diag
 Commit the change with `git commit`.
 Never amend.
 
-Use this exact message format:
+Use this exact message format (feat with avo scope for commitlint compatibility):
 
 ```text
-avo: [action summary]
+feat(avo): [action summary]
 
 Failed rubrics: [r003, r015]
 Diagnosis: [one-line diagnosis]

@@ -137,6 +137,8 @@ The delivery should clearly show AutoSearch's incremental value:
 
 # Phase 5: Rubric Check (did we deliver what we promised?)
 
+**MANDATORY — never skip this phase.** Run it even if the user has already seen the delivery. The rubric check feeds Phase 6 which is how the system improves. Skipping Phase 5 means AVO has no signal to evolve on.
+
 1. Run `check-rubrics.md` — checks each rubric pass/fail with evidence
 2. Output `checked-rubrics.jsonl`
 3. Append summary to `rubric-history.jsonl`
@@ -145,12 +147,15 @@ Time: ~30 seconds
 
 # Phase 6: Learn + Evolve
 
+**MANDATORY — never skip this phase.** This is the only place where self-evolution happens. A session without Phase 6 is a search session, not a self-evolving session. Run it immediately after Phase 5 completes, before the session ends.
+
 1. Save updated knowledge map via `knowledge-map.md`
 2. Record which channels produced incremental discoveries
 3. Record which query patterns worked best
 4. Append patterns to `state/patterns-v2.jsonl`
 5. Run `auto-evolve.md`
-   - AVO performs one evolution step: diagnose failed rubrics -> modify one skill -> commit -> record
+   - AVO performs one evolution step: diagnose failed rubrics -> modify one skill or create a new one -> commit -> record
+   - If the diagnosis identifies a missing capability (not just a weak existing one), use `create-skill.md` instead of modifying an existing skill
 
 This data makes the next session on the same topic faster and better.
 

@@ -58,6 +58,8 @@ Certain topic types MUST generate specific query types to avoid systematic cover
 
 - MUST generate at least 1 query with `content_type=company-product` (e.g., "topic startup company funding")
 - MUST generate at least 1 query targeting `producthunt` or `crunchbase` channel
+- MUST generate at least 1 query targeting enterprise/non-GitHub alternatives (e.g., "GitLab Duo", "AWS CodeGuru", "Atlassian Bitbucket AI") when the topic involves developer tools. Because: AVO found r003/r006 consistently fail without enterprise platform queries.
+- MUST generate at least 1 query with `content_type=comparison` that includes "pricing" or "deployment" (e.g., "topic pricing free tier enterprise"). Because: AVO found r008 (pricing/deployment info) fails without explicit pricing queries.
 
 ## Any topic
 
