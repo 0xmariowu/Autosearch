@@ -1,15 +1,20 @@
 # AutoSearch
 
-**Self-evolving deep research.** Gets smarter every time you use it.
-
-Zero API keys. \
-Claude Code plugin.
+**Self-evolving deep research system for Claude Code.** Gets smarter every time you use it. Zero API keys.
 
 ```
 /autosearch "compare vector databases for RAG applications"
 ```
 
 AutoSearch is a self-evolving research agent. It searches across channels you'd never check manually — Chinese tech blogs, academic papers, GitHub repos, Reddit threads, conference talks — synthesizes everything into a cited report, and then learns from the experience. Next time you research a similar topic, it already knows which queries work and which channels matter.
+
+## Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/0xmariowu/autosearch/main/scripts/install.sh | bash
+```
+
+This installs the plugin and registers the `/autosearch` command. Dependencies install automatically on first use (Python 3.10+ required).
 
 ## Self-Evolution
 
@@ -64,14 +69,6 @@ Tested on 5 topics across academic, tools, business, Chinese, and how-to categor
 
 Scored with auto-generated rubrics measuring information recall, analysis depth, and citation quality.
 
-## Install
-
-```bash
-claude plugin marketplace add 0xmariowu/autosearch && claude plugin install autosearch@autosearch
-```
-
-Dependencies install automatically on first use (Python 3.10+ required).
-
 ## Usage
 
 ```bash
@@ -80,9 +77,9 @@ Dependencies install automatically on first use (Python 3.10+ required).
 
 AutoSearch asks 3 questions before searching:
 
-1. **Depth** — Quick (2 min) / Standard (5 min) / Deep (10+ min)
+1. **Depth** — Quick (5 channels) / Standard (10 channels) / Deep (15+ channels)
 2. **Focus** — Open source / Academic / Commercial / Chinese / Community / All
-3. **Format** — Executive summary / Comparison table / Full report / Resource list
+3. **Delivery** — Markdown report / Rich HTML report (tables + diagrams) / Presentation slides
 
 ## Search Channels
 
@@ -115,7 +112,7 @@ See `channels/STANDARD.md` for the full spec.
 ```
 autosearch/
   .claude-plugin/     Plugin manifest
-  commands/           /autosearch:setup (auto-runs on first use)
+  commands/           /autosearch entry point + setup
   agents/             Researcher agent definition
   skills/             70+ skills (pipeline, synthesis, evaluation, evolution)
   channels/           32 channel plugins (SKILL.md + search.py each)
