@@ -65,6 +65,18 @@ Explain:
 
 This is the difference between a search log and a report.
 
+# API Catalog Topic Requirements
+
+When the topic is primarily an **API / data source catalog** (identified by rubrics that ask to "compare APIs on access model", "distinguish between X and Y type", or "use cases a developer can build"), the delivery MUST include all three of the following sections, regardless of depth level:
+
+1. **Access model comparison table** — compare at least 5 APIs/platforms on: access model (free/registration/paid), data freshness (real-time/near-real-time/archival), and primary data type. Do not omit this table; it directly addresses "compare at least 3 APIs" rubrics.
+
+2. **Domain distinction** — a dedicated paragraph or section that explicitly distinguishes the major API categories by purpose (e.g., space telescope archives vs. Earth observation/remote sensing vs. satellite tracking), explains when each is appropriate, and names at least one concrete developer scenario per category.
+
+3. **Developer use cases** — a concrete list of 2-5 applications a developer or researcher could build with these APIs, named specifically (e.g., "transient alert dashboard", "satellite pass tracker", "exoplanet parameter browser"). This is MANDATORY — do not omit use cases even when the task spec does not ask for them explicitly.
+
+Why: rubrics r016, r017, r018 failed in the telescope-satellite-api session (2026-04-04) because synthesis produced an API catalog without a comparison table, domain distinction section, or use cases. These three items are the minimum analytical layer for any API catalog topic.
+
 # Analysis Requirements
 
 Beyond organizing what was found, synthesis must produce original analysis.
