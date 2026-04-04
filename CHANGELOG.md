@@ -11,6 +11,10 @@ All changes to AutoSearch. Format: `## YYYY.MM.DD.N` with `### Changes` and `###
 
 ## 2026.04.04.5
 
+### Fixes
+- You can now search Chinese topics without losing Chinese channels — channel scoring now tracks language separately, so English-session zero-yield no longer poisons Chinese channel selection
+- Removed hardcoded Chinese channel exclusion list from select-channels skill
+
 ## 2026.04.04.4
 
 ### Changes
