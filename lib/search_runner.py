@@ -331,7 +331,14 @@ def make_result(
 
 # --- Channel execution ---
 
-CHANNEL_METHODS = load_channel_plugins()
+CHANNEL_METHODS: dict | None = None
+
+
+def _ensure_channels_loaded() -> None:
+    """Lazy-load channel plugins on first use, not at import time."""
+    global CHANNEL_METHODS
+    if CHANNEL_METHODS is None:
+        CHANNEL_METHODS = load_channel_plugins()
 
 
 async def run_single_query(query_obj: dict) -> list[dict]:
@@ -351,6 +358,7 @@ async def run_single_query(query_obj: dict) -> list[dict]:
         )
         return []
 
+    _ensure_channels_loaded()
     method = CHANNEL_METHODS.get(channel)
     if method is None:
         print(f"[search_runner] unknown channel: {channel}", file=sys.stderr)
