@@ -139,6 +139,35 @@ Fields:
 
 If no gaps were found, write an empty file. The file must always exist after Phase 3 so Phase 3b can check it without error handling.
 
+# Reflect Output
+
+After all evaluation batches and gap analysis, produce a `gap_dimensions` summary:
+
+For each knowledge dimension that is poorly covered (0-2 relevant results), output:
+```json
+{"dimension": "commercial-players", "coverage": 1, "gap": "Only one startup found, no enterprise players or market data", "priority": "high"}
+```
+
+This gap_dimensions list is:
+1. Used by gap-fill to generate targeted queries (immediate value)
+2. Written to `state/patterns-v2.jsonl` as a learning signal (evolution value)
+3. Passed to Block 4 synthesis for explicit gap declaration in the report
+
+# Compress Output
+
+After evaluation, produce a compressed claims file: `evidence/{session_id}-claims.jsonl`.
+
+For each relevant result (llm_relevant=true), distill one structured claim:
+```json
+{"url": "https://...", "claim": "Qdrant outperforms Pinecone on filtered search by 3x at 1M vectors", "source": "github", "dimension": "performance-benchmarks"}
+```
+
+Rules:
+- One claim per result, max one sentence
+- The claim must capture the single most important finding from that result
+- Include the dimension it covers (maps to the 9 recall dimensions)
+- This file is what Block 4 reads instead of raw results — keep it dense and useful
+
 # Quality Bar
 
 This skill exists because keyword overlap confuses "found matching keywords" with "found the right thing."
