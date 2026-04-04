@@ -36,5 +36,5 @@
 AutoSearch provides a consistent +20% improvement over native Claude across all topic categories. The advantage is largest for topics requiring fresh data, specific URLs, or non-English sources.
 
 Date: 2026-04-03
-Pipeline version: v4.1 (channel plugins + citation lock + model routing)
+Version: 2026.04.03 (channel plugins + citation lock + model routing)
 Channels used: 32 (10 per topic on standard depth)
