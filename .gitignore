@@ -32,6 +32,7 @@ state/*.json
 state/delivery/
 state/knowledge-maps/
 state/session-*
+state/research-contexts/
 
 # Evidence — generated search results (keep .gitkeep for directory structure)
 evidence/*.jsonl
