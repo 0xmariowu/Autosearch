@@ -70,6 +70,7 @@ Read `state/channel-scores.jsonl` for proven channel performance data. Each entr
 {
   "channel": "github-repos",
   "topic_type": "general",
+  "lang": "en",
   "incremental_rate": 0.45,
   "relevance_rate": 0.85,
   "avg_results": 20,
@@ -77,14 +78,23 @@ Read `state/channel-scores.jsonl` for proven channel performance data. Each entr
 }
 ```
 
+- `lang` = language context in which this score was measured ("en", "zh", etc.)
 - `incremental_rate` = fraction of results that were genuinely new (not in Claude's knowledge)
 - `relevance_rate` = fraction of results marked relevant by llm-evaluate
 
-Prefer channels with higher `incremental_rate` for the matching `topic_type`.
+### Language-aware scoring
+
+**First determine the topic language** (from Phase A auto-detection). Then filter scores:
+
+1. Only use scores where `lang` matches the topic language
+2. If a channel has no score for the current language, treat it as **untested** — include with medium priority to gather data. Untested ≠ zero yield. A channel that was never tested in Chinese might be excellent for Chinese topics.
+3. Never use English-session scores to judge a channel's Chinese performance, or vice versa
+
+Example: topic is Chinese → zhihu has no `lang: "zh"` score → zhihu is untested → include with medium priority. Do NOT look at zhihu's `lang: "en"` score (which would be zero and misleading).
+
+Prefer channels with higher `incremental_rate` for the matching `topic_type` AND `lang`.
 A channel with `incremental_rate: 0.05` for a topic type should be deprioritized.
 A channel with `incremental_rate: 0.50` should be strongly prioritized.
-
-If no score exists for a channel+topic_type combo, treat it as untested — include it with medium priority to gather data.
 
 Also read `state/patterns-v2.jsonl` for entries with type "platform". If a pattern says "zhihu is best for Chinese dev experience" and the topic matches, include zhihu.
 
@@ -94,20 +104,19 @@ After each pipeline run, `auto-evolve.md` should update `channel-scores.jsonl` b
 - Channels that returned high-relevance results → increase `incremental_rate`
 - Channels that returned 0 results or all irrelevant → decrease `incremental_rate`
 - New channel+topic_type combos get baseline scores from the first run
+- **Always include `lang` field** when writing new scores — inherit from the session's detected language
 
 This data-driven evolution is more precise than modifying skill text. The `auto-evolve.md` diagnosis should prefer updating `channel-scores.jsonl` over rewriting this skill when information-recall rubrics fail due to channel selection.
 
-## Rule 4b: Exclude known zero-yield channels before capping
+## Rule 4b: Exclude broken channels (API/auth issues only)
 
-Before applying Rule 5, exclude any channel that matches BOTH conditions:
-1. Has returned 0 results in 2+ prior sessions for this topic_type
-2. Is available as an alternative via web-ddgs with a site: prefix
+Before applying Rule 5, exclude channels that cannot work due to missing API keys or auth — NOT channels that returned zero results for a different language.
 
-Known zero-yield channels (as of 2026-04-04, verified across 2 sessions):
-- `zhihu`, `36kr`, `wechat`, `juejin`, `bilibili`, `infoq-cn` — Chinese platforms return 0 results via current site_search method. Do NOT include unless a working API/method has been confirmed via `discover-environment`. When Chinese-language primary sources are needed, use `web-ddgs` with Chinese-language query text and site: prefixes (e.g., `site:zhihu.com`), or flag the gap explicitly.
-- `crunchbase`, `twitter` — API-dependent channels that return 0 results without auth. Use `web-ddgs` with `site:crunchbase.com` or specific funding query patterns instead.
+Known broken channels (require API key or auth not currently configured):
+- `crunchbase` — requires API key. Use `web-ddgs` with `site:crunchbase.com` as fallback.
+- `twitter` — requires API access. Use `web-ddgs` with `site:twitter.com` as fallback.
 
-Do not silently include zero-yield channels hoping they will work this time. They consume query budget and produce false coverage signal in the selected-channel list.
+Do NOT exclude Chinese channels (zhihu, csdn, 36kr, etc.) based on zero-yield from English sessions. Those channels have no data in English — but they work for Chinese topics. Check `channel-scores.jsonl` with the correct `lang` filter instead.
 
 ## Rule 5: Cap at 10 channels
 
