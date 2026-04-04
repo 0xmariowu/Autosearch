@@ -9,6 +9,13 @@ All changes to AutoSearch. Format: `## YYYY.MM.DD.N` with `### Changes` and `###
 
 ---
 
+## 2026.04.04.6
+
+### Fixes
+
+- Search failures now correctly distinguished from empty results — channels no longer get suspended for returning zero hits
+- YouTube innertube key moved to environment variable (YOUTUBE_INNERTUBE_KEY)
+
 ## 2026.04.04.5
 
 ### Fixes
