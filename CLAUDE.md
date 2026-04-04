@@ -82,7 +82,7 @@ V2.2 architecture: `PROTOCOL.md` + `skills/`. V1 code removed.
 
 ## Release Workflow
 
-Version format: **CalVer `YYYY.M.D`** (e.g., `2026.4.4`). Same-day releases append `-N` suffix.
+Version format: **CalVer `YYYY.MM.DD.N`** (e.g., `2026.04.04.1`). N is the daily sequence number (1, 2, 3...).
 
 Version lives in 3 files (kept in sync by `scripts/bump-version.sh`):
 - `.claude-plugin/plugin.json` — Claude Code reads this to detect updates

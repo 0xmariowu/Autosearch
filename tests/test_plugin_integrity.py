@@ -445,8 +445,8 @@ class TestVersionConsistency:
 
     def test_version_is_calver(self) -> None:
         version = self.plugin["version"]
-        assert re.match(r"^\d{4}\.\d{1,2}\.\d{1,2}(-\d+)?$", version), (
-            f"Version '{version}' is not CalVer YYYY.M.D format"
+        assert re.match(r"^\d{4}\.\d{2}\.\d{2}\.\d+$", version), (
+            f"Version '{version}' is not CalVer YYYY.MM.DD.N format"
         )
 
     def test_marketplace_metadata_matches_plugin(self) -> None:
