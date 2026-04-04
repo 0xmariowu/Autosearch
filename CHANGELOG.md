@@ -9,6 +9,16 @@ All changes to AutoSearch. Format: `## YYYY.MM.DD.N` with `### Changes` and `###
 
 ---
 
+## 2026.04.05.1
+
+### Changes
+
+- You can now search HuggingFace models and datasets — new `huggingface` channel searches by downloads
+- You can now find trending AI papers — new `papers-with-code` channel via HuggingFace Daily Papers
+- 34 search channels total (was 32)
+- Cleaned up 18 orphan skills from legacy architecture (1,828 lines removed)
+- Removed outdated platform methodology docs, moved evidence principles to root
+
 ## 2026.04.04.9
 
 ### Changes
