@@ -1,0 +1,24 @@
+services:
+  test:
+    build: .
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - PYTHONPATH=/autosearch
+    command: ["-x", "-q", "tests/", "-k", "not network and not integration"]
+
+  # Pipeline integration tests (real LLM calls, ~$0.50)
+  test-pipeline:
+    build: .
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - PYTHONPATH=/autosearch
+    command: ["-x", "-q", "tests/integration/", "--timeout=600"]
+
+  # Scenario tests (specific user scenarios)
+  test-scenarios:
+    build: .
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - PYTHONPATH=/autosearch
+    entrypoint: ["python", "tests/integration/run_e2e_test.py"]
+    command: ["--scenario", "s1"]

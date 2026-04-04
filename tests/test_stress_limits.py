@@ -10,6 +10,7 @@ Tests edge cases that caused real bugs:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -239,6 +240,9 @@ class TestSearchRunnerTimeout:
             text=True,
             timeout=10,
             cwd=str(ROOT),
-            env={"PYTHONPATH": str(ROOT), "PATH": "/usr/bin:/bin"},
+            env={
+                "PYTHONPATH": str(ROOT),
+                "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+            },
         )
         assert proc.returncode == 0, f"Import failed: {proc.stderr}"

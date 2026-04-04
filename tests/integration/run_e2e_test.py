@@ -910,6 +910,217 @@ async def run_evolution_test(args: argparse.Namespace) -> int:
     return 0 if delta.get("improved") else 1
 
 
+# ── Scenario tests ──────────────────────────────────────────────────────
+
+SCENARIOS = {
+    "s1": {
+        "topic": {"id": "s1", "topic": "AI code review tools", "lang": "en"},
+        "depth": "quick",
+        "label": "Quick + Markdown + English",
+        "timeout_min": 10,
+    },
+    "s2": {
+        "topic": {"id": "s2", "topic": "production RAG systems", "lang": "en"},
+        "depth": "standard",
+        "label": "Standard + HTML + English",
+        "timeout_min": 20,
+    },
+    "s3": {
+        "topic": {"id": "s3", "topic": "self-evolving AI agents", "lang": "en"},
+        "depth": "deep",
+        "label": "Deep + HTML + English (pressure test)",
+        "timeout_min": 40,
+    },
+    "s4": {
+        "topic": {"id": "s4", "topic": "中国大模型生态", "lang": "zh"},
+        "depth": "standard",
+        "label": "Standard + Markdown + Chinese",
+        "timeout_min": 20,
+    },
+    "s5": {
+        "topic": {"id": "s5", "topic": "smart wearable market 2026", "lang": "en"},
+        "depth": "standard",
+        "label": "Standard + Slides + English",
+        "timeout_min": 20,
+    },
+    "s7": {
+        "topic": {
+            "id": "s7",
+            "topic": "17th century Mongolian pottery glazing techniques",
+            "lang": "en",
+        },
+        "depth": "quick",
+        "label": "Cold topic (expect few/zero results)",
+        "timeout_min": 10,
+    },
+}
+
+WEBSEARCH_BYPASS_SOURCES = {"WebSearch", "web_search", "websearch"}
+
+
+async def run_scenario(args: argparse.Namespace) -> int:
+    """Run a specific user scenario and validate results."""
+    api_key = get_api_key()
+    if not api_key:
+        print("ERROR: Set OPENROUTER_API_KEY environment variable")
+        return 1
+
+    scenario_key = args.scenario
+    if scenario_key == "all":
+        results = []
+        for key in sorted(SCENARIOS):
+            args_copy = argparse.Namespace(**vars(args))
+            args_copy.scenario = key
+            rc = await run_scenario(args_copy)
+            results.append((key, rc))
+        print("\n" + "=" * 60)
+        print("ALL SCENARIOS SUMMARY")
+        print("=" * 60)
+        for key, rc in results:
+            status = "PASS" if rc == 0 else "FAIL"
+            print(f"  [{status}] {key}: {SCENARIOS[key]['label']}")
+        failed = sum(1 for _, rc in results if rc != 0)
+        print(f"\n{len(results) - failed}/{len(results)} passed")
+        return 1 if failed else 0
+
+    if scenario_key not in SCENARIOS:
+        print(
+            f"ERROR: Unknown scenario '{scenario_key}'. Available: {', '.join(sorted(SCENARIOS))}, all"
+        )
+        return 1
+
+    scenario = SCENARIOS[scenario_key]
+    topic = scenario["topic"]
+    depth = scenario["depth"]
+    timeout_min = scenario["timeout_min"]
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+
+    report_dir = ROOT / "tests" / "integration" / "reports"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    report_path = report_dir / f"{run_id}-scenario-{scenario_key}.jsonl"
+    session_base = ROOT / "tests" / "integration" / "sessions" / run_id
+
+    llm = LLMClient(api_key)
+
+    print("=" * 60)
+    print(f"SCENARIO {scenario_key.upper()}: {scenario['label']}")
+    print(f"Topic: {topic['topic']} | Depth: {depth} | Timeout: {timeout_min}min")
+    print("=" * 60)
+
+    start_time = time.monotonic()
+    records = await run_topic(
+        llm, topic, depth, session_base, skip_evolve=(depth == "quick")
+    )
+    elapsed_min = (time.monotonic() - start_time) / 60
+
+    # ── Validations ──
+    summary = next((r for r in records if r.get("type") == "topic_summary"), {})
+    blocks_passed = summary.get("blocks_passed", 0)
+    judge_score = summary.get("judge_score")
+    is_cold = scenario_key == "s7"
+
+    checks = []
+
+    # Timeout check
+    if elapsed_min > timeout_min:
+        checks.append(f"FAIL: Took {elapsed_min:.1f}min > {timeout_min}min timeout")
+    else:
+        checks.append(
+            f"PASS: Completed in {elapsed_min:.1f}min (limit: {timeout_min}min)"
+        )
+
+    # Blocks check
+    min_blocks = 3 if is_cold else 5
+    if blocks_passed >= min_blocks:
+        checks.append(f"PASS: {blocks_passed} blocks passed (min: {min_blocks})")
+    else:
+        checks.append(f"FAIL: Only {blocks_passed} blocks passed (min: {min_blocks})")
+
+    # Judge score check (skip for cold topics)
+    if not is_cold:
+        if judge_score is not None and judge_score > 0.3:
+            checks.append(f"PASS: Judge score {judge_score:.3f} > 0.3")
+        else:
+            checks.append(f"FAIL: Judge score {judge_score} <= 0.3 or missing")
+
+    # Delivery file check
+    delivery_found = False
+    session_dirs = list(session_base.iterdir()) if session_base.exists() else []
+    for sd in session_dirs:
+        delivery_dir = sd / "delivery"
+        if delivery_dir.exists():
+            for f in delivery_dir.iterdir():
+                if f.stat().st_size > 500:
+                    delivery_found = True
+                    break
+    if delivery_found or is_cold:
+        checks.append("PASS: Delivery file exists (>500 bytes)")
+    else:
+        checks.append("FAIL: No delivery file > 500 bytes")
+
+    # WebSearch bypass check
+    websearch_found = False
+    for r in records:
+        if r.get("type") == "block" and r.get("block") == 2:
+            sources = r.get("details", {}).get("source_distribution", {})
+            bypass_sources = set(sources.keys()) & WEBSEARCH_BYPASS_SOURCES
+            if bypass_sources:
+                websearch_found = True
+                checks.append(f"FAIL: WebSearch bypass detected: {bypass_sources}")
+    if not websearch_found:
+        checks.append("PASS: No WebSearch bypass")
+
+    # Chinese check for s4
+    if scenario_key == "s4" and delivery_found:
+        for sd in session_dirs:
+            delivery_dir = sd / "delivery"
+            if delivery_dir.exists():
+                for f in delivery_dir.iterdir():
+                    content = f.read_text(encoding="utf-8", errors="ignore")
+                    chinese_chars = len(re.findall(r"[\u4e00-\u9fff]", content))
+                    total_chars = len(content)
+                    ratio = chinese_chars / total_chars if total_chars > 0 else 0
+                    if ratio > 0.1:
+                        checks.append(f"PASS: Chinese content ratio {ratio:.0%}")
+                    else:
+                        checks.append(f"FAIL: Chinese content ratio {ratio:.0%} < 10%")
+                    break
+
+    # Print results
+    print(f"\n{'─' * 40}")
+    all_passed = True
+    for check in checks:
+        print(f"  {check}")
+        if check.startswith("FAIL"):
+            all_passed = False
+
+    verdict = "PASS" if all_passed else "FAIL"
+    print(f"\n  Verdict: {verdict}")
+    print(
+        f"  LLM tokens: {llm.total_input_tokens:,} in / {llm.total_output_tokens:,} out"
+    )
+
+    # Write report
+    records.append(
+        {
+            "type": "scenario_result",
+            "scenario": scenario_key,
+            "label": scenario["label"],
+            "verdict": verdict,
+            "checks": checks,
+            "elapsed_min": round(elapsed_min, 1),
+            "judge_score": judge_score,
+            "blocks_passed": blocks_passed,
+        }
+    )
+    with open(report_path, "w") as f:
+        for record in records:
+            f.write(json.dumps(record) + "\n")
+    print(f"  Report: {report_path}")
+
+    return 0 if all_passed else 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="AutoSearch E2E integration test")
     parser.add_argument(
@@ -922,7 +1133,14 @@ def main() -> int:
         action="store_true",
         help="Run same topic twice and compare scores to verify evolution",
     )
+    parser.add_argument(
+        "--scenario",
+        type=str,
+        help="Run a specific scenario: s1|s2|s3|s4|s5|s7|all",
+    )
     args = parser.parse_args()
+    if args.scenario:
+        return asyncio.run(run_scenario(args))
     if args.evolution_test:
         return asyncio.run(run_evolution_test(args))
     return asyncio.run(async_main(args))
