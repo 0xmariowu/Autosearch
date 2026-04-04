@@ -1,6 +1,6 @@
 {
   "name": "autosearch",
-  "version": "2026.4.5",
+  "version": "2026.4.6",
   "description": "Self-evolving deep research. Gets smarter every time you use it. Searches across channels, synthesizes cited reports, and learns which queries and platforms work best.",
   "author": {
     "name": "0xmariowu"
@@ -19,7 +19,7 @@
   "category": "research",
   "userConfig": {
     "EXA_API_KEY": {
-      "description": "Exa API key for semantic web search (optional — enables search-exa, search-hn-exa, search-reddit-exa, search-twitter-exa channels)",
+      "description": "Exa API key for semantic web search (optional \u2014 enables search-exa, search-hn-exa, search-reddit-exa, search-twitter-exa channels)",
       "sensitive": true
     },
     "TAVILY_API_KEY": {
