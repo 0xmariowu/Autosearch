@@ -51,3 +51,5 @@ experience/
 # Test artifacts
 .pytest_cache/
 .ruff_cache/
+tests/integration/reports/
+tests/integration/tmp/
