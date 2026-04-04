@@ -9,6 +9,20 @@ All changes to AutoSearch. Format: `## YYYY.MM.DD.N` with `### Changes` and `###
 
 ---
 
+## 2026.04.04.9
+
+### Changes
+
+- Added CI hygiene workflow — checks author identity, internal codenames, personal paths, and container image pins on every PR and push
+- Git history fully rewritten — removed all PII (real names, Tailscale domains) from 270 commits
+- Pre-commit hook now enforces author whitelist, personal path scan, and internal codename scan
+
+### Fixes
+
+- Removed literal PII from .gitleaks.toml detection rules (was leaking the values it was detecting)
+- Removed internal project references from methodology docs
+- Cleaned up 10 stale remote branches from pre-rewrite history
+
 ## 2026.04.04.8
 
 ### Changes
