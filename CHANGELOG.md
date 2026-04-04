@@ -11,6 +11,16 @@ All changes to AutoSearch. Format: `## YYYY.M.D` with `### Changes` and `### Fix
 
 ## 2026.04.04.3
 
+### Fixes
+- You can now search 120+ results without Block 4 hanging — claims compression enforced as required step, reducing agent input from 80KB to ~5KB
+- All 6 pipeline blocks now have time limits (5/5/5/8/3/3 min) so a stuck block reports timeout instead of waiting forever
+
+### Tests
+- Stress tests: judge.py with 200 results, large file compact extraction, claims compression ratio
+- Agent simulation tests: Block 4 HTML generation at 50 and 120+ result counts via OpenRouter
+- Block 3 claims compression format verification via Haiku
+- Evolution A/B test fix: patterns now properly copied between runs
+
 ## 2026.04.04.2
 
 ## 2026.04.04.1
