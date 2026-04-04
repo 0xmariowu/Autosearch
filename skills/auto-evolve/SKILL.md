@@ -99,7 +99,7 @@ Diagnosis map:
 
 | Category failed | Root cause | First action (data) | Second action (skill rule) |
 |---|---|---|---|
-| information-recall: wrong channels | channel-scores.jsonl outdated | Update `state/channel-scores.jsonl` — increase/decrease scores | Add topic→channel rule in `select-channels.md` |
+| information-recall: wrong channels | channel-scores.jsonl outdated | Update `state/channel-scores.jsonl` — increase/decrease scores. **Always include `lang` field** matching the session's detected language (en/zh). Never write a score without lang. | Add topic→channel rule in `select-channels.md` |
 | information-recall: query missed | Missing query type | Add mandatory query rule in `gene-query.md` | Add pattern to `state/patterns-v2.jsonl` |
 | information-recall: found but not synthesized | Synthesis dropped results | Add citation enforcement rule in `synthesize-knowledge.md` | — |
 | analysis: insufficient depth | Missing analysis template | Add analysis requirement in `synthesize-knowledge.md` | — |
