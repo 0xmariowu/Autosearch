@@ -20,8 +20,10 @@ jobs:
 
       - name: Extract version from tag
         id: version
+        env:
+          TAG_NAME: ${{ github.ref_name }}
         run: |
-          TAG="${{ github.ref_name }}"
+          TAG="$TAG_NAME"
           VERSION="${TAG#v}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -82,10 +84,10 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO_NAME: ${{ github.event.repository.name }}
         run: |
           TAG="${{ steps.version.outputs.tag }}"
           VERSION="${{ steps.version.outputs.version }}"
-          REPO_NAME="${{ github.event.repository.name }}"
           if [ "${{ steps.changelog.outputs.found }}" == "true" ]; then
             gh release create "$TAG" --title "${REPO_NAME} ${VERSION}" --notes-file /tmp/release-notes.md
           else
