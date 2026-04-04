@@ -24,6 +24,7 @@ import asyncio
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -807,7 +808,6 @@ async def run_evolution_test(args: argparse.Namespace) -> int:
 
     # ── Copy patterns from run1 to run2 session ──
     # Simulate evolution: run1's patterns should be available to run2
-    import shutil
 
     run1_session_dirs = list((session_base / "run1").iterdir())
     if run1_session_dirs:

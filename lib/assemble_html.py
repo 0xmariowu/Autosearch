@@ -37,8 +37,6 @@ def extract_toc(body: str) -> str:
     )
 
     entries: list[str] = []
-    current_group: list[str] = []
-    group_count = 0
 
     for match in section_pattern.finditer(body):
         section_id = match.group(1)
