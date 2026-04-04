@@ -10,10 +10,14 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions: {}
+
 jobs:
   test:
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       matrix:
         python-version: ['3.11', '3.12']
@@ -34,18 +38,14 @@ jobs:
       - name: Ruff format check
         run: ruff format --check .
 
-      - name: Type check
-        run: |
-          pip install pyright
-          pyright
-        continue-on-error: true
-
       - name: Test
         run: pytest -x -q -m "not network"
 
   integration:
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
 
@@ -96,6 +96,19 @@ jobs:
           test -d skills && echo "skills/ OK"
           test -d state && echo "state/ OK"
           echo "Plugin structure OK"
+
+      - name: Verify install script syntax
+        run: bash -n scripts/install.sh && bash -n scripts/bump-version.sh && echo "Script syntax OK"
+
+      - name: Verify version consistency
+        run: |
+          python3 -c "
+          import json
+          pv = json.load(open('.claude-plugin/plugin.json'))['version']
+          mv = json.load(open('.claude-plugin/marketplace.json'))['metadata']['version']
+          assert pv == mv, f'Version mismatch: plugin.json={pv}, marketplace.json={mv}'
+          print(f'Version {pv} consistent across manifests')
+          "
 
   version-check:
     if: github.event_name == 'pull_request' && !github.event.pull_request.draft
