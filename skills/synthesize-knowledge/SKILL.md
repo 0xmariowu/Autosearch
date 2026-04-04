@@ -155,6 +155,20 @@ After writing the report, verify:
 
 If any item fails this check, fix it before delivering.
 
+# Named Entity Coverage Rule
+
+When the task spec, rubric set, or user query names specific competitors, companies, products, or people by name, every named entity MUST receive explicit coverage in the delivery — at minimum a summary paragraph, even when data is sparse.
+
+Do NOT silently omit a named entity because:
+- it is declining (e.g., Fitbit post-Google acquisition)
+- its data is ambiguous
+- it seems less important than others
+- it was listed as a knowledge gap elsewhere
+
+If data is sparse, write a brief paragraph explaining current status and knowledge limits. Move it to the knowledge gaps section with a summary note in the competitive section.
+
+Why: rubric r002 failure (2026-04-04) — Fitbit/Google was in the task spec's competitor list but received no competitive coverage in the delivery. A named entity check at synthesis time prevents this.
+
 # Failure Modes
 
 Avoid:
