@@ -1,14 +1,19 @@
 #!/bin/bash
 # bump-version.sh — Atomically bump version in all manifest files
 #
+# Format: YYYY.MM.DD.N (CalVer with zero-padded month/day + daily sequence)
+#   2026.04.04.1 = April 4, first release
+#   2026.04.04.2 = April 4, second release
+#   2026.04.05.1 = April 5, first release
+#
 # Usage:
-#   scripts/bump-version.sh          # auto: today's date as YYYY.M.D
-#   scripts/bump-version.sh 2026.4.5 # explicit version
+#   scripts/bump-version.sh              # auto: today + next sequence number
+#   scripts/bump-version.sh 2026.04.05.1 # explicit version
 #
 # Updates:
-#   .claude-plugin/plugin.json    → "version": "X.Y.Z"
+#   .claude-plugin/plugin.json    → "version"
 #   .claude-plugin/marketplace.json → metadata.version + plugins[0].version
-#   CHANGELOG.md                  → moves Unreleased under new ## X.Y.Z header
+#   CHANGELOG.md                  → moves Unreleased under new ## header
 
 set -euo pipefail
 
@@ -37,27 +42,27 @@ printf "${DIM}current version:${NC} %s\n" "$CURRENT"
 if [ -n "${1:-}" ]; then
     NEW_VERSION="$1"
 else
-    # Auto-generate from today's date: YYYY.M.D (no zero-padding)
-    YEAR=$(date +%Y)
-    MONTH=$(date +%-m)
-    DAY=$(date +%-d)
-    NEW_VERSION="${YEAR}.${MONTH}.${DAY}"
+    # Auto-generate: YYYY.MM.DD.N
+    TODAY=$(date +%Y.%m.%d)
 
-    # If this version already exists (same-day release), append suffix
-    if [ "$NEW_VERSION" = "$CURRENT" ]; then
-        # Check for existing suffixed versions
-        SUFFIX=1
-        while git tag -l "v${NEW_VERSION}-${SUFFIX}" 2>/dev/null | grep -q .; do
-            SUFFIX=$((SUFFIX + 1))
-        done
-        NEW_VERSION="${NEW_VERSION}-${SUFFIX}"
-        warn "same-day release — using suffix: $NEW_VERSION"
+    # Find next sequence number for today
+    SEQ=1
+    while git tag -l "v${TODAY}.${SEQ}" 2>/dev/null | grep -q .; do
+        SEQ=$((SEQ + 1))
+    done
+    # Also check if current version is today's — increment from there
+    if [[ "$CURRENT" == "${TODAY}."* ]]; then
+        CURRENT_SEQ="${CURRENT##*.}"
+        if [ "$CURRENT_SEQ" -ge "$SEQ" ] 2>/dev/null; then
+            SEQ=$((CURRENT_SEQ + 1))
+        fi
     fi
+    NEW_VERSION="${TODAY}.${SEQ}"
 fi
 
 # --- Validate format ---
-if [[ ! "$NEW_VERSION" =~ ^[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,2}(-[0-9]+)?$ ]]; then
-    die "invalid version format: $NEW_VERSION (expected YYYY.M.D or YYYY.M.D-N)"
+if [[ ! "$NEW_VERSION" =~ ^[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]+$ ]]; then
+    die "invalid version format: $NEW_VERSION (expected YYYY.MM.DD.N)"
 fi
 
 # --- Confirm ---
@@ -65,7 +70,7 @@ printf "${BOLD}bump:${NC} %s → %s\n" "$CURRENT" "$NEW_VERSION"
 
 # --- Update plugin.json ---
 python3 -c "
-import json, sys
+import json
 path = '$PLUGIN_JSON'
 with open(path) as f:
     data = json.load(f)
@@ -92,7 +97,6 @@ with open(path, 'w') as f:
 info "updated marketplace.json"
 
 # --- Update CHANGELOG.md ---
-# Move Unreleased content under new version header. Skip if Unreleased is empty.
 python3 -c "
 import re, sys
 
@@ -118,20 +122,15 @@ else:
 
 # Extract content between Unreleased and next heading/separator
 unreleased_content = text[unreleased_match.end():insert_pos].strip()
-# Remove leading --- separator if present
 unreleased_content = re.sub(r'^---\s*', '', unreleased_content).strip()
 
-# Remove any existing ## for this version to prevent duplicates
-text = re.sub(r'\n## ' + re.escape(new_ver) + r'(-\d+)?\s*\n+---\n', '\n', text)
-
-# Rebuild: find the first real version section (## YYYY...)
+# Rebuild
 text_with_unreleased = re.sub(
     r'(## Unreleased)\s*(\n---\n)?',
     r'\1\n\n---\n\n',
     text
 )
 
-# Re-locate positions after cleanup
 unreleased_match = re.search(r'^## Unreleased\s*$', text_with_unreleased, re.MULTILINE)
 rest = text_with_unreleased[unreleased_match.end():]
 next_version = re.search(r'^## \d{4}\.', rest, re.MULTILINE)
@@ -141,7 +140,6 @@ if next_version:
 else:
     split_pos = len(text_with_unreleased)
 
-# Insert new version between Unreleased and first existing version
 before = text_with_unreleased[:unreleased_match.end()]
 after = text_with_unreleased[split_pos:]
 
@@ -151,8 +149,6 @@ if unreleased_content:
 new_section += '\n'
 
 result = before + new_section + after
-
-# Clean up multiple blank lines
 result = re.sub(r'\n{4,}', '\n\n\n', result)
 
 with open(path, 'w') as f:
