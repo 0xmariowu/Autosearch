@@ -17,6 +17,13 @@
     "target_results": 30,
     "delivery_threshold": 0.7,
     "latency_budget_seconds": 300,
+    "freshness_profiles": {
+      "default": 183,
+      "emerging": 90,
+      "news": 30,
+      "academic": 365,
+      "historical": 730
+    },
     "dimension_weights": {
       "quantity": 0.12,
       "diversity": 0.13,

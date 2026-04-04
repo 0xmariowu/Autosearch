@@ -37,7 +37,7 @@ curl -fsSL https://raw.githubusercontent.com/0xmariowu/autosearch/main/scripts/i
 /autosearch "compare vector databases for RAG applications"
 ```
 
-AutoSearch asks depth (Quick / Standard / Deep), focus, and delivery format — then searches, evaluates, and delivers a cited report with real-time progress:
+AutoSearch asks two questions — how deep and what format — then searches, evaluates, and delivers a cited report with real-time progress:
 
 ```
 [Phase 1/6] Prepare  — 25 rubrics, 47 items recalled, 15 queries planned

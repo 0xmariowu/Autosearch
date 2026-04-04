@@ -18,18 +18,26 @@ If no arguments provided, ask the user what to research.
 ### Phase A: Configure (runs in current model — cheap)
 
 1. Set working directory to `${CLAUDE_PLUGIN_ROOT}`
-2. **Ask the user 3 questions before searching** (use AskUserQuestion, all in one call):
-   - **Depth**: Quick (5 channels, 1 round) / Standard (10 channels, 3 rounds) / Deep (15+ channels, 5 rounds)
-   - **Focus**: Open source / Academic / Commercial / Chinese / Community / All
-   - **Delivery**: Markdown report (.md) / Rich HTML report (tables + diagrams) / Presentation slides (reveal.js)
+2. **Ask the user 2 questions before searching** (use AskUserQuestion, all in one call):
+   - **How deep?**: Quick (~5 min, fast scan, no learning) / Standard (~10 min, full report + learning) / Deep (~20 min, exhaustive + self-evolution)
+   - **Report format?**: Markdown / Rich HTML (tables + diagrams) / Presentation slides
 3. **Auto-determine content structure from Depth** (do not ask the user):
    - Quick → executive summary (1 page, key insights + recommendation)
    - Standard → full report (framework + evidence tables + analysis)
    - Deep → full report + evidence appendix + gap declaration
 4. **Auto-detect language from topic**: Chinese topic → Chinese output + prioritize Chinese channels. English topic → English output. Mixed → follow the dominant language.
+   **Auto-detect focus from topic**: infer domain (academic/commercial/community/Chinese/mixed) from the topic text. No need to ask the user.
 5. **Generate session ID**: `YYYYMMDD-{topic-slug}` (e.g., `20260403-self-evolving-search`)
 6. **Read version**: `python3 -c "import json; print(json.load(open('${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json'))['version'])"` — pass this to Block 4 for the report footer.
-7. **Set time budget**: Quick=2min, Standard=5min, Deep=15min. Track wall-clock start time.
+7. **Set time budget and search params** (user does NOT see these — internal only):
+
+| Mode | Time budget | Channels | Query cap | Gap-fill | Evolution |
+|------|------------|----------|-----------|----------|-----------|
+| Quick | 5 min | 8 best-match | 8 | skip | skip |
+| Standard | 10 min | 15 | 15 | 1 round | patterns only |
+| Deep | 20 min | all 34 | 25 | gap-fill + reflect | full evolution |
+
+Track wall-clock start time. If elapsed > budget, graceful stop: deliver what we have.
 
 ### Phase B: Orchestrated Research (6 blocks with visible progress)
 
