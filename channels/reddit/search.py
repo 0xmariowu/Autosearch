@@ -88,5 +88,8 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
     try:
         return await _search_ddgs_fallback(query, max_results)
     except Exception as exc:
-        print(f"[reddit] all search methods failed: {exc}", file=sys.stderr)
-        return []
+        from lib.search_runner import SearchError
+
+        raise SearchError(
+            channel="reddit", error_type="network", message=f"all methods failed: {exc}"
+        ) from exc

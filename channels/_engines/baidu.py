@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from html import unescape
 
 import httpx
@@ -85,5 +84,8 @@ async def search_baidu(
             return results
 
     except Exception as exc:
-        print(f"[baidu-kaifa] search failed for {full_query!r}: {exc}", file=sys.stderr)
-        return []
+        from lib.search_runner import SearchError
+
+        raise SearchError(
+            channel=source, error_type="network", message=str(exc), engine="baidu"
+        ) from exc

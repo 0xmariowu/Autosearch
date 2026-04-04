@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 
 import httpx
 
@@ -41,5 +40,6 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
                 )
             return results
     except Exception as e:
-        print(f"[search_runner] hn error: {e}", file=sys.stderr)
-        return []
+        from lib.search_runner import SearchError
+
+        raise SearchError(channel="hn", error_type="network", message=str(e)) from e

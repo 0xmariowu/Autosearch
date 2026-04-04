@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-import sys
+import os
 from functools import reduce
 from urllib.parse import quote_plus
 
@@ -9,11 +9,9 @@ import httpx
 
 from lib.search_runner import DEFAULT_TIMEOUT, make_result
 
+_INNERTUBE_KEY = os.environ.get("YOUTUBE_INNERTUBE_KEY", "")
 BASE_URL = "https://www.youtube.com/results"
-NEXT_PAGE_URL = (
-    "https://www.youtube.com/youtubei/v1/search"
-    "?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
-)
+NEXT_PAGE_URL = f"https://www.youtube.com/youtubei/v1/search?key={_INNERTUBE_KEY}"
 BASE_YOUTUBE_URL = "https://www.youtube.com/watch?v="
 CONSENT_COOKIE = {"CONSENT": "YES+"}
 USER_AGENT = (
@@ -211,5 +209,8 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
 
         return results[:max_results]
     except Exception as exc:
-        print(f"[youtube] search failed: {exc}", file=sys.stderr)
-        return []
+        from lib.search_runner import SearchError
+
+        raise SearchError(
+            channel="youtube", error_type="network", message=str(exc)
+        ) from exc

@@ -116,5 +116,8 @@ async def search(query: str, max_results: int = 10, mode: str = "search") -> lis
                 )
             return results
     except Exception as e:
-        print(f"[search_runner] semantic scholar error: {e}", file=sys.stderr)
-        return []
+        from lib.search_runner import SearchError
+
+        raise SearchError(
+            channel="semantic-scholar", error_type="network", message=str(e)
+        ) from e

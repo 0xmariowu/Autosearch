@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import sys
 import threading
 
 from lib.search_runner import make_result
@@ -40,8 +39,11 @@ async def search_ddgs_web(
             None, _sync_ddgs_search, query, max_results, source
         )
     except Exception as exc:
-        print(f"[search_runner] ddgs web error: {exc}", file=sys.stderr)
-        return []
+        from lib.search_runner import SearchError
+
+        raise SearchError(
+            channel=source, error_type="network", message=str(exc), engine="ddgs"
+        ) from exc
 
 
 async def search_ddgs_site(query: str, site: str, max_results: int = 10) -> list[dict]:

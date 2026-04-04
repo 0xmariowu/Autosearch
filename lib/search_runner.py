@@ -28,6 +28,36 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from channels import load_channels as load_channel_plugins
 
+# --- Error types ---
+
+# Transient: worth retrying once (network blip, temporary overload)
+# Non-transient: don't retry (auth missing, rate-limited, parse failure)
+TRANSIENT_ERRORS = {"timeout", "network"}
+NON_TRANSIENT_ERRORS = {"rate_limit", "auth", "parse", "unknown"}
+ALL_ERROR_TYPES = TRANSIENT_ERRORS | NON_TRANSIENT_ERRORS
+
+
+class SearchError(Exception):
+    """Raised by channels and engines on search failure.
+
+    Returning [] means "searched successfully, found nothing."
+    Raising SearchError means "search failed, record to circuit breaker."
+    """
+
+    def __init__(
+        self,
+        *,
+        channel: str,
+        error_type: str = "unknown",
+        message: str = "",
+        engine: str | None = None,
+    ) -> None:
+        self.channel = channel
+        self.error_type = error_type if error_type in ALL_ERROR_TYPES else "unknown"
+        self.engine = engine
+        super().__init__(f"[{channel}] {error_type}: {message}")
+
+
 DEFAULT_TIMEOUT = 30
 DEFAULT_MAX_RESULTS = 10
 TRACKING_PARAMS = {
@@ -244,15 +274,21 @@ async def run_single_query(query_obj: dict) -> list[dict]:
         results = await asyncio.wait_for(
             method(query, max_results), timeout=DEFAULT_TIMEOUT
         )
-        if results:
-            _record_success(channel)
+        # Any non-exception return (including []) counts as success.
+        # A channel returning [] means "searched OK, found nothing" —
+        # this should NOT count as a failure in the circuit breaker.
+        _record_success(channel)
         return results
+    except SearchError as exc:
+        _record_failure(channel, f"{exc.error_type}: {exc}")
+        print(f"[search_runner] {exc}", file=sys.stderr)
+        return []
     except asyncio.TimeoutError:
         _record_failure(channel, "timeout")
         print(f"[search_runner] timeout: {channel} '{query}'", file=sys.stderr)
         return []
     except Exception as exc:
-        _record_failure(channel, str(exc)[:100])
+        _record_failure(channel, f"unknown: {exc!s}"[:100])
         print(f"[search_runner] error: {channel} '{query}': {exc}", file=sys.stderr)
         return []
 
