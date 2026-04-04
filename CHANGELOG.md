@@ -9,6 +9,14 @@ All changes to AutoSearch. Format: `## YYYY.MM.DD.N` with `### Changes` and `###
 
 ---
 
+## 2026.04.04.4
+
+### Changes
+- You can now run pre-release tests with `./scripts/release-test.sh` — validates unit tests + real pipeline scenarios before tagging
+- 6 user scenarios (Quick/Standard/Deep × EN/ZH, cold topic) with `--scenario s1|s2|s3|s4|s5|s7|all`
+- Docker support for clean-environment testing (`docker-compose.test.yml`)
+- Each scenario checks: timeout, block completion, judge score, delivery file, WebSearch bypass, Chinese content ratio
+
 ## 2026.04.04.3
 
 ### Fixes
