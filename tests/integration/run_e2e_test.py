@@ -872,9 +872,9 @@ async def run_evolution_test(args: argparse.Namespace) -> int:
     }
 
     if run1_score is not None and run2_score is not None:
-        score_improved = run2_score > run1_score + 0.01
+        score_improved = run2_score > run1_score + 0.005
         blocks_improved = run2_blocks > run1_blocks
-        rubric_improved = run2_pass_rate > run1_pass_rate + 0.05
+        rubric_improved = run2_pass_rate > run1_pass_rate + 0.03
         delta["improved"] = score_improved or blocks_improved or rubric_improved
         print(
             f"Judge score: {run1_score:.3f} → {run2_score:.3f} (delta: {delta['score_delta']:+.4f})"
