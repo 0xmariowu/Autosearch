@@ -9,6 +9,8 @@ All changes to AutoSearch. Format: `## YYYY.M.D` with `### Changes` and `### Fix
 
 ---
 
+## 2026.04.04.3
+
 ## 2026.04.04.2
 
 ## 2026.04.04.1

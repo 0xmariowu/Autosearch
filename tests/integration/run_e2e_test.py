@@ -24,6 +24,7 @@ import asyncio
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -807,18 +808,26 @@ async def run_evolution_test(args: argparse.Namespace) -> int:
 
     # ── Copy patterns from run1 to run2 session ──
     # Simulate evolution: run1's patterns should be available to run2
+
     run1_session_dirs = list((session_base / "run1").iterdir())
     if run1_session_dirs:
         run1_dir = run1_session_dirs[0]
         run2_base = session_base / "run2"
-        run2_base.mkdir(parents=True, exist_ok=True)
+        # Pre-create run2's state dir and copy patterns BEFORE SessionDir init
+        # (SessionDir only writes empty files if they don't exist yet)
+        run2_state = run2_base / topic["id"] / "state"
+        run2_state.mkdir(parents=True, exist_ok=True)
 
-        # Copy patterns and knowledge maps from run1 to run2's state
+        patterns_copied = 0
         for state_file in ["patterns-v2.jsonl", "worklog.jsonl"]:
             src = run1_dir / "state" / state_file
             if src.exists() and src.stat().st_size > 0:
-                # Will be picked up by run2's SessionDir
-                pass
+                shutil.copy2(src, run2_state / state_file)
+                patterns_copied += 1
+                print(f"  Copied {state_file} ({src.stat().st_size} bytes) to run2")
+
+        if patterns_copied == 0:
+            print("  WARNING: No patterns to copy from run1 to run2")
 
     # ── Run 2: Post-evolution ──
     print()
