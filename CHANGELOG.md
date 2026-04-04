@@ -6,7 +6,10 @@ All changes to AutoSearch. Format: `## YYYY.M.D` with `### Changes` and `### Fix
 
 ## Unreleased
 
+
 ---
+
+## 2026.4.4-1
 
 ## 2026.4.4
 
