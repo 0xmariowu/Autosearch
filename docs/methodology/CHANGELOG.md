@@ -22,4 +22,4 @@
 - **Added**: `platforms/huggingface.md` — HF patterns (2-keyword API limit, author chain, Exa fallback)
 - **Added**: `INDEX.jsonl` — grep-able index of 8 content files (excludes ops files: CLAUDE.md, INDEX.jsonl, CHANGELOG.md)
 - **Why**: Consolidate scattered search knowledge (from autosearch/CLAUDE.md, platforms.md, patterns.jsonl, cross-project/) into a single AI-friendly knowledge base with governance rules
-- **Source data**: 15 validated patterns from `~/Dev/autosearch/patterns.jsonl`, 46 evolution experiments from `evolution.jsonl`, 30 playbook queries from `playbook-final.jsonl`
+- **Source data**: 15 validated patterns from `patterns.jsonl`, 46 evolution experiments from `evolution.jsonl`, 30 playbook queries from `playbook-final.jsonl`

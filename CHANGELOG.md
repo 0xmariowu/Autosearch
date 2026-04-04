@@ -10,14 +10,6 @@ All changes to AutoSearch. Format: `## YYYY.M.D` with `### Changes` and `### Fix
 
 ## 2026.4.4
 
----
-
-## 2026.4.4-1
-
----
-
-## 2026.4.4
-
 ### Changes
 
 - **Delivery format selection.** `/autosearch` now asks for delivery medium (Markdown / Rich HTML / Presentation slides) instead of content structure. Content structure auto-determined by Depth. (#29)
