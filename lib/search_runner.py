@@ -88,6 +88,47 @@ MONTH_MAP = {
     "dec": "12",
 }
 
+# --- Engine-to-channel mapping ---
+# Channels sharing a backend engine. When an engine fails, all dependent
+# channels are suspended. When any one recovers, all are cleared.
+# Safe under asyncio single-thread. If future refactor moves to
+# multiprocessing, the health file writes need a file lock.
+ENGINE_CHANNELS: dict[str, list[str]] = {
+    "baidu": [
+        "zhihu",
+        "36kr",
+        "csdn",
+        "douyin",
+        "xiaohongshu",
+        "infoq-cn",
+        "weibo",
+        "juejin",
+        "xiaoyuzhou",
+        "xueqiu",
+    ],
+    "ddgs": [
+        "web-ddgs",
+        "linkedin",
+        "twitter",
+        "g2",
+        "rss",
+        "producthunt",
+        "crunchbase",
+    ],
+}
+
+# Reverse lookup: channel → engine (or None for independent channels)
+_CHANNEL_TO_ENGINE: dict[str, str] = {}
+for _eng, _chs in ENGINE_CHANNELS.items():
+    for _ch in _chs:
+        _CHANNEL_TO_ENGINE[_ch] = _eng
+
+
+def _engine_for_channel(channel: str) -> str | None:
+    """Return the engine name for a channel, or None if independent."""
+    return _CHANNEL_TO_ENGINE.get(channel)
+
+
 # --- Channel health / circuit breaker ---
 
 _HEALTH_FILE: Path | None = None
@@ -146,25 +187,69 @@ def _is_suspended(channel: str) -> bool:
         return False
 
 
-def _record_failure(channel: str, error: str) -> None:
-    """Record a channel failure, update suspension."""
+def _record_failure(channel: str, error: str, engine: str | None = None) -> None:
+    """Record a channel failure, update suspension. Persists immediately.
+
+    If an engine is specified, suspends ALL channels sharing that engine.
+    """
+    from datetime import timedelta
+
+    now = datetime.now(timezone.utc)
+
+    # Determine which channels to suspend
+    target_engine = engine or _engine_for_channel(channel)
+    channels_to_suspend = (
+        ENGINE_CHANNELS.get(target_engine, [channel]) if target_engine else [channel]
+    )
+
+    # Record the failure on the originating channel
     entry = _channel_health.setdefault(channel, {"consecutive_failures": 0})
     entry["consecutive_failures"] = entry.get("consecutive_failures", 0) + 1
     entry["last_error"] = error[:200]
-    entry["last_failure"] = datetime.now(timezone.utc).isoformat()
-    # Backoff: min(failures * 60, 3600) seconds
-    suspend_secs = min(entry["consecutive_failures"] * 60, 3600)
-    from datetime import timedelta
+    entry["last_failure"] = now.isoformat()
 
-    entry["suspended_until"] = (
-        datetime.now(timezone.utc) + timedelta(seconds=suspend_secs)
-    ).isoformat()
+    # Backoff based on the originating channel's failure count
+    suspend_secs = min(entry["consecutive_failures"] * 60, 3600)
+    suspend_until = (now + timedelta(seconds=suspend_secs)).isoformat()
+    entry["suspended_until"] = suspend_until
+
+    # Propagate suspension to all engine siblings
+    if target_engine and len(channels_to_suspend) > 1:
+        for sibling in channels_to_suspend:
+            if sibling == channel:
+                continue
+            sib_entry = _channel_health.setdefault(sibling, {"consecutive_failures": 0})
+            sib_entry["suspended_until"] = suspend_until
+            sib_entry["last_error"] = f"[{target_engine}-engine] {error[:150]}"
+            sib_entry["last_failure"] = now.isoformat()
+        print(
+            f"[search_runner] [{target_engine}-engine] suspended "
+            f"{len(channels_to_suspend)} channels until {suspend_until}",
+            file=sys.stderr,
+        )
+
+    # Persist immediately so crash doesn't lose failure data
+    _save_health()
 
 
 def _record_success(channel: str) -> None:
-    """Reset channel failure state on success."""
-    if channel in _channel_health:
-        _channel_health[channel] = {"consecutive_failures": 0}
+    """Reset channel failure state on success. Persists immediately.
+
+    If the channel belongs to an engine group, clears suspension for ALL
+    channels in that group — one successful call proves the engine is up.
+    """
+    engine = _engine_for_channel(channel)
+    channels_to_clear = ENGINE_CHANNELS.get(engine, [channel]) if engine else [channel]
+
+    changed = False
+    for ch in channels_to_clear:
+        if ch in _channel_health:
+            _channel_health[ch] = {"consecutive_failures": 0}
+            changed = True
+
+    if changed:
+        # Persist immediately so crash doesn't lose recovery data
+        _save_health()
 
 
 # --- URL normalization ---
@@ -270,26 +355,75 @@ async def run_single_query(query_obj: dict) -> list[dict]:
     if method is None:
         print(f"[search_runner] unknown channel: {channel}", file=sys.stderr)
         return []
+
+    return await _run_with_retry(channel, query, max_results, method)
+
+
+# Retry delays by error type: timeout needs more breathing room than network
+_RETRY_DELAYS: dict[str, float] = {"timeout": 5.0, "network": 2.0}
+
+
+async def _run_with_retry(
+    channel: str, query: str, max_results: int, method: Any
+) -> list[dict]:
+    """Execute a channel search with one retry on transient errors."""
     try:
         results = await asyncio.wait_for(
             method(query, max_results), timeout=DEFAULT_TIMEOUT
         )
-        # Any non-exception return (including []) counts as success.
-        # A channel returning [] means "searched OK, found nothing" —
-        # this should NOT count as a failure in the circuit breaker.
         _record_success(channel)
         return results
     except SearchError as exc:
-        _record_failure(channel, f"{exc.error_type}: {exc}")
+        if exc.error_type in TRANSIENT_ERRORS:
+            delay = _RETRY_DELAYS.get(exc.error_type, 2.0)
+            print(
+                f"[search_runner] {channel} transient {exc.error_type}, "
+                f"retry in {delay}s",
+                file=sys.stderr,
+            )
+            await asyncio.sleep(delay)
+            return await _run_final_attempt(channel, query, max_results, method)
+        # Non-transient: record immediately, no retry
+        _record_failure(channel, f"{exc.error_type}: {exc}", engine=exc.engine)
         print(f"[search_runner] {exc}", file=sys.stderr)
         return []
     except asyncio.TimeoutError:
-        _record_failure(channel, "timeout")
-        print(f"[search_runner] timeout: {channel} '{query}'", file=sys.stderr)
-        return []
+        print(f"[search_runner] {channel} timeout, retry in 5s", file=sys.stderr)
+        await asyncio.sleep(5.0)
+        return await _run_final_attempt(channel, query, max_results, method)
     except Exception as exc:
         _record_failure(channel, f"unknown: {exc!s}"[:100])
         print(f"[search_runner] error: {channel} '{query}': {exc}", file=sys.stderr)
+        return []
+
+
+async def _run_final_attempt(
+    channel: str, query: str, max_results: int, method: Any
+) -> list[dict]:
+    """Second (final) attempt after a transient failure."""
+    try:
+        results = await asyncio.wait_for(
+            method(query, max_results), timeout=DEFAULT_TIMEOUT
+        )
+        _record_success(channel)
+        return results
+    except SearchError as exc:
+        _record_failure(channel, f"{exc.error_type}: {exc}", engine=exc.engine)
+        print(f"[search_runner] {exc} (retry failed)", file=sys.stderr)
+        return []
+    except asyncio.TimeoutError:
+        _record_failure(channel, "timeout", engine=_engine_for_channel(channel))
+        print(
+            f"[search_runner] timeout: {channel} '{query}' (retry failed)",
+            file=sys.stderr,
+        )
+        return []
+    except Exception as exc:
+        _record_failure(channel, f"unknown: {exc!s}"[:100])
+        print(
+            f"[search_runner] error: {channel} '{query}': {exc} (retry failed)",
+            file=sys.stderr,
+        )
         return []
 
 
@@ -319,9 +453,17 @@ async def main(queries: list[dict]) -> None:
 
     _load_health()
 
-    results_lists = await asyncio.gather(
-        *(run_single_query(query) for query in queries), return_exceptions=True
-    )
+    try:
+        results_lists = await asyncio.gather(
+            *(run_single_query(query) for query in queries), return_exceptions=True
+        )
+    except BaseException:
+        # Ensure health is saved even on KeyboardInterrupt or crash.
+        # Individual _record_failure/_record_success calls already persist,
+        # but a crash during gather may leave partial state unsaved.
+        _save_health()
+        raise
+
     all_results: list[dict] = []
     for index, result in enumerate(results_lists):
         if isinstance(result, Exception):
@@ -332,7 +474,7 @@ async def main(queries: list[dict]) -> None:
     for result in unique_results:
         print(json.dumps(result, ensure_ascii=False))
 
-    # Persist health state for next run
+    # Final sync (individual records already persist immediately)
     _save_health()
 
     # Summary to stderr
