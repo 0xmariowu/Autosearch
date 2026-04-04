@@ -37,6 +37,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git diff --quiet && exit 0
-          git add '*.py' '*.json' '*.md' '*.yml' '*.yaml'
+          git add '*.py'
           git commit -m "style: auto-fix lint and format"
           git push origin "HEAD:$HEAD_REF"
