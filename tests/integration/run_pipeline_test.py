@@ -105,7 +105,7 @@ def find_python() -> str:
 # ── Channel health check ────────────────────────────────────────────────
 
 
-async def test_single_channel(channel_name: str, query: str) -> dict:
+async def check_single_channel(channel_name: str, query: str) -> dict:
     """Test one channel, return health record."""
     start = time.monotonic()
     try:
@@ -148,7 +148,7 @@ async def run_channel_health(channels_to_test: list[str]) -> list[dict]:
     tasks = []
     for ch in channels_to_test:
         query = CHANNEL_QUERIES.get(ch, "AI technology 2026")
-        tasks.append(test_single_channel(ch, query))
+        tasks.append(check_single_channel(ch, query))
     return await asyncio.gather(*tasks)
 
 
