@@ -1,7 +1,7 @@
 {
   "typeCheckingMode": "basic",
   "pythonVersion": "3.11",
-  "include": ["autosearch"],
+  "include": ["lib", "channels", "scripts"],
   "reportMissingImports": false,
   "reportMissingModuleSource": false
 }
