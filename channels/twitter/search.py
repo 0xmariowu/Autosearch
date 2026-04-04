@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 
 from channels._engines.ddgs import search_ddgs_web
 
@@ -39,5 +38,8 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
         return merged[:max_results]
 
     except Exception as exc:
-        print(f"[twitter] search failed: {exc}", file=sys.stderr)
-        return []
+        from lib.search_runner import SearchError
+
+        raise SearchError(
+            channel="twitter", error_type="network", message=str(exc)
+        ) from exc

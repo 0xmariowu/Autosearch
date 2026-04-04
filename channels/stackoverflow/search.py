@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import html
-import sys
 
 import httpx
 
@@ -78,5 +77,8 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
 
         return results[:max_results]
     except Exception as exc:
-        print(f"[stackoverflow] search failed: {exc}", file=sys.stderr)
-        return []
+        from lib.search_runner import SearchError
+
+        raise SearchError(
+            channel="stackoverflow", error_type="network", message=str(exc)
+        ) from exc

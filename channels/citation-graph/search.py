@@ -40,5 +40,8 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
         semantic_scholar_search = _load_semantic_scholar_search()
         return await semantic_scholar_search(query, max_results, mode="citations")
     except Exception as e:
-        print(f"[search_runner] citation graph error: {e}", file=sys.stderr)
-        return []
+        from lib.search_runner import SearchError
+
+        raise SearchError(
+            channel="citation-graph", error_type="network", message=str(e)
+        ) from e

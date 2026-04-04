@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-import sys
 from datetime import datetime, timezone
 
 import httpx
@@ -95,5 +94,8 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
 
         return results[:max_results]
     except Exception as exc:
-        print(f"[wechat] search failed: {exc}", file=sys.stderr)
-        return []
+        from lib.search_runner import SearchError
+
+        raise SearchError(
+            channel="wechat", error_type="network", message=str(exc)
+        ) from exc
