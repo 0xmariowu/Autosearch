@@ -21,9 +21,11 @@ import asyncio
 import json
 import re
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
 from channels import load_channels as load_channel_plugins
 
 DEFAULT_TIMEOUT = 30
@@ -56,6 +58,87 @@ MONTH_MAP = {
     "dec": "12",
 }
 
+# --- Channel health / circuit breaker ---
+
+_HEALTH_FILE: Path | None = None
+_channel_health: dict[str, dict] = {}
+
+
+def _find_health_file() -> Path:
+    """Find state/channel-health.json relative to the project root."""
+    global _HEALTH_FILE
+    if _HEALTH_FILE is not None:
+        return _HEALTH_FILE
+    # Try relative to this file (lib/search_runner.py → project root)
+    root = Path(__file__).resolve().parent.parent
+    state_dir = root / "state"
+    if state_dir.is_dir():
+        _HEALTH_FILE = state_dir / "channel-health.json"
+        return _HEALTH_FILE
+    # Fallback: current directory
+    _HEALTH_FILE = Path("state/channel-health.json")
+    return _HEALTH_FILE
+
+
+def _load_health() -> dict[str, dict]:
+    """Load channel health state from disk."""
+    global _channel_health
+    path = _find_health_file()
+    if path.exists():
+        try:
+            _channel_health = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            _channel_health = {}
+    return _channel_health
+
+
+def _save_health() -> None:
+    """Persist channel health state to disk."""
+    path = _find_health_file()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(_channel_health, indent=2) + "\n")
+    except OSError:
+        pass
+
+
+def _is_suspended(channel: str) -> bool:
+    """Check if a channel is currently suspended."""
+    entry = _channel_health.get(channel)
+    if not entry:
+        return False
+    until = entry.get("suspended_until", "")
+    if not until:
+        return False
+    try:
+        return datetime.fromisoformat(until) > datetime.now(timezone.utc)
+    except (ValueError, TypeError):
+        return False
+
+
+def _record_failure(channel: str, error: str) -> None:
+    """Record a channel failure, update suspension."""
+    entry = _channel_health.setdefault(channel, {"consecutive_failures": 0})
+    entry["consecutive_failures"] = entry.get("consecutive_failures", 0) + 1
+    entry["last_error"] = error[:200]
+    entry["last_failure"] = datetime.now(timezone.utc).isoformat()
+    # Backoff: min(failures * 60, 3600) seconds
+    suspend_secs = min(entry["consecutive_failures"] * 60, 3600)
+    from datetime import timedelta
+
+    entry["suspended_until"] = (
+        datetime.now(timezone.utc) + timedelta(seconds=suspend_secs)
+    ).isoformat()
+
+
+def _record_success(channel: str) -> None:
+    """Reset channel failure state on success."""
+    if channel in _channel_health:
+        _channel_health[channel] = {"consecutive_failures": 0}
+
+
+# --- URL normalization ---
+
 
 def normalize_url(url: str) -> str:
     try:
@@ -76,6 +159,9 @@ def normalize_url(url: str) -> str:
         )
     except Exception:
         return url
+
+
+# --- Date extraction ---
 
 
 def extract_date(text: str, url: str = "") -> str | None:
@@ -102,6 +188,9 @@ def extract_date(text: str, url: str = "") -> str | None:
     return None
 
 
+# --- Result builder ---
+
+
 def make_result(
     url: str,
     title: str,
@@ -125,6 +214,8 @@ def make_result(
     }
 
 
+# --- Channel execution ---
+
 CHANNEL_METHODS = load_channel_plugins()
 
 
@@ -134,17 +225,39 @@ async def run_single_query(query_obj: dict) -> list[dict]:
     max_results = query_obj.get("max_results", DEFAULT_MAX_RESULTS)
     if not query:
         return []
+
+    # Circuit breaker: skip suspended channels
+    if _is_suspended(channel):
+        entry = _channel_health.get(channel, {})
+        print(
+            f"[search_runner] skipped {channel} (suspended until {entry.get('suspended_until', '?')}, "
+            f"failures={entry.get('consecutive_failures', 0)}, last={entry.get('last_error', '')})",
+            file=sys.stderr,
+        )
+        return []
+
     method = CHANNEL_METHODS.get(channel)
     if method is None:
         print(f"[search_runner] unknown channel: {channel}", file=sys.stderr)
         return []
     try:
-        return await asyncio.wait_for(
+        results = await asyncio.wait_for(
             method(query, max_results), timeout=DEFAULT_TIMEOUT
         )
+        if results:
+            _record_success(channel)
+        return results
     except asyncio.TimeoutError:
+        _record_failure(channel, "timeout")
         print(f"[search_runner] timeout: {channel} '{query}'", file=sys.stderr)
         return []
+    except Exception as exc:
+        _record_failure(channel, str(exc)[:100])
+        print(f"[search_runner] error: {channel} '{query}': {exc}", file=sys.stderr)
+        return []
+
+
+# --- Deduplication ---
 
 
 def dedup_results(results: list[dict]) -> list[dict]:
@@ -161,9 +274,15 @@ def dedup_results(results: list[dict]) -> list[dict]:
     return list(seen.values())
 
 
+# --- Main ---
+
+
 async def main(queries: list[dict]) -> None:
     if not queries:
         return
+
+    _load_health()
+
     results_lists = await asyncio.gather(
         *(run_single_query(query) for query in queries), return_exceptions=True
     )
@@ -176,8 +295,17 @@ async def main(queries: list[dict]) -> None:
     unique_results = dedup_results(all_results)
     for result in unique_results:
         print(json.dumps(result, ensure_ascii=False))
+
+    # Persist health state for next run
+    _save_health()
+
+    # Summary to stderr
+    suspended = sum(
+        1 for ch in set(q.get("channel") for q in queries) if _is_suspended(ch)
+    )
     print(
-        f"[search_runner] {len(unique_results)} results ({len(all_results)} before dedup) from {len(queries)} queries",
+        f"[search_runner] {len(unique_results)} results ({len(all_results)} before dedup) "
+        f"from {len(queries)} queries ({suspended} channels suspended)",
         file=sys.stderr,
     )
 

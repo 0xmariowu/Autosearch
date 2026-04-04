@@ -89,9 +89,27 @@ def load_scoring_config(evidence_file: str | Path | None = None) -> dict[str, ob
     if latency_budget_seconds <= 0:
         latency_budget_seconds = DEFAULT_LATENCY_BUDGET_SECONDS
 
+    # Freshness profile: topic-type → cutoff days
+    freshness_profiles = scoring.get("freshness_profiles")
+    if not isinstance(freshness_profiles, dict):
+        freshness_profiles = {
+            "default": 183,
+            "emerging": 90,
+            "news": 30,
+            "academic": 365,
+            "historical": 730,
+        }
+
+    # Active freshness days: check for session-level override, else default
+    freshness_days = coerce_float(
+        scoring.get("freshness_days"), freshness_profiles.get("default", 183)
+    )
+
     return {
         "dimension_weights": weights,
         "latency_budget_seconds": latency_budget_seconds,
+        "freshness_days": freshness_days,
+        "freshness_profiles": freshness_profiles,
     }
 
 
@@ -253,7 +271,8 @@ def score_results(
             match_count += 1
     relevance = match_count / total_results if total_results else 0.0
 
-    fresh_cutoff = now - dt.timedelta(days=183)
+    freshness_days = scoring_config.get("freshness_days", 183)
+    fresh_cutoff = now - dt.timedelta(days=freshness_days)
     fresh_count = 0
     for item in results:
         metadata = (
