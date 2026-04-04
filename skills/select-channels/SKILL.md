@@ -97,6 +97,18 @@ After each pipeline run, `auto-evolve.md` should update `channel-scores.jsonl` b
 
 This data-driven evolution is more precise than modifying skill text. The `auto-evolve.md` diagnosis should prefer updating `channel-scores.jsonl` over rewriting this skill when information-recall rubrics fail due to channel selection.
 
+## Rule 4b: Exclude known zero-yield channels before capping
+
+Before applying Rule 5, exclude any channel that matches BOTH conditions:
+1. Has returned 0 results in 2+ prior sessions for this topic_type
+2. Is available as an alternative via web-ddgs with a site: prefix
+
+Known zero-yield channels (as of 2026-04-04, verified across 2 sessions):
+- `zhihu`, `36kr`, `wechat`, `juejin`, `bilibili`, `infoq-cn` — Chinese platforms return 0 results via current site_search method. Do NOT include unless a working API/method has been confirmed via `discover-environment`. When Chinese-language primary sources are needed, use `web-ddgs` with Chinese-language query text and site: prefixes (e.g., `site:zhihu.com`), or flag the gap explicitly.
+- `crunchbase`, `twitter` — API-dependent channels that return 0 results without auth. Use `web-ddgs` with `site:crunchbase.com` or specific funding query patterns instead.
+
+Do not silently include zero-yield channels hoping they will work this time. They consume query budget and produce false coverage signal in the selected-channel list.
+
 ## Rule 5: Cap at 10 channels
 
 More than 10 channels produces diminishing returns. If the rules above suggest more than 10, prioritize:
