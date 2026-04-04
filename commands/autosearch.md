@@ -60,12 +60,12 @@ Spawn a Sonnet agent (`model: "sonnet"`) with this task:
 > 2. Write `state/timing.json` with `{"start_ts": "{ISO 8601 now}"}`.
 > 3. Read `skills/systematic-recall/SKILL.md` and run 9-dimension recall. Write the full output to `state/session-{id}-knowledge.md` (this file is consumed by the synthesis phase).
 > 4. Read `skills/select-channels/SKILL.md` and pick channels based on depth and focus.
-> 5. Read `state/patterns-v2.jsonl` to inform query strategy with winning patterns from prior sessions.
-> 6. Read `skills/gene-query/SKILL.md` and generate gap-driven queries.
+> 5. Read `state/patterns-v2.jsonl` to inform query strategy with winning patterns from prior sessions. Count how many patterns were loaded and how many were applicable to this topic.
+> 6. Read `skills/gene-query/SKILL.md` and generate gap-driven queries. Apply any relevant patterns from step 5 (e.g., channel preferences, query structures that worked before).
 > 7. **Enforce query cap**: Quick=8, Standard=15, Deep=25. If more queries generated, keep the most diverse subset (maximize unique channels and content_type variety). Drop duplicate-intent queries first.
 > 8. Write the final capped query JSON array to `state/session-{id}-queries.json`.
 >
-> At the end, output a JSON summary: `{"rubrics": N, "knowledge_items": N, "gaps": N, "queries": N, "channels": ["list"]}`
+> At the end, output a JSON summary: `{"rubrics": N, "knowledge_items": N, "gaps": N, "queries": N, "channels": ["list"], "patterns_loaded": N, "patterns_applied": N}`
 
 After Block 1 returns, parse its summary and output:
 ```
