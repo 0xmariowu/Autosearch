@@ -14,17 +14,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 
+from lib.assemble_html import detect_lang
+
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE_PATH = ROOT / "lib" / "templates" / "slides.html"
-
-
-def detect_lang(body: str) -> str:
-    chinese_chars = len(re.findall(r"[\u4e00-\u9fff]", body[:2000]))
-    return "zh-CN" if chinese_chars > 50 else "en"
 
 
 def assemble(body_path: Path, meta: dict, output_path: Path) -> None:

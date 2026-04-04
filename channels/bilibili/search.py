@@ -46,7 +46,7 @@ def _parse_duration(duration: str) -> tuple[str, int | None]:
     for part in parts:
         total = total * 60 + int(part)
 
-    # SearXNG discards durations that appear to exceed one hour.
+    # Discard durations exceeding one hour (likely misparse).
     if total > 60 * 60:
         return "", None
     return raw, total

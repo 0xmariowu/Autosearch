@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 VENV_PYTHON="$HOME/.autosearch/venv/bin/python"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SEARCH_RUNNER="$SCRIPT_DIR/../lib/search_runner.py"
