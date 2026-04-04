@@ -10,5 +10,9 @@ RUN pip install --no-cache-dir -r requirements.txt && \
 # Copy project
 COPY . .
 
+# Run as non-root user
+RUN useradd -m testuser
+USER testuser
+
 ENTRYPOINT ["python", "-m", "pytest"]
 CMD ["-x", "-q", "tests/"]
