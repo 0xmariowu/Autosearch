@@ -4,7 +4,7 @@ description: "Finds arXiv preprints with abstracts, authors, and submission meta
 categories: [academic]
 platform: arxiv.org
 api_key_required: false
-aliases: [papers-with-code]
+aliases: []
 ---
 
 ## Content types
