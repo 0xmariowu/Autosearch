@@ -51,5 +51,8 @@ async def search(query: str, max_results: int = 20) -> list[dict]:
             )
         return results
     except Exception as e:
-        print(f"[search_runner] gh repos error: {e}", file=sys.stderr)
-        return []
+        from lib.search_runner import SearchError
+
+        raise SearchError(
+            channel="github-repos", error_type="network", message=str(e)
+        ) from e

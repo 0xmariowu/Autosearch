@@ -112,9 +112,10 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
 ### Implementation requirements
 
 - Use `httpx` for all HTTP requests.
-- Handle errors internally.
-- On failure, return `[]` and print a diagnostic message to `stderr`.
-- Do not raise channel-specific runtime errors to the loader for normal request failures.
+- Return `[]` for "searched successfully, found nothing." This is NOT a failure.
+- Raise `SearchError` (from `lib.search_runner`) for actual failures (network error, timeout, auth, rate limit, parse error). The runner's circuit breaker only counts `SearchError` as failure.
+- Do NOT catch-and-swallow exceptions that indicate provider unavailability. Let `SearchError` propagate.
+- Channels using shared engines (`_engines/baidu`, `_engines/ddgs`) must NOT catch `SearchError` from the engine — let it propagate to the runner.
 - Do not perform side effects other than HTTP requests and `stderr` logging.
 - Do not write files, mutate global project state, or require interactive input.
 
@@ -181,8 +182,8 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
             response.raise_for_status()
             data = response.json()
     except Exception as exc:
-        print(f"[example] search failed: {exc}", file=sys.stderr)
-        return []
+        from lib.search_runner import SearchError
+        raise SearchError(channel="example", error_type="network", message=str(exc))
 
     results: list[dict] = []
     for item in data.get("results", [])[:max_results]:

@@ -1,26 +1,24 @@
 from __future__ import annotations
 
-import asyncio
 import sys
 
 import httpx
 
-from lib.search_runner import DEFAULT_TIMEOUT, make_result
-
-SEMANTIC_SCHOLAR_RETRY_DELAYS = [2.0, 5.0]  # seconds between retries on 429
+from lib.search_runner import DEFAULT_TIMEOUT, SearchError, make_result
 
 
 async def _ss_get(client: httpx.AsyncClient, url: str, **kwargs) -> httpx.Response:
-    """Semantic Scholar GET with retry on 429 rate limit."""
+    """Semantic Scholar GET — raises SearchError on 429 rate limit.
+
+    Retry is handled by the runner-level retry wrapper, not here.
+    """
     resp = await client.get(url, **kwargs)
-    for delay in SEMANTIC_SCHOLAR_RETRY_DELAYS:
-        if resp.status_code != 429:
-            break
-        print(
-            f"[search_runner] semantic scholar 429, retry in {delay}s", file=sys.stderr
+    if resp.status_code == 429:
+        raise SearchError(
+            channel="semantic-scholar",
+            error_type="rate_limit",
+            message="429 Too Many Requests",
         )
-        await asyncio.sleep(delay)
-        resp = await client.get(url, **kwargs)
     return resp
 
 
@@ -116,5 +114,8 @@ async def search(query: str, max_results: int = 10, mode: str = "search") -> lis
                 )
             return results
     except Exception as e:
-        print(f"[search_runner] semantic scholar error: {e}", file=sys.stderr)
-        return []
+        from lib.search_runner import SearchError
+
+        raise SearchError(
+            channel="semantic-scholar", error_type="network", message=str(e)
+        ) from e

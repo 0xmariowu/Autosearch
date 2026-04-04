@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import re
-import sys
 
 import httpx
 
@@ -94,8 +93,11 @@ async def _search_npm(query: str, max_results: int) -> list[dict]:
 
         return results[:max_results]
     except Exception as exc:
-        print(f"[npm-pypi] npm search failed: {exc}", file=sys.stderr)
-        return []
+        from lib.search_runner import SearchError
+
+        raise SearchError(
+            channel="npm-pypi", error_type="network", message=f"npm: {exc}"
+        ) from exc
 
 
 async def _search_pypi(query: str, max_results: int) -> list[dict]:
@@ -165,8 +167,11 @@ async def _search_pypi(query: str, max_results: int) -> list[dict]:
 
         return results[:max_results]
     except Exception as exc:
-        print(f"[npm-pypi] pypi search failed: {exc}", file=sys.stderr)
-        return []
+        from lib.search_runner import SearchError
+
+        raise SearchError(
+            channel="npm-pypi", error_type="network", message=f"pypi: {exc}"
+        ) from exc
 
 
 async def search(query: str, max_results: int = 10) -> list[dict]:
@@ -176,8 +181,11 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
             _search_pypi(query, max_results),
         )
     except Exception as exc:
-        print(f"[npm-pypi] search failed: {exc}", file=sys.stderr)
-        return []
+        from lib.search_runner import SearchError
+
+        raise SearchError(
+            channel="npm-pypi", error_type="network", message=str(exc)
+        ) from exc
 
     merged: list[dict] = []
     limit = max(len(npm_results), len(pypi_results))

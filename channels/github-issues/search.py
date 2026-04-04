@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import sys
 
 from lib.search_runner import DEFAULT_TIMEOUT, make_result
 
@@ -47,5 +46,8 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
             )
         return results
     except Exception as e:
-        print(f"[search_runner] gh issues error: {e}", file=sys.stderr)
-        return []
+        from lib.search_runner import SearchError
+
+        raise SearchError(
+            channel="github-issues", error_type="network", message=str(e)
+        ) from e

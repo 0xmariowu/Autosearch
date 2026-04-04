@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 
 import httpx
 
@@ -17,8 +16,11 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
             response.raise_for_status()
             articles = response.json()
     except Exception as exc:
-        print(f"[devto] search failed: {exc}", file=sys.stderr)
-        return []
+        from lib.search_runner import SearchError
+
+        raise SearchError(
+            channel="devto", error_type="network", message=str(exc)
+        ) from exc
 
     results: list[dict] = []
     for article in articles[:max_results]:
