@@ -8,9 +8,8 @@ A self-improving search system. The human provides intent. The AI does everythin
 
 ## Session Checklist
 
-1. If working on v2.2 AVO/skills → read § v2.2 rules below
+1. If working on AVO/skills → read § AVO rules below
 2. If working on search quality → read `docs/methodology/principles.md`
-3. If touching genome → read § Genome rules below
 
 ## Workflow
 
@@ -48,19 +47,19 @@ A self-improving search system. The human provides intent. The AI does everythin
 
 9. Don't delete `evolution.jsonl`. Instead, treat it as the append-only experiment log. Because: it's the raw data that enables cross-session analysis and debugging.
 
-10. V1 legacy code has been removed. All search runs use V2.2 architecture: `PROTOCOL.md` + `skills/` + `lib/search_runner.py`.
+10. Architecture: `PROTOCOL.md` + `skills/` + `lib/search_runner.py`.
 
 ## Session Protocol — After completing a search session
 
 1. Verify `patterns.jsonl` and `evolution.jsonl` have new entries (Phase 3 ran).
 2. Save any durable findings or analysis in repo-local artifacts, not external personal directories.
-3. Sync patterns to `docs/methodology/platforms/*.md`: win_rate ≥ 0.6 across 3+ sessions → add; win_rate = 0 across 3+ sessions → Known Failures.
+3. Sync patterns to platform channel SKILL.md files: win_rate ≥ 0.6 across 3+ sessions → add; win_rate = 0 across 3+ sessions → Known Failures.
 4. If this repo maintains an active `experience/` log, write `experience/{YYYY-MM-DD}-{topic}.md` and update its index.
 5. If code/config/CLAUDE.md changed (not just search data): prepend to `CHANGELOG.md`.
 
-## v2.2 rules (unified architecture: V1 capabilities + V2 evolvability)
+## AVO rules (self-evolution)
 
-14. Don't modify `judge.py` or `PROTOCOL.md` without explicit user authorization. These are the fixed contracts. judge.py is the scoring function f (AVO paper §3.1). PROTOCOL.md is the operating protocol. Because: if AVO can change its own evaluation or rules, behavior becomes unpredictable. Exception: adding new scoring dimensions requires explicit user authorization per instance. AVO MUST NOT modify judge.py on its own.
+14. Don't modify `judge.py` or `PROTOCOL.md` without explicit user authorization. These are the fixed contracts. judge.py is the scoring function. PROTOCOL.md is the operating protocol. Because: if AVO can change its own evaluation or rules, behavior becomes unpredictable. Exception: adding new scoring dimensions requires explicit user authorization per instance. AVO MUST NOT modify judge.py on its own.
 
 15. Don't modify meta-skills: `create-skill`, `observe-user`, `extract-knowledge`, `interact-user`, `discover-environment`. These define HOW to evolve, not WHAT to evolve. AVO can modify all OTHER skills. Because: meta-skills are the "DNA replication machinery" — evolution changes genes, not the replication mechanism.
 
@@ -72,13 +71,13 @@ A self-improving search system. The human provides intent. The AI does everythin
 
 19. Use Python 3.10+ to run `lib/judge.py` and tests. System python3 may be 3.9 which lacks union type syntax (`X | None` requires 3.10+).
 
-20. Platform skills can use free OR paid APIs. AVO discovers what's available via `discover-environment` and selects accordingly. Because: V1 had 14 connectors (8 free, 6 paid) — restricting to free-only was V2.0's mistake.
+20. Platform skills can use free OR paid APIs. AVO discovers what's available via `discover-environment` and selects accordingly.
 
 21. Every validation run MUST include a native Claude baseline comparison. Run the same query with native Claude (no AutoSearch skills/protocol), then compare in a table: result count by type, conceptual framework depth, content coverage gaps. Because: AutoSearch's value proposition is "better than native Claude at research" — if it's not, the system hasn't earned its complexity.
 
 22. AVO self-evolution MUST be validated separately from search quality. Search quality tests (like F006) prove the pipeline works. Evolution tests prove the system improves itself. An evolution test requires: (a) baseline score, (b) agent-initiated skill modification, (c) re-score showing improvement, (d) git commit on improvement, (e) git revert on regression, (f) pattern written to state. Without this test passing, AutoSearch is a search agent, not a self-evolving search agent.
 
-V2.2 architecture: `PROTOCOL.md` + `skills/`. V1 code removed.
+Architecture: `PROTOCOL.md` + `skills/` + `lib/search_runner.py`.
 
 ## Release Workflow
 
