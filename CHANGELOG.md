@@ -1,6 +1,6 @@
 # Changelog
 
-All changes to AutoSearch. Format: `## YYYY.M.D` with `### Changes` and `### Fixes`.
+All changes to AutoSearch. Format: `## YYYY.MM.DD.N` with `### Changes` and `### Fixes`.
 
 ---
 
@@ -23,38 +23,24 @@ All changes to AutoSearch. Format: `## YYYY.M.D` with `### Changes` and `### Fix
 
 ## 2026.04.04.2
 
+### Changes
+- You can now get Haiku-compressed claims before synthesis — Block 3 compresses results to one-sentence claims for faster Block 4 input
+- You can now get targeted gap-fill queries — Block 3 reflects on coverage gaps and generates follow-up queries
+- Research context persists across sessions — same-topic searches skip covered dimensions
+
 ## 2026.04.04.1
 
-## 2026.4.8
-
-## 2026.4.7
-
-## 2026.4.6
-
-## 2026.4.5
-
-## 2026.4.4-1
-
-## 2026.4.4
-
 ### Changes
-
-- **Delivery format selection.** `/autosearch` now asks for delivery medium (Markdown / Rich HTML / Presentation slides) instead of content structure. Content structure auto-determined by Depth. (#29)
-- **Language auto-detection.** Output language and channel prioritization auto-detected from topic language. No extra question needed. (#29)
-- **Language pre-filter.** Channel selection reads SKILL.md Language section to exclude mismatched channels (e.g., English topic skips Chinese-only channels). Saves 10+ wasted channel calls. (#31)
-- **Orchestrated progress output.** Replaced single researcher agent (11-minute black box) with 4 orchestrated blocks. Each block is a Sonnet agent; between blocks, the main context outputs `[Phase N/6] ✓ {name} — {metric}` visible to the user in real-time. Errors surface immediately instead of after a timeout. (#31)
-- **Inter-block data contract.** Added `state/session-{id}-knowledge.md` (systematic recall output) and `state/session-{id}-queries.json` (query array) for clean data handoff between blocks. (#31)
-- **Model routing.** Each block runs in Sonnet (`model: "sonnet"`). Phase A (config) runs in parent model. No more implicit model inheritance. (#31)
-- **CalVer versioning.** Switched from SemVer to CalVer `YYYY.M.D`. First tag: `v2026.4.3`. (#29)
-- **Test suite.** 9 → 279 tests: judge.py (27), search_runner (19), channel smoke (64), SKILL.md compliance (160). (#27)
-- **CI improvements.** Draft PRs skip CI. Runtime deps installed in test job. Network tests excluded. (#27, #29)
-- **PR template.** Added Scope checklist and CHANGELOG checkbox. (#29)
-- **STANDARD.md.** Body sections updated to match actual channel format. (#27)
+- You can now choose delivery format: Markdown, Rich HTML (tables + diagrams), or Presentation slides
+- Language auto-detected from topic — Chinese topic gets Chinese output + Chinese channels prioritized
+- Orchestrated 6-block pipeline replaces single-agent black box — you see `[Phase N/6]` progress in real-time
+- 6 blocks with correct model routing: Haiku for classification, Sonnet for reasoning
+- CalVer switched to `YYYY.MM.DD.N` format
+- 9 → 279 tests: judge.py, search_runner, channel smoke, SKILL.md compliance
 
 ### Fixes
-
-- **Pre-push hook.** Uses project venv for pytest instead of system Python. (#27)
-- **Python version.** Standardized to 3.10+ (was inconsistent 3.10/3.11). (#27)
+- Pre-push hook uses project venv for pytest
+- Python version standardized to 3.10+
 
 ---
 
