@@ -89,17 +89,38 @@ class TestCommandFile:
             "Phase B should use orchestrated blocks, not single researcher agent"
         )
 
-    def test_has_four_blocks(self) -> None:
+    def test_has_six_blocks(self) -> None:
         blocks = re.findall(r"#### Block \d", self.text)
-        assert len(blocks) == 4, f"Expected 4 blocks, found {len(blocks)}"
+        assert len(blocks) == 6, f"Expected 6 blocks, found {len(blocks)}"
 
-    def test_all_blocks_specify_sonnet(self) -> None:
-        # Each block section should mention model: "sonnet"
+    def test_blocks_specify_correct_models(self) -> None:
         block_sections = re.split(r"#### Block \d", self.text)[1:]
         for i, section in enumerate(block_sections, 1):
-            assert "sonnet" in section.lower(), (
-                f"Block {i} does not specify Sonnet model"
+            assert "sonnet" in section.lower() or "haiku" in section.lower(), (
+                f"Block {i} does not specify a model (Sonnet or Haiku)"
             )
+
+    def test_haiku_used_for_classification_blocks(self) -> None:
+        # Blocks 3 (Evaluate) and 5 (Quality Check) should use Haiku
+        block_sections = re.split(r"#### Block \d", self.text)[1:]
+        for idx in (2, 4):  # 0-indexed: Block 3 = index 2, Block 5 = index 4
+            assert "haiku" in block_sections[idx].lower(), (
+                f"Block {idx + 1} should use Haiku for classification"
+            )
+
+    def test_websearch_prohibited_in_search_block(self) -> None:
+        block_sections = re.split(r"#### Block \d", self.text)[1:]
+        search_block = block_sections[1]  # Block 2: Search
+        assert (
+            "do not use" in search_block.lower() and "websearch" in search_block.lower()
+        ), "Block 2 must explicitly prohibit WebSearch tool"
+
+    def test_search_runner_required_in_search_block(self) -> None:
+        block_sections = re.split(r"#### Block \d", self.text)[1:]
+        search_block = block_sections[1]  # Block 2: Search
+        assert "search_runner.py" in search_block, (
+            "Block 2 must use lib/search_runner.py for searches"
+        )
 
     def test_has_all_six_phases_in_progress(self) -> None:
         for n in range(1, 7):
