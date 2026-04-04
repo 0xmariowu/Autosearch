@@ -47,3 +47,28 @@ fi
 
 PYTHONPATH="$REPO_ROOT" "$PYTHON" -m pytest tests/ -x -q -m "not network" 2>/dev/null \
   || PYTHONPATH="$REPO_ROOT" "$PYTHON" -m unittest discover -s tests -q
+
+# --- Version bump check ---
+# Block push if source files changed since last tag but version not bumped.
+# Only checks on non-main branches (main pushes come from merged PRs).
+LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+if [ -n "$LAST_TAG" ]; then
+  TAG_VERSION="${LAST_TAG#v}"
+  PLUGIN_VERSION=$("$PYTHON" -c "import json; print(json.load(open('$REPO_ROOT/.claude-plugin/plugin.json'))['version'])" 2>/dev/null || echo "")
+
+  if [ "$TAG_VERSION" = "$PLUGIN_VERSION" ]; then
+    # Check if source files changed since the tag
+    SOURCE_CHANGES=$(git diff --name-only "$LAST_TAG"..HEAD -- \
+      commands/ agents/ skills/ lib/ channels/ scripts/ \
+      PROTOCOL.md CLAUDE.md .claude-plugin/ \
+      2>/dev/null | head -1)
+
+    if [ -n "$SOURCE_CHANGES" ]; then
+      echo ""
+      echo "[VERSION] Source files changed since $LAST_TAG but version is still $PLUGIN_VERSION."
+      echo "          Run: scripts/bump-version.sh"
+      echo ""
+      exit 1
+    fi
+  fi
+fi

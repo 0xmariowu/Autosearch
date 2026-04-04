@@ -97,6 +97,50 @@ jobs:
           test -d state && echo "state/ OK"
           echo "Plugin structure OK"
 
+  version-check:
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Check version bump
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            echo "No tags found, skipping version check"
+            exit 0
+          fi
+
+          TAG_VERSION="${LAST_TAG#v}"
+          PLUGIN_VERSION=$(python3 -c "import json; print(json.load(open('.claude-plugin/plugin.json'))['version'])")
+
+          # Check if source files changed in this PR
+          SOURCE_CHANGES=$(git diff --name-only "origin/main"..HEAD -- \
+            commands/ agents/ skills/ lib/ channels/ scripts/ \
+            PROTOCOL.md CLAUDE.md .claude-plugin/ \
+            2>/dev/null | wc -l | tr -d ' ')
+
+          if [ "$SOURCE_CHANGES" -gt 0 ] && [ "$TAG_VERSION" = "$PLUGIN_VERSION" ]; then
+            gh pr comment "$PR_NUMBER" --body \
+              "**Version reminder**: This PR changes $SOURCE_CHANGES source file(s) but the version is still \`$PLUGIN_VERSION\` (same as tag \`$LAST_TAG\`). Run \`scripts/bump-version.sh\` before merging so users receive the update."
+          elif [ "$TAG_VERSION" != "$PLUGIN_VERSION" ]; then
+            echo "Version bumped: $TAG_VERSION → $PLUGIN_VERSION"
+          else
+            echo "No source file changes, version bump not required"
+          fi
+
   quality:
     if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     runs-on: ubuntu-latest

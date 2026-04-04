@@ -5,21 +5,28 @@
   },
   "metadata": {
     "description": "Self-evolving deep research. Gets smarter every time you use it.",
-    "version": "2026.4.3"
+    "version": "2026.4.4"
   },
   "plugins": [
     {
       "name": "autosearch",
       "source": "./",
       "description": "Self-evolving deep research. Gets smarter every time you use it. Searches across channels, synthesizes cited reports, and learns which queries and platforms work best.",
-      "version": "2026.4.3",
+      "version": "2026.4.4",
       "author": {
         "name": "0xmariowu"
       },
       "homepage": "https://github.com/0xmariowu/autosearch",
       "repository": "https://github.com/0xmariowu/autosearch",
       "license": "MIT",
-      "keywords": ["search", "research", "RAG", "self-evolving", "agent", "deep-research"],
+      "keywords": [
+        "search",
+        "research",
+        "RAG",
+        "self-evolving",
+        "agent",
+        "deep-research"
+      ],
       "category": "research"
     }
   ]

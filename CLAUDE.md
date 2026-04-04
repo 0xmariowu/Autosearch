@@ -79,3 +79,31 @@ A self-improving search system. The human provides intent. The AI does everythin
 22. AVO self-evolution MUST be validated separately from search quality. Search quality tests (like F006) prove the pipeline works. Evolution tests prove the system improves itself. An evolution test requires: (a) baseline score, (b) agent-initiated skill modification, (c) re-score showing improvement, (d) git commit on improvement, (e) git revert on regression, (f) pattern written to state. Without this test passing, AutoSearch is a search agent, not a self-evolving search agent.
 
 V2.2 architecture: `PROTOCOL.md` + `skills/`. V1 code removed.
+
+## Release Workflow
+
+Version format: **CalVer `YYYY.M.D`** (e.g., `2026.4.4`). Same-day releases append `-N` suffix.
+
+Version lives in 3 files (kept in sync by `scripts/bump-version.sh`):
+- `.claude-plugin/plugin.json` — Claude Code reads this to detect updates
+- `.claude-plugin/marketplace.json` — marketplace catalog
+- `CHANGELOG.md` — user-facing release notes
+
+### How to release
+
+1. `scripts/bump-version.sh` — auto-bumps to today's date
+2. `scripts/committer "chore: bump version to X.Y.Z" .claude-plugin/plugin.json .claude-plugin/marketplace.json CHANGELOG.md`
+3. `git tag vX.Y.Z`
+4. `git push && git push --tags` — triggers `release.yml` → creates GitHub Release
+
+### How users update
+
+- Manual: `claude plugin update autosearch@autosearch`
+- Auto: `/plugin` → Marketplaces tab → autosearch → Enable auto-update
+- Re-install: `curl -fsSL https://raw.githubusercontent.com/0xmariowu/autosearch/main/scripts/install.sh | bash`
+
+### Guardrails
+
+- **Pre-push hook**: blocks push if source files changed but version not bumped
+- **CI**: posts PR comment warning if version drift detected
+- **release.yml**: validates tag matches plugin.json version
