@@ -1,3 +1,43 @@
+# .gitleaks.toml — PII + internal reference detection for public repos
+
+title = "PII + Internal Reference Ruleset"
+
+[extend]
+useDefault = true
+
+# ── Always-block rules ───────────────────────────────────────────────────────
+
+[[rules]]
+id = "personal-path"
+description = "Personal home directory path leaked"
+regex = '''/Users/[a-zA-Z0-9_\-\.]+/|/home/[a-z][a-z0-9_\-]+/'''
+tags = ["pii", "personal-path"]
+keywords = ["/Users/", "/home/"]
+
+[[rules]]
+id = "tailscale-domain"
+description = "Tailscale network address or internal hostname leaked"
+regex = '''[a-z0-9\-]+\.ts\.net|tailcca451|vimalamac'''
+tags = ["pii", "hostname"]
+keywords = [".ts.net", "tailcca451", "vimalamac"]
+
+# ── Public-repo-only rules ───────────────────────────────────────────────────
+
+[[rules]]
+id = "internal-project-name"
+description = "Internal project codename leaked (Armory/AIMD/atoms/kalami/alaya-os)"
+regex = '''\b(Armory|AIMD|atoms|kalami2?|alaya[_\-]os)\b'''
+tags = ["pii", "internal-codename"]
+keywords = ["Armory", "AIMD", "atoms", "kalami", "alaya"]
+
+# ── Allowlist ────────────────────────────────────────────────────────────────
+
 [allowlist]
-  description = "Public YouTube innertube API key (embedded in youtube.com frontend, not a secret)"
-  paths = ["channels/youtube/search.py"]
+description = "Project-level allowlist"
+paths = [
+  '''\.gitleaks\.toml$''',
+  '''channels/youtube/search\.py$''',
+]
+regexes = [
+  '''innertube''',
+]
