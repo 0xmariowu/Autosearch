@@ -73,9 +73,8 @@ jobs:
 
       - name: Check container image pins
         run: |
-          UNPINNED=$(grep -rn 'image:' .github/workflows/ \
-            | grep -v '@sha256:' \
-            | grep -v '^#' || true)
+          UNPINNED=$(grep -rn '^\s*image:' .github/workflows/ \
+            | grep -v '@sha256:' || true)
           if [ -n "$UNPINNED" ]; then
             echo "::error::Unpinned container images:"
             echo "$UNPINNED"
