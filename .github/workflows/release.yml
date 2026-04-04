@@ -38,35 +38,25 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
 
-          # Try package.json
-          if [ -f package.json ]; then
-            PKG_VERSION=$(node -p "require('./package.json').version" 2>/dev/null || echo "")
-            if [ -n "$PKG_VERSION" ] && [ "$PKG_VERSION" != "undefined" ]; then
-              if [ "$VERSION" != "$PKG_VERSION" ]; then
-                echo "::error::Tag v$VERSION does not match package.json version $PKG_VERSION"
-                exit 1
-              fi
-              echo "Validated: tag matches package.json ($VERSION)"
-              exit 0
+          # Claude Code plugin manifest (primary)
+          if [ -f .claude-plugin/plugin.json ]; then
+            PLUGIN_VERSION=$(python3 -c "import json; print(json.load(open('.claude-plugin/plugin.json'))['version'])")
+            if [ "$VERSION" != "$PLUGIN_VERSION" ]; then
+              echo "::error::Tag v$VERSION does not match plugin.json version $PLUGIN_VERSION"
+              echo "::error::Run: scripts/bump-version.sh $VERSION"
+              exit 1
             fi
-          fi
+            echo "Validated: tag matches plugin.json ($VERSION)"
 
-          # Try pyproject.toml
-          if [ -f pyproject.toml ]; then
-            PY_VERSION=$(python3 -c "
-          import tomllib
-          with open('pyproject.toml', 'rb') as f:
-              d = tomllib.load(f)
-          print(d.get('project', {}).get('version', ''))
-          " 2>/dev/null || echo "")
-            if [ -n "$PY_VERSION" ]; then
-              if [ "$VERSION" != "$PY_VERSION" ]; then
-                echo "::error::Tag v$VERSION does not match pyproject.toml version $PY_VERSION"
+            # Also verify marketplace.json is in sync
+            if [ -f .claude-plugin/marketplace.json ]; then
+              MKT_VERSION=$(python3 -c "import json; print(json.load(open('.claude-plugin/marketplace.json'))['metadata']['version'])")
+              if [ "$VERSION" != "$MKT_VERSION" ]; then
+                echo "::error::marketplace.json version ($MKT_VERSION) out of sync with plugin.json ($PLUGIN_VERSION)"
                 exit 1
               fi
-              echo "Validated: tag matches pyproject.toml ($VERSION)"
-              exit 0
             fi
+            exit 0
           fi
 
           echo "::warning::No version file found — skipping version match validation"

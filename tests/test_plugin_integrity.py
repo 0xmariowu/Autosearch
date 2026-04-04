@@ -399,3 +399,57 @@ class TestStateConfig:
         path = ROOT / "state/channels.json"
         data = json.loads(path.read_text(encoding="utf-8"))
         assert isinstance(data, (dict, list))
+
+
+# ---------------------------------------------------------------------------
+# Version consistency
+# ---------------------------------------------------------------------------
+
+
+class TestVersionConsistency:
+    """Verify version is consistent across all manifest files."""
+
+    @pytest.fixture(autouse=True)
+    def _load(self) -> None:
+        import json
+
+        self.plugin = json.loads(
+            (ROOT / ".claude-plugin/plugin.json").read_text(encoding="utf-8")
+        )
+        self.marketplace = json.loads(
+            (ROOT / ".claude-plugin/marketplace.json").read_text(encoding="utf-8")
+        )
+        self.changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+
+    def test_plugin_json_has_version(self) -> None:
+        assert "version" in self.plugin
+        assert self.plugin["version"]
+
+    def test_version_is_calver(self) -> None:
+        version = self.plugin["version"]
+        assert re.match(r"^\d{4}\.\d{1,2}\.\d{1,2}(-\d+)?$", version), (
+            f"Version '{version}' is not CalVer YYYY.M.D format"
+        )
+
+    def test_marketplace_metadata_matches_plugin(self) -> None:
+        assert self.marketplace["metadata"]["version"] == self.plugin["version"]
+
+    def test_marketplace_plugin_entry_matches(self) -> None:
+        for plugin in self.marketplace.get("plugins", []):
+            assert plugin["version"] == self.plugin["version"], (
+                f"marketplace plugins[].version ({plugin['version']}) "
+                f"!= plugin.json ({self.plugin['version']})"
+            )
+
+    def test_changelog_has_version_section(self) -> None:
+        version = self.plugin["version"]
+        assert f"## {version}" in self.changelog, (
+            f"CHANGELOG.md missing section for current version {version}"
+        )
+
+    def test_bump_script_exists_and_executable(self) -> None:
+        import os
+
+        path = ROOT / "scripts/bump-version.sh"
+        assert path.exists(), "scripts/bump-version.sh missing"
+        assert os.access(path, os.X_OK), "scripts/bump-version.sh not executable"
