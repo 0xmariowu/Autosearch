@@ -18,6 +18,7 @@ with <section id="..."> and <h2>/<h3> for TOC generation.
 from __future__ import annotations
 
 import argparse
+import html as html_stdlib  # noqa: F811 — shadows local `html` var in assemble()
 import json
 import re
 import sys
@@ -114,7 +115,7 @@ def assemble(body_path: Path, meta: dict, output_path: Path) -> None:
 
     html = template
     html = html.replace("{{LANG}}", lang)
-    html = html.replace("{{TITLE}}", title)
+    html = html.replace("{{TITLE}}", html_stdlib.escape(title))
     html = html.replace("{{TOC}}", toc)
     html = html.replace("{{BODY}}", body)
     html = html.replace("{{FOOTER}}", footer)
