@@ -9,6 +9,19 @@ All changes to AutoSearch. Format: `## YYYY.MM.DD.N` with `### Changes` and `###
 
 ---
 
+## 2026.04.04.7
+
+### Changes
+
+- You can now benefit from engine-level health tracking — when Baidu or DuckDuckGo goes down, all dependent channels suspend together instead of failing one-by-one
+- Transient failures (timeouts, network blips) now automatically retry once before giving up — timeout waits 5s, network errors wait 2s
+- Channel health data now persists immediately after every success/failure, so a crash no longer loses health state from the current run
+
+### Fixes
+
+- Removed redundant internal retry from Semantic Scholar channel (now handled by runner-level retry)
+- Added lxml dependency to requirements.txt (wechat channel was broken on fresh install)
+
 ## 2026.04.04.6
 
 ### Fixes
