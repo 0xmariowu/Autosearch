@@ -37,6 +37,8 @@ description = "Project-level allowlist"
 paths = [
   '''\.gitleaks\.toml$''',
   '''channels/youtube/search\.py$''',
+  '''\.github/workflows/hygiene\.yml$''',
+  '''\.husky/pre-commit$''',
 ]
 regexes = [
   '''innertube''',

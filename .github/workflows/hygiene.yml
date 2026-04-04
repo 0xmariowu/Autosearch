@@ -50,7 +50,8 @@ jobs:
             --include='*.py' --include='*.yml' --include='*.yaml' \
             --include='*.json' --include='*.toml' --include='*.sh' \
             --exclude-dir='.git' --exclude='.gitleaks.toml' \
-            --exclude='.husky/pre-commit' --exclude='CLAUDE.md' . || true)
+            --exclude='.husky/pre-commit' --exclude='CLAUDE.md' \
+            --exclude='hygiene.yml' . || true)
           if [ -n "$MATCHES" ]; then
             echo "::error::Internal project codenames found:"
             echo "$MATCHES"
