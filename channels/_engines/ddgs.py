@@ -34,7 +34,7 @@ async def search_ddgs_web(
     query: str, max_results: int = 10, source: str = "web-ddgs"
 ) -> list[dict]:
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
             None, _sync_ddgs_search, query, max_results, source
         )
