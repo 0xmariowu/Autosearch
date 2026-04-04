@@ -9,7 +9,7 @@ A self-improving search system. The human provides intent. The AI does everythin
 ## Session Checklist
 
 1. If working on AVO/skills → read § AVO rules below
-2. If working on search quality → read `docs/methodology/principles.md`
+2. If working on search quality → read `PRINCIPLES.md`
 
 ## Workflow
 
