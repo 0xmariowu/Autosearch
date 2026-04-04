@@ -232,4 +232,5 @@ After all blocks complete:
 - Each block agent must read the relevant `skills/*/SKILL.md` before executing
 - Use Python 3.10+ for `lib/judge.py` and `lib/search_runner.py`
 - Block model routing: Sonnet for reasoning/synthesis (1, 2, 4, 6), Haiku for classification (3, 5)
+- All blocks spawn with `mode: "acceptEdits"` — NOT `mode: "auto"` (which maps to `default` for plugins and causes permission hangs)
 - **NEVER use WebSearch/WebFetch in search blocks** — always use `lib/search_runner.py` via Bash
