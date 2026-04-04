@@ -15,5 +15,20 @@
     "self-evolving",
     "agent",
     "deep-research"
-  ]
+  ],
+  "category": "research",
+  "userConfig": {
+    "EXA_API_KEY": {
+      "description": "Exa API key for semantic web search (optional — enables search-exa, search-hn-exa, search-reddit-exa, search-twitter-exa channels)",
+      "sensitive": true
+    },
+    "TAVILY_API_KEY": {
+      "description": "Tavily API key for research-oriented web search (optional)",
+      "sensitive": true
+    },
+    "SEARXNG_URL": {
+      "description": "SearXNG instance URL for meta-search (optional, default: http://localhost:8888)",
+      "sensitive": false
+    }
+  }
 }
