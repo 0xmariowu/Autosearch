@@ -143,7 +143,9 @@ for line in open('{evidence}'):
         )
 
         assert proc.returncode == 0, f"Extraction failed: {proc.stderr}"
-        compact_lines = [l for l in proc.stdout.strip().split("\n") if l.strip()]
+        compact_lines = [
+            line for line in proc.stdout.strip().split("\n") if line.strip()
+        ]
         compact_size = len(proc.stdout)
 
         # Compact output should be much smaller than raw
