@@ -54,6 +54,8 @@ Spawn a Sonnet agent (`model: "sonnet"`) with this task:
 > Working directory: `${CLAUDE_PLUGIN_ROOT}`
 > Topic: {topic}. Depth: {depth}. Focus: {focus}. Session ID: {session_id}.
 >
+> **Time limit: 5 minutes.** Record start time. After each tool call, check elapsed. If > 5 min, skip remaining steps and return summary with what you have.
+>
 > Read `skills/pipeline-flow/SKILL.md` for context, then execute Phase 0 and Phase 1:
 >
 > 1. **Check for prior research context**: If `state/research-contexts/{topic-slug}.json` exists, load it. This contains knowledge items, search results, and citations from a previous session on the same topic. Skip recall dimensions already covered with HIGH confidence in the prior context. This makes repeat-topic sessions faster and smarter.
@@ -84,6 +86,8 @@ Spawn a Sonnet agent (`model: "sonnet"`) with this task:
 > Working directory: `${CLAUDE_PLUGIN_ROOT}`
 > Session ID: {session_id}. Topic: {topic}.
 >
+> **Time limit: 5 minutes.** Record start time. If search_runner takes > 4 min, kill it and proceed with partial results.
+>
 > **CRITICAL: Do NOT use the WebSearch or WebFetch tools.** ALL searches MUST go through `lib/search_runner.py` via the Bash tool. WebSearch bypasses the 32-channel connectors and produces untagged results. Using WebSearch defeats the entire purpose of AutoSearch.
 >
 > 1. Read `state/session-{id}-queries.json` for the query array.
@@ -109,6 +113,8 @@ Spawn a Haiku agent (`model: "haiku"`) with this task:
 > Working directory: `${CLAUDE_PLUGIN_ROOT}`
 > Session ID: {session_id}. Topic: {topic}.
 >
+> **Time limit: 5 minutes.** Record start time. After each batch, check elapsed. If > 5 min, finish current batch and skip remaining.
+>
 > Read `skills/llm-evaluate/SKILL.md` for context.
 >
 > 1. Read `evidence/{session_id}-results.jsonl`.
@@ -118,7 +124,7 @@ Spawn a Haiku agent (`model: "haiku"`) with this task:
 > 5. Track per-query outcomes: append to `state/query-outcomes.jsonl` per pipeline-flow Phase 3a.
 > 6. **Reflect**: After evaluation, ask yourself: "What knowledge dimensions are still poorly covered?" Output a `gap_dimensions` list — each entry is a dimension name + what's missing + why it matters. This is NOT just "which queries returned nothing" — it's a higher-level assessment of conceptual gaps in the evidence.
 > 7. If critical gaps remain (dimensions with <= 1 relevant result), write up to 5 gap-fill queries to `evidence/{session_id}-next-queries.jsonl`. Use the gap_dimensions from step 6 to generate targeted queries. Otherwise write an empty file.
-> 8. **Compress**: For each relevant result (llm_relevant=true), write a one-sentence structured claim: `{"url": "...", "claim": "one sentence key finding", "source": "...", "dimension": "which knowledge dimension this covers"}`. Write to `evidence/{session_id}-claims.jsonl`. This compressed view is consumed by Block 4 instead of raw results.
+> 8. **REQUIRED — Compress**: For each relevant result (llm_relevant=true), write a one-sentence structured claim: `{"url": "...", "claim": "one sentence key finding", "source": "...", "dimension": "which knowledge dimension this covers"}`. Write to `evidence/{session_id}-claims.jsonl`. This compressed view is consumed by Block 4 instead of raw results. **Do not skip this step** — Block 4 depends on claims.jsonl to stay within output size limits.
 >
 > At the end, output a JSON summary: `{"relevant": N, "filtered": N, "gap_queries": N, "gap_dimensions": ["list"], "claims": N}`
 
@@ -140,10 +146,12 @@ Spawn a Sonnet agent (`model: "sonnet"`) with this task:
 > Working directory: `${CLAUDE_PLUGIN_ROOT}`
 > Session ID: {session_id}. Topic: {topic}. Delivery format: {delivery_format}. Language: {language}. Content structure: {content_structure}. AutoSearch version: {version}.
 >
+> **Time limit: 8 minutes.** Record start time. After each tool call, check elapsed. If > 8 min, finish with what you have and return summary immediately.
+>
 > Read `skills/pipeline-flow/SKILL.md` Phase 4 for context.
 >
 > 1. Read `state/session-{id}-knowledge.md` for Claude's own knowledge backbone.
-> 2. Read `evidence/{session_id}-claims.jsonl` for compressed search findings (one claim per line — much smaller than raw results). If claims file doesn't exist, fall back to `evidence/{session_id}-results.jsonl` (only `metadata.llm_relevant == true` items).
+> 2. Read `evidence/{session_id}-claims.jsonl` for compressed search findings (one claim per line — much smaller than raw results). If claims file doesn't exist, fall back to reading `evidence/{session_id}-results.jsonl` via Bash: `python3 -c "import json; [print(json.dumps({'url':r.get('url',''),'title':r.get('title',''),'claim':r.get('snippet','')[:200],'source':r.get('source','')})) for r in (json.loads(l) for l in open('evidence/{session_id}-results.jsonl')) if r.get('metadata',{}).get('llm_relevant')]"` — this extracts only relevant results as compact JSON.
 > 3. Compile a numbered citation index from all search result URLs (read from results file for URLs, use claims for content).
 > 4. Read `skills/synthesize-knowledge/SKILL.md` and produce the delivery:
 >    - Blend knowledge backbone with search discoveries
@@ -151,10 +159,11 @@ Spawn a Sonnet agent (`model: "sonnet"`) with this task:
 >    - Mark provenance: [knowledge] vs [discovered] vs [verified]
 >    - If Rich HTML: produce a standalone HTML file with tables, styling, and diagrams
 >    - If Markdown: produce a .md report
+>    - If Slides: produce a standalone reveal.js HTML file
 >    - Report footer: "Generated by AutoSearch v{version}" (use the version passed above, NOT "v2.2")
-> 5. Read `skills/evaluate-delivery/SKILL.md` and self-check. Revise if needed.
-> 6. Write delivery to `delivery/{session_id}.html` (or `.md`).
-> 7. Run `PYTHONPATH=. python3 lib/judge.py evidence/{session_id}-results.jsonl` and capture the score.
+> 5. Read `skills/evaluate-delivery/SKILL.md` and self-check. Revise if needed (max 1 revision).
+> 6. Write delivery to `delivery/{session_id}.html` (or `.md` or `-slides.html`).
+> 7. Run `PYTHONPATH=. .venv/bin/python3 lib/judge.py evidence/{session_id}-results.jsonl` and capture the score.
 > 8. **Save research context** for future sessions on the same topic. Write `state/research-contexts/{topic-slug}.json` with:
 >    - `topic`: the topic text
 >    - `timestamp`: ISO 8601 now
@@ -177,6 +186,8 @@ Spawn a Haiku agent (`model: "haiku"`) with this task:
 
 > Working directory: `${CLAUDE_PLUGIN_ROOT}`
 > Session ID: {session_id}. Topic slug: {topic_slug}.
+>
+> **Time limit: 3 minutes.** Record start time. If > 3 min, return what you have.
 >
 > Read `skills/check-rubrics/SKILL.md` for context.
 >
@@ -202,6 +213,8 @@ Spawn a Sonnet agent (`model: "sonnet"`) with this task:
 > Working directory: `${CLAUDE_PLUGIN_ROOT}`
 > Session ID: {session_id}. Topic slug: {topic_slug}.
 >
+> **Time limit: 3 minutes.** Record start time. If > 3 min, return what you have.
+>
 > Read `skills/pipeline-flow/SKILL.md` Phase 6 for context.
 >
 > 1. Read `skills/knowledge-map/SKILL.md` and save updated knowledge map.
@@ -223,6 +236,13 @@ If any block's agent returns an error or fails to produce a valid summary:
 [Phase N/6] ✗ {phase_name} — ERROR: {brief description from agent output}
 ```
 Stop and report to the user immediately. Do not silently continue to the next block.
+
+**Timeout**: Each block has a time limit (documented in its prompt). If an agent exceeds its limit, it should self-terminate and return partial results. If the orchestrator detects a block has been running significantly past its limit (e.g., no response after 2x the stated limit), interrupt the agent and output:
+```
+[Phase N/6] ✗ {phase_name} — TIMEOUT after {elapsed} min (limit: {limit} min)
+```
+
+**Claims check**: After Block 3 returns, verify `evidence/{session_id}-claims.jsonl` exists and is non-empty. If missing, output a warning: "Claims file missing — Block 4 will use raw results (slower)." Continue execution.
 
 ### Phase C: Present
 
