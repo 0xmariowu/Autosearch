@@ -11,6 +11,25 @@ All changes to AutoSearch. Format: `## YYYY.MM.DD.N` with `### Changes` and `###
 
 ## 2026.04.04.8
 
+### Changes
+
+- Lazy-load channel plugins on first query instead of at import time — faster startup
+- Added isort and bugbear rules to ruff linter, fixed import ordering across codebase
+- Pyright now checks the correct directories (lib, channels, scripts)
+- Replaced deprecated `asyncio.get_event_loop()` with `get_running_loop()`
+
+### Fixes
+
+- Pinned semgrep container image to SHA digest to prevent supply chain attacks
+- Fixed shell injection risk in release.yml (github context moved to env blocks)
+- Limited autofix CI to Python files only (was mutating JSON/YAML/MD)
+- Added .dockerignore to prevent secrets and state from leaking into Docker builds
+- Hardened pre-commit secret detection with modern key patterns (sk-ant, sk-or, tvly, github_pat, exa)
+- Removed exec re-exec from pre-push hook (eliminated re-execution attack surface)
+- HTML-escaped title in report assembly to prevent XSS
+- Added `set -euo pipefail` to run_search.sh
+- Removed dead code: batch_enrich.py, requirements-test.txt
+
 ## 2026.04.04.7
 
 ### Changes
