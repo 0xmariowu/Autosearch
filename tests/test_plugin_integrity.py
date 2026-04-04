@@ -171,7 +171,6 @@ class TestDataContract:
         assert "patterns-v2.jsonl" in self.text
         # The only mention of patterns.jsonl should be patterns-v2.jsonl
         non_v2_pattern = re.findall(r"patterns\.jsonl", self.text)
-        v2_pattern = re.findall(r"patterns-v2\.jsonl", self.text)
         assert len(non_v2_pattern) == 0, (
             f"Found {len(non_v2_pattern)} references to legacy patterns.jsonl "
             f"(should all be patterns-v2.jsonl)"
@@ -338,8 +337,6 @@ class TestSkillReferences:
         self.text = (ROOT / "skills/pipeline-flow/SKILL.md").read_text(encoding="utf-8")
 
     def test_references_existing_skills(self) -> None:
-        # Extract all skills/{name}/SKILL.md references
-        refs = re.findall(r"(\w[\w-]+)\.md", self.text)
         skill_dirs = {d.name for d in (ROOT / "skills").iterdir() if d.is_dir()}
         # pipeline-flow references skills by short name (e.g., "systematic-recall.md")
         skill_refs = re.findall(r"([\w-]+)\.md`", self.text)
