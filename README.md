@@ -1,7 +1,8 @@
 <h1 align="center">AutoSearch</h1>
 
 <p align="center">
-  <strong>Claude Code can't search the real internet. AutoSearch gives it 32 channels, self-improving queries, and cited reports. Zero API keys.</strong>
+  <strong>Research that gets smarter every time you use it.</strong><br>
+  32 search channels. Self-evolving queries. Cited reports. Zero API keys.
 </p>
 
 <p align="center">
@@ -13,11 +14,11 @@
 </p>
 
 <p align="center">
-  <a href="#install">Install</a> &bull;
-  <a href="#benchmark">Benchmark</a> &bull;
+  <a href="#quick-start">Quick Start</a> &bull;
+  <a href="#what-makes-it-different">What Makes It Different</a> &bull;
+  <a href="#self-evolution">Self-Evolution</a> &bull;
   <a href="#how-it-works">How It Works</a> &bull;
   <a href="#channels">Channels</a> &bull;
-  <a href="#self-evolution">Self-Evolution</a> &bull;
   <a href="#contributing">Contributing</a>
 </p>
 
@@ -39,28 +40,54 @@ curl -fsSL https://raw.githubusercontent.com/0xmariowu/autosearch/main/scripts/i
 AutoSearch asks depth (Quick / Standard / Deep), focus, and delivery format — then searches, evaluates, and delivers a cited report with real-time progress:
 
 ```
-[Phase 1/6] ✓ Prepare — 25 rubrics, 47 items recalled, 15 queries planned
-[Phase 2/6] ✓ Search — 62 results from 12 channels
-[Phase 3/6] ✓ Evaluate — 54 relevant, 3 gap queries
-[Phase 4/6] ✓ Deliver — report ready (38 citations, judge score 0.82)
-[Phase 5/6] ✓ Quality — 23/25 rubrics passed
-[Phase 6/6] ✓ Evolve — 4 patterns saved
+[Phase 1/6] Prepare  — 25 rubrics, 47 items recalled, 15 queries planned
+[Phase 2/6] Search   — 62 results from 12 channels
+[Phase 3/6] Evaluate — 54 relevant, 3 gap queries
+[Phase 4/6] Deliver  — report ready (38 citations)
+[Phase 5/6] Quality  — 23/25 rubrics passed
+[Phase 6/6] Evolve   — 4 patterns saved
 ```
 
-## Benchmark
+## What Makes It Different
 
-Tested on 5 topics across academic, tools, business, Chinese, and how-to categories:
-
-| Topic | AutoSearch | Native Claude | Delta |
+| | AutoSearch | Perplexity | Native Claude |
 |---|---|---|---|
-| Self-evolving AI agents | 88% | 76% | **+12%** |
-| Vector databases for RAG | 100% | 70% | **+30%** |
-| AI coding market 2026 | 87% | 67% | **+20%** |
-| Chinese LLM ecosystem | 92% | 83% | **+8%** |
-| Production RAG systems | 93% | 67% | **+27%** |
-| **Overall** | **92%** | **72%** | **+20%** |
+| **Search channels** | 32 dedicated connectors | ~3 web engines | 1 (WebSearch) |
+| **Chinese sources** | 12 native (zhihu, bilibili, 36kr, csdn...) | 0 | 0 |
+| **Academic sources** | 6 (arXiv, Semantic Scholar, OpenReview, Papers with Code...) | 1 | 0 |
+| **Gets smarter over time** | Yes — learns which queries and channels work | No | No |
+| **Every result cited** | Yes (two-stage citation lock) | Yes (URL-level) | No |
+| **Reports** | Markdown / Rich HTML / Slides | Web page | Plain text |
+| **Cost** | Free (Claude Code plugin) | $20/month | Free |
+| **Integration** | Native inside Claude Code | Separate tool | Built-in but limited |
 
-Scored with auto-generated rubrics measuring information recall, analysis depth, and citation quality.
+## Self-Evolution
+
+This is the core idea. Most search tools run the same strategy every time. AutoSearch learns from every session and gets measurably better.
+
+**How it works**: after each search, AutoSearch records which queries found relevant results and which returned nothing. Next time, it skips what failed and doubles down on what worked. Over sessions, it builds a profile of which channels are useful for which types of topics.
+
+**What it looks like in practice**:
+
+```
+Session 1: "vector databases for RAG"
+  → Searched 15 channels, 8 had results
+  → Learned: arxiv + github-repos are high-yield for this topic
+  → Learned: producthunt and crunchbase returned nothing useful
+  → Saved 3 winning query patterns
+
+Session 2: same topic, 2 weeks later
+  → Auto-skipped channels that failed last time
+  → Reused winning query patterns, added freshness filter
+  → Found 12 new results the first session missed
+  → Score improved: 0.65 → 0.78
+
+Session 3: different topic ("AI agent frameworks")
+  → Applied cross-topic patterns (arxiv query structure, github star filter)
+  → Reached 0.71 on first attempt (vs 0.58 baseline)
+```
+
+**The safety mechanism**: the evaluator (`judge.py`) is fixed and cannot be modified by evolution. Only search strategy evolves — not the scoring. This prevents the system from gaming its own metrics.
 
 ## How It Works
 
@@ -68,69 +95,42 @@ Scored with auto-generated rubrics measuring information recall, analysis depth,
 You: /autosearch "topic"
  │
  ▼
-[1] Claude recalls what it knows → identifies knowledge gaps
+[1] Claude recalls what it already knows → maps 9 knowledge dimensions
  │
-[2] Generates targeted queries (only for gaps, not what Claude already knows)
+[2] Identifies gaps → generates queries ONLY for what Claude doesn't know
  │
-[3] Searches 32 channels in parallel via search_runner.py
+[3] Searches 32 channels in parallel (10-30 seconds)
  │
-[4] Evaluates relevance with LLM scoring, filters noise
+[4] LLM evaluates each result for relevance, filters noise
  │
-[5] Synthesizes report with two-stage citation lock (every URL from search results)
+[5] Synthesizes report with two-stage citation lock
  │
-[6] Checks quality rubrics → evolves search strategy for next time
+[6] Checks quality rubrics → evolves strategy → commits improvements
 ```
 
-**Key insight**: Claude already knows 60-70% of most topics. AutoSearch only searches for the gaps — fresh data, community voice, Chinese sources, niche repos. This makes it faster and more focused than "search everything" tools.
+**The key insight**: Claude already knows 60-70% of most research topics from training data. AutoSearch doesn't waste time re-searching what Claude already knows. It maps gaps first, then searches specifically for fresh data, community voice, Chinese sources, and niche repositories that Claude's training missed.
 
 ## Channels
 
-32 channels. No API keys required. Every channel has a dedicated connector.
+32 channels. No API keys required. Every channel has a dedicated search connector — not just web search with `site:` filters.
 
-| Category | Channels |
-|---|---|
-| Code | github-repos, github-issues, github-code, npm-pypi, stackoverflow |
-| Academic | arxiv, semantic-scholar, google-scholar, citation-graph, papers-with-code, openreview |
-| Community | reddit, hackernews, twitter/x, devto |
-| Chinese | zhihu, bilibili, csdn, juejin, 36kr, wechat, weibo, xiaohongshu, douyin, xiaoyuzhou, xueqiu, infoq-cn |
-| Video | youtube, bilibili, conference-talks |
-| Business | producthunt, crunchbase, g2, linkedin |
-| General | web-ddgs, rss |
+| Category | Channels | Why it matters |
+|---|---|---|
+| **Code** | github-repos, github-issues, github-code, npm-pypi, stackoverflow | Find actual implementations, not just articles about them |
+| **Academic** | arxiv, semantic-scholar, google-scholar, citation-graph, papers-with-code, openreview | Latest papers + code, conference proceedings, citation networks |
+| **Community** | reddit, hackernews, twitter/x, devto | Real user experiences, not marketing |
+| **Chinese** | zhihu, bilibili, csdn, juejin, 36kr, wechat, weibo, xiaohongshu, douyin, xiaoyuzhou, xueqiu, infoq-cn | 12 platforms. No other research tool covers the Chinese internet like this |
+| **Video** | youtube, bilibili, conference-talks | Tutorials, demos, conference keynotes with transcript extraction |
+| **Business** | producthunt, crunchbase, g2, linkedin | Startup discovery, funding data, real user reviews |
+| **General** | web-ddgs, rss | Broad web coverage as a baseline |
 
-Optional paid channels (Exa, Tavily) unlock semantic search — see `env.example` for keys.
-
-## Self-Evolution
-
-After every session, AutoSearch:
-
-1. **Tracks per-query performance** — which queries found relevant results, which returned nothing
-2. **Detects and fills gaps** — if a dimension has zero coverage, runs targeted follow-up searches
-3. **Checks quality against rubrics** — auto-generated pass/fail criteria
-4. **Evolves its own skills** — diagnoses the weakest point, modifies search rules, commits the improvement
-
-The evaluator (`judge.py`) is fixed and cannot be modified by evolution — only search strategy evolves. This prevents gaming the metric.
-
-```
-Session 1: "vector database" → finds 30 results, misses pricing info
-Session 2: same topic → auto-includes pricing queries (learned from Session 1)
-Session 3: new topic → applies winning query patterns across topics
-```
-
-## Why AutoSearch
-
-| | AutoSearch | Native Claude | Perplexity |
-|---|---|---|---|
-| Sources | 32 dedicated channels | Claude's training data only | Web search + 1 engine |
-| Chinese sources | 12 native channels (zhihu, bilibili, etc.) | None | Limited |
-| Self-improvement | Learns from every session | Static | Static |
-| Academic coverage | arXiv, Semantic Scholar, OpenReview | Training cutoff | Surface-level |
-| Citation quality | Two-stage lock, every URL verified | No citations | URL-level |
-| Cost | Free (included in Claude Code) | Free | $20/mo |
-| Integration | Native Claude Code plugin | Built-in | Separate tool |
+Optional: add Exa or Tavily API keys for semantic search capabilities.
 
 ## Why I Built This
 
-I kept doing the same research workflow manually: search Google, then Reddit, then GitHub, then arXiv, then Chinese platforms — 30 minutes per topic, and I'd always miss something. AutoSearch automates the multi-platform search I was already doing, but it also learns what works. After 10 sessions on AI topics, it knew that arXiv + GitHub + zhihu was the winning combination and stopped wasting queries on channels that never returned relevant results for that domain.
+I kept doing the same research workflow manually: search Google, then Reddit, then GitHub, then arXiv, then three Chinese platforms — 30 minutes per topic, and I'd always miss something. The worst part: every session started from zero. I'd forget which queries worked last time.
+
+AutoSearch automates the multi-platform search I was already doing. But the part that actually matters is that it learns. After 10 sessions on AI topics, it stopped wasting queries on channels that never returned relevant results for that domain and started using query patterns that consistently found what I needed.
 
 ## Update
 
@@ -138,7 +138,7 @@ I kept doing the same research workflow manually: search Google, then Reddit, th
 claude plugin update autosearch@autosearch
 ```
 
-Or re-run the install script. To enable auto-updates: `/plugin` → Marketplaces → autosearch → Enable auto-update.
+Or re-run the install script. To enable auto-updates: `/plugin` > Marketplaces > autosearch > Enable auto-update.
 
 ## Contributing
 
