@@ -101,4 +101,4 @@ Need academic evidence
 ## Unvalidated
 
 - Whether alphaXiv should become a first-class AutoSearch provider in the runtime engine
-- Whether paper results should route to Armory, AIMD, or a separate paper-candidate layer by default
+- Whether paper results should route to a knowledge base or a separate paper-candidate layer by default

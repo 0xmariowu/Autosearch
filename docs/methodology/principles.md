@@ -167,7 +167,7 @@ Sometimes there's no evidence for any option. This is common for emerging techni
 
 **Protocol:**
 1. Acknowledge the gap explicitly: "No evidence found for X in any channel"
-2. Check Armory (`search_patterns`) — maybe prior art exists under a different name
+2. Check existing knowledge bases for prior art under a different name
 3. If still nothing: propose a small-scale test (pilot with 50 cases, not 5000)
 4. If test is not feasible: flag as Ocean-scope (see CLAUDE.md § Completeness Principle)
 
