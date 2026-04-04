@@ -107,3 +107,11 @@ Version lives in 3 files (kept in sync by `scripts/bump-version.sh`):
 - **Pre-push hook**: blocks push if source files changed but version not bumped
 - **CI**: posts PR comment warning if version drift detected
 - **release.yml**: validates tag matches plugin.json version
+
+## Lessons Learned
+
+- Pre-commit hook must verify git author email is noreply and name is 0xmariowu before every commit. Rules in CLAUDE.md alone are not enough — they get forgotten under task pressure. The hook is the enforcement. Because: 2026-04-04 incident — 56 commits with PII (real name + Tailscale email) in public git history, required full history rewrite.
+- Detection config files (.gitleaks.toml) must use generic regex patterns, never literal PII values. `[a-z]+mac` not `vimalamac`. Because: the detection file itself became a PII leak.
+- Don't version-bump in each parallel PR. Bump once after the merge batch on main. Because: 7 PRs each bumped to .8, creating empty CHANGELOG entries and merge noise.
+- Pre-commit hook must grep staged files for internal project codenames (Armory/AIMD/atoms/kalami/alaya-os). Because: internal refs leaked into public docs despite CLAUDE.md rules.
+- bump-version.sh should warn if the previous version section in CHANGELOG.md has no content. Because: empty version entries are user-visible bugs.
