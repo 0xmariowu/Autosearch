@@ -24,9 +24,6 @@
 
 ---
 
-<!-- TODO: Replace with terminal recording (asciinema/vhs) showing /autosearch in action -->
-<!-- ![AutoSearch Demo](assets/demo.gif) -->
-
 ## Quick Start
 
 ```bash
