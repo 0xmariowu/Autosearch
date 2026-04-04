@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 from channels._engines.ddgs import search_ddgs_web
 
 

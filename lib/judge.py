@@ -1,11 +1,10 @@
 import argparse
-from collections import Counter
 import datetime as dt
 import json
 import re
 import sys
+from collections import Counter
 from pathlib import Path
-
 
 DEFAULT_WEIGHTS = {
     "quantity": 0.12,
