@@ -2,27 +2,33 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import threading
 
 from lib.search_runner import make_result
 
+# DDGS is NOT thread-safe and deadlocks with concurrent instances.
+# Use a single-threaded executor with a lock to serialize ALL DDGS calls.
+_DDGS_LOCK = threading.Lock()
+
 
 def _sync_ddgs_search(query: str, max_results: int, source: str) -> list[dict]:
-    """Run DDGS search synchronously — called via run_in_executor."""
+    """Run DDGS search synchronously — serialized via lock."""
     from ddgs import DDGS
 
-    results = []
-    with DDGS() as ddgs:
-        for result in ddgs.text(query, max_results=max_results):
-            results.append(
-                make_result(
-                    url=result.get("href", ""),
-                    title=result.get("title", ""),
-                    snippet=result.get("body", ""),
-                    source=source,
-                    query=query,
+    with _DDGS_LOCK:
+        results = []
+        with DDGS() as ddgs:
+            for result in ddgs.text(query, max_results=max_results):
+                results.append(
+                    make_result(
+                        url=result.get("href", ""),
+                        title=result.get("title", ""),
+                        snippet=result.get("body", ""),
+                        source=source,
+                        query=query,
+                    )
                 )
-            )
-    return results
+        return results
 
 
 async def search_ddgs_web(
