@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 import httpx
 
 from lib.search_runner import DEFAULT_TIMEOUT, make_result
