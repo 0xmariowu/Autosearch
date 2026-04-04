@@ -6,7 +6,7 @@ enriches the most keyword-relevant ones, and writes back.
 
 Usage:
   python3 scripts/batch_enrich.py
-  python3 scripts/batch_enrich.py --goal-case atoms-auto-mining-perfect --limit 60
+  python3 scripts/batch_enrich.py --goal-case example-goal-case --limit 60
 """
 
 from __future__ import annotations
@@ -111,8 +111,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Batch-enrich evidence records")
     parser.add_argument(
         "--goal-case",
-        default="atoms-auto-mining-perfect",
-        help="Goal case name (default: atoms-auto-mining-perfect)",
+        default="example-goal-case",
+        help="Goal case name (default: example-goal-case)",
     )
     parser.add_argument(
         "--limit",
