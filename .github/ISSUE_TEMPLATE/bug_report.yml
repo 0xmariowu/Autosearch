@@ -1,0 +1,62 @@
+name: Bug Report
+description: Report a bug in AutoSearch
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug clearly.
+      placeholder: "When I run /autosearch, the researcher agent times out after 10 minutes..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+      placeholder: "I expected the search to complete and produce a report."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run /autosearch "topic"
+        2. Select Standard depth
+        3. Wait for result
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - "Crash / data loss"
+        - "Feature broken"
+        - "Minor / cosmetic"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: AutoSearch version
+      description: "Run: python3 -c \"import json; print(json.load(open('.claude-plugin/plugin.json'))['version'])\""
+      placeholder: "2026.4.4"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Windows
+        - Linux
+    validations:
+      required: true

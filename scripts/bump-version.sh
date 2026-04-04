@@ -92,7 +92,7 @@ with open(path, 'w') as f:
 info "updated marketplace.json"
 
 # --- Update CHANGELOG.md ---
-# Insert new version header between "## Unreleased" content and next "## X.Y.Z"
+# Move Unreleased content under new version header. Skip if Unreleased is empty.
 python3 -c "
 import re, sys
 
@@ -108,34 +108,55 @@ if not unreleased_match:
     print('warning: no ## Unreleased section found in CHANGELOG.md', file=sys.stderr)
     sys.exit(0)
 
-# Find the next ## heading after Unreleased
-next_heading = re.search(r'^## ', text[unreleased_match.end():], re.MULTILINE)
+# Find the next ## heading or --- after Unreleased
+rest = text[unreleased_match.end():]
+next_heading = re.search(r'^(## |---)', rest, re.MULTILINE)
 if next_heading:
     insert_pos = unreleased_match.end() + next_heading.start()
 else:
     insert_pos = len(text)
 
-# Extract content between Unreleased and next heading
+# Extract content between Unreleased and next heading/separator
 unreleased_content = text[unreleased_match.end():insert_pos].strip()
+# Remove leading --- separator if present
+unreleased_content = re.sub(r'^---\s*', '', unreleased_content).strip()
 
-# Build new text
-new_text = (
-    text[:unreleased_match.end()] +
-    '\n\n---\n\n' +
-    f'## {new_ver}\n\n' +
-    (unreleased_content + '\n\n' if unreleased_content else '') +
-    text[insert_pos:]
+# Remove any existing ## for this version to prevent duplicates
+text = re.sub(r'\n## ' + re.escape(new_ver) + r'(-\d+)?\s*\n+---\n', '\n', text)
+
+# Rebuild: find the first real version section (## YYYY...)
+text_with_unreleased = re.sub(
+    r'(## Unreleased)\s*(\n---\n)?',
+    r'\1\n\n---\n\n',
+    text
 )
 
-# Clean up the Unreleased section (leave it empty for next cycle)
-new_text = re.sub(
-    r'(## Unreleased)\s*\n\n---',
-    r'\1\n\n---',
-    new_text
-)
+# Re-locate positions after cleanup
+unreleased_match = re.search(r'^## Unreleased\s*$', text_with_unreleased, re.MULTILINE)
+rest = text_with_unreleased[unreleased_match.end():]
+next_version = re.search(r'^## \d{4}\.', rest, re.MULTILINE)
+
+if next_version:
+    split_pos = unreleased_match.end() + next_version.start()
+else:
+    split_pos = len(text_with_unreleased)
+
+# Insert new version between Unreleased and first existing version
+before = text_with_unreleased[:unreleased_match.end()]
+after = text_with_unreleased[split_pos:]
+
+new_section = f'\n\n---\n\n## {new_ver}\n'
+if unreleased_content:
+    new_section += f'\n{unreleased_content}\n'
+new_section += '\n'
+
+result = before + new_section + after
+
+# Clean up multiple blank lines
+result = re.sub(r'\n{4,}', '\n\n\n', result)
 
 with open(path, 'w') as f:
-    f.write(new_text)
+    f.write(result)
 "
 info "updated CHANGELOG.md"
 
