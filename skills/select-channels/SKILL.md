@@ -49,6 +49,22 @@ Log every exclusion: `excluded: {channel} — language mismatch ({channel_langua
 | Business intelligence | crunchbase, 36kr, linkedin, xueqiu, twitter |
 | Emerging/recent | producthunt, github-repos, twitter, hn |
 
+## Rule 2b: Query type adjustment
+
+`lib/query_type.py` classifies the topic into one of 7 types. Use the query type to boost or deprioritize channels:
+
+| Query type | Boost these | Deprioritize |
+|-----------|------------|-------------|
+| how_to | youtube, stackoverflow, reddit | arxiv, crunchbase |
+| comparison | reddit, hn, youtube | producthunt |
+| opinion | reddit, twitter, hn | arxiv, google-scholar |
+| prediction | twitter, reddit | stackoverflow, arxiv |
+| product | reddit, twitter, producthunt | arxiv |
+| concept | hn, reddit, arxiv, web-ddgs | producthunt |
+| breaking_news | twitter, reddit, web-ddgs, hn | arxiv |
+
+This is a soft signal — don't exclude deprioritized channels entirely, just rank them lower in the selection.
+
 ## Rule 3: Fill gaps from knowledge map
 
 For each GAP dimension in the knowledge map, add the channel most likely to fill it:

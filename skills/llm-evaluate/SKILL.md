@@ -159,7 +159,7 @@ After evaluation, produce a compressed claims file: `evidence/{session_id}-claim
 
 For each relevant result (llm_relevant=true), distill one structured claim:
 ```json
-{"url": "https://...", "claim": "Qdrant outperforms Pinecone on filtered search by 3x at 1M vectors", "source": "github", "dimension": "performance-benchmarks"}
+{"url": "https://...", "claim": "Qdrant outperforms Pinecone on filtered search by 3x at 1M vectors", "source": "github", "dimension": "performance-benchmarks", "engagement_score": 78, "also_on": ["reddit", "hn"], "top_comment": "Senior engineer here: we migrated and saw 3x improvement..."}
 ```
 
 Rules:
@@ -167,6 +167,11 @@ Rules:
 - The claim must capture the single most important finding from that result
 - Include the dimension it covers (maps to the 9 recall dimensions)
 - This file is what Block 4 reads instead of raw results — keep it dense and useful
+
+Signal carry-forward rules (optional fields — include when available):
+- `engagement_score`: carry when `metadata.composite_score >= 50`
+- `also_on`: carry when `metadata.also_on` has at least 1 entry — cross-platform signals are the strongest evidence
+- `top_comment`: carry `metadata.top_comments[0].excerpt` when present (Reddit only) — first-person experience from comments adds depth that titles and snippets cannot
 
 # Quality Bar
 
