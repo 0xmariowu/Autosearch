@@ -248,7 +248,12 @@ Stop and report to the user immediately. Do not silently continue to the next bl
 
 After all blocks complete:
 
-1. Output the full progress summary:
+1. **Verify deliverables exist** before declaring success:
+   - `delivery/{session_id}.*` exists and is non-empty → report is ready
+   - `evidence/{session_id}-results.jsonl` exists → search ran
+   - If delivery file is missing, output: `⚠ Pipeline completed but no report was generated. Check Block 4 output above for errors.`
+
+2. Output the full progress summary:
 ```
 ✓ AutoSearch complete
   Phase 1: Prepare — {details}
@@ -260,8 +265,8 @@ After all blocks complete:
   Total: {elapsed} minutes
 ```
 
-2. Show the delivery path and offer to open it.
-3. If Rich HTML delivery, suggest: `open delivery/{session_id}.html`
+3. Show the delivery path and offer to open it.
+4. If Rich HTML delivery, suggest: `open delivery/{session_id}.html`
 
 ## Key constraints
 
