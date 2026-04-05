@@ -153,8 +153,8 @@ class TestEngineHealthPropagation:
         # First suspend all via engine failure
         _record_failure("zhihu", "timeout", engine="baidu")
 
-        # Then one channel succeeds
-        _record_success("csdn")
+        # Then one channel succeeds (must be a channel still in baidu group)
+        _record_success("douyin")
 
         baidu_channels = ENGINE_CHANNELS["baidu"]
         for ch in baidu_channels:
