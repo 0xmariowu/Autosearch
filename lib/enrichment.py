@@ -167,6 +167,160 @@ async def _enrich_single(
         return
 
 
+JINA_READER_PREFIX = "https://r.jina.ai/"
+_CONTENT_MAX_CHARS = 3000
+
+
+async def enrich_content(
+    results: list[dict],
+    query: str,
+    max_items: int = 10,
+    timeout_per: float = 15.0,
+    timeout_total: float = 60.0,
+) -> None:
+    """Fetch full content for top results, BM25-filter, store in metadata.
+
+    Runs after Reddit enrichment. Skips Reddit results (have their own
+    enrichment) and results that already have extracted_content.
+    Never raises — all errors logged to stderr.
+    """
+    try:
+        candidates = [
+            r
+            for r in results
+            if r.get("source") != "reddit"
+            and not r.get("metadata", {}).get("extracted_content")
+            and r.get("metadata", {}).get("composite_score", 0) >= 30
+        ]
+        candidates.sort(
+            key=lambda r: r.get("metadata", {}).get("composite_score", 0),
+            reverse=True,
+        )
+        selected = candidates[:max_items]
+        if not selected:
+            return
+
+        bail_event = asyncio.Event()
+        async with httpx.AsyncClient(timeout=timeout_per) as client:
+            tasks = [
+                asyncio.create_task(_fetch_and_process(r, query, client, bail_event))
+                for r in selected
+            ]
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*tasks, return_exceptions=True),
+                    timeout=timeout_total,
+                )
+            except asyncio.TimeoutError:
+                print(
+                    f"[content-enrichment] timeout after {timeout_total}s",
+                    file=sys.stderr,
+                )
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+                try:
+                    await asyncio.gather(*tasks, return_exceptions=True)
+                except Exception:
+                    pass
+    except Exception as exc:
+        print(f"[content-enrichment] {exc}", file=sys.stderr)
+
+
+async def _fetch_and_process(
+    result: dict,
+    query: str,
+    client: httpx.AsyncClient,
+    bail_event: asyncio.Event,
+) -> None:
+    """Fetch full page via Jina Reader, BM25-filter, store in metadata."""
+    try:
+        if bail_event.is_set():
+            return
+
+        url = result.get("url", "")
+        if not url:
+            return
+
+        content = await _fetch_via_jina(url, client, bail_event)
+        if not content:
+            content = await _fetch_via_httpx(url, client, bail_event)
+        if not content or len(content.strip()) < 100:
+            return
+
+        # BM25 filter: keep only query-relevant paragraphs
+        from lib.content_processing import filter_relevant_paragraphs
+
+        filtered = filter_relevant_paragraphs(content, query)
+        if not filtered or len(filtered.strip()) < 50:
+            filtered = content[:_CONTENT_MAX_CHARS]
+
+        # Chunk if still too long
+        if len(filtered.split()) > 3000:
+            from lib.content_processing import chunk_with_overlap
+
+            chunks = chunk_with_overlap(filtered, window_size=2000, step=1800)
+            filtered = chunks[0] if chunks else filtered[:_CONTENT_MAX_CHARS]
+
+        # Truncate and store
+        result.setdefault("metadata", {})["extracted_content"] = filtered[
+            :_CONTENT_MAX_CHARS
+        ]
+    except Exception as exc:
+        print(f"[content-enrichment] {result.get('url', '?')}: {exc}", file=sys.stderr)
+
+
+async def _fetch_via_jina(
+    url: str, client: httpx.AsyncClient, bail_event: asyncio.Event
+) -> str:
+    """Fetch markdown via Jina Reader API."""
+    try:
+        if bail_event.is_set():
+            return ""
+        resp = await client.get(
+            f"{JINA_READER_PREFIX}{url}",
+            headers={
+                "Accept": "text/markdown",
+                "X-Return-Format": "markdown",
+                "User-Agent": USER_AGENT,
+            },
+        )
+        if resp.status_code == 429:
+            bail_event.set()
+            return ""
+        if resp.is_error:
+            return ""
+        return resp.text
+    except Exception:
+        return ""
+
+
+async def _fetch_via_httpx(
+    url: str, client: httpx.AsyncClient, bail_event: asyncio.Event
+) -> str:
+    """Fallback: direct fetch + noise removal."""
+    try:
+        if bail_event.is_set():
+            return ""
+        resp = await client.get(url, headers={"User-Agent": USER_AGENT})
+        if resp.status_code == 429:
+            bail_event.set()
+            return ""
+        if resp.is_error:
+            return ""
+
+        html = resp.text
+        from lib.content_processing import is_blocked, prune_html
+
+        blocked, _reason = is_blocked(resp.status_code, html)
+        if blocked:
+            return ""
+
+        return prune_html(html)
+    except Exception:
+        return ""
+
+
 def _extract_comment_insights(comment_bodies: list[str]) -> list[str]:
     insights: list[str] = []
     seen: set[str] = set()
