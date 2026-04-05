@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AutoSearch — Research that gets smarter every time</title>
+  <meta name="description" content="32+ search channels. Self-evolving queries. Cited reports. A Claude Code plugin for deep research.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>🔍</text></svg>">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #fafafa;
+      --fg: #111;
+      --muted: #666;
+      --accent: #16A34A;
+      --accent-dim: #15803D;
+      --border: #e5e5e5;
+      --card-bg: #fff;
+      --code-bg: #f5f5f5;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0a0a0a;
+        --fg: #ededed;
+        --muted: #999;
+        --accent: #22C55E;
+        --accent-dim: #16A34A;
+        --border: #262626;
+        --card-bg: #141414;
+        --code-bg: #1a1a1a;
+      }
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container { max-width: 720px; margin: 0 auto; padding: 0 24px; }
+
+    /* Nav */
+    nav {
+      padding: 20px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    nav .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    nav .logo {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--fg);
+      text-decoration: none;
+      letter-spacing: -0.3px;
+    }
+    nav .links { display: flex; gap: 24px; align-items: center; }
+    nav .links a {
+      font-size: 14px;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    nav .links a:hover { color: var(--fg); }
+    nav .links .cta {
+      background: var(--fg);
+      color: var(--bg);
+      padding: 6px 16px;
+      border-radius: 6px;
+      font-weight: 500;
+    }
+    nav .links .cta:hover { opacity: 0.85; color: var(--bg); }
+
+    /* Hero */
+    .hero {
+      padding: 100px 0 80px;
+      text-align: center;
+    }
+    .hero h1 {
+      font-size: 48px;
+      font-weight: 700;
+      letter-spacing: -1.5px;
+      line-height: 1.15;
+      margin-bottom: 20px;
+    }
+    .hero h1 em {
+      font-style: normal;
+      color: var(--accent);
+    }
+    .hero p {
+      font-size: 18px;
+      color: var(--muted);
+      max-width: 520px;
+      margin: 0 auto 36px;
+    }
+    .hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .hero-actions a {
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: opacity 0.15s;
+    }
+    .hero-actions .primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .hero-actions .primary:hover { background: var(--accent-dim); }
+    .hero-actions .secondary {
+      border: 1px solid var(--border);
+      color: var(--fg);
+      background: var(--card-bg);
+    }
+    .hero-actions .secondary:hover { border-color: var(--muted); }
+
+    /* Install block */
+    .install {
+      margin: 0 auto 80px;
+      max-width: 520px;
+    }
+    .install pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      font-family: 'SF Mono', Menlo, monospace;
+      font-size: 14px;
+      overflow-x: auto;
+      color: var(--fg);
+    }
+
+    /* Pipeline demo */
+    .pipeline {
+      padding: 60px 0;
+      border-top: 1px solid var(--border);
+    }
+    .pipeline pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 24px;
+      font-family: 'SF Mono', Menlo, monospace;
+      font-size: 13px;
+      line-height: 1.8;
+      overflow-x: auto;
+      color: var(--muted);
+    }
+    .pipeline pre .highlight { color: var(--accent); font-weight: 600; }
+    .pipeline pre .cmd { color: var(--fg); }
+
+    /* Stats row */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin: 60px 0;
+    }
+    .stat {
+      background: var(--card-bg);
+      padding: 28px 16px;
+      text-align: center;
+    }
+    .stat .number {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--fg);
+    }
+    .stat .label {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* Features */
+    .features {
+      padding: 60px 0;
+      border-top: 1px solid var(--border);
+    }
+    .features h2 {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      margin-bottom: 32px;
+    }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .feature h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .feature p {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* Comparison table */
+    .comparison {
+      padding: 60px 0;
+      border-top: 1px solid var(--border);
+    }
+    .comparison h2 {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th, td {
+      text-align: left;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    td:first-child { color: var(--muted); }
+    td .yes { color: var(--accent); font-weight: 500; }
+    td .no { color: var(--muted); }
+
+    /* Footer */
+    footer {
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
+      margin-top: 60px;
+    }
+    footer .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    footer .left { font-size: 13px; color: var(--muted); }
+    footer .right { display: flex; gap: 20px; }
+    footer .right a {
+      font-size: 13px;
+      color: var(--muted);
+      text-decoration: none;
+    }
+    footer .right a:hover { color: var(--fg); }
+
+    @media (max-width: 600px) {
+      .hero h1 { font-size: 32px; }
+      .hero { padding: 60px 0 40px; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .feature-grid { grid-template-columns: 1fr; }
+      nav .links { gap: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="container">
+    <a href="/" class="logo">AutoSearch</a>
+    <div class="links">
+      <a href="https://docs.autosearch.dev">Docs</a>
+      <a href="https://github.com/0xmariowu/Autosearch">GitHub</a>
+      <a href="https://github.com/0xmariowu/Autosearch/releases" class="cta">Install</a>
+    </div>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="container">
+    <h1>Research that gets <em>smarter</em> every time</h1>
+    <p>A Claude Code plugin that searches 32+ platforms in parallel, learns which queries work, and delivers cited reports.</p>
+    <div class="hero-actions">
+      <a href="https://docs.autosearch.dev/quickstart" class="primary">Get started</a>
+      <a href="https://docs.autosearch.dev" class="secondary">Documentation</a>
+    </div>
+  </div>
+</section>
+
+<div class="container">
+  <div class="install">
+    <pre><code>/autosearch "compare vector databases for RAG applications"</code></pre>
+  </div>
+</div>
+
+<section class="pipeline">
+  <div class="container">
+    <pre><span class="cmd">&gt; /autosearch "compare vector databases for RAG"</span>
+
+<span class="highlight">[Phase 1/6]</span> Prepare  &mdash; 25 rubrics, 47 items recalled, 15 queries planned
+<span class="highlight">[Phase 2/6]</span> Search   &mdash; 62 results from 12 channels
+<span class="highlight">[Phase 3/6]</span> Evaluate &mdash; 54 relevant, 3 gap queries
+<span class="highlight">[Phase 4/6]</span> Deliver  &mdash; report ready (38 citations)
+<span class="highlight">[Phase 5/6]</span> Quality  &mdash; 23/25 rubrics passed
+<span class="highlight">[Phase 6/6]</span> Evolve   &mdash; 4 patterns saved for next time</pre>
+  </div>
+</section>
+
+<div class="container">
+  <div class="stats">
+    <div class="stat">
+      <div class="number">32+</div>
+      <div class="label">Search channels</div>
+    </div>
+    <div class="stat">
+      <div class="number">12</div>
+      <div class="label">Chinese platforms</div>
+    </div>
+    <div class="stat">
+      <div class="number">6</div>
+      <div class="label">Academic sources</div>
+    </div>
+    <div class="stat">
+      <div class="number">$0</div>
+      <div class="label">API keys needed</div>
+    </div>
+  </div>
+</div>
+
+<section class="features">
+  <div class="container">
+    <h2>Why AutoSearch</h2>
+    <div class="feature-grid">
+      <div class="feature">
+        <h3>Self-evolving</h3>
+        <p>Learns which queries and channels work for each topic. Session 3 is measurably better than session 1.</p>
+      </div>
+      <div class="feature">
+        <h3>Gap-first search</h3>
+        <p>Claude knows 60-70% of most topics already. AutoSearch only searches for what's missing.</p>
+      </div>
+      <div class="feature">
+        <h3>Chinese internet</h3>
+        <p>12 native Chinese channels: Zhihu, Bilibili, CSDN, WeChat, Weibo, and more. No other tool covers this.</p>
+      </div>
+      <div class="feature">
+        <h3>Cited reports</h3>
+        <p>Two-stage citation lock. Every claim is traced to a source. Markdown, HTML, or slides.</p>
+      </div>
+      <div class="feature">
+        <h3>Fixed evaluator</h3>
+        <p>The judge scores results on 7 dimensions. Evolution cannot modify the evaluator. No gaming.</p>
+      </div>
+      <div class="feature">
+        <h3>Zero config</h3>
+        <p>Install and run. All channels work without API keys. Add Exa or Tavily optionally for semantic search.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="comparison">
+  <div class="container">
+    <h2>Comparison</h2>
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>AutoSearch</th>
+          <th>Perplexity</th>
+          <th>Claude native</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Search channels</td>
+          <td><span class="yes">32+ dedicated</span></td>
+          <td>~3 web engines</td>
+          <td>1</td>
+        </tr>
+        <tr>
+          <td>Chinese sources</td>
+          <td><span class="yes">12 native</span></td>
+          <td><span class="no">0</span></td>
+          <td><span class="no">0</span></td>
+        </tr>
+        <tr>
+          <td>Academic sources</td>
+          <td><span class="yes">6 dedicated</span></td>
+          <td>1</td>
+          <td><span class="no">0</span></td>
+        </tr>
+        <tr>
+          <td>Learns over time</td>
+          <td><span class="yes">Yes</span></td>
+          <td><span class="no">No</span></td>
+          <td><span class="no">No</span></td>
+        </tr>
+        <tr>
+          <td>Citations</td>
+          <td><span class="yes">Two-stage lock</span></td>
+          <td>URL-level</td>
+          <td><span class="no">No</span></td>
+        </tr>
+        <tr>
+          <td>Cost</td>
+          <td><span class="yes">Free</span></td>
+          <td>$20/mo</td>
+          <td>Free</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div class="left">AutoSearch</div>
+    <div class="right">
+      <a href="https://docs.autosearch.dev">Docs</a>
+      <a href="https://github.com/0xmariowu/Autosearch">GitHub</a>
+      <a href="https://github.com/0xmariowu/Autosearch/releases">Releases</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
