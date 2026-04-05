@@ -7,6 +7,7 @@ import re
 import sys
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
 import httpx
 
@@ -15,6 +16,15 @@ API_BASE = "https://x.com/i/api/graphql"
 DEFAULT_QUERY_ID = "6AAys3t42mosm_yTI_QENg"
 FALLBACK_QUERY_IDS = ["M1jEez78PEfVfbQLvlWMvQ", "5h0kNbk3ii97rmfY6CdgAA"]
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
+_CACHE_TTL_SECONDS = 86400  # 24 hours
+_CACHE_FILE: Path | None = None
+_JS_BUNDLE_RE = re.compile(
+    r'https://abs\.twimg\.com/responsive-web/client-web[^"\']+\.js'
+)
+_QUERY_ID_RE = re.compile(
+    r'\{queryId:"([^"]+)"[^}]*operationName:"SearchTimeline"'
+    r'|operationName:"SearchTimeline"[^}]*queryId:"([^"]+)"'
+)
 
 
 def _log_error(message: str, exc: Exception | None = None) -> None:
@@ -51,16 +61,117 @@ def _extract_cookie_pair(cookie_jar: object) -> tuple[str, str] | None:
     return None
 
 
+# --- Query ID refresh ---
+
+
+def _get_cache_path() -> Path:
+    global _CACHE_FILE
+    if _CACHE_FILE is not None:
+        return _CACHE_FILE
+    root = Path(__file__).resolve().parent.parent.parent
+    _CACHE_FILE = root / "state" / "twitter-query-ids.json"
+    return _CACHE_FILE
+
+
+def _load_cached_ids() -> list[str] | None:
+    path = _get_cache_path()
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text())
+        cached_at = data.get("cached_at", 0)
+        import time
+
+        if time.time() - cached_at > _CACHE_TTL_SECONDS:
+            return None
+        ids = data.get("query_ids", [])
+        return ids if ids else None
+    except Exception:
+        return None
+
+
+def _save_cached_ids(ids: list[str]) -> None:
+    path = _get_cache_path()
+    try:
+        import time
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"query_ids": ids, "cached_at": time.time()}, indent=2) + "\n"
+        )
+    except OSError:
+        pass
+
+
+async def _fetch_query_ids_from_bundles() -> list[str]:
+    try:
+        timeout = httpx.Timeout(15.0, connect=10.0)
+        async with httpx.AsyncClient(
+            timeout=timeout,
+            headers={"User-Agent": USER_AGENT},
+            follow_redirects=True,
+        ) as client:
+            resp = await client.get("https://x.com")
+            if resp.status_code != 200:
+                return []
+
+            bundle_urls = _JS_BUNDLE_RE.findall(resp.text)
+            if not bundle_urls:
+                return []
+
+            # Only fetch a few bundles to avoid downloading megabytes
+            for url in bundle_urls[:8]:
+                try:
+                    js_resp = await client.get(url)
+                    if js_resp.status_code != 200:
+                        continue
+                    for match in _QUERY_ID_RE.finditer(js_resp.text):
+                        query_id = match.group(1) or match.group(2)
+                        if query_id:
+                            print(
+                                f"[twitter-graphql] refreshed query ID: {query_id}",
+                                file=sys.stderr,
+                            )
+                            return [query_id]
+                except Exception:
+                    continue
+    except Exception as exc:
+        _log_error("Failed to fetch query IDs from bundles", exc)
+    return []
+
+
+async def get_query_ids() -> list[str]:
+    cached = _load_cached_ids()
+    if cached:
+        return cached
+
+    fresh = await _fetch_query_ids_from_bundles()
+    if fresh:
+        _save_cached_ids(fresh)
+        return fresh
+
+    # Fall back to hardcoded IDs
+    return [DEFAULT_QUERY_ID, *FALLBACK_QUERY_IDS]
+
+
+# --- Credential detection ---
+
+
 def get_credentials() -> tuple[str, str] | None:
     try:
         auth_token = os.getenv("TWITTER_AUTH_TOKEN", "").strip()
         ct0 = os.getenv("TWITTER_CT0", "").strip()
         if auth_token and ct0:
+            print("[twitter] using env var credentials for GraphQL", file=sys.stderr)
             return auth_token, ct0
 
         try:
             import browser_cookie3  # type: ignore
         except ImportError:
+            print(
+                "[twitter] install browser-cookie3 for auto cookie extraction",
+                file=sys.stderr,
+            )
             return None
 
         browsers = [
@@ -74,10 +185,18 @@ def get_credentials() -> tuple[str, str] | None:
                 cookie_jar = loader()
                 credentials = _extract_cookie_pair(cookie_jar)
                 if credentials is not None:
+                    print(
+                        f"[twitter] using {browser_name} cookies for GraphQL",
+                        file=sys.stderr,
+                    )
                     return credentials
             except Exception as exc:
                 _log_error(f"Failed to load {browser_name} cookies", exc)
 
+        print(
+            "[twitter] no X/Twitter session found in browsers, using DDGS fallback",
+            file=sys.stderr,
+        )
         return None
     except Exception as exc:
         _log_error("Failed to get credentials", exc)
@@ -242,7 +361,7 @@ async def search_graphql(query: str, max_results: int = 20) -> list[dict]:
             "product": "Latest",
         }
         features = _build_features()
-        query_ids = [DEFAULT_QUERY_ID, *FALLBACK_QUERY_IDS]
+        query_ids = await get_query_ids()
 
         headers = {
             "Authorization": f"Bearer {BEARER_TOKEN}",
