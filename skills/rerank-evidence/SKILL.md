@@ -49,6 +49,9 @@ But foundational works (STaR, Reflexion, Voyager) should rank high regardless of
 A result from an underrepresented platform or content type gets a boost.
 If the bundle is 80% GitHub repos, a blog post or paper should rank higher than another repo.
 
+## 6. Cross-Source Convergence
+A result that appears across multiple platforms (`also_on` field non-empty) is stronger evidence than a single-source finding. Treat convergent items one tier higher than equivalent single-source items. The same story confirmed by Reddit, HN, and Twitter is likely canonical and should rank near the top.
+
 # How To Rank
 
 You are Claude. You can read all the results and judge their relative importance.
