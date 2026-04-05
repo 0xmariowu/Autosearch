@@ -172,12 +172,27 @@ with open(path, 'w') as f:
 "
 info "updated CHANGELOG.md"
 
+# --- Sync CHANGELOG.md → docs/changelog.mdx ---
+DOCS_CHANGELOG="$REPO_ROOT/docs/changelog.mdx"
+if [ -f "$DOCS_CHANGELOG" ]; then
+    {
+        echo '---'
+        echo 'title: Changelog'
+        echo 'description: All changes to AutoSearch, organized by release.'
+        echo '---'
+        echo ''
+        tail -n +2 "$CHANGELOG" | sed '/./,$!d'
+    } > "$DOCS_CHANGELOG"
+    info "synced docs/changelog.mdx"
+fi
+
 # --- Summary ---
 echo ""
 printf "${BOLD}Version bumped to ${GREEN}%s${NC}\n" "$NEW_VERSION"
 echo ""
 echo "Next steps:"
-echo "  1. git add .claude-plugin/plugin.json .claude-plugin/marketplace.json npm/package.json CHANGELOG.md"
-echo "  2. scripts/committer \"chore: bump version to $NEW_VERSION\" .claude-plugin/plugin.json .claude-plugin/marketplace.json npm/package.json CHANGELOG.md"
-echo "  3. git tag v$NEW_VERSION"
-echo "  4. git push && git push --tags"
+echo "  1. Review docs/ pages — update if features changed (channels.mdx, quickstart.mdx, etc.)"
+echo "  2. git add .claude-plugin/plugin.json .claude-plugin/marketplace.json npm/package.json CHANGELOG.md docs/changelog.mdx"
+echo "  3. scripts/committer \"chore: bump version to $NEW_VERSION\" .claude-plugin/plugin.json .claude-plugin/marketplace.json npm/package.json CHANGELOG.md docs/changelog.mdx"
+echo "  4. git tag v$NEW_VERSION"
+echo "  5. git push && git push --tags"
