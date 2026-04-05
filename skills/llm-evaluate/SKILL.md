@@ -157,16 +157,45 @@ This gap_dimensions list is:
 
 After evaluation, produce a compressed claims file: `evidence/{session_id}-claims.jsonl`.
 
-For each relevant result (llm_relevant=true), distill one structured claim:
+## Two-tier claims
+
+Claims have two tiers depending on whether the result has deep-processed content.
+
+**Tier 1 — Results WITH `metadata.extracted_content`** (full page was fetched and BM25-filtered):
 ```json
-{"url": "https://...", "claim": "Qdrant outperforms Pinecone on filtered search by 3x at 1M vectors", "source": "github", "dimension": "performance-benchmarks", "engagement_score": 78, "also_on": ["reddit", "hn"], "top_comment": "Senior engineer here: we migrated and saw 3x improvement..."}
+{
+  "url": "https://...",
+  "claim": "Qdrant outperforms Pinecone on filtered vector search by 3.2x at 1M vectors",
+  "evidence": "VectorDBBench 2025: Qdrant 23,400 QPS vs Pinecone 7,300 QPS, p99 4.2ms vs 11.8ms",
+  "data_points": ["3.2x throughput", "40% lower p99 latency", "1M vector scale"],
+  "source": "github",
+  "dimension": "performance-benchmarks",
+  "engagement_score": 78,
+  "also_on": ["reddit", "hn"]
+}
+```
+
+**Tier 2 — Results WITHOUT `metadata.extracted_content`** (snippet only):
+```json
+{"url": "https://...", "claim": "Qdrant outperforms Pinecone on filtered search", "source": "github", "dimension": "performance-benchmarks"}
 ```
 
 Rules:
-- One claim per result, max one sentence
-- The claim must capture the single most important finding from that result
+- `claim`: main finding in one sentence — mandatory for all results
+- `evidence`: verbatim quote or specific data from `extracted_content`, max 200 chars — only for Tier 1
+- `data_points`: specific numbers, percentages, benchmarks extracted from content, max 5 items — only for Tier 1
 - Include the dimension it covers (maps to the 9 recall dimensions)
 - This file is what Block 4 reads instead of raw results — keep it dense and useful
+
+## Re-evaluation with extracted content
+
+When `metadata.extracted_content` is present, re-evaluate `llm_relevant` based on the full content, not just the snippet. Some results will flip:
+- Snippet looked relevant but full content is off-topic → flip to false
+- Snippet was vague but full content directly addresses the query → flip to true
+
+## Gap analysis with full content
+
+When assessing coverage gaps, consider `extracted_content` for what is actually covered in depth vs merely mentioned. A dimension with 3 results where all have thin snippets is still a gap. A dimension with 1 result with rich extracted_content may be sufficiently covered.
 
 Signal carry-forward rules (optional fields — include when available):
 - `engagement_score`: carry when `metadata.composite_score >= 50`
