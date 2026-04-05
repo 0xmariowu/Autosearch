@@ -34,7 +34,7 @@ Each iteration is one variation step implementing `Vary(P_t) = Agent(P_t, K, f)`
 ## Scoring
 
 ```bash
-python3 judge.py <evidence-file> [--target N]
+python3 judge.py evidence.jsonl [--target N]
 ```
 
 Scores against 7 dimensions: `quantity`, `diversity`, `relevance`, `freshness`, `efficiency`, `latency`, `adoption`.
@@ -48,7 +48,7 @@ Scores against 7 dimensions: `quantity`, `diversity`, `relevance`, `freshness`, 
 
 ## Self-supervision
 
-- 3 consecutive flat generations (max score <= min score * 1.01) → redirect strategy
+- 3 consecutive flat generations (max score at or below min score * 1.01) → redirect strategy
 - 3 consecutive reverts → try a fundamentally different approach
 - If truly stuck → deliver the best honest result with an explanation of what remains uncertain
 
