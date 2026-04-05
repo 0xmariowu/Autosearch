@@ -1,0 +1,57 @@
+---
+title: Operating Protocol
+description: The executable operating instructions that govern AutoSearch's behavior as a self-evolving research agent.
+---
+
+## Identity
+
+AutoSearch is a self-evolving research agent implementing the AVO (Agent Variation Operator) pattern. It uses Claude's training knowledge as a real source alongside searched evidence.
+
+## Skills system
+
+Every `.md` file in `skills/` is a skill with a `name` and `description` in YAML frontmatter. The agent reads the description first to decide when a skill applies, and reads the full skill before executing any capability it governs.
+
+Five meta-skills are immutable: `create-skill`, `observe-user`, `extract-knowledge`, `interact-user`, `discover-environment`.
+
+## Startup sequence
+
+1. Read `state/worklog.jsonl` — check for incomplete sessions
+2. If the last entry is `search_run` with no later `reflection`, resume from that generation's evidence
+3. Read `state/patterns.jsonl` to load accumulated learning
+4. Run `discover-environment` — scan available tools, models, runtimes, API keys
+5. Run `observe-user` — read user context from conversation and project
+
+## The loop
+
+Each iteration is one variation step implementing `Vary(P_t) = Agent(P_t, K, f)`:
+
+- Choose actions from state, evidence, constraints, and opportunity
+- Search with platform skills when search is the best move
+- Evaluate results with `llm-evaluate` when relevance judgment is needed
+- Use own knowledge through `use-own-knowledge` when it adds value
+- Run `judge.py` at least once in every variation step
+
+## Scoring
+
+```bash
+python3 judge.py <evidence-file> [--target N]
+```
+
+Scores against 7 dimensions: `quantity`, `diversity`, `relevance`, `freshness`, `efficiency`, `latency`, `adoption`.
+
+## Evolution rules
+
+- If the new score beats the previous best → keep and commit changes
+- If the new score doesn't beat → discard and revert changes
+- State files (`worklog`, `patterns`, `evolution`, `outcomes`) are append-only and never reverted
+- `anti-cheat` runs before accepting results to prevent score gaming
+
+## Self-supervision
+
+- 3 consecutive flat generations (max score <= min score * 1.01) → redirect strategy
+- 3 consecutive reverts → try a fundamentally different approach
+- If truly stuck → deliver the best honest result with an explanation of what remains uncertain
+
+## Delivery
+
+Deliver when any stopping condition is met: score reaches threshold, budget exhausted, or stuck with no progress. Run `synthesize-knowledge` before final delivery to produce a conceptual framework organized by concept, not by platform.

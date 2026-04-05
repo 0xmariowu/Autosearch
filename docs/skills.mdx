@@ -1,0 +1,82 @@
+---
+title: Skills
+description: The 50+ evolvable skills that make up AutoSearch's capability set.
+---
+
+AutoSearch's behavior is defined by skills — markdown files in `skills/` that the agent reads and follows at runtime. Skills are the "K" in the AVO equation `Vary(P_t) = Agent(P_t, K, f)`.
+
+## How skills work
+
+Each skill is a `.md` file with:
+- YAML frontmatter: `name` and `description` (first sentence = when to use)
+- Free-form body: instructions the agent follows
+
+Skills can be modified by the evolution loop — if a change improves the judge score, it gets committed. If it regresses, it gets reverted.
+
+## Pipeline skills
+
+| Skill | Purpose |
+|---|---|
+| `pipeline-flow` | Orchestrates the 7-phase pipeline |
+| `research-mode` | Choose speed/balanced/deep from user context |
+| `decompose-task` | Break complex questions into sub-questions |
+| `gene-query` | Generate diverse queries from entity/pain/object genes |
+| `select-channels` | Pick 5-10 most relevant channels per topic |
+
+## Knowledge skills
+
+| Skill | Purpose |
+|---|---|
+| `systematic-recall` | Extract everything Claude knows before searching |
+| `use-own-knowledge` | Contribute training knowledge as a source |
+| `knowledge-map` | Save/load structured knowledge maps across sessions |
+| `extract-knowledge` | Pull reusable knowledge from high-quality results |
+
+## Evaluation skills
+
+| Skill | Purpose |
+|---|---|
+| `llm-evaluate` | Semantic relevance judgment on search results |
+| `rerank-evidence` | Rank results by importance for synthesis |
+| `normalize-results` | Standardize results into canonical schema |
+| `extract-dates` | Extract publication dates from all available signals |
+| `generate-rubrics` | Define binary rubrics for quality evaluation |
+| `check-rubrics` | Evaluate each rubric as pass/fail with evidence |
+
+## Synthesis skills
+
+| Skill | Purpose |
+|---|---|
+| `assemble-context` | Select, deduplicate, compress evidence for synthesis |
+| `synthesize-knowledge` | Turn evidence into conceptual frameworks |
+| `evaluate-delivery` | Self-check delivery quality before presenting |
+
+## Evolution skills
+
+| Skill | Purpose |
+|---|---|
+| `auto-evolve` | Run one AVO evolution step |
+| `anti-cheat` | Reject novelty collapse and score gaming |
+| `outcome-tracker` | Learn which queries produced used results |
+| `provider-health` | Track platform health and skip cooling-down sources |
+
+## Meta-skills (immutable)
+
+These five skills cannot be modified by evolution:
+
+| Skill | Purpose |
+|---|---|
+| `create-skill` | Create new skills when a capability is missing |
+| `observe-user` | Learn user preferences and project context |
+| `extract-knowledge` | Pull reusable knowledge from results |
+| `interact-user` | Handle user dialogue and feedback |
+| `discover-environment` | Scan available tools, models, and API keys |
+
+## Utility skills
+
+| Skill | Purpose |
+|---|---|
+| `fetch-webpage` | Full content extraction from URLs |
+| `follow-links` | Follow outlinks from curated collections |
+| `search-author-track` | Discover a researcher's full body of work |
+| `search-citation-graph` | Follow citation chains from known papers |

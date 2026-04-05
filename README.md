@@ -14,6 +14,7 @@
 </p>
 
 <p align="center">
+  <a href="https://autosearch.mintlify.app">Documentation</a> &bull;
   <a href="#quick-start">Quick Start</a> &bull;
   <a href="#what-makes-it-different">What Makes It Different</a> &bull;
   <a href="#self-evolution">Self-Evolution</a> &bull;
