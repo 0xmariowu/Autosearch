@@ -29,10 +29,12 @@
 ## Quick Start
 
 ```bash
-# Install (one command)
 npm install -g @0xmariowu/autosearch
+```
 
-# Use
+Then start a new Claude Code session and run:
+
+```
 /autosearch "compare vector databases for RAG applications"
 ```
 
