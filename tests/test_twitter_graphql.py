@@ -76,6 +76,79 @@ def _make_response(status_code: int, payload: dict | None = None) -> MagicMock:
     return mock_response
 
 
+# --- Query ID refresh tests ---
+
+
+@pytest.mark.asyncio
+async def test_get_query_ids_uses_cache(tmp_path) -> None:
+    import json
+    import time
+
+    graphql = importlib.import_module("channels.twitter.graphql")
+
+    cache_file = tmp_path / "twitter-query-ids.json"
+    cache_file.write_text(
+        json.dumps({"query_ids": ["cached_id_123"], "cached_at": time.time()})
+    )
+
+    with patch.object(graphql, "_CACHE_FILE", cache_file):
+        # Bypass the global cache path
+        original = graphql._get_cache_path
+
+        def patched_cache():
+            return cache_file
+
+        graphql._get_cache_path = patched_cache
+        try:
+            ids = await graphql.get_query_ids()
+        finally:
+            graphql._get_cache_path = original
+
+    assert ids == ["cached_id_123"]
+
+
+@pytest.mark.asyncio
+async def test_get_query_ids_expired_cache_refreshes() -> None:
+
+    graphql = importlib.import_module("channels.twitter.graphql")
+
+    # Expired cache (cached_at = 0)
+    with (
+        patch.object(graphql, "_load_cached_ids", return_value=None),
+        patch.object(
+            graphql,
+            "_fetch_query_ids_from_bundles",
+            new=AsyncMock(return_value=["fresh_id_456"]),
+        ),
+        patch.object(graphql, "_save_cached_ids") as mock_save,
+    ):
+        ids = await graphql.get_query_ids()
+
+    assert ids == ["fresh_id_456"]
+    mock_save.assert_called_once_with(["fresh_id_456"])
+
+
+@pytest.mark.asyncio
+async def test_get_query_ids_falls_back_to_hardcoded() -> None:
+    graphql = importlib.import_module("channels.twitter.graphql")
+
+    with (
+        patch.object(graphql, "_load_cached_ids", return_value=None),
+        patch.object(
+            graphql,
+            "_fetch_query_ids_from_bundles",
+            new=AsyncMock(return_value=[]),
+        ),
+    ):
+        ids = await graphql.get_query_ids()
+
+    assert ids[0] == graphql.DEFAULT_QUERY_ID
+    assert len(ids) == 3
+
+
+# --- Credential tests ---
+
+
 def test_get_credentials_from_env() -> None:
     graphql = importlib.import_module("channels.twitter.graphql")
 
@@ -178,10 +251,20 @@ async def test_search_graphql_tries_fallback_on_404() -> None:
     success_response = _make_response(200, MOCK_GRAPHQL_RESPONSE)
     mock_client = _make_async_client(side_effect=[not_found_response, success_response])
 
+    # Mock get_query_ids to return the hardcoded list (so we control which IDs are tried)
     with (
         patch(
             "channels.twitter.graphql.get_credentials",
             return_value=("auth_token", "ct0"),
+        ),
+        patch(
+            "channels.twitter.graphql.get_query_ids",
+            new=AsyncMock(
+                return_value=[
+                    graphql.DEFAULT_QUERY_ID,
+                    *graphql.FALLBACK_QUERY_IDS,
+                ]
+            ),
         ),
         patch("channels.twitter.graphql.httpx.AsyncClient", return_value=mock_client),
     ):

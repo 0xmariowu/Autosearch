@@ -59,11 +59,36 @@ async def enrich_reddit_items(
         return
 
 
+async def _enrich_via_scrapecreators(result: dict) -> bool:
+    """Try enriching a Reddit post via ScrapeCreators. Returns True if successful."""
+    try:
+        from channels._engines.scrapecreators import fetch_reddit_comments
+
+        comments = await fetch_reddit_comments(result["url"], max_comments=5)
+        if not comments:
+            return False
+
+        metadata = result.setdefault("metadata", {})
+        metadata["top_comments"] = comments
+        metadata["comment_insights"] = _extract_comment_insights(
+            [c.get("excerpt", "") for c in comments]
+        )
+        if comments:
+            metadata["top_comment_score"] = comments[0].get("score", 0)
+        return True
+    except Exception:
+        return False
+
+
 async def _enrich_single(
     result: dict, client: httpx.AsyncClient, bail_event: asyncio.Event
 ) -> None:
     try:
         if bail_event.is_set():
+            return
+
+        # Try ScrapeCreators first (if API key set)
+        if await _enrich_via_scrapecreators(result):
             return
 
         path = urlparse(result["url"]).path
@@ -80,6 +105,12 @@ async def _enrich_single(
 
         if response.status_code == 429:
             bail_event.set()
+            return
+        if response.status_code == 403:
+            print(
+                "[enrichment] reddit .json blocked (403), skipping comment fetch",
+                file=sys.stderr,
+            )
             return
         if response.is_error:
             return

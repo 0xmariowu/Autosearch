@@ -8,6 +8,12 @@ import pytest
 
 from lib.enrichment import enrich_reddit_items
 
+# All existing tests mock httpx directly. Since _enrich_single now tries
+# ScrapeCreators first, we patch it to return False so the .json path runs.
+_NO_SCRAPECREATORS = patch(
+    "lib.enrichment._enrich_via_scrapecreators", new=AsyncMock(return_value=False)
+)
+
 MOCK_THREAD_JSON = [
     {
         "data": {
@@ -97,7 +103,10 @@ async def test_enrich_adds_top_comments() -> None:
     async def get(*args, **kwargs):
         return _make_response(json_data=MOCK_THREAD_JSON)
 
-    with patch("lib.enrichment.httpx.AsyncClient") as mock_async_client:
+    with (
+        _NO_SCRAPECREATORS,
+        patch("lib.enrichment.httpx.AsyncClient") as mock_async_client,
+    ):
         _setup_async_client(mock_async_client, AsyncMock(side_effect=get))
         await enrich_reddit_items([result], max_items=1)
 
@@ -119,7 +128,10 @@ async def test_enrich_adds_upvote_ratio() -> None:
     async def get(*args, **kwargs):
         return _make_response(json_data=MOCK_THREAD_JSON)
 
-    with patch("lib.enrichment.httpx.AsyncClient") as mock_async_client:
+    with (
+        _NO_SCRAPECREATORS,
+        patch("lib.enrichment.httpx.AsyncClient") as mock_async_client,
+    ):
         _setup_async_client(mock_async_client, AsyncMock(side_effect=get))
         await enrich_reddit_items([result], max_items=1)
 
@@ -130,7 +142,10 @@ async def test_enrich_adds_upvote_ratio() -> None:
 async def test_enrich_skips_non_reddit() -> None:
     result = _make_result(source="hn", url="https://news.ycombinator.com/item?id=1")
 
-    with patch("lib.enrichment.httpx.AsyncClient") as mock_async_client:
+    with (
+        _NO_SCRAPECREATORS,
+        patch("lib.enrichment.httpx.AsyncClient") as mock_async_client,
+    ):
         await enrich_reddit_items([result], max_items=1)
 
     mock_async_client.assert_not_called()
@@ -156,7 +171,10 @@ async def test_enrich_429_bails() -> None:
     async def get(*args, **kwargs):
         return responses.pop(0)
 
-    with patch("lib.enrichment.httpx.AsyncClient") as mock_async_client:
+    with (
+        _NO_SCRAPECREATORS,
+        patch("lib.enrichment.httpx.AsyncClient") as mock_async_client,
+    ):
         _setup_async_client(mock_async_client, AsyncMock(side_effect=get))
         await enrich_reddit_items([first, second], max_items=2)
 
@@ -173,7 +191,10 @@ async def test_enrich_filters_deleted_comments() -> None:
     async def get(*args, **kwargs):
         return _make_response(json_data=MOCK_THREAD_JSON)
 
-    with patch("lib.enrichment.httpx.AsyncClient") as mock_async_client:
+    with (
+        _NO_SCRAPECREATORS,
+        patch("lib.enrichment.httpx.AsyncClient") as mock_async_client,
+    ):
         _setup_async_client(mock_async_client, AsyncMock(side_effect=get))
         await enrich_reddit_items([result], max_items=1)
 
@@ -202,7 +223,10 @@ async def test_enrich_comment_insights() -> None:
     async def get(*args, **kwargs):
         return _make_response(json_data=thread_json)
 
-    with patch("lib.enrichment.httpx.AsyncClient") as mock_async_client:
+    with (
+        _NO_SCRAPECREATORS,
+        patch("lib.enrichment.httpx.AsyncClient") as mock_async_client,
+    ):
         _setup_async_client(mock_async_client, AsyncMock(side_effect=get))
         await enrich_reddit_items([result], max_items=1)
 
@@ -221,7 +245,10 @@ async def test_enrich_network_error_silent() -> None:
     result = _make_result()
     original = deepcopy(result)
 
-    with patch("lib.enrichment.httpx.AsyncClient") as mock_async_client:
+    with (
+        _NO_SCRAPECREATORS,
+        patch("lib.enrichment.httpx.AsyncClient") as mock_async_client,
+    ):
         _setup_async_client(
             mock_async_client,
             AsyncMock(side_effect=RuntimeError("network down")),
@@ -229,3 +256,42 @@ async def test_enrich_network_error_silent() -> None:
         await enrich_reddit_items([result], max_items=1)
 
     assert result == original
+
+
+@pytest.mark.asyncio
+async def test_enrich_403_logs_and_skips(capsys) -> None:
+    result = _make_result()
+
+    async def get(*args, **kwargs):
+        return _make_response(status_code=403, is_error=True, json_data=None)
+
+    with (
+        _NO_SCRAPECREATORS,
+        patch("lib.enrichment.httpx.AsyncClient") as mock_async_client,
+    ):
+        _setup_async_client(mock_async_client, AsyncMock(side_effect=get))
+        await enrich_reddit_items([result], max_items=1)
+
+    assert "top_comments" not in result["metadata"]
+    captured = capsys.readouterr()
+    assert "403" in captured.err
+
+
+@pytest.mark.asyncio
+async def test_enrich_uses_scrapecreators_when_available() -> None:
+    result = _make_result()
+
+    async def fake_sc_enrich(r: dict) -> bool:
+        r.setdefault("metadata", {})["top_comments"] = [
+            {"score": 80, "author": "sc_user", "excerpt": "Great insight from API"}
+        ]
+        return True
+
+    with patch(
+        "lib.enrichment._enrich_via_scrapecreators",
+        new=AsyncMock(side_effect=fake_sc_enrich),
+    ):
+        await enrich_reddit_items([result], max_items=1)
+
+    # ScrapeCreators populated the comments
+    assert result["metadata"]["top_comments"][0]["author"] == "sc_user"

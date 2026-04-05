@@ -139,14 +139,32 @@ async def _search_ddgs_fallback(query: str, max_results: int) -> list[dict]:
 
 
 async def search(query: str, max_results: int = 10) -> list[dict]:
-    # Try JSON API first, fall back to ddgs
+    # Tier 1: ScrapeCreators (if API key set)
+    try:
+        from channels._engines.scrapecreators import search_reddit as sc_search
+
+        results = await sc_search(query, max_results)
+        if results:
+            return results
+    except Exception as exc:
+        print(f"[reddit] ScrapeCreators failed: {exc}", file=sys.stderr)
+
+    # Tier 2: Reddit JSON API (may 403)
     try:
         results = await _search_json_api(query, max_results)
         if results:
             return results
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 403:
+            print(
+                "[reddit] .json API blocked (403), using DDGS fallback", file=sys.stderr
+            )
+        else:
+            print(f"[reddit] JSON API failed: {exc}", file=sys.stderr)
     except Exception as exc:
         print(f"[reddit] JSON API failed, trying fallback: {exc}", file=sys.stderr)
 
+    # Tier 3: DDGS site:reddit.com (always works)
     try:
         return await _search_ddgs_fallback(query, max_results)
     except Exception as exc:

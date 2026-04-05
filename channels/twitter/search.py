@@ -71,15 +71,31 @@ async def _search_ddgs(query: str, max_results: int) -> list[dict]:
     return merged[:max_results]
 
 
-async def search(query: str, max_results: int = 10) -> list[dict]:
-    """Search Twitter/X — GraphQL first, DDGS fallback."""
+async def _search_scrapecreators(query: str, max_results: int) -> list[dict]:
+    """Try ScrapeCreators Twitter API (requires SCRAPECREATORS_API_KEY)."""
     try:
-        # Try GraphQL (cookie-based, rich engagement data)
+        from channels._engines.scrapecreators import search_twitter as sc_search
+
+        return await sc_search(query, max_results)
+    except Exception as exc:
+        print(f"[twitter] ScrapeCreators failed: {exc}", file=sys.stderr)
+        return []
+
+
+async def search(query: str, max_results: int = 10) -> list[dict]:
+    """Search Twitter/X — GraphQL first, ScrapeCreators second, DDGS fallback."""
+    try:
+        # Tier 1: GraphQL (cookie-based, rich engagement data)
         results = await _search_graphql(query, max_results)
         if results:
             return results
 
-        # Fall back to DDGS site-search
+        # Tier 2: ScrapeCreators (if API key set)
+        results = await _search_scrapecreators(query, max_results)
+        if results:
+            return results
+
+        # Tier 3: DDGS site-search (always works)
         return await _search_ddgs(query, max_results)
     except Exception as exc:
         from lib.search_runner import SearchError
