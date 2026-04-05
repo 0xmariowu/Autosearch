@@ -23,6 +23,8 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
                     metadata["created_utc"] = h["created_at"]
                 if h.get("points"):
                     metadata["points"] = h["points"]
+                if h.get("num_comments") is not None:
+                    metadata["num_comments"] = h["num_comments"]
                 url = (
                     h.get("url")
                     or f"https://news.ycombinator.com/item?id={h.get('objectID', '')}"
