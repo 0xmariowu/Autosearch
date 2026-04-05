@@ -9,6 +9,24 @@ All changes to AutoSearch. Format: `## YYYY.MM.DD.N` with `### Changes` and `###
 
 ---
 
+## 2026.04.05.3
+
+### Changes
+
+- You can now get Reddit comment insights — top comments with scores, authors, and excerpts are fetched for the highest-scoring Reddit results
+- You can now search X/Twitter with full engagement data — cookie-based GraphQL search returns likes, reposts, replies, and author handles (falls back to DuckDuckGo when no credentials)
+- You can now run two-phase search — Phase 1 extracts entities (subreddits, X handles, authors), Phase 2 does targeted follow-up searches
+- HN channel now includes `num_comments` in metadata (was only in snippet text)
+- Claims pipeline now carries engagement scores, cross-platform signals, and top comments through to Block 4 synthesis
+- Reranking now boosts cross-source convergent items as stronger evidence
+- Channel selection now considers query type (how-to, comparison, opinion, etc.) for smarter prioritization
+
+### Fixes
+
+- CI hygiene author check no longer fails on merge commits created by `actions/checkout`
+
+---
+
 ## 2026.04.05.2
 
 ### Changes
