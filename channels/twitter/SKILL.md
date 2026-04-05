@@ -3,7 +3,7 @@ name: twitter
 description: "Finds public Twitter/X posts, threads, and announcement-style updates indexed from the platform."
 categories: [social, tech-discussion]
 platform: x.com
-api_key_required: false
+api_key_required: false  # Enhanced with cookie auth: set TWITTER_AUTH_TOKEN + TWITTER_CT0, or have X logged in via browser
 aliases: [x]
 ---
 
@@ -26,3 +26,5 @@ It is weak for long-form explanation, historical retrieval, and stable reference
 ## Quality signals
 
 Engagement count helps, especially when paired with a relevant account. Verified or clearly authoritative accounts, linked primary sources, and multi-post threads are usually better signals than isolated low-engagement posts.
+
+When cookie authentication is available (via env vars or browser), results include likes, reposts, replies, and author handles. Without auth, results come from DuckDuckGo site-search with no engagement data.
