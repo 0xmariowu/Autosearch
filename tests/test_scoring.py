@@ -11,7 +11,9 @@ from lib.scoring import (
 )
 
 
-def _make_result(source="reddit", title="Test", snippet="test snippet", score=0, **meta):
+def _make_result(
+    source="reddit", title="Test", snippet="test snippet", score=0, **meta
+):
     return {
         "url": f"https://example.com/{id(meta)}",
         "title": title,
@@ -34,7 +36,9 @@ def test_composite_score_range():
     today = datetime.datetime.now(datetime.timezone.utc).isoformat()
     results = [
         _make_result(title="AI agents", score=100, published_at=today),
-        _make_result(title="cooking recipes", score=0, published_at="2020-01-01T00:00:00+00:00"),
+        _make_result(
+            title="cooking recipes", score=0, published_at="2020-01-01T00:00:00+00:00"
+        ),
     ]
 
     score_results(results, "AI agents")
@@ -47,7 +51,9 @@ def test_composite_score_range():
 
 def test_results_sorted_by_score():
     today = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    old_date = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=200)).isoformat()
+    old_date = (
+        datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=200)
+    ).isoformat()
     results = [
         _make_result(title="cooking recipes", score=1, published_at=old_date),
         _make_result(title="AI agents", score=100, published_at=today),
@@ -123,7 +129,12 @@ def test_normalize_engagement_range():
 def test_raw_engagement_reddit():
     value = raw_engagement(
         "reddit",
-        {"score": 100, "num_comments": 50, "upvote_ratio": 0.9, "top_comment_score": 10},
+        {
+            "score": 100,
+            "num_comments": 50,
+            "upvote_ratio": 0.9,
+            "top_comment_score": 10,
+        },
     )
 
     assert isinstance(value, float)
