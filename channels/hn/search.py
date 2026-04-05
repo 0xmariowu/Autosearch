@@ -29,11 +29,18 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
                     h.get("url")
                     or f"https://news.ycombinator.com/item?id={h.get('objectID', '')}"
                 )
+                # Prefer story_text (Ask HN / Show HN posts have it)
+                snippet = h.get("story_text") or ""
+                if not snippet:
+                    snippet = (
+                        f"Points: {h.get('points', 0)}"
+                        f" | Comments: {h.get('num_comments', 0)}"
+                    )
                 results.append(
                     make_result(
                         url=url,
                         title=h.get("title", ""),
-                        snippet=f"Points: {h.get('points', 0)} | Comments: {h.get('num_comments', 0)}",
+                        snippet=snippet,
                         source="hn",
                         query=query,
                         extra_metadata=metadata,
