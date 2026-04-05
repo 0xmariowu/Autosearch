@@ -9,6 +9,16 @@ All changes to AutoSearch. Format: `## YYYY.MM.DD.N` with `### Changes` and `###
 
 ---
 
+## 2026.04.05.2
+
+### Changes
+
+- You can now see how results rank across platforms — per-platform engagement scoring with composite scores (relevance + recency + engagement)
+- You can now see when the same topic appears on multiple platforms — cross-source convergence detection adds "also on" annotations
+- Search queries are now classified by type (how-to, comparison, opinion, etc.) for smarter source prioritization
+
+---
+
 ## 2026.04.05.1
 
 ### Changes

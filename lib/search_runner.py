@@ -445,10 +445,23 @@ def dedup_results(results: list[dict]) -> list[dict]:
         if not url:
             continue
         key = normalize_url(url)
-        if key not in seen or len(json.dumps(result.get("metadata", {}))) > len(
-            json.dumps(seen[key].get("metadata", {}))
-        ):
+        if key not in seen:
             seen[key] = result
+        else:
+            winner = seen[key]
+            loser = result
+            # Keep the result with richer metadata
+            if len(json.dumps(result.get("metadata", {}))) > len(
+                json.dumps(winner.get("metadata", {}))
+            ):
+                winner, loser = result, winner
+                seen[key] = winner
+            # Track which sources contributed this URL
+            loser_source = loser.get("source", "")
+            if loser_source:
+                winner.setdefault("metadata", {}).setdefault("seen_sources", []).append(
+                    loser_source
+                )
     return list(seen.values())
 
 
@@ -479,6 +492,23 @@ async def main(queries: list[dict]) -> None:
             continue
         all_results.extend(result)
     unique_results = dedup_results(all_results)
+
+    # Post-processing: score and cross-link
+    if unique_results:
+        try:
+            from lib.scoring import score_results
+
+            query_text = queries[0].get("query", "") if queries else ""
+            score_results(unique_results, query_text)
+        except Exception as exc:
+            print(f"[search_runner] scoring failed: {exc}", file=sys.stderr)
+        try:
+            from lib.convergence import cross_source_link
+
+            cross_source_link(unique_results)
+        except Exception as exc:
+            print(f"[search_runner] convergence failed: {exc}", file=sys.stderr)
+
     for result in unique_results:
         print(json.dumps(result, ensure_ascii=False))
 
