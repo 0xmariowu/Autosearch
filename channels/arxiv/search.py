@@ -39,7 +39,7 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
                 )
                 url = id_el.text.strip() if id_el.text else ""
                 snippet = (
-                    summary_el.text.strip()[:300]
+                    summary_el.text.strip().replace("\n", " ")
                     if summary_el is not None and summary_el.text
                     else ""
                 )

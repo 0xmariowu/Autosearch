@@ -9,6 +9,20 @@ All changes to AutoSearch. Format: `## YYYY.MM.DD.N` with `### Changes` and `###
 
 ---
 
+## 2026.04.05.5
+
+### Changes
+
+- You can now get deeply processed research content — top results are fetched in full via Jina Reader, filtered to query-relevant paragraphs with BM25, and stored as extracted content
+- You can now get richer evidence in reports — claims from deep-processed results include verbatim evidence quotes and specific data points, not just one-sentence summaries
+- Content processing pipeline replicated from crawl4ai: BM25 paragraph filtering, HTML noise pruning, sliding window chunking, citation formatting, 3-tier anti-bot detection
+- Results are re-scored after content enrichment using full-content relevance (more accurate than snippet-based scoring)
+- HN channel now uses story_text for Ask HN / Show HN posts (was showing only points/comments)
+- arXiv abstracts are no longer truncated at 300 characters
+- Snippet cap increased from 500 to 1500 characters for richer Block 3 evaluation
+
+---
+
 ## 2026.04.05.4
 
 ## 2026.04.05.3

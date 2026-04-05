@@ -86,6 +86,43 @@ def score_results(results: list[dict], query: str) -> None:
     )
 
 
+def rescore_enriched(results: list[dict], query: str) -> None:
+    """Update composite_score for results that have extracted_content.
+
+    After content enrichment, relevance based on full content is much
+    more accurate than snippet-based relevance. Re-score and re-sort.
+    """
+    changed = False
+    for result in results:
+        content = result.get("metadata", {}).get("extracted_content", "")
+        if not content:
+            continue
+        # Re-compute relevance on full content instead of snippet
+        query_tokens = {token.lower() for token in WORD_RE.findall(query or "")}
+        content_tokens = {token.lower() for token in WORD_RE.findall(content)}
+        union = query_tokens | content_tokens
+        content_relevance = (
+            len(query_tokens & content_tokens) / len(union) if union else 0.0
+        )
+
+        recency = freshness_score(result)
+        old_score = result.get("metadata", {}).get("composite_score", 50)
+        engagement_proxy = _clamp01(old_score / 100.0)
+
+        new_composite = (
+            0.60 * content_relevance + 0.20 * engagement_proxy + 0.20 * recency
+        )
+        new_score = max(0, min(100, int(round(_clamp01(new_composite) * 100))))
+        result["metadata"]["composite_score"] = new_score
+        changed = True
+
+    if changed:
+        results.sort(
+            key=lambda r: r.get("metadata", {}).get("composite_score", 0),
+            reverse=True,
+        )
+
+
 def semantic_score(query: str, result: dict) -> float:
     query_tokens = {token.lower() for token in WORD_RE.findall(query or "")}
     title = str(result.get("title", "") or "")

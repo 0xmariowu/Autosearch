@@ -86,7 +86,7 @@ def test_make_result_basic():
 
 
 def test_make_result_snippet_truncation():
-    snippet = "a" * 600
+    snippet = "a" * 2000
     result = make_result(
         url="https://example.com",
         title="Title",
@@ -95,8 +95,8 @@ def test_make_result_snippet_truncation():
         query="query",
     )
 
-    assert len(result["snippet"]) == 500
-    assert result["snippet"] == "a" * 500
+    assert len(result["snippet"]) == 1500
+    assert result["snippet"] == "a" * 1500
 
 
 def test_make_result_date_extraction():
