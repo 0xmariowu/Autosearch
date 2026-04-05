@@ -1,0 +1,98 @@
+---
+title: Channels
+description: All 32+ search channels — dedicated connectors for code, academic, community, Chinese, video, and business platforms.
+---
+
+AutoSearch has 32+ dedicated search channels. Each channel has its own connector — not just web search with `site:` filters.
+
+No API keys required for any built-in channel.
+
+## Code
+
+| Channel | What it searches |
+|---|---|
+| `github-repos` | Repository discovery by stars, activity, topic |
+| `github-issues` | Bug reports, feature requests, pain points |
+| `github-code` | Code search for implementations and patterns |
+| `npm-pypi` | Package registry search for libraries and SDKs |
+| `stackoverflow` | Programming Q&A with community-validated solutions |
+
+## Academic
+
+| Channel | What it searches |
+|---|---|
+| `arxiv` | Pre-prints and latest research papers |
+| `semantic-scholar` | Academic papers with citation data |
+| `google-scholar` | Comprehensive academic search with citation counts |
+| `citation-graph` | Follow-up work and references from known papers |
+| `papers-with-code` | Papers with associated code implementations |
+| `openreview` | Conference papers from ICLR, NeurIPS, ICML |
+| `conference-talks` | ML/AI conference presentations and workshops |
+
+## Community
+
+| Channel | What it searches |
+|---|---|
+| `reddit` | Community opinions, user experiences, comparisons |
+| `hn` | Hacker News tech discussions and startup signals |
+| `twitter` | Social signals with engagement data |
+| `devto` | Practitioner blog posts and tutorials |
+
+## Chinese platforms
+
+12 dedicated Chinese channels — no other research tool covers the Chinese internet like this.
+
+| Channel | What it searches |
+|---|---|
+| `zhihu` | Chinese Q&A (like Quora) — deep technical discussions |
+| `bilibili` | Chinese video — tech tutorials, conference recordings |
+| `csdn` | Chinese developer tutorials and code examples |
+| `juejin` | Chinese frontend/backend technical articles |
+| `36kr` | Chinese tech business news and startup coverage |
+| `wechat` | WeChat Official Accounts — long-form industry analysis |
+| `weibo` | Chinese social media reactions and trending topics |
+| `xiaohongshu` | User experience reports and product reviews |
+| `douyin` | Short-form video — viral tech demos |
+| `xiaoyuzhou` | Chinese podcasts — interviews and expert conversations |
+| `xueqiu` | Chinese investment analysis and stock discussions |
+| `infoq-cn` | Chinese enterprise tech practices |
+
+## Video
+
+| Channel | What it searches |
+|---|---|
+| `youtube` | Tutorials, tech talks, product demos with transcripts |
+| `bilibili` | Chinese tech videos (also listed under Chinese) |
+| `conference-talks` | Conference keynotes and workshop presentations |
+
+## Business
+
+| Channel | What it searches |
+|---|---|
+| `producthunt` | New product launches and startup discovery |
+| `crunchbase` | Startup funding data and company profiles |
+| `g2` | Software reviews from verified business users |
+| `linkedin` | Professional perspectives and industry signals |
+
+## General
+
+| Channel | What it searches |
+|---|---|
+| `web-ddgs` | Broad web coverage via DuckDuckGo |
+| `rss` | Structured feeds — blogs, news, release notifications |
+
+## Optional premium channels
+
+These require API keys but provide enhanced capabilities:
+
+| Channel | Key needed | What it adds |
+|---|---|---|
+| Exa | `EXA_API_KEY` | Semantic web search with paraphrase matching |
+| Tavily | `TAVILY_API_KEY` | Research-oriented search with structured results |
+| HuggingFace | None (public API) | Model and dataset discovery |
+
+## Adding a channel
+
+See the [Contributing guide](/contributing) for how to add a new channel. Each channel is a directory with:
+- `SKILL.md` — channel definition and search strategy
+- `search.py` — async search function returning `[{url, title, snippet}]`

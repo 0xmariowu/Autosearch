@@ -1,0 +1,138 @@
+---
+title: Changelog
+description: All changes to AutoSearch, organized by release.
+---
+
+## 2026.04.05.3
+
+### Changes
+
+- Reddit comment insights — top comments with scores, authors, and excerpts for highest-scoring results
+- X/Twitter search with full engagement data — cookie-based GraphQL search with likes, reposts, replies
+- Two-phase search — Phase 1 extracts entities (subreddits, handles, authors), Phase 2 does targeted follow-ups
+- HN channel now includes `num_comments` in metadata
+- Claims pipeline carries engagement scores and cross-platform signals through to synthesis
+- Reranking boosts cross-source convergent items as stronger evidence
+- Channel selection considers query type (how-to, comparison, opinion, etc.)
+
+### Fixes
+
+- CI author check no longer fails on merge commits from `actions/checkout`
+
+## 2026.04.05.2
+
+### Changes
+
+- Per-platform engagement scoring with composite scores (relevance + recency + engagement)
+- Cross-source convergence detection with "also on" annotations
+- Search query type classification for smarter source prioritization
+
+## 2026.04.05.1
+
+### Changes
+
+- HuggingFace channel — search models and datasets by downloads
+- Papers with Code channel — trending AI papers via HuggingFace Daily Papers
+- 34 search channels total (was 32)
+- Cleaned up 18 orphan skills (1,828 lines removed)
+
+## 2026.04.04.9
+
+### Changes
+
+- CI hygiene workflow — checks author identity, codenames, personal paths, container pins
+- Git history fully rewritten — removed all PII from 270 commits
+
+### Fixes
+
+- Removed literal PII from .gitleaks.toml detection rules
+- Cleaned up 10 stale remote branches
+
+## 2026.04.04.8
+
+### Changes
+
+- Lazy-load channel plugins on first query for faster startup
+- Added isort and bugbear rules to ruff linter
+- Pyright now checks the correct directories
+
+### Fixes
+
+- Pinned semgrep container image to SHA digest
+- Fixed shell injection risk in release.yml
+- Added .dockerignore to prevent secret leakage into Docker builds
+- HTML-escaped title in report assembly to prevent XSS
+- Added `set -euo pipefail` to run_search.sh
+
+## 2026.04.04.7
+
+### Changes
+
+- Engine-level health tracking — dependent channels suspend together on engine failure
+- Transient failures auto-retry once before giving up
+- Channel health data persists immediately after every success/failure
+
+## 2026.04.04.6
+
+### Fixes
+
+- Search failures correctly distinguished from empty results
+
+## 2026.04.04.5
+
+### Fixes
+
+- Chinese channels no longer get suspended by English-session zero-yield
+
+## 2026.04.04.4
+
+### Changes
+
+- Pre-release test suite with `./scripts/release-test.sh`
+- 6 user scenarios (Quick/Standard/Deep x EN/ZH) with Docker support
+
+## 2026.04.04.3
+
+### Fixes
+
+- Claims compression enforced to prevent Block 4 hangs at 120+ results
+- All 6 pipeline blocks now have time limits
+
+## 2026.04.04.2
+
+### Changes
+
+- Haiku-compressed claims before synthesis
+- Targeted gap-fill queries from coverage analysis
+- Research context persistence across sessions
+
+## 2026.04.04.1
+
+### Changes
+
+- Delivery format choice: Markdown, Rich HTML, or Slides
+- Language auto-detection — Chinese topics get Chinese output
+- 6-block orchestrated pipeline with real-time progress
+- 9 to 279 tests
+
+## 2026.4.3
+
+### Changes
+
+- Plugin release — install via `claude plugin marketplace add 0xmariowu/autosearch`
+- 32 search channels with convention-based loader
+- Chinese channels via Baidu Kaifa Developer Search
+- Two-stage citation lock
+- Model routing: Haiku for batch, Sonnet for synthesis
+- Benchmark: AutoSearch 92% vs Native Claude 72%
+
+## 2026.4.1
+
+### Changes
+
+- Rubric AVO — auto-generate rubrics, score delivery, evolve skills
+- Pipeline baseline: 0.880 pass rate on initial benchmark
+
+## Pre-plugin history
+
+V1 and V2.0 prototype development (2026-03-23 to 2026-03-28). See git history for details.

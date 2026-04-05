@@ -1,0 +1,78 @@
+---
+title: Architecture
+description: How AutoSearch works internally — the 6-block pipeline, AVO evolution, and directory layout.
+---
+
+## Pipeline
+
+Every research session runs through a 6-block pipeline:
+
+```
+You: /autosearch "topic"
+ |
+ v
+[1] Claude recalls what it already knows -> maps 9 knowledge dimensions
+ |
+[2] Identifies gaps -> generates queries ONLY for what Claude doesn't know
+ |
+[3] Searches 32+ channels in parallel (10-30 seconds)
+ |
+[4] LLM evaluates each result for relevance, filters noise
+ |
+[5] Synthesizes report with two-stage citation lock
+ |
+[6] Checks quality rubrics -> evolves strategy -> commits improvements
+```
+
+Each block has a time limit (5/5/5/8/3/3 minutes) to prevent hangs.
+
+## Self-evolution (AVO)
+
+AutoSearch implements the AVO (Agent Variation Operator) pattern:
+
+- **P_t = `state/`** — lineage: worklog, patterns, evolution history, outcomes
+- **K = `skills/`** — capability set (50+ skills)
+- **f = `judge.py`** — fixed scoring function (never modified by evolution)
+
+After each session:
+1. `judge.py` scores results on 7 dimensions
+2. If the score improved, the strategy changes are committed
+3. If the score regressed, changes are reverted
+4. Reusable patterns are saved to `state/patterns.jsonl`
+
+The safety mechanism: the evaluator is fixed and cannot be modified by evolution. Only search strategy evolves — not the scoring.
+
+## Model routing
+
+| Task | Model | Why |
+|---|---|---|
+| Classification, scoring, rubrics | Haiku | Fast, cheap, sufficient |
+| Synthesis, reasoning, evolution | Sonnet | Better judgment |
+| Claims compression | Haiku | Batch processing |
+
+## Directory layout
+
+```
+autosearch/
+  .claude-plugin/     Plugin manifest (version, metadata)
+  commands/           /autosearch entry point + setup
+  agents/             Claude Code agent definitions
+  skills/             50+ skills (pipeline, synthesis, evaluation, evolution)
+  channels/           32+ channel plugins (SKILL.md + search.py each)
+    _engines/         Shared backends (baidu, ddgs)
+  lib/                search_runner.py, judge.py (fixed evaluator)
+  state/              Append-only learning data
+  scripts/            Setup, install, version management
+  tests/              pytest test suite (279 tests)
+  evidence/           Search results (per-session)
+  delivery/           Generated reports
+  docs/               This documentation site
+```
+
+## Immutable files
+
+These files cannot be modified during normal operation:
+
+- `PROTOCOL.md` — agent operating protocol
+- `lib/judge.py` — scoring function
+- Meta-skills: `create-skill`, `observe-user`, `extract-knowledge`, `interact-user`, `discover-environment`

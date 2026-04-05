@@ -1,0 +1,50 @@
+---
+title: Quick Start
+description: Install AutoSearch and run your first research query in under a minute.
+---
+
+## Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/0xmariowu/autosearch/main/scripts/install.sh | bash
+```
+
+Or install via the Claude Code plugin system:
+
+```bash
+claude plugin marketplace add 0xmariowu/autosearch
+```
+
+## Use
+
+```bash
+/autosearch "your research topic"
+```
+
+AutoSearch will ask you:
+1. **Depth** — quick, standard, or deep
+2. **Format** — markdown, rich HTML, or slides
+
+Then it searches, evaluates, and delivers a cited report.
+
+## Update
+
+```bash
+claude plugin update autosearch@autosearch
+```
+
+Or re-run the install script. To enable auto-updates: `/plugin` > Marketplaces > autosearch > Enable auto-update.
+
+## Optional: API keys
+
+AutoSearch works with zero API keys. All 32+ channels use free public APIs or scraping.
+
+For enhanced semantic search, you can optionally add:
+
+| Key | What it enables |
+|---|---|
+| `EXA_API_KEY` | Exa semantic web search |
+| `TAVILY_API_KEY` | Tavily research-oriented search |
+| `YOUTUBE_INNERTUBE_KEY` | YouTube transcript extraction |
+
+Set them in your environment or `.env` file.
