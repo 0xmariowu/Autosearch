@@ -10,11 +10,11 @@ from datetime import datetime, timezone
 
 import httpx
 
-BEARER_TOKEN = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA'
-API_BASE = 'https://x.com/i/api/graphql'
-DEFAULT_QUERY_ID = '6AAys3t42mosm_yTI_QENg'
-FALLBACK_QUERY_IDS = ['M1jEez78PEfVfbQLvlWMvQ', '5h0kNbk3ii97rmfY6CdgAA']
-USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36'
+BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA"
+API_BASE = "https://x.com/i/api/graphql"
+DEFAULT_QUERY_ID = "6AAys3t42mosm_yTI_QENg"
+FALLBACK_QUERY_IDS = ["M1jEez78PEfVfbQLvlWMvQ", "5h0kNbk3ii97rmfY6CdgAA"]
+USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
 
 
 def _log_error(message: str, exc: Exception | None = None) -> None:
@@ -167,12 +167,16 @@ def _parse_tweets(response_json: dict) -> list[dict]:
                         )
                         user_legacy = user_result.get("legacy", {})
 
-                        if not isinstance(legacy, dict) or not isinstance(user_legacy, dict):
+                        if not isinstance(legacy, dict) or not isinstance(
+                            user_legacy, dict
+                        ):
                             continue
 
                         rest_id = str(result.get("rest_id", "") or "").strip()
                         full_text = str(legacy.get("full_text", "") or "")
-                        author_handle = str(user_legacy.get("screen_name", "") or "").strip()
+                        author_handle = str(
+                            user_legacy.get("screen_name", "") or ""
+                        ).strip()
                         author_handle = re.sub(r"^@", "", author_handle)
                         author_handle = re.sub(r"[^A-Za-z0-9_]", "", author_handle)
 

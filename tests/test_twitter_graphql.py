@@ -105,8 +105,9 @@ def test_get_credentials_returns_none_when_missing() -> None:
             raise ImportError("browser_cookie3 unavailable")
         return original_import(name, globals, locals, fromlist, level)
 
-    with patch("channels.twitter.graphql.os.getenv", return_value=""), patch(
-        "builtins.__import__", side_effect=import_side_effect
+    with (
+        patch("channels.twitter.graphql.os.getenv", return_value=""),
+        patch("builtins.__import__", side_effect=import_side_effect),
     ):
         assert graphql.get_credentials() is None
 
@@ -118,10 +119,13 @@ async def test_search_graphql_parses_tweets() -> None:
     mock_response = _make_response(200, MOCK_GRAPHQL_RESPONSE)
     mock_client = _make_async_client(response=mock_response)
 
-    with patch(
-        "channels.twitter.graphql.get_credentials",
-        return_value=("auth_token", "ct0"),
-    ), patch("channels.twitter.graphql.httpx.AsyncClient", return_value=mock_client):
+    with (
+        patch(
+            "channels.twitter.graphql.get_credentials",
+            return_value=("auth_token", "ct0"),
+        ),
+        patch("channels.twitter.graphql.httpx.AsyncClient", return_value=mock_client),
+    ):
         tweets = await graphql.search_graphql("AI", max_results=10)
 
     assert len(tweets) == 1
@@ -140,10 +144,13 @@ async def test_search_graphql_returns_empty_on_error() -> None:
 
     mock_client = _make_async_client(side_effect=Exception("connection refused"))
 
-    with patch(
-        "channels.twitter.graphql.get_credentials",
-        return_value=("auth_token", "ct0"),
-    ), patch("channels.twitter.graphql.httpx.AsyncClient", return_value=mock_client):
+    with (
+        patch(
+            "channels.twitter.graphql.get_credentials",
+            return_value=("auth_token", "ct0"),
+        ),
+        patch("channels.twitter.graphql.httpx.AsyncClient", return_value=mock_client),
+    ):
         tweets = await graphql.search_graphql("AI", max_results=10)
 
     assert tweets == []
@@ -153,9 +160,10 @@ async def test_search_graphql_returns_empty_on_error() -> None:
 async def test_search_graphql_returns_empty_without_creds() -> None:
     graphql = importlib.import_module("channels.twitter.graphql")
 
-    with patch("channels.twitter.graphql.get_credentials", return_value=None), patch(
-        "channels.twitter.graphql.httpx.AsyncClient"
-    ) as mock_async_client:
+    with (
+        patch("channels.twitter.graphql.get_credentials", return_value=None),
+        patch("channels.twitter.graphql.httpx.AsyncClient") as mock_async_client,
+    ):
         tweets = await graphql.search_graphql("AI", max_results=10)
 
     assert tweets == []
@@ -168,14 +176,15 @@ async def test_search_graphql_tries_fallback_on_404() -> None:
 
     not_found_response = _make_response(404)
     success_response = _make_response(200, MOCK_GRAPHQL_RESPONSE)
-    mock_client = _make_async_client(
-        side_effect=[not_found_response, success_response]
-    )
+    mock_client = _make_async_client(side_effect=[not_found_response, success_response])
 
-    with patch(
-        "channels.twitter.graphql.get_credentials",
-        return_value=("auth_token", "ct0"),
-    ), patch("channels.twitter.graphql.httpx.AsyncClient", return_value=mock_client):
+    with (
+        patch(
+            "channels.twitter.graphql.get_credentials",
+            return_value=("auth_token", "ct0"),
+        ),
+        patch("channels.twitter.graphql.httpx.AsyncClient", return_value=mock_client),
+    ):
         tweets = await graphql.search_graphql("AI", max_results=10)
 
     assert len(tweets) == 1
@@ -197,12 +206,15 @@ async def test_search_falls_back_to_ddgs() -> None:
         }
     ]
 
-    with patch(
-        "channels.twitter.search._search_graphql", new=AsyncMock(return_value=[])
-    ) as mock_graphql, patch(
-        "channels.twitter.search._search_ddgs",
-        new=AsyncMock(return_value=ddgs_results),
-    ) as mock_ddgs:
+    with (
+        patch(
+            "channels.twitter.search._search_graphql", new=AsyncMock(return_value=[])
+        ) as mock_graphql,
+        patch(
+            "channels.twitter.search._search_ddgs",
+            new=AsyncMock(return_value=ddgs_results),
+        ) as mock_ddgs,
+    ):
         results = await twitter_search.search("AI", max_results=5)
 
     assert results == ddgs_results
@@ -221,12 +233,15 @@ async def test_search_uses_graphql_when_available() -> None:
         }
     ]
 
-    with patch(
-        "channels.twitter.search._search_graphql",
-        new=AsyncMock(return_value=graphql_results),
-    ) as mock_graphql, patch(
-        "channels.twitter.search._search_ddgs", new=AsyncMock(return_value=[])
-    ) as mock_ddgs:
+    with (
+        patch(
+            "channels.twitter.search._search_graphql",
+            new=AsyncMock(return_value=graphql_results),
+        ) as mock_graphql,
+        patch(
+            "channels.twitter.search._search_ddgs", new=AsyncMock(return_value=[])
+        ) as mock_ddgs,
+    ):
         results = await twitter_search.search("AI", max_results=5)
 
     assert results == graphql_results
