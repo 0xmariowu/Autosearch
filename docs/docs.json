@@ -11,8 +11,8 @@
   "navbar": {
     "links": [
       {
-        "label": "GitHub",
-        "url": "https://github.com/0xmariowu/Autosearch"
+        "type": "github",
+        "href": "https://github.com/0xmariowu/Autosearch"
       }
     ]
   },
