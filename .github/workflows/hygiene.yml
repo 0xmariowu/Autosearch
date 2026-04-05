@@ -23,7 +23,7 @@ jobs:
       - name: Check author emails in PR commits
         if: github.event_name == 'pull_request'
         run: |
-          BAD=$(git log --format='%ae' origin/main..HEAD \
+          BAD=$(git log --no-merges --format='%ae' origin/main..HEAD \
             | grep -v '@users.noreply.github.com' \
             | grep -v 'github-actions' \
             | grep -v 'dependabot' || true)
@@ -35,7 +35,7 @@ jobs:
       - name: Check author names in PR commits
         if: github.event_name == 'pull_request'
         run: |
-          BAD=$(git log --format='%an' origin/main..HEAD \
+          BAD=$(git log --no-merges --format='%an' origin/main..HEAD \
             | grep -v '0xmariowu' \
             | grep -v 'github-actions' \
             | grep -v 'dependabot' || true)
