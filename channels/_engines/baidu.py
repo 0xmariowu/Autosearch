@@ -58,11 +58,20 @@ async def search_baidu(
                 return []
 
             results: list[dict] = []
+            # Normalize site for URL validation
+            site_check = site.lower().removeprefix("www.") if site else ""
+
             for entry in docs:
                 digest = entry.get("techDocDigest", {})
                 title = unescape(str(digest.get("title", "") or "")).strip()
                 url = str(digest.get("url", "") or "").strip()
                 if not title or not url:
+                    continue
+
+                # Baidu Kaifa site: filter is unreliable — returns results
+                # from unrelated domains (e.g. site:36kr.com → csdn.net).
+                # Drop results whose URL doesn't match the target site.
+                if site_check and site_check not in url.lower():
                     continue
 
                 snippet = unescape(str(digest.get("summary", "") or "")).strip()
