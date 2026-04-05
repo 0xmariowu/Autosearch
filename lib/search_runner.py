@@ -508,6 +508,12 @@ async def main(queries: list[dict]) -> None:
             cross_source_link(unique_results)
         except Exception as exc:
             print(f"[search_runner] convergence failed: {exc}", file=sys.stderr)
+        try:
+            from lib.enrichment import enrich_reddit_items
+
+            await enrich_reddit_items(unique_results)
+        except Exception as exc:
+            print(f"[search_runner] enrichment failed: {exc}", file=sys.stderr)
 
     for result in unique_results:
         print(json.dumps(result, ensure_ascii=False))
