@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>Research that gets smarter every time you use it.</strong><br>
-  32 search channels. Self-evolving queries. Cited reports. Zero API keys.
+  34 search channels. Self-evolving queries. Cited reports. Zero API keys.
 </p>
 
 <p align="center">
@@ -10,7 +10,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/github/license/0xmariowu/Autosearch?style=flat-square" alt="License"></a>
   <a href="https://github.com/0xmariowu/Autosearch/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/0xmariowu/Autosearch/ci.yml?style=flat-square&label=CI" alt="CI"></a>
   <img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square" alt="Python">
-  <img src="https://img.shields.io/badge/channels-32-green?style=flat-square" alt="Channels">
+  <img src="https://img.shields.io/badge/channels-34-green?style=flat-square" alt="Channels">
 </p>
 
 <p align="center">
@@ -30,11 +30,19 @@
 
 ```bash
 # Install (one command)
-curl -fsSL https://raw.githubusercontent.com/0xmariowu/autosearch/main/scripts/install.sh | bash
+npm install -g @0xmariowu/autosearch
 
 # Use
 /autosearch "compare vector databases for RAG applications"
 ```
+
+<details>
+<summary>Alternative install (no npm)</summary>
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/0xmariowu/autosearch/main/scripts/install.sh | bash
+```
+</details>
 
 AutoSearch asks two questions — how deep and what format — then searches, evaluates, and delivers a cited report with real-time progress:
 
@@ -98,7 +106,7 @@ You: /autosearch "topic"
  │
 [2] Identifies gaps → generates queries ONLY for what Claude doesn't know
  │
-[3] Searches 32 channels in parallel (10-30 seconds)
+[3] Searches 34 channels in parallel (10-30 seconds)
  │
 [4] LLM evaluates each result for relevance, filters noise
  │
@@ -111,7 +119,7 @@ You: /autosearch "topic"
 
 ## Channels
 
-32 channels. No API keys required. Every channel has a dedicated search connector — not just web search with `site:` filters.
+34 channels. No API keys required. Every channel has a dedicated search connector — not just web search with `site:` filters.
 
 | Category | Channels | Why it matters |
 |---|---|---|

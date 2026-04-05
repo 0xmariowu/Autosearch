@@ -16,7 +16,7 @@ Then start a new Claude Code session and run:
 
 ## What it does
 
-AutoSearch searches 34+ channels (Reddit, HN, Twitter/X, arXiv, GitHub, Stack Overflow, YouTube, Chinese platforms, and more), synthesizes cited reports, and learns which queries and platforms work best for each topic.
+AutoSearch searches 34 channels (Reddit, HN, Twitter/X, arXiv, GitHub, Stack Overflow, YouTube, Chinese platforms, and more), synthesizes cited reports, and learns which queries and platforms work best for each topic.
 
 ## Requirements
 
@@ -25,5 +25,6 @@ AutoSearch searches 34+ channels (Reddit, HN, Twitter/X, arXiv, GitHub, Stack Ov
 
 ## Links
 
+- [Website](https://www.autosearch.dev)
+- [Documentation](https://docs.autosearch.dev)
 - [GitHub](https://github.com/0xmariowu/autosearch)
-- [Documentation](https://github.com/0xmariowu/autosearch#readme)
