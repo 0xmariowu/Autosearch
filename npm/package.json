@@ -1,0 +1,31 @@
+{
+  "name": "@0xmariowu/autosearch",
+  "version": "2026.4.5",
+  "description": "Self-evolving deep research for Claude Code. Gets smarter every time you use it.",
+  "author": "0xmariowu",
+  "license": "MIT",
+  "homepage": "https://github.com/0xmariowu/autosearch",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/0xmariowu/autosearch.git"
+  },
+  "keywords": [
+    "claude-code",
+    "autosearch",
+    "research",
+    "deep-research",
+    "self-evolving",
+    "agent",
+    "search"
+  ],
+  "scripts": {
+    "postinstall": "node postinstall.js"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

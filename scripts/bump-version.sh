@@ -27,6 +27,7 @@ warn() { printf "${YELLOW}warning:${NC} %s\n" "$*"; }
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PLUGIN_JSON="$REPO_ROOT/.claude-plugin/plugin.json"
 MARKETPLACE_JSON="$REPO_ROOT/.claude-plugin/marketplace.json"
+NPM_PKG="$REPO_ROOT/npm/package.json"
 CHANGELOG="$REPO_ROOT/CHANGELOG.md"
 
 # --- Verify files exist ---
@@ -96,6 +97,21 @@ with open(path, 'w') as f:
 "
 info "updated marketplace.json"
 
+# --- Update npm/package.json ---
+if [ -f "$NPM_PKG" ]; then
+    python3 -c "
+import json
+path = '$NPM_PKG'
+with open(path) as f:
+    data = json.load(f)
+data['version'] = '$NEW_VERSION'
+with open(path, 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+"
+    info "updated npm/package.json"
+fi
+
 # --- Update CHANGELOG.md ---
 python3 -c "
 import re, sys
@@ -161,7 +177,7 @@ echo ""
 printf "${BOLD}Version bumped to ${GREEN}%s${NC}\n" "$NEW_VERSION"
 echo ""
 echo "Next steps:"
-echo "  1. git add .claude-plugin/plugin.json .claude-plugin/marketplace.json CHANGELOG.md"
-echo "  2. scripts/committer \"chore: bump version to $NEW_VERSION\" .claude-plugin/plugin.json .claude-plugin/marketplace.json CHANGELOG.md"
+echo "  1. git add .claude-plugin/plugin.json .claude-plugin/marketplace.json npm/package.json CHANGELOG.md"
+echo "  2. scripts/committer \"chore: bump version to $NEW_VERSION\" .claude-plugin/plugin.json .claude-plugin/marketplace.json npm/package.json CHANGELOG.md"
 echo "  3. git tag v$NEW_VERSION"
 echo "  4. git push && git push --tags"

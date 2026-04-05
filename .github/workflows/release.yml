@@ -94,6 +94,23 @@ jobs:
             gh release create "$TAG" --title "${REPO_NAME} ${VERSION}" --generate-notes
           fi
 
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          cd npm
+          # Sync version from tag into npm package.json
+          node -e "
+            const pkg = require('./package.json');
+            pkg.version = '$VERSION';
+            require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > .npmrc
+          npm publish --access public
+          rm -f .npmrc
+          echo "Published @0xmariowu/autosearch@${VERSION} to npm"
+
       - name: Summary
         run: |
           TAG="${{ steps.version.outputs.tag }}"
@@ -101,4 +118,5 @@ jobs:
           {
             echo "## Released ${VERSION}"
             echo "- GitHub Release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${TAG}"
+            echo "- npm: [@0xmariowu/autosearch@${VERSION}](https://www.npmjs.com/package/@0xmariowu/autosearch)"
           } >> "$GITHUB_STEP_SUMMARY"
