@@ -33,9 +33,9 @@ SINGLE_AUTHOR_PATTERN = re.compile(rf"\bby\s+({AUTHOR_NAME})\b")
 def _top_items(counter: Counter[str], limit: int = MAX_ENTITIES) -> list[str]:
     return [
         item
-        for item, _count in sorted(counter.items(), key=lambda pair: (-pair[1], pair[0]))[
-            :limit
-        ]
+        for item, _count in sorted(
+            counter.items(), key=lambda pair: (-pair[1], pair[0])
+        )[:limit]
     ]
 
 
@@ -66,7 +66,9 @@ def extract_x_handles(results: list[dict]) -> list[str]:
             continue
 
         text = " ".join(
-            part for part in (result.get("title", ""), result.get("snippet", "")) if part
+            part
+            for part in (result.get("title", ""), result.get("snippet", ""))
+            if part
         )
         for handle in HANDLE_RE.findall(text):
             normalized = _normalize_handle(handle)
