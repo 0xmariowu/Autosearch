@@ -8,7 +8,6 @@ import pytest
 
 from lib.enrichment import enrich_reddit_items
 
-
 MOCK_THREAD_JSON = [
     {
         "data": {
