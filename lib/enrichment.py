@@ -223,6 +223,13 @@ async def enrich_content(
                     await asyncio.gather(*tasks, return_exceptions=True)
                 except Exception:
                     pass
+        # Re-score results now that we have richer content
+        try:
+            from lib.scoring import rescore_enriched
+
+            rescore_enriched(results, query)
+        except Exception as exc:
+            print(f"[content-enrichment] rescore failed: {exc}", file=sys.stderr)
     except Exception as exc:
         print(f"[content-enrichment] {exc}", file=sys.stderr)
 

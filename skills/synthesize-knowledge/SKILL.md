@@ -117,7 +117,7 @@ Do not resolve the disagreement artificially — state what is genuinely uncerta
 Organize the delivery as typed blocks, not one monolithic document:
 
 1. **Executive framework** — the conceptual model (axes, dimensions, taxonomy)
-2. **Evidence tables** — organized by concept, with adoption signals (stars, citations, venue)
+2. **Evidence tables** — organized by concept, with adoption signals (stars, citations, venue). When claims include `evidence` or `data_points` fields, use the exact quotes and numbers in the table — do not paraphrase. These come from BM25-filtered full-page content and are more specific than snippet-based claims.
 3. **Design patterns** — recurring approaches identified across multiple projects
 4. **Risk analysis** — known limitations, failure modes, open problems
 5. **Gap declaration** — what the search did NOT find, what remains uncertain
