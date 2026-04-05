@@ -69,6 +69,68 @@ async def _search_json_api(query: str, max_results: int) -> list[dict]:
         return results
 
 
+async def search_subreddit(
+    subreddit: str, query: str, max_results: int = 5
+) -> list[dict]:
+    """Search within a specific subreddit. Returns [] on failure (never raises)."""
+    try:
+        async with httpx.AsyncClient(
+            timeout=DEFAULT_TIMEOUT,
+            headers={"User-Agent": USER_AGENT},
+        ) as client:
+            response = await client.get(
+                f"https://www.reddit.com/r/{subreddit}/search.json",
+                params={
+                    "q": query,
+                    "restrict_sr": "on",
+                    "sort": "relevance",
+                    "limit": min(25, max_results),
+                },
+            )
+            if response.status_code in (403, 404):
+                return []
+            response.raise_for_status()
+            payload = response.json()
+            data = payload.get("data")
+            if not isinstance(data, dict):
+                return []
+
+            results: list[dict] = []
+            for post in data.get("children", []):
+                post_data = post.get("data", {})
+                permalink = post_data.get("permalink", "")
+                title = post_data.get("title", "")
+                if not permalink or not title:
+                    continue
+                result_url = urljoin(BASE_URL, permalink)
+                content = (post_data.get("selftext", "") or "")[:500]
+                extra_metadata: dict = {
+                    "subreddit": post_data.get("subreddit", ""),
+                    "score": post_data.get("score", 0),
+                    "num_comments": post_data.get("num_comments", 0),
+                }
+                created_utc = post_data.get("created_utc")
+                if isinstance(created_utc, (int, float)):
+                    extra_metadata["published_at"] = datetime.fromtimestamp(
+                        created_utc, tz=timezone.utc
+                    ).isoformat()
+                results.append(
+                    make_result(
+                        url=result_url,
+                        title=title,
+                        snippet=content,
+                        source="reddit",
+                        query=query,
+                        extra_metadata=extra_metadata,
+                    )
+                )
+                if len(results) >= max_results:
+                    break
+            return results
+    except Exception:
+        return []
+
+
 async def _search_ddgs_fallback(query: str, max_results: int) -> list[dict]:
     """Fallback: search Reddit via DuckDuckGo site: filter."""
     from channels._engines.ddgs import search_ddgs_site
