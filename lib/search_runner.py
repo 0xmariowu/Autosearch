@@ -322,7 +322,7 @@ def make_result(
     return {
         "url": normalize_url(url),
         "title": title.strip(),
-        "snippet": snippet.strip()[:500],
+        "snippet": snippet.strip()[:1500],
         "source": source,
         "query": query,
         "metadata": metadata,
@@ -514,6 +514,13 @@ async def main(queries: list[dict]) -> None:
             await enrich_reddit_items(unique_results)
         except Exception as exc:
             print(f"[search_runner] enrichment failed: {exc}", file=sys.stderr)
+        try:
+            from lib.enrichment import enrich_content
+
+            query_text = queries[0].get("query", "") if queries else ""
+            await enrich_content(unique_results, query_text)
+        except Exception as exc:
+            print(f"[search_runner] content enrichment failed: {exc}", file=sys.stderr)
 
     for result in unique_results:
         print(json.dumps(result, ensure_ascii=False))
