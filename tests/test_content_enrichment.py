@@ -106,7 +106,10 @@ async def test_enrich_content_bm25_filters() -> None:
 
     with (
         patch("lib.enrichment.httpx.AsyncClient", return_value=mock_client),
-        patch("lib.content_processing.filter_relevant_paragraphs", return_value=filtered_text),
+        patch(
+            "lib.content_processing.filter_relevant_paragraphs",
+            return_value=filtered_text,
+        ),
     ):
         await enrich_content([result], "topic", max_items=1)
 
@@ -145,7 +148,10 @@ async def test_enrich_content_fallback_httpx() -> None:
         "Direct fallback content about the topic. " * 4
     )
     assert mock_client.get.await_count == 2
-    assert mock_client.get.await_args_list[0].args[0] == f"{JINA_READER_PREFIX}{result['url']}"
+    assert (
+        mock_client.get.await_args_list[0].args[0]
+        == f"{JINA_READER_PREFIX}{result['url']}"
+    )
     assert mock_client.get.await_args_list[1].args[0] == result["url"]
 
 
@@ -194,7 +200,10 @@ async def test_enrich_content_truncates_to_3000() -> None:
 
     with (
         patch("lib.enrichment.httpx.AsyncClient", return_value=mock_client),
-        patch("lib.content_processing.filter_relevant_paragraphs", return_value=long_filtered),
+        patch(
+            "lib.content_processing.filter_relevant_paragraphs",
+            return_value=long_filtered,
+        ),
     ):
         await enrich_content([result], "topic", max_items=1)
 

@@ -34,16 +34,15 @@ def test_filter_relevant_paragraphs_keeps_relevant() -> None:
 
 def test_filter_relevant_paragraphs_minimum_3() -> None:
     markdown = (
-        "First paragraph.\n\n"
-        "Second paragraph.\n\n"
-        "Third paragraph.\n\n"
-        "Fourth paragraph."
+        "First paragraph.\n\nSecond paragraph.\n\nThird paragraph.\n\nFourth paragraph."
     )
     mock_bm25 = MagicMock()
     mock_bm25.get_scores.return_value = [0.2, 0.1, 0.05, 0.01]
 
     with patch("lib.content_processing.BM25Okapi", return_value=mock_bm25):
-        filtered = filter_relevant_paragraphs(markdown, "unmatched query", threshold=10.0)
+        filtered = filter_relevant_paragraphs(
+            markdown, "unmatched query", threshold=10.0
+        )
 
     assert filtered == "First paragraph.\n\nSecond paragraph.\n\nThird paragraph."
 
