@@ -9,19 +9,28 @@ from collections import Counter
 from pathlib import Path
 
 DEFAULT_WEIGHTS = {
-    "quantity": 0.12,
-    "diversity": 0.13,
-    "relevance": 0.22,
-    "freshness": 0.10,
-    "efficiency": 0.10,
-    "latency": 0.08,
-    "adoption": 0.12,
-    "knowledge_growth": 0.13,
+    "rubric_pass_rate": 0.30,
+    "groundedness": 0.20,
+    "relevant_yield": 0.15,
+    "content_depth": 0.15,
+    "source_diversity": 0.10,
+    "quantity": 0.10,
 }
 WORD_RE = re.compile(r"\w+")
-DATE_FIELDS = ("published_at", "created_utc", "updated_at")
-DEFAULT_LATENCY_BUDGET_SECONDS = 120.0
+HTML_CITATION_RE = re.compile(
+    r'<li\b[^>]*\bid="ref-\d+"[^>]*>[\s\S]*?<a\b[^>]*\bhref="([^"]+)"',
+    re.IGNORECASE,
+)
+MARKDOWN_CITATION_RE = re.compile(r"\[(\d+)\]\((https?://[^)\s]+)\)")
+# [N] Title — URL  (common in AutoSearch .md deliveries)
+MARKDOWN_PLAIN_CITATION_RE = re.compile(
+    r"^\[(\d+)\]\s+.+?\s+—\s+(https?://\S+)", re.MULTILINE
+)
 NEUTRAL_DIMENSION_SCORE = 0.5
+
+
+def clamp_score(value: float) -> float:
+    return max(0.0, min(value, 1.0))
 
 
 def parse_args() -> argparse.Namespace:
@@ -64,6 +73,28 @@ def load_state_json(evidence_file: str | Path | None, filename: str) -> dict | N
     return None
 
 
+def load_state_jsonl(evidence_file: str | Path | None, filename: str) -> list[dict]:
+    for state_dir in candidate_state_dirs(evidence_file):
+        path = state_dir / filename
+        try:
+            with path.open(encoding="utf-8") as handle:
+                rows: list[dict] = []
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        payload = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if isinstance(payload, dict):
+                        rows.append(payload)
+        except OSError:
+            continue
+        return rows
+    return []
+
+
 def coerce_float(value: object, default: float) -> float:
     try:
         return float(value)
@@ -84,34 +115,7 @@ def load_scoring_config(evidence_file: str | Path | None = None) -> dict[str, ob
             if name in configured_weights:
                 weights[name] = coerce_float(configured_weights[name], weights[name])
 
-    latency_budget_seconds = coerce_float(
-        scoring.get("latency_budget_seconds"), DEFAULT_LATENCY_BUDGET_SECONDS
-    )
-    if latency_budget_seconds <= 0:
-        latency_budget_seconds = DEFAULT_LATENCY_BUDGET_SECONDS
-
-    # Freshness profile: topic-type → cutoff days
-    freshness_profiles = scoring.get("freshness_profiles")
-    if not isinstance(freshness_profiles, dict):
-        freshness_profiles = {
-            "default": 183,
-            "emerging": 90,
-            "news": 30,
-            "academic": 365,
-            "historical": 730,
-        }
-
-    # Active freshness days: check for session-level override, else default
-    freshness_days = coerce_float(
-        scoring.get("freshness_days"), freshness_profiles.get("default", 183)
-    )
-
-    return {
-        "dimension_weights": weights,
-        "latency_budget_seconds": latency_budget_seconds,
-        "freshness_days": freshness_days,
-        "freshness_profiles": freshness_profiles,
-    }
+    return {"dimension_weights": weights}
 
 
 def load_default_weights(evidence_file: str | Path | None = None) -> dict[str, float]:
@@ -148,78 +152,198 @@ def parse_date(value: object) -> dt.datetime | None:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.timezone.utc)
 
 
-def score_latency(evidence_file: str, budget_seconds: float) -> float:
-    timing = load_state_json(evidence_file, "timing.json")
-    if not timing:
-        return NEUTRAL_DIMENSION_SCORE
+def score_rubric_pass_rate(evidence_file: str) -> float:
+    history = load_state_jsonl(evidence_file, "rubric-history.jsonl")
+    if not history:
+        return 0.0
 
-    start = parse_date(timing.get("start_ts"))
-    end = parse_date(timing.get("end_ts"))
-    if not start or not end:
-        return NEUTRAL_DIMENSION_SCORE
+    latest_entry: dict | None = None
+    latest_timestamp: dt.datetime | None = None
+    for entry in history:
+        parsed = parse_date(entry.get("timestamp"))
+        if parsed is None:
+            continue
+        if latest_timestamp is None or parsed > latest_timestamp:
+            latest_timestamp = parsed
+            latest_entry = entry
 
-    elapsed_seconds = max((end - start).total_seconds(), 0.0)
-    return 1.0 - min(elapsed_seconds / budget_seconds, 1.0)
+    if latest_entry is None:
+        return 0.0
+
+    if "pass_rate" in latest_entry:
+        return clamp_score(coerce_float(latest_entry.get("pass_rate"), 0.0))
+
+    total = coerce_float(latest_entry.get("total"), 0.0)
+    passed = coerce_float(latest_entry.get("passed"), 0.0)
+    if total <= 0:
+        return 0.0
+    return clamp_score(passed / total)
 
 
-def score_adoption(evidence_file: str) -> float:
-    adoption = load_state_json(evidence_file, "adoption.json")
-    if not adoption:
-        return NEUTRAL_DIMENSION_SCORE
-    return max(
-        0.0,
-        min(coerce_float(adoption.get("score"), NEUTRAL_DIMENSION_SCORE), 1.0),
-    )
+def candidate_delivery_dirs(evidence_file: str | Path) -> list[Path]:
+    evidence_path = Path(evidence_file)
+    candidates = [
+        evidence_path.parent.parent / "delivery",
+        evidence_path.parent.parent.parent / "delivery",
+        evidence_path.parent / "delivery",
+    ]
+
+    unique_candidates: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if resolved not in seen:
+            seen.add(resolved)
+            unique_candidates.append(candidate)
+    return unique_candidates
 
 
-def score_knowledge_growth(evidence_file: str) -> float:
-    """Score cumulative knowledge growth across sessions.
+def find_latest_delivery_file(evidence_file: str | Path) -> Path | None:
+    evidence_name = Path(
+        evidence_file
+    ).stem  # e.g. "20260404-ai-code-review-tools-results"
+    # Strip common suffixes to get the session slug
+    session_slug = evidence_name
+    for suffix in ("-results", "-claims", "-search-errors"):
+        if session_slug.endswith(suffix):
+            session_slug = session_slug[: -len(suffix)]
+            break
 
-    Reads state/knowledge-growth.json with fields:
-    - initial_entries: knowledge map size at session start
-    - final_entries: knowledge map size at session end
-    - initial_gaps: GAP-tagged items at session start
-    - remaining_gaps: GAP-tagged items at session end
-    - high_confidence: HIGH-tagged items at session end
+    # First pass: try to match by session slug prefix
+    for delivery_dir in candidate_delivery_dirs(evidence_file):
+        if not delivery_dir.is_dir():
+            continue
+        for path in delivery_dir.iterdir():
+            if not path.is_file():
+                continue
+            if path.stem.startswith(session_slug):
+                return path
 
-    Score = weighted combination of:
-    - growth_ratio: new entries / max(initial, 1) (capped at 1.0 for 100% growth)
-    - gap_closure: (initial_gaps - remaining_gaps) / max(initial_gaps, 1)
-    - confidence_ratio: high_confidence / max(final_entries, 1)
+    # Fallback: most recently modified file
+    latest_file: Path | None = None
+    latest_mtime = -1.0
+    for delivery_dir in candidate_delivery_dirs(evidence_file):
+        if not delivery_dir.is_dir():
+            continue
+        for path in delivery_dir.iterdir():
+            if not path.is_file():
+                continue
+            try:
+                mtime = path.stat().st_mtime
+            except OSError:
+                continue
+            if mtime > latest_mtime:
+                latest_mtime = mtime
+                latest_file = path
+    return latest_file
 
-    Returns NEUTRAL (0.5) when the file does not exist or has no meaningful data.
-    """
-    kg = load_state_json(evidence_file, "knowledge-growth.json")
-    if not kg:
-        return NEUTRAL_DIMENSION_SCORE
 
-    initial = coerce_float(kg.get("initial_entries"), 0)
-    final = coerce_float(kg.get("final_entries"), 0)
-    initial_gaps = coerce_float(kg.get("initial_gaps"), 0)
-    remaining_gaps = coerce_float(kg.get("remaining_gaps"), 0)
-    high_confidence = coerce_float(kg.get("high_confidence"), 0)
+def extract_citation_urls(delivery_file: Path) -> list[str]:
+    try:
+        content = delivery_file.read_text(encoding="utf-8")
+    except OSError:
+        return []
 
-    # No meaningful data yet — return neutral instead of penalizing
-    if initial == 0 and final == 0 and initial_gaps == 0:
-        return NEUTRAL_DIMENSION_SCORE
+    urls = HTML_CITATION_RE.findall(content)
+    urls.extend(match[1] for match in MARKDOWN_CITATION_RE.findall(content))
+    urls.extend(match[1] for match in MARKDOWN_PLAIN_CITATION_RE.findall(content))
+    return urls
 
-    # Growth: how much did the knowledge map expand?
-    growth_ratio = (
-        min((final - initial) / max(initial, 1), 1.0) if final > initial else 0.0
-    )
 
-    # Gap closure: how many unknowns were resolved?
-    gap_closure = (
-        (initial_gaps - remaining_gaps) / max(initial_gaps, 1)
-        if initial_gaps > remaining_gaps
-        else 0.0
-    )
+def score_groundedness(evidence_file: str, results: list[dict]) -> float:
+    delivery_file = find_latest_delivery_file(evidence_file)
+    if delivery_file is None:
+        return 0.0
 
-    # Confidence: what fraction of knowledge is HIGH confidence?
-    confidence_ratio = high_confidence / max(final, 1) if final > 0 else 0.0
+    citation_urls = extract_citation_urls(delivery_file)
+    if not citation_urls:
+        return 0.0
 
-    # Weighted combination: gap closure most important, then confidence, then growth
-    return 0.4 * gap_closure + 0.35 * confidence_ratio + 0.25 * growth_ratio
+    evidence_urls = {item.get("url") for item in results if item.get("url")}
+    grounded_count = sum(1 for url in citation_urls if url in evidence_urls)
+    return clamp_score(grounded_count / len(citation_urls))
+
+
+def score_content_depth(results: list[dict]) -> float:
+    total_results = len(results)
+    if total_results == 0:
+        return 0.0
+
+    with_content = 0
+    for item in results:
+        metadata = (
+            item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+        )
+        extracted_content = metadata.get("extracted_content")
+        if isinstance(extracted_content, str) and extracted_content.strip():
+            with_content += 1
+    return clamp_score(with_content / total_results)
+
+
+def score_relevant_yield(results: list[dict]) -> float:
+    total_results = len(results)
+    if total_results == 0:
+        return 0.0
+
+    queries = {
+        str(item.get("query", "")).strip()
+        for item in results
+        if str(item.get("query", "")).strip()
+    }
+    query_words = {word.lower() for query in queries for word in WORD_RE.findall(query)}
+
+    relevant_count = 0
+    for item in results:
+        metadata = (
+            item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+        )
+        if "llm_relevant" in metadata:
+            if metadata.get("llm_relevant") is True:
+                relevant_count += 1
+            continue
+
+        haystack_words = {
+            word.lower()
+            for word in WORD_RE.findall(
+                f"{item.get('title', '')} {item.get('snippet', '')}"
+            )
+        }
+        if query_words and haystack_words.intersection(query_words):
+            relevant_count += 1
+    return clamp_score(relevant_count / total_results)
+
+
+def score_source_diversity(results: list[dict]) -> float:
+    if not results:
+        return 0.0
+
+    has_llm_relevant = False
+    relevant_results: list[dict] = []
+    for item in results:
+        metadata = (
+            item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+        )
+        if "llm_relevant" in metadata:
+            has_llm_relevant = True
+            if metadata.get("llm_relevant") is True:
+                relevant_results.append(item)
+
+    scored_results = relevant_results if has_llm_relevant else results
+    platforms = [
+        str(item.get("source", "")).lower()
+        for item in scored_results
+        if item.get("source")
+    ]
+    total_results = len(platforms)
+    if total_results <= 1:
+        return 0.0
+
+    counts = Counter(platforms)
+    if len(counts) <= 1:
+        return 0.0
+
+    numerator = sum(count * (count - 1) for count in counts.values())
+    return clamp_score(1.0 - (numerator / (total_results * (total_results - 1))))
 
 
 def score_results(
@@ -232,6 +356,7 @@ def score_results(
     scoring_config = load_scoring_config(evidence_file)
     weights = weights or scoring_config["dimension_weights"]
     now = now or dt.datetime.now(dt.timezone.utc)
+
     total_results = len(results)
     unique_urls = {item.get("url") for item in results if item.get("url")}
     queries = {
@@ -243,64 +368,14 @@ def score_results(
         str(item.get("source", "")).lower() for item in results if item.get("source")
     ]
     counts = Counter(platforms)
-    query_words = {word.lower() for query in queries for word in WORD_RE.findall(query)}
 
-    quantity = min(len(unique_urls) / max(target, 1), 1.0)
-    if total_results <= 1:
-        diversity = 0.0
-    else:
-        numerator = sum(count * (count - 1) for count in counts.values())
-        diversity = 1.0 - (numerator / (total_results * (total_results - 1)))
-
-    match_count = 0
-    for item in results:
-        metadata = (
-            item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
-        )
-        if "llm_relevant" in metadata:
-            if metadata.get("llm_relevant") is True:
-                match_count += 1
-            continue
-
-        haystack_words = {
-            word.lower()
-            for word in WORD_RE.findall(
-                f"{item.get('title', '')} {item.get('snippet', '')}"
-            )
-        }
-        if query_words and haystack_words.intersection(query_words):
-            match_count += 1
-    relevance = match_count / total_results if total_results else 0.0
-
-    freshness_days = scoring_config.get("freshness_days", 183)
-    fresh_cutoff = now - dt.timedelta(days=freshness_days)
-    fresh_count = 0
-    for item in results:
-        metadata = (
-            item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
-        )
-        parsed = None
-        for name in DATE_FIELDS:
-            parsed = parse_date(metadata.get(name))
-            if parsed:
-                break
-        if parsed and parsed >= fresh_cutoff:
-            fresh_count += 1
-    freshness = fresh_count / total_results if total_results else 0.0
-
-    efficiency = min(len(unique_urls) / max(len(queries) * 3, 1), 1.0)
-    latency = score_latency(evidence_file, scoring_config["latency_budget_seconds"])
-    adoption = score_adoption(evidence_file)
-    knowledge_growth = score_knowledge_growth(evidence_file)
     dimensions = {
-        "quantity": quantity,
-        "diversity": diversity,
-        "relevance": relevance,
-        "freshness": freshness,
-        "efficiency": efficiency,
-        "latency": latency,
-        "adoption": adoption,
-        "knowledge_growth": knowledge_growth,
+        "rubric_pass_rate": score_rubric_pass_rate(evidence_file),
+        "groundedness": score_groundedness(evidence_file, results),
+        "relevant_yield": score_relevant_yield(results),
+        "content_depth": score_content_depth(results),
+        "source_diversity": score_source_diversity(results),
+        "quantity": clamp_score(min(len(unique_urls) / max(target, 1), 1.0)),
     }
     weight_sum = sum(float(weights.get(name, 0.0)) for name in dimensions)
     total = (
@@ -310,10 +385,8 @@ def score_results(
         else 0.0
     )
     return {
-        "total": max(0.0, min(total, 1.0)),
-        "dimensions": {
-            name: max(0.0, min(value, 1.0)) for name, value in dimensions.items()
-        },
+        "total": clamp_score(total),
+        "dimensions": {name: clamp_score(value) for name, value in dimensions.items()},
         "meta": {
             "total_results": total_results,
             "unique_urls": len(unique_urls),
