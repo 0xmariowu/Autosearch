@@ -206,7 +206,7 @@ After Block 5 returns, parse its summary and output:
 
 #### Block 6: Evolve (Phase 6) — Sonnet
 
-**Skip if over time budget.** Evolution is valuable but not worth making the user wait.
+**Always run.** Evolution is the session's core value, not an optional add-on. If time is tight, do minimal evolution (patterns + query-outcomes only), but never skip entirely.
 
 Spawn a Sonnet agent (`model: "sonnet"`) with this task:
 
@@ -217,12 +217,13 @@ Spawn a Sonnet agent (`model: "sonnet"`) with this task:
 >
 > Read `skills/pipeline-flow/SKILL.md` Phase 6 for context.
 >
-> 1. Read `skills/knowledge-map/SKILL.md` and save updated knowledge map.
-> 2. Append winning patterns to `state/patterns-v2.jsonl`.
-> 3. Read `skills/auto-evolve/SKILL.md` and run one evolution step.
+> 1. **Write query outcomes**: Read `evidence/{session_id}-results.jsonl`. For each unique query+channel combination, compute results_count and relevant_count (from `metadata.llm_relevant`). Append to `state/query-outcomes.jsonl`.
+> 2. **Write winning patterns**: From query-outcomes just written, extract combinations with relevant_rate > 0.5. Append to `state/patterns-v2.jsonl` with type `winning_pattern`, channel, topic_type, and confidence.
+> 3. Read `skills/auto-evolve/SKILL.md` and run one evolution step (diagnose failed rubrics → modify one skill/data file → git commit → record in evolution-log.jsonl).
 > 4. Append to `state/worklog.jsonl`: task_spec, search_run, reflection, delivery entries.
+> 5. Read `skills/knowledge-map/SKILL.md` and save updated knowledge map.
 >
-> At the end, output a JSON summary: `{"patterns_saved": N, "evolved": true/false}`
+> At the end, output a JSON summary: `{"patterns_saved": N, "query_outcomes_written": N, "evolved": true/false, "evolution_file": "path or null"}`
 
 After Block 6 returns, parse its summary and output:
 ```
