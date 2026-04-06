@@ -49,19 +49,19 @@ curl -fsSL https://raw.githubusercontent.com/0xmariowu/autosearch/main/scripts/i
 AutoSearch asks two questions — how deep and what format — then searches, evaluates, and delivers a cited report with real-time progress:
 
 ```
-[Phase 1/6] Prepare  — 25 rubrics, 47 items recalled, 15 queries planned
-[Phase 2/6] Search   — 62 results from 12 channels
-[Phase 3/6] Evaluate — 54 relevant, 3 gap queries
-[Phase 4/6] Deliver  — report ready (38 citations)
-[Phase 5/6] Quality  — 23/25 rubrics passed
-[Phase 6/6] Evolve   — 4 patterns saved
+[Phase 1/6] Recall     — 25 rubrics, 47 items recalled, 15 queries planned
+[Phase 2/6] Search     — 62 results from 12 channels
+[Phase 3/6] Evaluate   — 54 relevant, 3 gap queries
+[Phase 4/6] Synthesize — report ready (38 citations)
+[Phase 5/6] Rubrics    — 23/25 rubrics passed
+[Phase 6/6] Evolve     — 4 patterns saved
 ```
 
 ## What Makes It Different
 
 | | AutoSearch | Perplexity | Native Claude |
 |---|---|---|---|
-| **Search channels** | 32 dedicated connectors | ~3 web engines | 1 (WebSearch) |
+| **Search channels** | 34 dedicated connectors | ~3 web engines | 1 (WebSearch) |
 | **Chinese sources** | 12 native (zhihu, bilibili, 36kr, csdn...) | 0 | 0 |
 | **Academic sources** | 6 (arXiv, Semantic Scholar, OpenReview, Papers with Code...) | 1 | 0 |
 | **Gets smarter over time** | Yes — learns which queries and channels work | No | No |
@@ -125,9 +125,9 @@ You: /autosearch "topic"
 
 | Category | Channels | Why it matters |
 |---|---|---|
-| **Code** | github-repos, github-issues, github-code, npm-pypi, stackoverflow | Find actual implementations, not just articles about them |
-| **Academic** | arxiv, semantic-scholar, google-scholar, citation-graph, papers-with-code, openreview | Latest papers + code, conference proceedings, citation networks |
-| **Community** | reddit, hackernews, twitter/x, devto | Real user experiences, not marketing |
+| **Code** | github-repos, github-issues, npm-pypi, stackoverflow | Find actual implementations, not just articles about them |
+| **Academic** | arxiv, semantic-scholar, google-scholar, citation-graph, papers-with-code, huggingface | Latest papers + code, conference proceedings, models and datasets |
+| **Community** | reddit, hn, twitter/x, devto | Real user experiences, not marketing |
 | **Chinese** | zhihu, bilibili, csdn, juejin, 36kr, wechat, weibo, xiaohongshu, douyin, xiaoyuzhou, xueqiu, infoq-cn | 12 platforms. No other research tool covers the Chinese internet like this |
 | **Video** | youtube, bilibili, conference-talks | Tutorials, demos, conference keynotes with transcript extraction |
 | **Business** | producthunt, crunchbase, g2, linkedin | Startup discovery, funding data, real user reviews |
@@ -163,8 +163,8 @@ autosearch/
   .claude-plugin/     Plugin manifest (version, metadata)
   commands/           /autosearch entry point + setup
   agents/             Researcher agent definition
-  skills/             40+ skills (pipeline, synthesis, evaluation, evolution)
-  channels/           32 channel plugins (SKILL.md + search.py each)
+  skills/             54 skills (pipeline, synthesis, evaluation, evolution)
+  channels/           34 channel plugins (SKILL.md + search.py each)
     _engines/         Shared backends (baidu, ddgs)
   lib/                search_runner.py, judge.py (fixed evaluator)
   state/              Append-only learning data

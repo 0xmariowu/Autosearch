@@ -56,7 +56,7 @@ Run `judge.py` at least once in every variation step.
 
 ## 5. Scoring
 Run `python3 judge.py <evidence-file> [--target N]`.
-Require Python 3.11 or newer.
+Require Python 3.10 or newer.
 Treat the judge interface as fixed.
 Let `judge.py` read the evidence JSONL plus `state/timing.json` and `state/adoption.json`.
 Score against seven dimensions: `quantity`, `diversity`, `relevance`, `freshness`, `efficiency`, `latency`, and `adoption`.

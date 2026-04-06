@@ -1,6 +1,6 @@
 {
   "name": "@0xmariowu/autosearch",
-  "version": "2026.4.5",
+  "version": "2026.04.05.5",
   "description": "Self-evolving deep research for Claude Code. Gets smarter every time you use it.",
   "author": "0xmariowu",
   "license": "MIT",

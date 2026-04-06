@@ -15,7 +15,7 @@ You: /autosearch "topic"
  |
 [2] Identifies gaps -> generates queries ONLY for what Claude doesn't know
  |
-[3] Searches 32+ channels in parallel (10-30 seconds)
+[3] Searches 34 channels in parallel (10-30 seconds)
  |
 [4] LLM evaluates each result for relevance, filters noise
  |
@@ -31,7 +31,7 @@ Each block has a time limit (5/5/5/8/3/3 minutes) to prevent hangs.
 AutoSearch implements the AVO (Agent Variation Operator) pattern:
 
 - **P_t = `state/`** — lineage: worklog, patterns, evolution history, outcomes
-- **K = `skills/`** — capability set (50+ skills)
+- **K = `skills/`** — capability set (54 skills)
 - **f = `judge.py`** — fixed scoring function (never modified by evolution)
 
 After each session:
@@ -57,8 +57,8 @@ autosearch/
   .claude-plugin/     Plugin manifest (version, metadata)
   commands/           /autosearch entry point + setup
   agents/             Claude Code agent definitions
-  skills/             50+ skills (pipeline, synthesis, evaluation, evolution)
-  channels/           32+ channel plugins (SKILL.md + search.py each)
+  skills/             54 skills (pipeline, synthesis, evaluation, evolution)
+  channels/           34 channel plugins (SKILL.md + search.py each)
     _engines/         Shared backends (baidu, ddgs)
   lib/                search_runner.py, judge.py (fixed evaluator)
   state/              Append-only learning data

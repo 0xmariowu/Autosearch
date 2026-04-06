@@ -18,6 +18,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
       - name: Extract version from tag
         id: version
         env:
@@ -107,9 +112,26 @@ jobs:
             require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
           "
           echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > .npmrc
-          npm publish --access public
+          npm publish --access public || true
           rm -f .npmrc
           echo "Published @0xmariowu/autosearch@${VERSION} to npm"
+
+      - name: Sync website
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          CHANNEL_COUNT=$(python3 -c "import json; print(json.load(open('release-metadata.json'))['channel_count'])" 2>/dev/null || echo "34")
+          if [ -n "$GH_TOKEN" ]; then
+            gh workflow run sync-from-release.yml \
+              --repo 0xmariowu/autosearch-smart-search \
+              --field version="$VERSION" \
+              --field channel_count="$CHANNEL_COUNT" \
+              || echo "Warning: website sync failed (SYNC_TOKEN may not be configured)"
+          else
+            echo "Skipping website sync (SYNC_TOKEN not configured)"
+          fi
 
       - name: Summary
         run: |

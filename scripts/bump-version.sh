@@ -186,13 +186,42 @@ if [ -f "$DOCS_CHANGELOG" ]; then
     info "synced docs/changelog.mdx"
 fi
 
+# --- Refresh release-metadata.json and sync counts ---
+"$REPO_ROOT/scripts/generate-metadata.sh"
+CHANNEL_COUNT=$(python3 -c "import json; print(json.load(open('$REPO_ROOT/release-metadata.json'))['channel_count'])")
+SKILL_COUNT=$(python3 -c "import json; print(json.load(open('$REPO_ROOT/release-metadata.json'))['skill_count'])")
+
+# Sync channel/skill counts across all docs and README
+# Pattern-based sed: only replace numbers in known contexts, not blindly
+for f in \
+    "$REPO_ROOT/README.md" \
+    "$REPO_ROOT/npm/README.md" \
+    "$REPO_ROOT/docs/introduction.mdx" \
+    "$REPO_ROOT/docs/channels.mdx" \
+    "$REPO_ROOT/docs/quickstart.mdx" \
+    "$REPO_ROOT/docs/architecture.mdx" \
+    "$REPO_ROOT/docs/skills.mdx"; do
+    [ -f "$f" ] || continue
+    # Channel count patterns
+    sed -i '' -E "s/[0-9]+ search channels/${CHANNEL_COUNT} search channels/g" "$f"
+    sed -i '' -E "s/[0-9]+ dedicated (connectors|channels)/${CHANNEL_COUNT} dedicated \1/g" "$f"
+    sed -i '' -E "s/[0-9]+ channel plugins/${CHANNEL_COUNT} channel plugins/g" "$f"
+    sed -i '' -E "s/channels-[0-9]+-green/channels-${CHANNEL_COUNT}-green/g" "$f"
+    sed -i '' -E "s/has [0-9]+ dedicated/has ${CHANNEL_COUNT} dedicated/g" "$f"
+    sed -i '' -E "s/All [0-9]+ (search )?channels/All ${CHANNEL_COUNT} \1channels/g" "$f"
+    sed -i '' -E "s/[0-9]+ channels\./34 channels./g" "$f"
+    # Skill count patterns
+    sed -i '' -E "s/[0-9]+ (evolvable )?skills/${SKILL_COUNT} \1skills/g" "$f"
+done
+info "synced channel ($CHANNEL_COUNT) and skill ($SKILL_COUNT) counts"
+
 # --- Summary ---
 echo ""
 printf "${BOLD}Version bumped to ${GREEN}%s${NC}\n" "$NEW_VERSION"
 echo ""
 echo "Next steps:"
-echo "  1. Review docs/ pages — update if features changed (channels.mdx, quickstart.mdx, etc.)"
-echo "  2. git add .claude-plugin/plugin.json .claude-plugin/marketplace.json npm/package.json CHANGELOG.md docs/changelog.mdx"
-echo "  3. scripts/committer \"chore: bump version to $NEW_VERSION\" .claude-plugin/plugin.json .claude-plugin/marketplace.json npm/package.json CHANGELOG.md docs/changelog.mdx"
+echo "  1. Review docs/ — add content for new features if needed"
+echo "  2. git add .claude-plugin/ npm/package.json CHANGELOG.md docs/ README.md release-metadata.json"
+echo "  3. scripts/committer \"chore: bump version to $NEW_VERSION\" .claude-plugin/plugin.json .claude-plugin/marketplace.json npm/package.json CHANGELOG.md docs/changelog.mdx release-metadata.json README.md"
 echo "  4. git tag v$NEW_VERSION"
 echo "  5. git push && git push --tags"
