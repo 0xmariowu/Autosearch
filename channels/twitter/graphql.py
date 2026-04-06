@@ -375,7 +375,7 @@ async def search_graphql(query: str, max_results: int = 20) -> list[dict]:
             "X-Client-Transaction-Id": uuid.uuid4().hex,
         }
 
-        timeout = httpx.Timeout(20.0, connect=10.0)
+        timeout = httpx.Timeout(10.0, connect=5.0)
 
         async with httpx.AsyncClient(headers=headers, timeout=timeout) as client:
             for index, query_id in enumerate(query_ids):
