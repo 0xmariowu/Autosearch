@@ -116,7 +116,7 @@ async def _search_native(query: str, max_results: int) -> list[dict]:
         if blog_urls:
             tasks = [_fetch_article(client, url) for _, url in blog_urls]
             contents = await asyncio.gather(*tasks, return_exceptions=True)
-            for (idx, _), content in zip(blog_urls, contents):
+            for (idx, _), content in zip(blog_urls, contents, strict=True):
                 if isinstance(content, str) and content:
                     results[idx].setdefault("metadata", {})["extracted_content"] = (
                         content

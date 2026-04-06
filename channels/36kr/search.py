@@ -144,7 +144,7 @@ async def _search_native(query: str, max_results: int) -> list[dict]:
         if content_targets:
             tasks = [_fetch_article(client, u) for _, u in content_targets]
             contents = await asyncio.gather(*tasks, return_exceptions=True)
-            for (idx, _), content in zip(content_targets, contents):
+            for (idx, _), content in zip(content_targets, contents, strict=True):
                 if isinstance(content, str) and content:
                     results[idx].setdefault("metadata", {})["extracted_content"] = (
                         content
