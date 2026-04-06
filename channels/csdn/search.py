@@ -82,8 +82,20 @@ async def _search_native(query: str, max_results: int) -> list[dict]:
                     metadata[key] = val
 
             create_time = item.get("create_time") or item.get("create_date", "")
-            if create_time and len(str(create_time)) >= 10:
-                metadata["published_at"] = str(create_time)[:10] + "T00:00:00Z"
+            if create_time:
+                ct = str(create_time)
+                # Unix epoch seconds (e.g. 1744992000)
+                if ct.isdigit() and len(ct) >= 10:
+                    try:
+                        from datetime import datetime, timezone
+
+                        dt = datetime.fromtimestamp(int(ct[:10]), tz=timezone.utc)
+                        metadata["published_at"] = dt.isoformat()
+                    except (ValueError, OSError):
+                        pass
+                # ISO date string
+                elif "-" in ct and len(ct) >= 10:
+                    metadata["published_at"] = ct[:10] + "T00:00:00Z"
 
             results.append(
                 make_result(
@@ -126,7 +138,10 @@ async def _fetch_article(client: httpx.AsyncClient, url: str) -> str:
         for pattern in _CONTENT_PATTERNS:
             match = pattern.search(html)
             if match:
+                from html import unescape
+
                 text = re.sub(r"<[^>]+>", " ", match.group(1))
+                text = unescape(text)  # Decode &#xff08; etc.
                 text = re.sub(r"\s+", " ", text).strip()
                 if len(text) > 100:
                     return text[:3000]
