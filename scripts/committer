@@ -59,6 +59,26 @@ if [[ -f "$LOCK" ]]; then
   done
 fi
 
+# --- Auto-sync: if CHANGELOG.md is staged, sync to docs/changelog.mdx ---
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+DOCS_CHANGELOG="$REPO_ROOT/docs/changelog.mdx"
+CHANGELOG="$REPO_ROOT/CHANGELOG.md"
+for file in "${FILES[@]}"; do
+  if [[ "$(basename "$file")" == "CHANGELOG.md" ]] && [[ -f "$DOCS_CHANGELOG" ]] && [[ -f "$CHANGELOG" ]]; then
+    {
+      echo '---'
+      echo 'title: Changelog'
+      echo 'description: All changes to AutoSearch, organized by release.'
+      echo '---'
+      echo ''
+      tail -n +2 "$CHANGELOG" | sed '/./,$!d'
+    } > "$DOCS_CHANGELOG"
+    FILES+=("docs/changelog.mdx")
+    printf "${DIM}auto-synced CHANGELOG.md → docs/changelog.mdx${NC}\n"
+    break
+  fi
+done
+
 # --- Clean slate: unstage everything, then stage only our files ---
 git restore --staged :/ 2>/dev/null || true
 git add -- "${FILES[@]}"
