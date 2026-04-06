@@ -12,6 +12,15 @@ All changes to AutoSearch. Format: `## YYYY.MM.DD.N` with `### Changes` and `###
 
 ---
 
+## 2026.04.06.7
+
+### Changes
+
+- You can now see report-quality scores instead of search-pipeline metrics — judge.py redesigned with 6 new dimensions: rubric pass rate (0.30), groundedness (0.20), relevant yield (0.15), content depth (0.15), source diversity (0.10), quantity (0.10)
+- You can now get deep LLM-as-judge evaluation via quality_eval.py — 6 quality dimensions + claim-level groundedness check, adapted from LangChain open_deep_research
+- Evolution (Block 6) now always runs instead of being skipped when over time budget — writes query-outcomes, winning patterns, rubric history, and evolution diagnostics every session
+- Removed latency, freshness, adoption, and knowledge_growth from judge — latency is a constraint not a goal, freshness is topic-dependent (now handled via rubrics), adoption and knowledge_growth were ghost dimensions reading nonexistent files
+
 ## 2026.04.06.6
 
 ### Changes

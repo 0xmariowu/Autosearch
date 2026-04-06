@@ -536,20 +536,199 @@ Output ONLY the JSON array."""
         )
 
 
-async def run_block6(session: SessionDir) -> BlockResult:
-    """Block 6: Evolve — simplified (write worklog only, no git ops)."""
+def _write_query_outcomes(session: SessionDir) -> int:
+    """Extract query-level outcomes from results and append to state."""
+    results = session.read_results()
+    if not results:
+        return 0
+
+    # Group by query+channel
+    combos: dict[tuple[str, str], list[dict]] = {}
+    for r in results:
+        key = (r.get("query", ""), r.get("source", ""))
+        combos.setdefault(key, []).append(r)
+
+    outcomes_path = session.root / "state" / "query-outcomes.jsonl"
+    count = 0
+    with open(outcomes_path, "a") as f:
+        for (query, channel), items in combos.items():
+            if not query:
+                continue
+            relevant = sum(
+                1
+                for i in items
+                if isinstance(i.get("metadata"), dict)
+                and i["metadata"].get("llm_relevant") is True
+            )
+            entry = {
+                "session": session.id,
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "query": query,
+                "channel": channel,
+                "results_count": len(items),
+                "relevant_count": relevant,
+                "relevant_rate": round(relevant / len(items), 2) if items else 0,
+                "topic_type": "general",
+            }
+            f.write(json.dumps(entry) + "\n")
+            count += 1
+    return count
+
+
+def _write_winning_patterns(session: SessionDir) -> int:
+    """Extract winning patterns from query-outcomes and append to state."""
+    qo_path = session.root / "state" / "query-outcomes.jsonl"
+    if not qo_path.exists():
+        return 0
+
+    lines = qo_path.read_text().strip().split("\n")
+    outcomes = [json.loads(line) for line in lines if line.strip()]
+
+    patterns_path = session.root / "state" / "patterns-v2.jsonl"
+    count = 0
+    with open(patterns_path, "a") as f:
+        for o in outcomes:
+            if o.get("relevant_rate", 0) >= 0.5 and o.get("results_count", 0) >= 2:
+                pattern = {
+                    "session": session.id,
+                    "ts": datetime.now(timezone.utc).isoformat(),
+                    "type": "winning_pattern",
+                    "pattern": f"{o['channel']} with query '{o['query']}' yielded {o['relevant_rate']:.0%} relevance",
+                    "channel": o.get("channel", ""),
+                    "topic_type": o.get("topic_type", "general"),
+                    "confidence": "medium",
+                }
+                f.write(json.dumps(pattern) + "\n")
+                count += 1
+    return count
+
+
+async def run_block6(llm: LLMClient, session: SessionDir, topic: str) -> BlockResult:
+    """Block 6: Evolve — write query-outcomes, patterns, diagnose failures, propose skill change."""
     start = time.monotonic()
     try:
-        # Write a worklog entry
-        entry = {
-            "type": "e2e_test",
+        # Step 1: Write query outcomes
+        qo_count = _write_query_outcomes(session)
+
+        # Step 2: Write winning patterns
+        patterns_count = _write_winning_patterns(session)
+
+        # Step 3: Read checked rubrics and diagnose
+        checked_path = (
+            session.root / "evidence" / f"checked-rubrics-{session.slug}.jsonl"
+        )
+        evolution_entry = None
+        evolved = False
+
+        if checked_path.exists():
+            lines = checked_path.read_text().strip().split("\n")
+            checked = [json.loads(line) for line in lines if line.strip()]
+            failed = [c for c in checked if not c.get("passed")]
+            passed_count = sum(1 for c in checked if c.get("passed"))
+            pass_rate = passed_count / len(checked) if checked else 0
+
+            if failed and pass_rate < 0.75:
+                # Diagnose and propose a skill change via LLM
+                auto_evolve_skill = read_skill("auto-evolve")
+                failed_json = json.dumps(failed[:5], indent=2)
+
+                prompt = f"""You are AutoSearch's evolution engine. Analyze failed rubrics and propose ONE skill modification.
+
+Topic: {topic}
+Pass rate: {pass_rate:.2f} ({passed_count}/{len(checked)})
+
+Failed rubrics:
+{failed_json}
+
+Available mutable skills (DO NOT modify auto-evolve, create-skill, observe-user, interact-user, discover-environment, generate-rubrics, check-rubrics, judge.py, PROTOCOL.md):
+- gene-query: query generation strategy
+- select-channels: channel selection rules
+- synthesize-knowledge: report synthesis rules
+- llm-evaluate: relevance evaluation
+
+Instructions from auto-evolve skill:
+{auto_evolve_skill[:2000]}
+
+Output ONLY a JSON object:
+{{
+  "diagnosis": "one-line root cause",
+  "weakest_category": "category name",
+  "target_rubrics": ["r001", "r002"],
+  "action": "what to change",
+  "target_file": "skills/synthesize-knowledge/SKILL.md",
+  "expected_flips": ["r001"]
+}}"""
+
+                response = await llm.chat("sonnet", prompt, max_tokens=2000)
+                try:
+                    json_match = re.search(r"\{.*\}", response, re.DOTALL)
+                    if json_match:
+                        diagnosis = json.loads(json_match.group(0))
+                        evolution_entry = {
+                            "session": session.id,
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "topic": topic,
+                            "rubric_pass_rate": round(pass_rate, 3),
+                            "failed_rubrics": [f.get("id", "") for f in failed],
+                            "weakest_category": diagnosis.get("weakest_category", ""),
+                            "target_rubrics": diagnosis.get("target_rubrics", []),
+                            "diagnosis": diagnosis.get("diagnosis", ""),
+                            "action": diagnosis.get("action", ""),
+                            "modified_file": diagnosis.get("target_file", ""),
+                            "expected_flips": diagnosis.get("expected_flips", []),
+                            "commit_hash": None,
+                            "note": "e2e_test: diagnosis only, no git commit",
+                        }
+                        evolved = True
+                except (json.JSONDecodeError, KeyError):
+                    pass
+            else:
+                evolution_entry = {
+                    "session": session.id,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "topic": topic,
+                    "rubric_pass_rate": round(pass_rate, 3),
+                    "failed_rubrics": [f.get("id", "") for f in failed],
+                    "skip_reason": f"skip: pass rate {pass_rate:.2f} >= 0.75"
+                    if pass_rate >= 0.75
+                    else "skip: no failed rubrics",
+                }
+
+        # Write evolution log
+        evo_path = session.root / "state" / "evolution-log.jsonl"
+        if evolution_entry:
+            with open(evo_path, "a") as f:
+                f.write(json.dumps(evolution_entry) + "\n")
+
+        # Write rubric history (for judge.py rubric_pass_rate dimension)
+        if checked_path.exists():
+            lines = checked_path.read_text().strip().split("\n")
+            checked = [json.loads(line) for line in lines if line.strip()]
+            passed_count = sum(1 for c in checked if c.get("passed"))
+            rh_entry = {
+                "topic": topic,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "total_rubrics": len(checked),
+                "passed": passed_count,
+                "failed": len(checked) - passed_count,
+                "pass_rate": round(passed_count / len(checked), 3) if checked else 0,
+            }
+            rh_path = session.root / "state" / "rubric-history.jsonl"
+            with open(rh_path, "a") as f:
+                f.write(json.dumps(rh_entry) + "\n")
+
+        # Write worklog
+        wl_entry = {
+            "type": "evolution",
             "ts": datetime.now(timezone.utc).isoformat(),
             "session_id": session.id,
-            "topic_id": session.topic_id,
+            "query_outcomes": qo_count,
+            "patterns_saved": patterns_count,
+            "evolved": evolved,
         }
         wl = session.root / "state" / "worklog.jsonl"
         with open(wl, "a") as f:
-            f.write(json.dumps(entry) + "\n")
+            f.write(json.dumps(wl_entry) + "\n")
 
         elapsed = int((time.monotonic() - start) * 1000)
         return BlockResult(
@@ -557,7 +736,17 @@ async def run_block6(session: SessionDir) -> BlockResult:
             name="Evolve",
             passed=True,
             time_ms=elapsed,
-            details={"worklog_written": True},
+            details={
+                "query_outcomes": qo_count,
+                "patterns_saved": patterns_count,
+                "evolved": evolved,
+                "diagnosis": evolution_entry.get("diagnosis")
+                if evolution_entry
+                else None,
+                "target_file": evolution_entry.get("modified_file")
+                if evolution_entry
+                else None,
+            },
         )
     except Exception as exc:
         elapsed = int((time.monotonic() - start) * 1000)
@@ -589,7 +778,7 @@ async def run_topic(
         ("Block 5", lambda: run_block5(llm, session)),
     ]
     if not skip_evolve:
-        blocks.append(("Block 6", lambda: run_block6(session)))
+        blocks.append(("Block 6", lambda: run_block6(llm, session, topic["topic"])))
 
     all_passed = True
     for block_name, block_fn in blocks:

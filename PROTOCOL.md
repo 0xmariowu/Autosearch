@@ -58,8 +58,8 @@ Run `judge.py` at least once in every variation step.
 Run `python3 judge.py <evidence-file> [--target N]`.
 Require Python 3.10 or newer.
 Treat the judge interface as fixed.
-Let `judge.py` read the evidence JSONL plus `state/timing.json` and `state/adoption.json`.
-Score against seven dimensions: `quantity`, `diversity`, `relevance`, `freshness`, `efficiency`, `latency`, and `adoption`.
+Let `judge.py` read the evidence JSONL plus `state/rubric-history.jsonl` and delivery files.
+Score against six dimensions: `rubric_pass_rate`, `groundedness`, `relevant_yield`, `content_depth`, `source_diversity`, and `quantity`.
 Treat `metadata.llm_relevant` as the relevance signal expected by the judge.
 Use `llm-evaluate.md` when you need to populate that field.
 Capture the full judge output in your records.
