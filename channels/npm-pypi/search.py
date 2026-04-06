@@ -34,7 +34,6 @@ def _safe_isoformat(value: str) -> str | None:
 
 async def _search_npm(query: str, max_results: int) -> list[dict]:
     results: list[dict] = []
-    total_pages = max(1, (max_results + NPM_PAGE_SIZE - 1) // NPM_PAGE_SIZE)
 
     try:
         async with httpx.AsyncClient(
