@@ -12,6 +12,27 @@ All changes to AutoSearch. Format: `## YYYY.MM.DD.N` with `### Changes` and `###
 
 ---
 
+## 2026.04.06.1
+
+### Changes
+
+- You can now install via npm: `npm install -g @0xmariowu/autosearch`
+- You can now use one API key (`SCRAPECREATORS_API_KEY`) to unlock full Reddit comments and Twitter engagement data
+- Reddit and Twitter channels now use three-tier fallback: ScrapeCreators (optional) → native API → DuckDuckGo
+- Twitter GraphQL query IDs auto-refresh from X's JS bundles (24h cache), no more brittle hardcoded IDs
+- Reddit enrichment tries ScrapeCreators for comments before .json endpoint, with clear 403 logging
+- Cookie extraction and fallback paths now log to stderr so users know what's happening
+- Release pipeline now auto-syncs version, channel count (34), and skill count (54) across README, docs site, npm, and official website
+- Channel count corrected to 34 (was claiming 32), skill count to 54 (was claiming 40+)
+
+### Fixes
+
+- Fixed judge.py Python 3.9 compatibility (`from __future__ import annotations`)
+- Removed ghost channel references (github-code, openreview) that never existed
+- Fixed HuggingFace miscategorized as premium (it's free, moved to Academic)
+- Unified phase naming across README, docs, and pipeline-flow
+- Python version requirement standardized to 3.10+ (was inconsistent 3.10/3.11)
+
 ## 2026.04.05.5
 
 ### Changes
