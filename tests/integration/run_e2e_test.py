@@ -582,7 +582,7 @@ def _write_winning_patterns(session: SessionDir) -> int:
         return 0
 
     lines = qo_path.read_text().strip().split("\n")
-    outcomes = [json.loads(l) for l in lines if l.strip()]
+    outcomes = [json.loads(line) for line in lines if line.strip()]
 
     patterns_path = session.root / "state" / "patterns-v2.jsonl"
     count = 0
@@ -622,7 +622,7 @@ async def run_block6(llm: LLMClient, session: SessionDir, topic: str) -> BlockRe
 
         if checked_path.exists():
             lines = checked_path.read_text().strip().split("\n")
-            checked = [json.loads(l) for l in lines if l.strip()]
+            checked = [json.loads(line) for line in lines if line.strip()]
             failed = [c for c in checked if not c.get("passed")]
             passed_count = sum(1 for c in checked if c.get("passed"))
             pass_rate = passed_count / len(checked) if checked else 0
@@ -703,7 +703,7 @@ Output ONLY a JSON object:
         # Write rubric history (for judge.py rubric_pass_rate dimension)
         if checked_path.exists():
             lines = checked_path.read_text().strip().split("\n")
-            checked = [json.loads(l) for l in lines if l.strip()]
+            checked = [json.loads(line) for line in lines if line.strip()]
             passed_count = sum(1 for c in checked if c.get("passed"))
             rh_entry = {
                 "topic": topic,
