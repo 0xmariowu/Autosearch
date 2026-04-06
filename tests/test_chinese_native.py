@@ -85,7 +85,8 @@ async def test_baidu_filters_off_site_results():
 
     assert len(results) == 2
     assert all(
-        (urlparse(r["url"]).hostname or "").endswith("36kr.com") for r in results
+        (urlparse(r["url"]).hostname or "") in ("36kr.com", "www.36kr.com")
+        for r in results
     )
 
 
@@ -116,7 +117,7 @@ async def test_csdn_native_parses_results():
     mock_article.text = '<div id="article_content">Long article content here that is definitely more than one hundred characters to pass the length check in the extraction logic and provide real value.</div>'
 
     async def fake_get(url, **kw):
-        if (urlparse(url).hostname or "").endswith("so.csdn.net"):
+        if (urlparse(url).hostname or "") == "so.csdn.net":
             return fake_resp
         return mock_article
 

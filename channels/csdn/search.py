@@ -109,7 +109,7 @@ async def _search_native(query: str, max_results: int) -> list[dict]:
                 )
             )
             host = (urlparse(url).hostname or "").lower()
-            if host.endswith("blog.csdn.net") and len(blog_urls) < _MAX_CONTENT_FETCH:
+            if host == "blog.csdn.net" and len(blog_urls) < _MAX_CONTENT_FETCH:
                 blog_urls.append((len(results) - 1, url))
             if len(results) >= max_results:
                 break
