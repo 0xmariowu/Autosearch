@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import os
 
 import httpx
 
 from lib.search_runner import DEFAULT_TIMEOUT, make_result
 
 HF_API = "https://huggingface.co/api"
+HF_TOKEN = os.environ.get("HF_TOKEN", "")
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
@@ -88,10 +90,13 @@ async def _search_datasets(
 
 async def search(query: str, max_results: int = 10) -> list[dict]:
     half = max(1, max_results // 2)
+    headers: dict[str, str] = {"User-Agent": USER_AGENT}
+    if HF_TOKEN:
+        headers["Authorization"] = f"Bearer {HF_TOKEN}"
     try:
         async with httpx.AsyncClient(
             timeout=DEFAULT_TIMEOUT,
-            headers={"User-Agent": USER_AGENT},
+            headers=headers,
         ) as client:
             models, datasets = await asyncio.gather(
                 _search_models(client, query, half),
@@ -108,9 +113,7 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
             if len(merged) >= max_results:
                 break
         return merged[:max_results]
-    except Exception as exc:
-        from lib.search_runner import SearchError
+    except Exception:
+        from channels._engines.ddgs import search_ddgs_site
 
-        raise SearchError(
-            channel="huggingface", error_type="network", message=str(exc)
-        ) from exc
+        return await search_ddgs_site(query, "huggingface.co", max_results=max_results)

@@ -30,9 +30,9 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
         except Exception as exc:
             print(f"[xueqiu] native failed: {exc}", file=sys.stderr)
 
-    from channels._engines.baidu import search_baidu
+    from channels._engines.ddgs import search_ddgs_site
 
-    return await search_baidu(query, site="xueqiu.com", max_results=max_results)
+    return await search_ddgs_site(query, "xueqiu.com", max_results=max_results)
 
 
 async def _search_native(

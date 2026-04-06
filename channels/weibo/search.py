@@ -47,10 +47,10 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
     except Exception as exc:
         print(f"[weibo] hot search failed: {exc}", file=sys.stderr)
 
-    # Path 3: Baidu fallback
-    from channels._engines.baidu import search_baidu
+    # Path 3: DDGS fallback
+    from channels._engines.ddgs import search_ddgs_site
 
-    return await search_baidu(query, site="weibo.com", max_results=max_results)
+    return await search_ddgs_site(query, "weibo.com", max_results=max_results)
 
 
 async def _get_visitor_cookies(client: httpx.AsyncClient) -> str:
