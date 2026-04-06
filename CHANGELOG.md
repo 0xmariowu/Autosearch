@@ -9,6 +9,23 @@ All changes to AutoSearch. Format: `## YYYY.MM.DD.N` with `### Changes` and `###
 
 ---
 
+## 2026.04.06.2
+
+### Changes
+
+- You can now search YouTube and conference talks with meaningful snippets (author + video length) instead of empty dashes
+- Chinese channels xiaohongshu, xiaoyuzhou, xueqiu, 36kr, weibo now use DuckDuckGo as fallback instead of unreliable Baidu Kaifa
+- npm search switched from dead npms.io API to official npm registry, PyPI uses DuckDuckGo fallback
+- HuggingFace now supports `HF_TOKEN` env var for authenticated API access, falls back to DuckDuckGo
+- Semantic Scholar now supports `S2_API_KEY` env var for higher rate limits
+
+### Fixes
+
+- Fixed 5 Chinese channels returning 0 results due to Baidu Kaifa site filter dropping all off-domain results
+- Fixed npm-pypi channel 100% failure (npms.io API shut down in 2024)
+- Fixed YouTube/conference-talks returning 1-character snippets ("-")
+- Fixed StackOverflow API missing Accept-Encoding header and error_id check
+
 ## 2026.04.06.1
 
 ### Changes
