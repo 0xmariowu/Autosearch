@@ -221,7 +221,6 @@ async def enrich_content(
             for r in results
             if r.get("source") != "reddit"
             and not r.get("metadata", {}).get("extracted_content")
-            and r.get("metadata", {}).get("composite_score", 0) >= 30
         ]
         candidates.sort(
             key=lambda r: r.get("metadata", {}).get("composite_score", 0),

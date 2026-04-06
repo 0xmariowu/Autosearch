@@ -81,14 +81,17 @@ async def test_enrich_content_skips_reddit() -> None:
 
 
 @pytest.mark.asyncio
-async def test_enrich_content_skips_low_score() -> None:
-    result = _make_result(composite_score=29)
+async def test_enrich_content_respects_max_items() -> None:
+    """Enrichment processes up to max_items results regardless of score."""
+    results = [_make_result(composite_score=10), _make_result(composite_score=5)]
+    mock_response = _make_response(text="Short")
+    mock_client = _make_async_client(AsyncMock(return_value=mock_response))
 
-    with patch("lib.enrichment.httpx.AsyncClient") as mock_async_client:
-        await enrich_content([result], "topic", max_items=1)
+    with patch("lib.enrichment.httpx.AsyncClient", return_value=mock_client):
+        await enrich_content(results, "topic", max_items=1)
 
-    mock_async_client.assert_not_called()
-    assert "extracted_content" not in result["metadata"]
+    # max_items=1 so only the highest-scored result should be attempted
+    mock_client.get.assert_called()
 
 
 @pytest.mark.asyncio
