@@ -9,6 +9,34 @@ All changes to AutoSearch. Format: `## YYYY.MM.DD.N` with `### Changes` and `###
 
 ---
 
+## 2026.04.06.4
+
+### Changes
+
+- You can now get full article content for 90% of search results (was 2%) — enrichment pipeline no longer blocked by score threshold
+- 12 Chinese channels upgraded to native platform APIs (CSDN, Juejin, 36kr, Zhihu, Weibo, Douyin, Xiaohongshu, Xueqiu, and more)
+- 5 Chinese channels switched from unreliable Baidu Kaifa fallback to DuckDuckGo site-search
+- HuggingFace search now shows rich snippets with tags, download counts, and like counts
+- YouTube/conference-talks now show author + video length instead of empty dashes
+- npm search switched from dead npms.io to official npm registry
+- Twitter fallback speed improved from 35s to 8s
+- New env vars: `HF_TOKEN`, `S2_API_KEY` for optional higher rate limits
+
+### Fixes
+
+- Fixed content enrichment never triggering (composite_score >= 30 threshold unreachable for most results)
+- Fixed Baidu Kaifa site filter returning 0% on-domain results for 6 platforms
+- Fixed npm-pypi channel 100% failure (npms.io shutdown)
+- Fixed Semantic Scholar 429 rate limit permanently suspending channels (now retries)
+- Fixed YouTube/conference-talks returning 1-character snippets
+- Fixed StackOverflow API gzip handling
+
+### Stats
+
+- Healthy channels: 18 → 28 out of 35
+- Chinese query coverage: 10 → 15 out of 18 channels
+- Content enrichment: 2% → 90% of results get full text
+
 ## 2026.04.06.3
 
 ### Changes

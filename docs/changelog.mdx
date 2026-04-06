@@ -12,7 +12,17 @@ All changes to AutoSearch. Format: `## YYYY.MM.DD.N` with `### Changes` and `###
 
 ---
 
+## 2026.04.06.4
+
 ## 2026.04.06.3
+
+### Changes
+
+- HuggingFace search now shows rich snippets (pipeline tag, tags, download/like counts) instead of bare pipeline names
+- HuggingFace model and dataset sub-searches now fail independently (one failing doesn't kill both)
+- Semantic Scholar 429 rate limit is now treated as transient (retries) instead of permanent (circuit breaker suspend)
+- Semantic Scholar now supports `S2_API_KEY` env var for higher rate limits
+- Twitter GraphQL timeout reduced from 20s to 10s for faster fallback to DuckDuckGo when GraphQL is unavailable
 
 ## 2026.04.06.2
 
