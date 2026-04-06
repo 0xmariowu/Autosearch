@@ -43,6 +43,13 @@ For each MEDIUM confidence item:
 
 Do NOT generate queries for HIGH confidence items — those are already in the evidence bundle from own-knowledge.
 
+**Minimum query floor**: regardless of confidence levels, ALWAYS generate at least 4 queries. Even when all dimensions are HIGH confidence, search adds value through:
+- **Timeliness**: Claude's knowledge has a cutoff date. Search finds developments after that date.
+- **Specificity**: Claude knows general patterns. Search finds specific companies, repos, articles, and data points.
+- **Verification**: HIGH confidence ≠ correct. Search verifies or corrects Claude's priors.
+
+If all dimensions are HIGH, generate 4 "freshness check" queries: the topic + "2026" + "latest" + "new" across the selected channels.
+
 This is the most efficient use of search budget: every query targets a known gap.
 
 # Mandatory Query Rules

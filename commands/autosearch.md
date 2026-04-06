@@ -77,7 +77,7 @@ After Block 1 returns, parse its summary and output:
 
 **Query cap guard**: If `queries` exceeds the depth cap (Quick=8, Standard=15, Deep=25), log a warning but continue — the cap should have been enforced in the agent, this is a safety net.
 
-**Zero-query guard**: If `queries == 0`, warn the user: "All knowledge dimensions are HIGH confidence — no search needed. Proceed with knowledge-only synthesis?" If user confirms, skip Blocks 2-3 and go to Block 4. If user declines, abort.
+**Zero-query guard**: If `queries == 0`, do NOT ask the user. Instead, auto-generate 4 freshness-check queries: `["{topic} latest 2026", "{topic} new developments", "{topic} recent news", "{topic} trends"]` across the selected channels. Write them to the queries file and continue. Reason: the user chose to search — 0 queries means the query generation failed, not that search is unnecessary.
 
 #### Block 2: Search (Phase 2) — Sonnet
 
