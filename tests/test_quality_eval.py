@@ -29,12 +29,17 @@ class TestOverallQualityScore:
         assert score.writing_quality == 3
 
     def test_has_six_fields(self):
+        import dataclasses
+
         from lib.quality_eval import OverallQualityScore
 
-        fields = OverallQualityScore.model_fields
-        assert len(fields) == 6
+        # Exclude internal helper fields (model_fields)
+        init_fields = [f for f in dataclasses.fields(OverallQualityScore) if f.init]
+        assert len(init_fields) == 6
 
     def test_field_names(self):
+        import dataclasses
+
         from lib.quality_eval import OverallQualityScore
 
         expected = {
@@ -45,7 +50,10 @@ class TestOverallQualityScore:
             "balance_objectivity",
             "writing_quality",
         }
-        assert set(OverallQualityScore.model_fields.keys()) == expected
+        init_fields = {
+            f.name for f in dataclasses.fields(OverallQualityScore) if f.init
+        }
+        assert init_fields == expected
 
     def test_normalize(self):
         from lib.quality_eval import OverallQualityScore

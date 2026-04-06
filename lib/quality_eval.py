@@ -2,7 +2,7 @@
 
 Adapted from LangChain open_deep_research evaluators.py and prompts.py.
 
-This module defines Pydantic schemas and prompt templates for offline
+This module defines schemas and prompt templates for offline
 report quality evaluation. It does NOT call LLMs directly — callers
 are responsible for invoking their preferred LLM with structured output.
 
@@ -17,33 +17,36 @@ Usage:
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from dataclasses import dataclass, field
 
 # ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
 
 
-class OverallQualityScore(BaseModel):
+@dataclass
+class OverallQualityScore:
     """Score a research report across six quality dimensions (1-5 each)."""
 
-    research_depth: int = Field(
-        description="1-5: thoroughness, coverage, depth of understanding, background context."
-    )
-    source_quality: int = Field(
-        description="1-5: authoritative sources, diversity of source types, citation integration."
-    )
-    analytical_rigor: int = Field(
-        description="1-5: sophistication, critical evaluation, nuances and limitations identified."
-    )
-    practical_value: int = Field(
-        description="1-5: clarity of insights, specific examples, actionable recommendations."
-    )
-    balance_objectivity: int = Field(
-        description="1-5: multiple perspectives, limitations acknowledged, facts vs opinions."
-    )
-    writing_quality: int = Field(
-        description="1-5: clarity, professionalism, terminology, tone consistency, readability."
+    research_depth: int
+    source_quality: int
+    analytical_rigor: int
+    practical_value: int
+    balance_objectivity: int
+    writing_quality: int
+
+    # Class-level field metadata for introspection
+    model_fields: dict[str, object] = field(
+        default_factory=lambda: {
+            "research_depth": {},
+            "source_quality": {},
+            "analytical_rigor": {},
+            "practical_value": {},
+            "balance_objectivity": {},
+            "writing_quality": {},
+        },
+        init=False,
+        repr=False,
     )
 
     def normalize(self) -> dict[str, float]:
@@ -58,19 +61,19 @@ class OverallQualityScore(BaseModel):
         }
 
 
-class GroundednessClaim(BaseModel):
+@dataclass
+class GroundednessClaim:
     """A single claim extracted from the report with grounding judgment."""
 
-    claim: str = Field(description="The claim extracted from the report.")
-    grounded: bool = Field(description="Whether the claim is grounded in the context.")
+    claim: str
+    grounded: bool
 
 
-class GroundednessScore(BaseModel):
+@dataclass
+class GroundednessScore:
     """Extract claims from a report and check grounding against context."""
 
-    claims: list[GroundednessClaim] = Field(
-        description="All claims extracted from the report with grounding judgments."
-    )
+    claims: list[GroundednessClaim]
 
     def score(self) -> float:
         """Return grounded claims / total claims, or 0.0 if no claims."""
@@ -80,15 +83,12 @@ class GroundednessScore(BaseModel):
         return grounded / len(self.claims)
 
 
-class CompletenessScore(BaseModel):
+@dataclass
+class CompletenessScore:
     """Score report completeness against the research question."""
 
-    reasoning: str = Field(
-        description="Explanation with specific examples from the report."
-    )
-    score: int = Field(
-        description="1-5: how completely the report covers all points from the question."
-    )
+    reasoning: str
+    score: int  # 1-5
 
     def normalize(self) -> float:
         """Return score normalized to 0-1."""
