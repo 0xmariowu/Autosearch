@@ -119,7 +119,7 @@ jobs:
       - name: Sync website
         if: steps.check.outputs.exists == 'false'
         env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GH_TOKEN: ${{ secrets.AUTOSEARCH_CROSS_REPO_TOKEN }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           CHANNEL_COUNT=$(python3 -c "import json; print(json.load(open('release-metadata.json'))['channel_count'])" 2>/dev/null || echo "34")
