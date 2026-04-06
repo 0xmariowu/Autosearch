@@ -94,15 +94,13 @@ MONTH_MAP = {
 # Safe under asyncio single-thread. If future refactor moves to
 # multiprocessing, the health file writes need a file lock.
 ENGINE_CHANNELS: dict[str, list[str]] = {
+    # csdn, juejin, 36kr, weibo removed — they have native APIs now
+    # and only use Baidu as fallback (should not be suspended by Baidu failures)
     "baidu": [
         "zhihu",
-        "36kr",
-        "csdn",
         "douyin",
         "xiaohongshu",
         "infoq-cn",
-        "weibo",
-        "juejin",
         "xiaoyuzhou",
         "xueqiu",
     ],
