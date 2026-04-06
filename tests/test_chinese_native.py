@@ -280,18 +280,126 @@ async def test_zhihu_falls_back_without_cookie():
             assert results[0]["title"] == "baidu zhihu"
 
 
-# --- Weibo fallback ---
+# --- Weibo ---
+
+
+@pytest.mark.asyncio
+async def test_weibo_hot_search_parses_results():
+    """Weibo hot search returns filtered trending items."""
+    visitor_resp = MagicMock()
+    visitor_resp.text = 'gen_callback({"data":{"tid":"abc123"}})'
+
+    incarnate_resp = MagicMock()
+    incarnate_resp.text = (
+        'cross_domain({"data":{"sub":"SUB_VALUE","subp":"SUBP_VALUE"}})'
+    )
+
+    hot_resp = MagicMock()
+    hot_resp.is_error = False
+    hot_resp.json.return_value = {
+        "ok": 1,
+        "data": {
+            "realtime": [
+                {"word": "AI发展", "num": 5000000, "label_name": "热"},
+                {"word": "天气预报", "num": 3000000},
+                {"word": "科技新闻", "num": 2000000},
+            ]
+        },
+    }
+
+    async def fake_get(url, **kw):
+        if "visitor/visitor" in url:
+            return incarnate_resp
+        return hot_resp
+
+    mock_client = AsyncMock()
+    mock_client.post = AsyncMock(return_value=visitor_resp)
+    mock_client.get = fake_get
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("channels._engines.cookie_auth.get_cookies", return_value=None):
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            from channels.weibo.search import search
+
+            results = await search("AI", max_results=5)
+
+    assert len(results) >= 1
+    assert results[0]["source"] == "weibo"
+    assert "AI" in results[0]["title"]
+    assert results[0]["metadata"]["hot_value"] == 5000000
 
 
 @pytest.mark.asyncio
 async def test_weibo_falls_back_without_cookie():
+    """Weibo falls to Baidu when both cookie and hot search fail."""
     with patch("channels._engines.cookie_auth.get_cookies", return_value=None):
+        with patch(
+            "channels.weibo.search._search_hot",
+            new_callable=AsyncMock,
+            side_effect=Exception("hot search down"),
+        ):
+            with patch(
+                "channels._engines.baidu.search_baidu",
+                new_callable=AsyncMock,
+                return_value=[{"title": "baidu weibo"}],
+            ):
+                from channels.weibo.search import search
+
+                results = await search("AI")
+                assert results[0]["title"] == "baidu weibo"
+
+
+# --- Douyin ---
+
+
+@pytest.mark.asyncio
+async def test_douyin_hot_search_parses_results():
+    """Douyin hot search returns filtered trending items."""
+    fake_resp = MagicMock()
+    fake_resp.is_error = False
+    fake_resp.json.return_value = {
+        "data": {
+            "word_list": [
+                {"word": "AI绘画", "hot_value": 8000000, "sentence_id": "s1"},
+                {"word": "美食推荐", "hot_value": 6000000},
+                {"word": "旅行攻略", "hot_value": 4000000},
+            ]
+        }
+    }
+
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=fake_resp)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        from channels.douyin.search import search
+
+        results = await search("AI", max_results=5)
+
+    assert len(results) >= 1
+    assert results[0]["source"] == "douyin"
+    assert "AI" in results[0]["title"]
+    assert results[0]["metadata"]["hot_value"] == 8000000
+    assert results[0]["metadata"]["sentence_id"] == "s1"
+
+
+@pytest.mark.asyncio
+async def test_douyin_falls_back_to_baidu():
+    """Douyin falls to Baidu when hot search fails."""
+    with patch(
+        "channels.douyin.search._search_hot",
+        new_callable=AsyncMock,
+        side_effect=Exception("hot search down"),
+    ):
         with patch(
             "channels._engines.baidu.search_baidu",
             new_callable=AsyncMock,
-            return_value=[{"title": "baidu weibo"}],
-        ):
-            from channels.weibo.search import search
+            return_value=[{"title": "baidu douyin"}],
+        ) as mock_baidu:
+            from channels.douyin.search import search
 
-            results = await search("AI")
-            assert results[0]["title"] == "baidu weibo"
+            results = await search("test")
+            mock_baidu.assert_called_once()
+            assert results[0]["title"] == "baidu douyin"
