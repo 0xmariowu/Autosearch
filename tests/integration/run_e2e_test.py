@@ -640,11 +640,45 @@ async def run_topic(
 # ── Main ─────────────────────────────────────────────────────────────────
 
 
+def _ensure_venv_deps() -> None:
+    """Ensure .venv has required packages for search_runner."""
+    venv_python = ROOT / ".venv" / "bin" / "python3"
+    if not venv_python.exists():
+        return
+    required = ["httpx", "ddgs", "lxml"]
+    missing = []
+    for pkg in required:
+        result = subprocess.run(
+            [str(venv_python), "-c", f"import {pkg}"],
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            missing.append(pkg)
+    if missing:
+        print(f"[setup] Installing missing venv deps: {', '.join(missing)}")
+        subprocess.run(
+            ["uv", "pip", "install", "-r", str(ROOT / "requirements.txt")],
+            capture_output=True,
+        )
+
+
+def _clear_circuit_breaker() -> None:
+    """Clear channel health state to prevent stale suspensions."""
+    health_file = ROOT / "state" / "channel-health.json"
+    if health_file.exists():
+        health_file.write_text("{}\n")
+        print("[setup] Cleared circuit breaker state")
+
+
 async def async_main(args: argparse.Namespace) -> int:
     api_key = get_api_key()
     if not api_key:
         print("ERROR: Set OPENROUTER_API_KEY environment variable")
         return 1
+
+    # Pre-flight checks
+    _ensure_venv_deps()
+    _clear_circuit_breaker()
 
     config = MODES[args.mode]
     run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
@@ -660,7 +694,10 @@ async def async_main(args: argparse.Namespace) -> int:
 
     # Determine topics and depths
     if args.topic:
-        topics = [{"id": "custom", "topic": args.topic, "lang": "en"}]
+        # Auto-detect language: if topic contains CJK characters, it's Chinese
+        has_cjk = any("\u4e00" <= ch <= "\u9fff" for ch in args.topic)
+        lang = "zh" if has_cjk else "en"
+        topics = [{"id": "custom", "topic": args.topic, "lang": lang}]
         depths = [args.depth or "standard"]
     else:
         topics = TOPICS[: config["topics"]]
