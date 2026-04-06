@@ -261,9 +261,17 @@ def test_native_channels_not_in_baidu_group():
     from lib.search_runner import ENGINE_CHANNELS
 
     baidu = ENGINE_CHANNELS.get("baidu", [])
-    for ch in ["csdn", "36kr", "juejin", "weibo"]:
+    for ch in [
+        "csdn",
+        "36kr",
+        "juejin",
+        "weibo",
+        "xiaohongshu",
+        "xiaoyuzhou",
+        "xueqiu",
+    ]:
         assert ch not in baidu, f"{ch} should not be in baidu group"
-    for ch in ["douyin", "xiaoyuzhou"]:
+    for ch in ["douyin"]:
         assert ch in baidu, f"{ch} should remain in baidu group"
 
 
@@ -336,7 +344,7 @@ async def test_weibo_hot_search_parses_results():
 
 @pytest.mark.asyncio
 async def test_weibo_falls_back_without_cookie():
-    """Weibo falls to Baidu when both cookie and hot search fail."""
+    """Weibo falls to DDGS when both cookie and hot search fail."""
     with patch("channels._engines.cookie_auth.get_cookies", return_value=None):
         with patch(
             "channels.weibo.search._search_hot",
@@ -344,14 +352,14 @@ async def test_weibo_falls_back_without_cookie():
             side_effect=Exception("hot search down"),
         ):
             with patch(
-                "channels._engines.baidu.search_baidu",
+                "channels._engines.ddgs.search_ddgs_site",
                 new_callable=AsyncMock,
-                return_value=[{"title": "baidu weibo"}],
+                return_value=[{"title": "ddgs weibo"}],
             ):
                 from channels.weibo.search import search
 
                 results = await search("AI")
-                assert results[0]["title"] == "baidu weibo"
+                assert results[0]["title"] == "ddgs weibo"
 
 
 # --- Douyin ---

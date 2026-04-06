@@ -22,10 +22,10 @@ _MAX_CONTENT_FETCH = 3
 
 
 async def search(query: str, max_results: int = 10) -> list[dict]:
-    from channels._engines.baidu import search_baidu
     from channels._engines.cookie_auth import get_cookies, has_cookies
+    from channels._engines.ddgs import search_ddgs_site
 
-    results = await search_baidu(query, site="xiaohongshu.com", max_results=max_results)
+    results = await search_ddgs_site(query, "xiaohongshu.com", max_results=max_results)
 
     cookies = get_cookies(".xiaohongshu.com", "XHS_COOKIE")
     if has_cookies(cookies, ["a1"]) and results:

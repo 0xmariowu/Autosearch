@@ -94,15 +94,13 @@ MONTH_MAP = {
 # Safe under asyncio single-thread. If future refactor moves to
 # multiprocessing, the health file writes need a file lock.
 ENGINE_CHANNELS: dict[str, list[str]] = {
-    # csdn, juejin, 36kr, weibo removed — they have native APIs now
-    # and only use Baidu as fallback (should not be suspended by Baidu failures)
+    # Only channels that still depend on Baidu Kaifa as their primary engine.
+    # Channels using DDGS fallback (xiaohongshu, xiaoyuzhou, xueqiu, 36kr, weibo)
+    # and native-API channels (csdn, juejin) are independent.
     "baidu": [
         "zhihu",
         "douyin",
-        "xiaohongshu",
         "infoq-cn",
-        "xiaoyuzhou",
-        "xueqiu",
     ],
     "ddgs": [
         "web-ddgs",
