@@ -23,8 +23,8 @@ async def _ss_get(client: httpx.AsyncClient, url: str, **kwargs) -> httpx.Respon
     if resp.status_code == 429:
         raise SearchError(
             channel="semantic-scholar",
-            error_type="rate_limit",
-            message="429 Too Many Requests",
+            error_type="timeout",
+            message="429 Too Many Requests (rate limited, will retry)",
         )
     return resp
 
