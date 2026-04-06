@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import os
 import sys
 
 import httpx
 
 from lib.search_runner import DEFAULT_TIMEOUT, SearchError, make_result
+
+_S2_API_KEY = os.environ.get("S2_API_KEY", "")
 
 
 async def _ss_get(client: httpx.AsyncClient, url: str, **kwargs) -> httpx.Response:
@@ -12,7 +15,10 @@ async def _ss_get(client: httpx.AsyncClient, url: str, **kwargs) -> httpx.Respon
 
     Retry is handled by the runner-level retry wrapper, not here.
     """
-    resp = await client.get(url, **kwargs)
+    headers = kwargs.pop("headers", {})
+    if _S2_API_KEY:
+        headers["x-api-key"] = _S2_API_KEY
+    resp = await client.get(url, headers=headers, **kwargs)
     if resp.status_code == 429:
         raise SearchError(
             channel="semantic-scholar",
@@ -39,6 +45,7 @@ async def search(query: str, max_results: int = 10, mode: str = "search") -> lis
                     return []
                 paper_id = papers[0]["paperId"]
 
+                await asyncio.sleep(1)  # Rate limit: avoid back-to-back requests
                 resp = await _ss_get(
                     client,
                     f"https://api.semanticscholar.org/graph/v1/paper/{paper_id}/citations",

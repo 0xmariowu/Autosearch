@@ -18,7 +18,10 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
     total_pages = max(1, (max_results + PAGE_SIZE - 1) // PAGE_SIZE)
 
     try:
-        async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+        async with httpx.AsyncClient(
+            timeout=DEFAULT_TIMEOUT,
+            headers={"Accept-Encoding": "gzip, deflate"},
+        ) as client:
             for page in range(1, total_pages + 1):
                 response = await client.get(
                     SEARCH_API,
@@ -29,10 +32,13 @@ async def search(query: str, max_results: int = 10) -> list[dict]:
                         "site": API_SITE,
                         "sort": API_SORT,
                         "order": API_ORDER,
+                        "filter": "default",
                     },
                 )
                 response.raise_for_status()
                 payload = response.json()
+                if payload.get("error_id"):
+                    break
                 items = payload.get("items", [])
                 if not items:
                     break
