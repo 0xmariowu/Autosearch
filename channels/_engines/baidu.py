@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from html import unescape
+from urllib.parse import urlparse
 
 import httpx
 
@@ -71,8 +72,10 @@ async def search_baidu(
                 # Baidu Kaifa site: filter is unreliable — returns results
                 # from unrelated domains (e.g. site:36kr.com → csdn.net).
                 # Drop results whose URL doesn't match the target site.
-                if site_check and site_check not in url.lower():
-                    continue
+                if site_check:
+                    host = (urlparse(url).hostname or "").lower()
+                    if not (host == site_check or host.endswith(f".{site_check}")):
+                        continue
 
                 snippet = unescape(str(digest.get("summary", "") or "")).strip()
                 metadata: dict[str, str] = {}

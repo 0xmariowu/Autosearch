@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import re
 import sys
+from urllib.parse import urlparse
 
 import httpx
 
@@ -107,7 +108,8 @@ async def _search_native(query: str, max_results: int) -> list[dict]:
                     extra_metadata=metadata,
                 )
             )
-            if "blog.csdn.net" in url and len(blog_urls) < _MAX_CONTENT_FETCH:
+            host = (urlparse(url).hostname or "").lower()
+            if host.endswith("blog.csdn.net") and len(blog_urls) < _MAX_CONTENT_FETCH:
                 blog_urls.append((len(results) - 1, url))
             if len(results) >= max_results:
                 break

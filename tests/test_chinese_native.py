@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
+from urllib.parse import urlparse
 
 import httpx
 import pytest
@@ -83,7 +84,9 @@ async def test_baidu_filters_off_site_results():
         results = await search_baidu("test", site="36kr.com", max_results=10)
 
     assert len(results) == 2
-    assert all("36kr.com" in r["url"] for r in results)
+    assert all(
+        (urlparse(r["url"]).hostname or "").endswith("36kr.com") for r in results
+    )
 
 
 # --- CSDN ---
@@ -113,7 +116,7 @@ async def test_csdn_native_parses_results():
     mock_article.text = '<div id="article_content">Long article content here that is definitely more than one hundred characters to pass the length check in the extraction logic and provide real value.</div>'
 
     async def fake_get(url, **kw):
-        if "so.csdn.net" in url:
+        if (urlparse(url).hostname or "").endswith("so.csdn.net"):
             return fake_resp
         return mock_article
 
