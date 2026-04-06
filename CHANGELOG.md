@@ -9,6 +9,22 @@ All changes to AutoSearch. Format: `## YYYY.MM.DD.N` with `### Changes` and `###
 
 ---
 
+## 2026.04.06.6
+
+### Changes
+
+- Chinese topics now automatically select 5+ Chinese channels (csdn, juejin, bilibili, zhihu, 36kr, etc.) — previously the pipeline only picked 2-4 generic channels
+- Channel cap increased: Quick=10, Standard=15, Deep=all 34 (was flat 10 for all depths)
+- Quick mode now always searches (minimum 4 queries) instead of skipping when Claude's knowledge seems sufficient
+- Zero-query situations auto-generate freshness-check queries instead of asking the user
+- E2E test harness auto-installs missing venv deps, clears circuit breaker state, and auto-detects Chinese topics
+
+### Fixes
+
+- Fixed channel selection ignoring all 12 Chinese channels for Chinese topics
+- Fixed Quick mode generating 0 queries (judge score 0.205 → 0.677)
+- Fixed E2E test failures from missing httpx/ddgs in .venv
+
 ## 2026.04.06.5
 
 ## 2026.04.06.4

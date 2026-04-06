@@ -30,6 +30,25 @@ Do not hardcode channel lists. Read the SKILL.md Language section for each candi
 
 Log every exclusion: `excluded: {channel} — language mismatch ({channel_language} vs {topic_language})`
 
+## Rule 0.5: Language-mandatory channels
+
+After the language filter, ALWAYS include a minimum set of channels based on topic language. This is not optional — the LLM must not override this.
+
+**Chinese topic** — include AT LEAST 5 from this list:
+`csdn`, `juejin`, `bilibili`, `zhihu`, `36kr`, `wechat`, `weibo`, `xiaohongshu`, `douyin`, `infoq-cn`, `xueqiu`, `xiaoyuzhou`
+
+Pick the 5-8 most relevant to the topic type. For example:
+- Technical Chinese → csdn, juejin, zhihu, bilibili, infoq-cn
+- Business Chinese → 36kr, xueqiu, weibo, wechat, zhihu
+- Consumer/social Chinese → xiaohongshu, douyin, weibo, bilibili, zhihu
+
+**English topic** — include AT LEAST:
+- `web-ddgs` (general web)
+- 2+ community channels (reddit, hn, devto, stackoverflow — pick by topic type)
+- 1+ discovery channel (producthunt, github-repos, arxiv — pick by topic type)
+
+Why mandatory: Without this rule, the LLM agent tends to select only 2-4 "safe" channels (web-ddgs + arxiv). The whole point of AutoSearch is multi-platform coverage — selecting 3 channels makes it no better than a web search.
+
 ## Rule 1: Always include these (2-3 channels)
 
 - GitHub repos (`github-repos`) — for any topic involving code or tools
@@ -43,7 +62,7 @@ Log every exclusion: `excluded: {channel} — language mismatch ({channel_langua
 | Academic/research | google-scholar, semantic-scholar, citation-graph, arxiv |
 | Open-source tools | github-repos, github-issues, npm-pypi, stackoverflow |
 | Commercial products | producthunt, crunchbase, g2, twitter |
-| Chinese market/tech | zhihu, csdn, juejin, bilibili, 36kr, wechat |
+| Chinese market/tech | zhihu, csdn, juejin, bilibili, 36kr, wechat, weibo, xiaohongshu, douyin, infoq-cn, xueqiu |
 | Community sentiment | reddit, hn, twitter, stackoverflow |
 | Video/tutorial | youtube, bilibili, conference-talks |
 | Business intelligence | crunchbase, 36kr, linkedin, xueqiu, twitter |
@@ -134,9 +153,15 @@ Known broken channels (require API key or auth not currently configured):
 
 Do NOT exclude Chinese channels (zhihu, csdn, 36kr, etc.) based on zero-yield from English sessions. Those channels have no data in English — but they work for Chinese topics. Check `channel-scores.jsonl` with the correct `lang` filter instead.
 
-## Rule 5: Cap at 10 channels
+## Rule 5: Cap channels by depth
 
-More than 10 channels produces diminishing returns. If the rules above suggest more than 10, prioritize:
+| Depth | Cap | Rationale |
+|-------|-----|-----------|
+| Quick | 10 | Fast scan, focused channels |
+| Standard | 15 | Balanced breadth and depth |
+| Deep | all 34 | Exhaustive coverage |
+
+If the rules above suggest more than the cap, prioritize:
 1. Channels with highest expected incremental value (content Claude can't know)
 2. Channels with proven win patterns
 3. Channels matching the most GAP dimensions
