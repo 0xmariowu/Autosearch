@@ -74,12 +74,19 @@ def _parse_video_renderer(video: dict) -> dict | None:
     if not title:
         return None
 
+    author = _get_text_from_json(video.get("ownerText", {}))
+    length = _get_text_from_json(video.get("lengthText", {}))
+    description = _get_text_from_json(video.get("descriptionSnippet", {}))
+    if not description:
+        parts = [p for p in (author, length) if p]
+        description = " · ".join(parts) if parts else title
+
     return {
         "url": BASE_YOUTUBE_URL + video_id,
         "title": title,
-        "content": _get_text_from_json(video.get("descriptionSnippet", {})) or "-",
-        "author": _get_text_from_json(video.get("ownerText", {})),
-        "length": _get_text_from_json(video.get("lengthText", {})),
+        "content": description,
+        "author": author,
+        "length": length,
         "iframe_src": "https://www.youtube-nocookie.com/embed/" + video_id,
         "thumbnail": "https://i.ytimg.com/vi/" + video_id + "/hqdefault.jpg",
         "video_id": video_id,
