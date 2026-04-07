@@ -603,119 +603,335 @@ def _write_winning_patterns(session: SessionDir) -> int:
     return count
 
 
-async def run_block6(llm: LLMClient, session: SessionDir, topic: str) -> BlockResult:
-    """Block 6: Evolve — write query-outcomes, patterns, diagnose failures, propose skill change."""
+def _numbered_content(path: Path, max_lines: int = 100) -> str:
+    """Read file with line numbers for LLM context."""
+    if not path.exists():
+        return "(file not found)"
+    file_lines = path.read_text().splitlines()[:max_lines]
+    return "\n".join(f"{i + 1}: {line}" for i, line in enumerate(file_lines))
+
+
+def _apply_line_insert(path: Path, after_line: int, new_text: str) -> bool:
+    """Insert new_text after the given line number. Returns True if applied."""
+    if not path.exists():
+        return False
+    file_lines = path.read_text().splitlines()
+    if after_line < 0 or after_line > len(file_lines):
+        return False
+    new_lines = new_text.splitlines()
+    file_lines[after_line:after_line] = new_lines
+    path.write_text("\n".join(file_lines) + "\n")
+    return True
+
+
+def _apply_data_append(path: Path, entry: dict) -> bool:
+    """Append a JSON entry to a JSONL file. Returns True if applied."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a") as fh:
+        fh.write(json.dumps(entry) + "\n")
+    return True
+
+
+def _git_commit(repo_root: Path, files: list[str], message: str) -> str | None:
+    """Stage files and commit in worktree. Returns short hash or None."""
+    for fpath in files:
+        subprocess.run(["git", "add", fpath], cwd=repo_root, capture_output=True)
+    result = subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", message],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+    hash_result = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+    )
+    return hash_result.stdout.strip() if hash_result.returncode == 0 else None
+
+
+def _git_revert_head(repo_root: Path) -> None:
+    """Revert HEAD commit in worktree."""
+    subprocess.run(
+        ["git", "revert", "--no-edit", "HEAD"],
+        cwd=repo_root,
+        capture_output=True,
+    )
+
+
+async def run_block6(
+    llm: LLMClient,
+    session: SessionDir,
+    topic: str,
+    repo_root: Path | None = None,
+) -> BlockResult:
+    """Block 6: Evolve — diagnose failures, apply change, verify, commit or revert.
+
+    Fixes from v3 plan:
+    - B1: Line-number insert instead of old_text matching
+    - B2: Prompt forces generic modifications (no topic-specific entities)
+    - B3: Correct action states (not_applied vs applied vs reverted)
+    - B5: Data file modifications (channel-scores, patterns) as first priority
+    - B6: Proper git hash capture
+    """
     start = time.monotonic()
     try:
-        # Step 1: Write query outcomes
+        # Step 1: Write query outcomes + patterns
         qo_count = _write_query_outcomes(session)
-
-        # Step 2: Write winning patterns
         patterns_count = _write_winning_patterns(session)
 
-        # Step 3: Read checked rubrics and diagnose
+        # Step 2: Read checked rubrics
         checked_path = (
             session.root / "evidence" / f"checked-rubrics-{session.slug}.jsonl"
         )
         evolution_entry = None
         evolved = False
+        reverted = False
 
-        if checked_path.exists():
-            lines = checked_path.read_text().strip().split("\n")
-            checked = [json.loads(line) for line in lines if line.strip()]
-            failed = [c for c in checked if not c.get("passed")]
-            passed_count = sum(1 for c in checked if c.get("passed"))
-            pass_rate = passed_count / len(checked) if checked else 0
+        if not checked_path.exists():
+            elapsed = int((time.monotonic() - start) * 1000)
+            return BlockResult(
+                block=6,
+                name="Evolve",
+                passed=True,
+                time_ms=elapsed,
+                details={
+                    "query_outcomes": qo_count,
+                    "patterns_saved": patterns_count,
+                    "evolved": False,
+                },
+            )
 
-            if failed and pass_rate < 0.75:
-                # Diagnose and propose a skill change via LLM
-                auto_evolve_skill = read_skill("auto-evolve")
-                failed_json = json.dumps(failed[:5], indent=2)
+        raw_lines = checked_path.read_text().strip().split("\n")
+        checked = [json.loads(line) for line in raw_lines if line.strip()]
+        failed = [c for c in checked if not c.get("passed")]
+        passed_count = sum(1 for c in checked if c.get("passed"))
+        pass_rate = passed_count / len(checked) if checked else 0
 
-                prompt = f"""You are AutoSearch's evolution engine. Analyze failed rubrics and propose ONE skill modification.
+        # Skip if already good enough
+        if not failed or pass_rate >= 0.75:
+            evolution_entry = {
+                "session": session.id,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "topic": topic,
+                "rubric_pass_rate": round(pass_rate, 3),
+                "failed_rubrics": [f.get("id", "") for f in failed],
+                "action": "skipped",
+                "skip_reason": f"pass rate {pass_rate:.2f} >= 0.75"
+                if pass_rate >= 0.75
+                else "no failed rubrics",
+            }
+        else:
+            # Step 3: Diagnose — show file content with line numbers
+            skill_root = repo_root or ROOT
+            failed_json = json.dumps(failed[:5], indent=2)
 
-Topic: {topic}
+            # Categorize failures
+            categories = Counter(f.get("category", "unknown") for f in failed)
+            weakest_cat = categories.most_common(1)[0][0] if categories else "unknown"
+
+            # Show numbered file content based on failure category
+            target_files = {}
+            if weakest_cat in ("information-recall",):
+                # Search-layer issue — show gene-query and select-channels
+                for name in ("gene-query", "select-channels", "synthesize-knowledge"):
+                    fpath = skill_root / "skills" / name / "SKILL.md"
+                    target_files[f"skills/{name}/SKILL.md"] = _numbered_content(
+                        fpath, 80
+                    )
+            else:
+                # Analysis/presentation issue — show synthesize-knowledge
+                fpath = skill_root / "skills" / "synthesize-knowledge" / "SKILL.md"
+                target_files["skills/synthesize-knowledge/SKILL.md"] = (
+                    _numbered_content(fpath, 100)
+                )
+
+            file_sections = "\n\n".join(
+                f"--- {name} ---\n{content}" for name, content in target_files.items()
+            )
+
+            prompt = f"""You are AutoSearch's evolution engine. Diagnose failed rubrics and propose ONE modification.
+
+Topic type: {weakest_cat} failures dominate
 Pass rate: {pass_rate:.2f} ({passed_count}/{len(checked)})
 
 Failed rubrics:
 {failed_json}
 
-Available mutable skills (DO NOT modify auto-evolve, create-skill, observe-user, interact-user, discover-environment, generate-rubrics, check-rubrics, judge.py, PROTOCOL.md):
-- gene-query: query generation strategy
-- select-channels: channel selection rules
-- synthesize-knowledge: report synthesis rules
-- llm-evaluate: relevance evaluation
+Files with line numbers:
+{file_sections}
 
-Instructions from auto-evolve skill:
-{auto_evolve_skill[:2000]}
+RULES:
+1. Pick ONE modification. Priority order:
+   - DATA: append to state/channel-scores.jsonl or state/patterns-v2.jsonl (most precise, easiest to verify)
+   - RULE: insert lines into a skill file (targeted, testable)
+2. For RULE modifications: use insert_after_line (a line number from above) + new_lines
+3. Your modification MUST be GENERIC — it must help ANY topic of this TYPE, not just this specific topic
+   BAD: "Include C-Eval and CMMLU benchmarks for Chinese LLMs"
+   GOOD: "For comparison topics, include quantitative benchmarks per item compared"
+   BAD: "Add section about CrewAI and AutoGen frameworks"
+   GOOD: "For tool comparison topics, cover at least 5 named alternatives with pros/cons"
+4. Do NOT include specific entity names, product names, or benchmark names in rules
+5. Keep additions to 2-8 lines
 
-Output ONLY a JSON object:
+Output ONLY a JSON object. Choose ONE format:
+
+For DATA modification:
 {{
+  "type": "data",
   "diagnosis": "one-line root cause",
-  "weakest_category": "category name",
-  "target_rubrics": ["r001", "r002"],
-  "action": "what to change",
+  "target_file": "state/channel-scores.jsonl",
+  "target_rubrics": ["r001"],
+  "expected_flips": ["r001"],
+  "append_entry": {{"channel": "...", "score": 0.8, "topic_type": "...", "lang": "en"}}
+}}
+
+For RULE modification:
+{{
+  "type": "rule",
+  "diagnosis": "one-line root cause",
   "target_file": "skills/synthesize-knowledge/SKILL.md",
-  "expected_flips": ["r001"]
+  "target_rubrics": ["r001", "r002"],
+  "expected_flips": ["r001"],
+  "insert_after_line": 44,
+  "new_lines": "## New Rule\\n\\nFor comparison topics, always include..."
 }}"""
 
-                response = await llm.chat("sonnet", prompt, max_tokens=2000)
-                try:
-                    json_match = re.search(r"\{.*\}", response, re.DOTALL)
-                    if json_match:
-                        diagnosis = json.loads(json_match.group(0))
-                        evolution_entry = {
-                            "session": session.id,
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                            "topic": topic,
-                            "rubric_pass_rate": round(pass_rate, 3),
-                            "failed_rubrics": [f.get("id", "") for f in failed],
-                            "weakest_category": diagnosis.get("weakest_category", ""),
-                            "target_rubrics": diagnosis.get("target_rubrics", []),
-                            "diagnosis": diagnosis.get("diagnosis", ""),
-                            "action": diagnosis.get("action", ""),
-                            "modified_file": diagnosis.get("target_file", ""),
-                            "expected_flips": diagnosis.get("expected_flips", []),
-                            "commit_hash": None,
-                            "note": "e2e_test: diagnosis only, no git commit",
-                        }
-                        evolved = True
-                except (json.JSONDecodeError, KeyError):
-                    pass
-            else:
+            response = await llm.chat("sonnet", prompt, max_tokens=3000)
+            action = "parse_failed"
+            try:
+                json_match = re.search(r"\{.*\}", response, re.DOTALL)
+                if not json_match:
+                    raise ValueError("No JSON in response")
+
+                diagnosis = json.loads(json_match.group(0))
+                mod_type = diagnosis.get("type", "rule")
+                target_file = diagnosis.get("target_file", "")
+                applied = False
+                commit_hash = None
+                original_content = None
+
+                if mod_type == "data":
+                    # Data file append
+                    append_entry = diagnosis.get("append_entry")
+                    if append_entry and target_file:
+                        data_path = skill_root / target_file
+                        applied = _apply_data_append(data_path, append_entry)
+                        action = "applied_data" if applied else "not_applied"
+                else:
+                    # Rule insertion by line number
+                    after_line = diagnosis.get("insert_after_line", -1)
+                    new_lines_text = diagnosis.get("new_lines", "")
+                    target_path = skill_root / target_file
+
+                    if target_path.exists() and new_lines_text and after_line >= 0:
+                        original_content = target_path.read_text()
+                        applied = _apply_line_insert(
+                            target_path, after_line, new_lines_text
+                        )
+                        action = "applied_rule" if applied else "not_applied"
+                    else:
+                        action = "not_applied"
+
+                # Git commit if applied and in worktree
+                if applied and repo_root:
+                    commit_hash = _git_commit(
+                        repo_root,
+                        [target_file],
+                        f"feat(avo): {diagnosis.get('diagnosis', 'evolution')[:60]}",
+                    )
+
+                # Verify: re-check rubrics (only for rule changes, not data)
+                if applied and mod_type == "rule":
+                    delivery_text = session.read_delivery()
+                    rubrics = session.read_rubrics()
+                    if delivery_text and rubrics:
+                        verify_prompt = f"""Check each rubric against the delivery text. Output ONLY a JSON array.
+Each element: {{"id":"r001","passed":true,"evidence":"brief reason"}}
+
+DELIVERY TEXT:
+{delivery_text[:8000]}
+
+RUBRICS:
+{json.dumps(rubrics[:30])}
+
+Output ONLY the JSON array."""
+                        verify_response = await llm.chat(
+                            "haiku", verify_prompt, max_tokens=8000
+                        )
+                        try:
+                            arr_match = re.search(r"\[.*\]", verify_response, re.DOTALL)
+                            if arr_match:
+                                new_checked = json.loads(arr_match.group(0))
+                                new_passed = sum(
+                                    1 for c in new_checked if c.get("passed")
+                                )
+                                new_rate = (
+                                    new_passed / len(new_checked) if new_checked else 0
+                                )
+
+                                if new_rate < pass_rate:
+                                    # REVERT
+                                    if repo_root and commit_hash:
+                                        _git_revert_head(repo_root)
+                                    elif original_content and target_path.exists():
+                                        target_path.write_text(original_content)
+                                    reverted = True
+                                    action = "reverted"
+                        except (json.JSONDecodeError, KeyError):
+                            pass
+
+                evolved = applied and not reverted
+
+                evolution_entry = {
+                    "session": session.id,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "topic": topic,
+                    "rubric_pass_rate": round(pass_rate, 3),
+                    "weakest_category": weakest_cat,
+                    "failed_rubrics": [f.get("id", "") for f in failed],
+                    "target_rubrics": diagnosis.get("target_rubrics", []),
+                    "diagnosis": diagnosis.get("diagnosis", ""),
+                    "action": action,
+                    "mod_type": mod_type,
+                    "modified_file": target_file if evolved else None,
+                    "commit_hash": commit_hash if evolved else None,
+                    "expected_flips": diagnosis.get("expected_flips", []),
+                    "reverted": reverted,
+                }
+
+            except (json.JSONDecodeError, KeyError, ValueError):
                 evolution_entry = {
                     "session": session.id,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "topic": topic,
                     "rubric_pass_rate": round(pass_rate, 3),
                     "failed_rubrics": [f.get("id", "") for f in failed],
-                    "skip_reason": f"skip: pass rate {pass_rate:.2f} >= 0.75"
-                    if pass_rate >= 0.75
-                    else "skip: no failed rubrics",
+                    "action": "parse_failed",
+                    "skip_reason": "LLM diagnosis failed to parse",
                 }
 
         # Write evolution log
         evo_path = session.root / "state" / "evolution-log.jsonl"
         if evolution_entry:
-            with open(evo_path, "a") as f:
-                f.write(json.dumps(evolution_entry) + "\n")
+            with open(evo_path, "a") as fh:
+                fh.write(json.dumps(evolution_entry) + "\n")
 
-        # Write rubric history (for judge.py rubric_pass_rate dimension)
-        if checked_path.exists():
-            lines = checked_path.read_text().strip().split("\n")
-            checked = [json.loads(line) for line in lines if line.strip()]
-            passed_count = sum(1 for c in checked if c.get("passed"))
-            rh_entry = {
-                "topic": topic,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "total_rubrics": len(checked),
-                "passed": passed_count,
-                "failed": len(checked) - passed_count,
-                "pass_rate": round(passed_count / len(checked), 3) if checked else 0,
-            }
-            rh_path = session.root / "state" / "rubric-history.jsonl"
-            with open(rh_path, "a") as f:
-                f.write(json.dumps(rh_entry) + "\n")
+        # Write rubric history
+        rh_entry = {
+            "topic": topic,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "total_rubrics": len(checked),
+            "passed": passed_count,
+            "failed": len(checked) - passed_count,
+            "pass_rate": round(pass_rate, 3),
+        }
+        rh_path = session.root / "state" / "rubric-history.jsonl"
+        with open(rh_path, "a") as fh:
+            fh.write(json.dumps(rh_entry) + "\n")
 
         # Write worklog
         wl_entry = {
@@ -725,10 +941,11 @@ Output ONLY a JSON object:
             "query_outcomes": qo_count,
             "patterns_saved": patterns_count,
             "evolved": evolved,
+            "reverted": reverted,
         }
-        wl = session.root / "state" / "worklog.jsonl"
-        with open(wl, "a") as f:
-            f.write(json.dumps(wl_entry) + "\n")
+        wl_path = session.root / "state" / "worklog.jsonl"
+        with open(wl_path, "a") as fh:
+            fh.write(json.dumps(wl_entry) + "\n")
 
         elapsed = int((time.monotonic() - start) * 1000)
         return BlockResult(
@@ -740,6 +957,8 @@ Output ONLY a JSON object:
                 "query_outcomes": qo_count,
                 "patterns_saved": patterns_count,
                 "evolved": evolved,
+                "reverted": reverted,
+                "action": evolution_entry.get("action") if evolution_entry else None,
                 "diagnosis": evolution_entry.get("diagnosis")
                 if evolution_entry
                 else None,
