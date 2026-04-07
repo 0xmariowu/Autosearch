@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.svg" width="128" height="128" alt="AutoSearch">
+</p>
+
 <h1 align="center">AutoSearch</h1>
 
 <p align="center">
