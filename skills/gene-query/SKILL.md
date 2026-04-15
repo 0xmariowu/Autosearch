@@ -1,164 +1,118 @@
 ---
 name: gene-query
-description: "Use when you need to expand a task into diverse search queries built from entity, pain_verb, object, symptom, and context genes."
+description: "Use when you need to expand a task into diverse search queries, perform query expansion, or generate search terms by combining entity, pain_verb, object, symptom, and context gene dimensions into targeted keyword research phrases."
 ---
+
+# Workflow
+
+1. **Extract genes** — Parse the task into six dimensions (entity, pain_verb, object, symptom, context, content_type).
+2. **Check knowledge map** — If systematic-recall.md produced a map, identify GAP/LOW/MEDIUM items to target.
+3. **Build gene pool** — Gather candidates from the task, winning history, query performance data, and your own judgment.
+4. **Generate queries** — Combine 2-3 dimensions per query following the mix ratio (60% gene combos, 15% LLM, 15% patterns, 10% proven winners).
+5. **Apply mandatory rules** — Ensure topic-specific required queries are included (academic, tool/product, freshness).
+6. **Adapt language** — Translate queries for Chinese-language channels; keep English for all others.
+7. **Deduplicate and cap** — Remove queries sharing 60%+ content words; stay within `max_total_queries`.
+8. **Output JSON** — Emit the final array for search_runner.py.
 
 # Model Recommendation
 
-Query generation is a structured expansion task. Use Haiku when possible — it generates diverse queries effectively at lower cost. When spawning an agent for query generation, set `model: "haiku"`.
-
-# Purpose
-
-Generate queries from five gene dimensions instead of improvising all search text from scratch.
-This restores a reusable query grammar that turns vague tasks into targeted searches.
+Use Haiku when possible — query generation is a structured expansion task that runs effectively at lower cost. Set `model: "haiku"` when spawning an agent.
 
 # The Six Dimensions
 
-- `entity` = WHO is involved
-- `pain_verb` = ACTION or failure mode
-- `object` = WHAT artifact, tool, concept, or target is involved
-- `symptom` = HOW the problem appears
-- `context` = WHERE or under what condition it happens
-- `content_type` = WHAT KIND of result you want (repo, paper, blog, tutorial, company, video, awesome-list, conference-workshop, company-product, comparison)
+- `entity` — WHO is involved
+- `pain_verb` — ACTION or failure mode
+- `object` — WHAT artifact, tool, concept, or target
+- `symptom` — HOW the problem appears
+- `context` — WHERE or under what condition
+- `content_type` — WHAT KIND of result (repo, paper, blog, tutorial, company, video, awesome-list, conference-workshop, company-product, comparison)
 
-Good queries usually need only 2 or 3 dimensions.
-Do not cram all six into every query.
+Good queries need only 2-3 dimensions. Do not cram all six into every query.
 
-Use `content_type` to steer queries toward underrepresented evidence.
-If the current bundle is heavy on repos and light on papers or blogs, generate queries that explicitly target the missing types.
-Examples: "self-evolving agent tutorial", "self-improving AI startup company", "self-evolving agent survey paper".
+Use `content_type` to steer toward underrepresented evidence. If the bundle is heavy on repos, target missing types explicitly (e.g., "self-evolving agent tutorial", "self-improving AI startup company").
 
-# Gap-Driven Query Generation (Claude-First Mode)
+# Gap-Driven Generation
 
 When systematic-recall.md has produced a knowledge map, generate queries from GAPS, not from the task text.
 
-For each GAP or LOW confidence item in the knowledge map:
-- Convert the gap into a specific search query
-- Target the platform most likely to fill that gap
-- Example: GAP in "commercial players" → query "self-evolving AI agent startup 2026" on web-ddgs
+- **GAP / LOW confidence** — Convert to a specific search query targeting the platform most likely to fill it.
+  Example: GAP in "commercial players" → `"self-evolving AI agent startup 2026"` on web-ddgs
+- **MEDIUM confidence** — Generate a verification query.
+  Example: MEDIUM on "STOP framework" → `"STOP self-taught optimizer latest"` on arxiv/web
+- **HIGH confidence** — Skip. Already covered by own-knowledge.
 
-For each MEDIUM confidence item:
-- Generate a verification query
-- Example: MEDIUM on "STOP framework" → query "STOP self-taught optimizer latest" on arxiv/web
+**Minimum query floor**: ALWAYS generate at least 4 queries regardless of confidence levels. Search adds timeliness (post-cutoff developments), specificity (concrete companies, repos, data points), and verification (HIGH confidence does not mean correct).
 
-Do NOT generate queries for HIGH confidence items — those are already in the evidence bundle from own-knowledge.
-
-**Minimum query floor**: regardless of confidence levels, ALWAYS generate at least 4 queries. Even when all dimensions are HIGH confidence, search adds value through:
-- **Timeliness**: Claude's knowledge has a cutoff date. Search finds developments after that date.
-- **Specificity**: Claude knows general patterns. Search finds specific companies, repos, articles, and data points.
-- **Verification**: HIGH confidence ≠ correct. Search verifies or corrects Claude's priors.
-
-If all dimensions are HIGH, generate 4 "freshness check" queries: the topic + "2026" + "latest" + "new" across the selected channels.
-
-This is the most efficient use of search budget: every query targets a known gap.
+If all dimensions are HIGH, generate 4 freshness-check queries: topic + "2026" / "latest" / "new" across selected channels.
 
 # Mandatory Query Rules
 
-Certain topic types MUST generate specific query types to avoid systematic coverage gaps.
-
 ## Academic/research topics
 
-- MUST generate at least 1 query with `content_type=conference-workshop` (e.g., "topic workshop NeurIPS ICML 2025")
-- MUST generate at least 1 query targeting `arxiv` or `semantic-scholar` channel
+- At least 1 query with `content_type=conference-workshop` (e.g., "topic workshop NeurIPS ICML 2025")
+- At least 1 query targeting `arxiv` or `semantic-scholar`
 
 ## Tool/product topics
 
-- MUST generate at least 1 query with `content_type=company-product` (e.g., "topic startup company funding")
-- MUST generate at least 1 query targeting `producthunt` or `crunchbase` channel
-- MUST generate at least 1 query targeting enterprise/non-GitHub alternatives (e.g., "GitLab Duo", "AWS CodeGuru", "Atlassian Bitbucket AI") when the topic involves developer tools. Because: AVO found r003/r006 consistently fail without enterprise platform queries.
-- MUST generate at least 1 query with `content_type=comparison` that includes "pricing" or "deployment" (e.g., "topic pricing free tier enterprise"). Because: AVO found r008 (pricing/deployment info) fails without explicit pricing queries.
+- At least 1 query with `content_type=company-product` (e.g., "topic startup company funding")
+- At least 1 query targeting `producthunt` or `crunchbase`
+- At least 1 query targeting enterprise/non-GitHub alternatives (e.g., "GitLab Duo", "AWS CodeGuru") when topic involves developer tools
+- At least 1 query with `content_type=comparison` including "pricing" or "deployment" (e.g., "topic pricing free tier enterprise")
 
 ## Any topic
 
-- MUST generate at least 1 query targeting `twitter` channel for recent announcements
-- MUST generate at least 1 Chinese-language query if any Chinese channel is selected
+- At least 1 query targeting `twitter` for recent announcements
+- At least 1 Chinese-language query if any Chinese channel is selected
+- At least 2 freshness queries with explicit year markers (e.g., "topic 2026") for Standard or Deep depth — target arxiv for one, web-ddgs for the other
 
-These rules exist because AVO analysis found that r005 (commercial companies) and r013 (conference info) consistently fail when these query types are missing.
-
-# Input Sources (General)
+# Input Sources
 
 Build the gene pool from four places:
 
-- The task itself: entities, artifacts, constraints, and pain language from the user or goal case
-- Winning history: patterns from `state/patterns.jsonl` (filter to `winning_pattern` and `platform_insight` types only — ignore `session_stats`, `outcome_boost`, and `winning_words` entries, which are statistical noise that does not inform query strategy) and proven queries from `state/outcomes.jsonl`
-- Query performance data: read `state/query-outcomes.jsonl` if it exists. Group by query text or semantic family (queries sharing 2+ content words). Boost: include queries with `relevant_rate >= 0.7` AND `results_count >= 3` — these are proven performers. Suppress: do not generate queries that closely match patterns with `relevant_rate <= 0.2` OR `results_count == 0` for the same `topic_type` — these are proven failures.
-- Your own judgment: missing synonyms, domain terms, and alternate framings not yet present in state
+1. **Task** — entities, artifacts, constraints, and pain language from the user or goal case
+2. **Winning history** — patterns from `state/patterns.jsonl` (filter to `winning_pattern` and `platform_insight` types only) and proven queries from `state/outcomes.jsonl`
+3. **Query performance** — from `state/query-outcomes.jsonl`. Boost queries with `relevant_rate >= 0.7` AND `results_count >= 3`. Suppress queries matching patterns with `relevant_rate <= 0.2` OR `results_count == 0` for the same `topic_type`.
+4. **Your judgment** — missing synonyms, domain terms, and alternate framings not yet in state
 
 # Mix Ratio
 
-Generate candidate queries with this mix:
-
+- 60% gene combinations
 - 15% LLM suggestions
 - 15% winning patterns (from state/patterns.jsonl)
-- 10% high-performing queries (from state/query-outcomes.jsonl, boost proven winners)
-- 60% gene combinations
+- 10% high-performing queries (from state/query-outcomes.jsonl)
 
-Keep the ratio in spirit, not as rigid bookkeeping.
-If one source is exhausted, backfill from the others without collapsing into a single style.
+Keep the ratio in spirit, not as rigid bookkeeping. Backfill from other sources if one is exhausted.
 
 # Combination Rule
 
 For each gene-combination query:
 
-- pick 2 or 3 dimensions
-- pick exactly 1 value from each chosen dimension
-- join them into a terse search phrase
+- Pick 2 or 3 dimensions
+- Pick exactly 1 value from each chosen dimension
+- Join into a terse search phrase
 
-Examples of the shape:
-
-- `entity + object`
-- `pain_verb + object`
-- `entity + symptom + context`
-- `pain_verb + object + context`
-
-Prefer specific combinations that narrow meaning without becoming long natural-language sentences.
+Example shapes: `entity + object`, `pain_verb + object`, `entity + symptom + context`, `pain_verb + object + context`.
 
 # Query Construction Heuristics
 
-Keep one anchor term that strongly binds the topic.
-Add one discriminator that changes what results appear.
-Add a third term only when it meaningfully sharpens retrieval.
+- One **anchor term** binding the topic + one **discriminator** changing what results appear. Add a third term only when it meaningfully sharpens retrieval.
+- Target **3-5 words** for most channels. Academic channels (arxiv, semantic-scholar, google-scholar) may use up to 7. Split overlength queries into two shorter ones.
+- Prefer concrete tokens over generic prose, symptoms over emotional adjectives, observable failures over abstract aspirations.
+- Use winning query patterns from state when they clearly transfer. Keep seed queries from the task or config even if not gene-generated.
 
-Target query length: 3-5 words for most channels. Academic channels (arxiv, semantic-scholar, google-scholar) may use up to 7 words when specificity demands it. If a gene combination produces a query longer than the limit, split it into two shorter queries rather than keeping one long one. Short, precise queries consistently outperform long natural-language phrases on search APIs (SE-Search found 33.8% improvement with atomic queries).
+# Diversity and Dedup
 
-Prefer concrete tokens over generic prose.
-Prefer symptoms over emotional adjectives.
-Prefer observable failures over abstract aspirations.
+Vary the dimension mix: some entity-led, some pain-led, some object-led, some context-led. Avoid a pool where every query starts from the same noun phrase.
 
-Use winning query patterns from state when they clearly transfer.
-Boost queries whose words or families have proven outcomes.
-Keep seed queries from the task or config in the set even if they are not gene-generated.
+Deduplicate semantically, not only by exact string. Final dedup pass: if two queries share 60%+ content words, keep the more specific one. The final set MUST NOT exceed `max_total_queries` from config.json.
 
-# Diversity Rules
+# Freshness and Time
 
-Do not emit many trivial variations of the same query.
-Vary the dimension mix across the set:
-
-- some entity-led
-- some pain-led
-- some object-led
-- some context-led
-
-Avoid a pool where every query starts from the same noun phrase.
-Deduplicate semantically, not only by exact string match.
-After generating all candidate queries, run a final dedup pass: if two queries share 60% or more of their content words, keep the more specific one and drop the other.
-The final query set after dedup MUST NOT exceed `max_total_queries` from config.json.
-
-# Freshness And Time
-
-Do not hard-cap all generated queries by recency.
-Add time qualifiers only when the task explicitly needs freshness or the prior round showed stale retrieval.
-
-## Mandatory Freshness Queries (Standard and Deep depth)
-
-For Standard or Deep depth sessions, MUST generate at least 2 queries with explicit year markers targeting the current year (e.g., "topic 2026", "topic latest 2026").
-Reason: Freshness dimension scores 0.47 on average without year-targeted queries — the judge treats undated results as old. Year markers bias retrieval toward recent papers and repos without requiring a paid API date filter.
-Placement: target the arxiv channel for one freshness query and web-ddgs for the other.
-Example: {"channel": "arxiv", "query": "self-evolving search 2026", "max_results": 10}
+Do not hard-cap all queries by recency. Add time qualifiers only when the task explicitly needs freshness or the prior round showed stale retrieval.
 
 # Output Format
 
-Output a JSON array compatible with search_runner.py:
+JSON array compatible with search_runner.py:
 
 ```json
 [
@@ -168,7 +122,7 @@ Output a JSON array compatible with search_runner.py:
 ]
 ```
 
-Each entry needs: `channel` (from select-channels output), `query` (the search text), `max_results` (optional, default 10).
+Each entry needs: `channel` (from select-channels output), `query` (search text), `max_results` (optional, default 10).
 
 # Language Adaptation Rules
 

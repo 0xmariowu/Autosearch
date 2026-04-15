@@ -1,77 +1,75 @@
 ---
 name: rerank-evidence
-description: "Use after LLM evaluation to rank relevant results by importance and select the top-K for synthesis. Orders evidence by task relevance, not just binary relevant/not-relevant."
+description: "Prioritize results, rank findings, or select the most relevant evidence after evaluation. Use when you need to filter top results from a scored set, order search hits by importance, or pick the best sources for a final answer."
 ---
 
 # Purpose
 
-llm-evaluate.md produces a binary filter: relevant or not.
-But among relevant results, some are far more important than others.
-A foundational paper is more important than a blog post summarizing it.
-A 10K-star framework is more important than a 50-star toy project.
-
-Reranking orders the relevant results so synthesis focuses on the best evidence.
+After llm-evaluate.md marks results as relevant or not, rerank the relevant set so the strongest evidence rises to the top. This ensures synthesis focuses on primary sources and high-quality findings rather than treating all relevant results equally.
 
 # When To Use
 
-Use after llm-evaluate.md has set `metadata.llm_relevant` on all results.
-Use before assemble-context.md selects the final evidence bundle.
+- User asks to "prioritize results", "rank findings", "filter top results", or "select most relevant"
+- After llm-evaluate.md has set `metadata.llm_relevant` on all results
+- Before assemble-context.md selects the final evidence bundle
+- When a large relevant set needs to be narrowed to the top-K items for synthesis
 
 # Ranking Criteria
 
-Rank by these factors, in roughly this priority:
+Score each result on six weighted criteria. Each criterion is scored 0-10.
 
-## 1. Task Relevance (highest weight)
-How directly does this result address the core question?
-- Primary source (original framework, paper, product) > Secondary source (blog summary, news article)
-- Specific to the topic > Generally related
-- Answers a gap in current evidence > Duplicates existing coverage
+| # | Criterion | Weight | What to assess |
+|---|-----------|--------|----------------|
+| 1 | **Task Relevance** | 30% | Primary source vs. secondary; topic-specific vs. tangential; fills a gap vs. duplicates coverage |
+| 2 | **Evidence Quality** | 25% | Peer-reviewed > preprint > blog; official docs > third-party tutorial; full content > snippet-only; verifiable claims > opinion |
+| 3 | **Source Authority** | 20% | Known research lab/company > unknown author; high-star repo > low-star; top conference (NeurIPS, ICLR, ICML) > workshop > arXiv-only |
+| 4 | **Freshness** | 10% | More recent is better in fast-moving fields. Foundational works (STaR, Reflexion, Voyager) keep high scores regardless of age |
+| 5 | **Diversity Bonus** | 10% | Underrepresented platform or content type gets a boost. If the bundle is 80% GitHub repos, a paper or blog ranks higher than another repo |
+| 6 | **Cross-Source Convergence** | 5% | Appears on multiple platforms (`also_on` non-empty). Confirmed across Reddit, HN, and Twitter signals a canonical finding |
 
-## 2. Evidence Quality
-How trustworthy and substantive is this result?
-- Peer-reviewed paper > preprint > blog post
-- Official documentation > third-party tutorial
-- Result with fetched full content > snippet-only result
-- Result with verifiable claims > opinion piece
+**Composite score formula:**
 
-## 3. Source Authority
-How credible is the source?
-- Well-known research lab or company > unknown author
-- High-star GitHub repo > low-star repo
-- Conference paper (NeurIPS, ICLR, ICML) > workshop paper > arXiv-only
-- Domain expert blog > generic tech blog
+```
+score = (relevance * 0.30) + (quality * 0.25) + (authority * 0.20)
+      + (freshness * 0.10) + (diversity * 0.10) + (convergence * 0.05)
+```
 
-## 4. Freshness (when relevant)
-More recent is better when the field is evolving quickly.
-But foundational works (STaR, Reflexion, Voyager) should rank high regardless of age.
+# Workflow
 
-## 5. Diversity Bonus
-A result from an underrepresented platform or content type gets a boost.
-If the bundle is 80% GitHub repos, a blog post or paper should rank higher than another repo.
+1. **Load**: Read all results where `metadata.llm_relevant = true`
+2. **Score**: For each result, assign 0-10 on each of the six criteria and compute the composite score
+3. **Rank**: Sort by composite score descending. Assign `metadata.rank` (1 = most important)
+4. **Validate**: Check the top 5 — confirm no duplicates, at least two distinct source types, and that the top result is a primary source. If validation fails, adjust scores and re-sort
+5. **Output**: Write ranked results for assemble-context.md to consume
 
-## 6. Cross-Source Convergence
-A result that appears across multiple platforms (`also_on` field non-empty) is stronger evidence than a single-source finding. Treat convergent items one tier higher than equivalent single-source items. The same story confirmed by Reddit, HN, and Twitter is likely canonical and should rank near the top.
+For large result sets (>50 relevant results), rank in batches of 20. Compare top results across batches to produce a final ranking.
 
-# How To Rank
+# Example
 
-You are Claude. You can read all the results and judge their relative importance.
-No external embedding API is needed.
+**Input** (3 relevant JSONL results):
 
-Process:
-1. Read all results where `metadata.llm_relevant = true`
-2. For each result, mentally score it on the 5 criteria above
-3. Sort by overall importance
-4. Output the ranked list for assemble-context.md to use
+```jsonl
+{"title": "Voyager: An Open-Ended Embodied Agent", "url": "https://arxiv.org/abs/2305.16291", "source": "arxiv", "metadata": {"llm_relevant": true, "also_on": ["github", "hackernews"]}}
+{"title": "Summary of Voyager paper", "url": "https://blog.example.com/voyager-summary", "source": "blog", "metadata": {"llm_relevant": true, "also_on": []}}
+{"title": "voyager-minecraft GitHub repo", "url": "https://github.com/MineDojo/Voyager", "source": "github", "metadata": {"llm_relevant": true, "stars": 5200, "also_on": ["arxiv"]}}
+```
 
-For large result sets (>50 relevant results), rank in batches of 20.
-Compare top results across batches to produce a final ranking.
+**Scoring:**
 
-# Output
+| Result | Relevance | Quality | Authority | Freshness | Diversity | Convergence | Composite |
+|--------|-----------|---------|-----------|-----------|-----------|-------------|-----------|
+| Voyager paper (arxiv) | 10 | 9 | 9 | 8 | 7 | 10 | **9.15** |
+| Voyager repo (github) | 9 | 7 | 8 | 8 | 5 | 8 | **7.70** |
+| Blog summary | 6 | 4 | 3 | 7 | 8 | 0 | **4.90** |
 
-Add `metadata.rank` (integer, 1 = most important) to each relevant result.
-Or simply reorder the evidence JSONL file by importance.
+**Output** (ranked):
+
+```jsonl
+{"title": "Voyager: An Open-Ended Embodied Agent", "url": "https://arxiv.org/abs/2305.16291", "source": "arxiv", "metadata": {"llm_relevant": true, "also_on": ["github", "hackernews"], "rank": 1, "rerank_score": 9.15}}
+{"title": "voyager-minecraft GitHub repo", "url": "https://github.com/MineDojo/Voyager", "source": "github", "metadata": {"llm_relevant": true, "stars": 5200, "also_on": ["arxiv"], "rank": 2, "rerank_score": 7.70}}
+{"title": "Summary of Voyager paper", "url": "https://blog.example.com/voyager-summary", "source": "blog", "metadata": {"llm_relevant": true, "also_on": [], "rank": 3, "rerank_score": 4.90}}
+```
 
 # Quality Bar
 
-A good ranking puts foundational works, canonical tools, and primary sources at the top.
-A bad ranking is dominated by secondary sources, duplicative content, or popularity-biased ordering.
+A good ranking puts foundational works, canonical tools, and primary sources at the top. The top 5 should include at least two distinct source types and no duplicates. A bad ranking is dominated by secondary sources, duplicative content, or popularity-biased ordering.

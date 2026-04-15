@@ -1,6 +1,6 @@
 ---
 name: research-mode
-description: "Use at the start of a task to choose speed, balanced, or deep research depth from the user's urgency and complexity."
+description: "Use when the user asks for a quick lookup, a brief answer, a deep dive, thorough research, or a comprehensive analysis to select speed, balanced, or deep search depth before querying. Use when you need to decide how many search rounds and queries to budget for a research task."
 ---
 
 # Purpose
@@ -40,6 +40,17 @@ Choose `deep` when:
 - earlier rounds plateaued but the problem remains unsolved
 
 If the user gives no clear signal, default to `balanced`.
+
+# Examples
+
+**"What year was Python 3.10 released?"**
+→ `speed` — narrow factual question, one query is enough, answer in seconds.
+
+**"Compare the top three open-source vector databases for a RAG pipeline."**
+→ `balanced` — bounded comparison across a few products, needs iteration and follow-up but scope is clear.
+
+**"Give me a comprehensive survey of federated learning techniques, their trade-offs, and which frameworks implement them."**
+→ `deep` — multi-dimensional topic, high ambiguity, the user explicitly wants thoroughness, and the answer will inform an architecture decision.
 
 # Mode Behavior
 

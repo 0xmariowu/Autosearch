@@ -1,15 +1,11 @@
 ---
 name: decompose-task
-description: "Use when a research task is too broad or multi-dimensional for a single query strategy to cover well. Breaks complex questions into independent sub-questions."
+description: "Use when you need to break down a broad research task, multi-part question, or multi-dimensional topic into a structured research plan. Decomposes complex questions into independent sub-questions, assigns platforms and query budgets per sub-question, then merges and deduplicates results across all dimensions."
 ---
 
 # Purpose
 
-Some tasks are too broad for gene-query.md alone.
-"Find self-evolving AI agent frameworks" has at least 5 sub-dimensions: open-source projects, academic papers, commercial products, design patterns, and risks.
-A single query strategy covers 1-2 dimensions well and misses the rest.
-
-Decomposition turns one broad task into 3-5 focused sub-tasks, each with its own search strategy.
+Decomposition turns one broad task into 3-5 focused sub-tasks, each with its own search strategy, platform assignment, and query budget — covering dimensions that gene-query.md alone would miss.
 
 # When To Decompose
 
@@ -49,6 +45,21 @@ The knowledge map IS the decomposition input.
 3. For each dimension, write a focused sub-question
 4. Check independence: would the same search results answer two sub-questions? If yes, merge them.
 5. Assign platform preferences per sub-question (e.g., papers → arXiv + web, repos → GitHub, products → web)
+
+# Decomposition Output Template
+
+After decomposing, produce a table in this format before executing any searches:
+
+| # | Sub-question | Confidence | Platform(s) | Query Budget |
+|---|-------------|------------|-------------|--------------|
+| 1 | What open-source self-evolving agent frameworks exist? | LOW | GitHub, web | 3 |
+| 2 | What academic papers define the foundations of self-evolving agents? | MEDIUM | arXiv, own-knowledge | 2 |
+| 3 | What commercial products use self-evolving agent technology? | GAP | web | 3 |
+| 4 | What design patterns are used in self-evolving agent architectures? | HIGH | own-knowledge, web | 1 |
+| 5 | What are the known risks and limitations? | MEDIUM | papers, blogs | 2 |
+
+- **Confidence** comes from systematic-recall.md. HIGH = use own knowledge, skip search. MEDIUM = verify with 1-2 queries. LOW/GAP = full search.
+- **Query Budget** = number of queries allocated to this sub-question. Must sum to ≤ total research-mode budget.
 
 # Example
 
