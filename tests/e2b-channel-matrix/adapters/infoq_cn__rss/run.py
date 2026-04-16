@@ -1,24 +1,14 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import re
-import subprocess
-import sys
 import time
-import xml.etree.ElementTree as ET
-
-import httpx
 
 REPO = "https://www.infoq.cn/feed"
 PLATFORM = "infoq_cn"
 PATH_ID = "infoq_cn__rss"
 FEED_URL = "https://www.infoq.cn/feed"
-USER_AGENT = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-)
 
 
 def _result_payload(
@@ -49,23 +39,16 @@ def _extract_item_text(item: object) -> str:
     if not hasattr(item, "get"):
         return _clean_text(item)
 
-    for key in (
-        "summary",
-        "title",
-        "content",
-        "snippet",
-        "description",
-        "text",
-    ):
+    for key in ("summary", "title", "content", "snippet", "description", "text"):
         value = item.get(key)
-        if value:
-            if isinstance(value, list):
-                joined = " ".join(
-                    _clean_text(part.get("value", part)) for part in value
-                )
-                if joined:
-                    return joined
-            return _clean_text(value)
+        if not value:
+            continue
+        if isinstance(value, list):
+            joined = " ".join(_clean_text(part.get("value", part)) for part in value)
+            if joined:
+                return joined
+            continue
+        return _clean_text(value)
 
     return _clean_text(json.dumps(dict(item), ensure_ascii=False))
 
@@ -83,151 +66,43 @@ def _summarize_items(
     return len(limited_items), avg_len, sample or None
 
 
-def _ddgs_fallback(query: str) -> list[object]:
-    if importlib.util.find_spec("ddgs") is None:
-        raise ImportError("No module named 'ddgs'")
+def _load_entries() -> list[object]:
+    import feedparser
 
-    script = """
-import json
-from ddgs import DDGS
-with DDGS() as ddgs:
-    items = list(ddgs.text(sys.argv[1], max_results=10) or [])
-print(json.dumps(items, ensure_ascii=False))
-"""
-    proc = subprocess.run(
-        [sys.executable, "-c", "import sys\n" + script, f"site:infoq.cn {query}"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if proc.returncode != 0:
-        raise RuntimeError(proc.stderr.strip() or f"ddgs exit {proc.returncode}")
-    return json.loads(proc.stdout or "[]")
-
-
-def _local_name(tag: str) -> str:
-    return tag.split("}", 1)[-1]
-
-
-def _parse_xml_feed(content: bytes) -> list[dict[str, str]]:
-    root = ET.fromstring(content)
-    entries: list[dict[str, str]] = []
-    for element in root.iter():
-        name = _local_name(element.tag)
-        if name not in {"item", "entry"}:
-            continue
-
-        record: dict[str, str] = {}
-        for child in list(element):
-            child_name = _local_name(child.tag)
-            if child_name in {"title", "summary", "description"}:
-                record[child_name] = _clean_text(child.text or "")
-        entries.append(record)
+    feed = feedparser.parse(FEED_URL)
+    entries = list(getattr(feed, "entries", []) or [])
+    if getattr(feed, "bozo", 0) and not entries:
+        bozo_exc = getattr(feed, "bozo_exception", None)
+        raise RuntimeError(str(bozo_exc or "feed parse failed"))
     return entries
-
-
-def _parse_feed_content(content: bytes) -> list[object]:
-    try:
-        import feedparser
-
-        feed = feedparser.parse(content)
-        entries = list(getattr(feed, "entries", []) or [])
-        if entries:
-            return entries
-        if getattr(feed, "bozo", 0):
-            bozo_exc = getattr(feed, "bozo_exception", None)
-            raise RuntimeError(str(bozo_exc or "feed parse failed"))
-    except ModuleNotFoundError:
-        pass
-    return _parse_xml_feed(content)
-
-
-def _feed_items(query: str) -> tuple[list[object], list[str], int | None]:
-    headers = {"User-Agent": USER_AGENT}
-    signals: list[str] = []
-    status_code: int | None = None
-
-    # Skip HEAD — infoq.cn returns 404 for HEAD but 200 for GET.
-    response = httpx.get(
-        FEED_URL,
-        headers=headers,
-        follow_redirects=True,
-        timeout=10.0,
-        trust_env=False,
-    )
-    status_code = response.status_code
-    if response.status_code == 404:
-        signals.append("http_404")
-        return [], signals, status_code
-    response.raise_for_status()
-
-    entries = _parse_feed_content(response.content)
-
-    needle = query.casefold()
-    matched = []
-    for entry in entries:
-        haystack = " ".join(
-            _clean_text(entry.get(key, "")) for key in ("title", "summary")
-        ).casefold()
-        if needle in haystack:
-            matched.append(entry)
-
-    return matched, signals, status_code
 
 
 def run(query: str, query_category: str) -> dict[str, object]:
     started = time.perf_counter()
     try:
-        matched, signals, status_code = _feed_items(query)
-        if matched:
-            items_returned, avg_content_len, sample = _summarize_items(
-                matched, max_items=20
-            )
-            elapsed_ms = int((time.perf_counter() - started) * 1000)
-            return _result_payload(
-                query,
-                query_category,
-                elapsed_ms,
-                status="ok",
-                items_returned=items_returned,
-                avg_content_len=avg_content_len,
-                sample=sample,
-                anti_bot_signals=signals,
-            )
-        if status_code not in (None, 200):
-            raise RuntimeError(f"HTTP {status_code}")
+        entries = _load_entries()
+        needle = query.casefold()
+        matched = []
+        for entry in entries:
+            haystack = " ".join(
+                _clean_text(entry.get(key, ""))
+                for key in ("title", "summary", "description", "content")
+            ).casefold()
+            if needle in haystack:
+                matched.append(entry)
 
+        items_returned, avg_content_len, sample = _summarize_items(matched, max_items=20)
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         return _result_payload(
             query,
             query_category,
             elapsed_ms,
-            status="empty",
-            items_returned=0,
-            avg_content_len=0,
-            sample=None,
-            anti_bot_signals=signals,
+            status="ok" if items_returned else "empty",
+            items_returned=items_returned,
+            avg_content_len=avg_content_len,
+            sample=sample,
         )
     except Exception as exc:
-        if isinstance(exc, RuntimeError) and "HTTP " in str(exc):
-            try:
-                items = _ddgs_fallback(query)
-                items_returned, avg_content_len, sample = _summarize_items(
-                    items, max_items=10
-                )
-                elapsed_ms = int((time.perf_counter() - started) * 1000)
-                return _result_payload(
-                    query,
-                    query_category,
-                    elapsed_ms,
-                    status="ok" if items_returned else "empty",
-                    items_returned=items_returned,
-                    avg_content_len=avg_content_len,
-                    sample=sample,
-                )
-            except Exception:
-                pass
-
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         status = "timeout" if "timeout" in str(exc).lower() else "error"
         return _result_payload(

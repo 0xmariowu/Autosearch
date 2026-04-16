@@ -4,7 +4,6 @@ import argparse
 import json
 import re
 import time
-import xml.etree.ElementTree as ET
 
 REPO = "https://36kr.com/feed"
 PLATFORM = "36kr"
@@ -72,43 +71,15 @@ def _summarize_items(
     return len(limited_items), avg_len, sample or None
 
 
-def _local_name(tag: str) -> str:
-    return tag.split("}", 1)[-1]
-
-
-def _parse_xml_feed(content: bytes) -> list[dict[str, str]]:
-    root = ET.fromstring(content)
-    entries: list[dict[str, str]] = []
-    for element in root.iter():
-        name = _local_name(element.tag)
-        if name not in {"item", "entry"}:
-            continue
-
-        record: dict[str, str] = {}
-        for child in list(element):
-            child_name = _local_name(child.tag)
-            if child_name in {"title", "summary", "description"}:
-                record[child_name] = _clean_text(child.text or "")
-        entries.append(record)
-    return entries
-
-
 def _load_entries() -> list[object]:
-    try:
-        import feedparser
+    import feedparser
 
-        feed = feedparser.parse(FEED_URL)
-        entries = list(getattr(feed, "entries", []) or [])
-        if getattr(feed, "bozo", 0) and not entries:
-            bozo_exc = getattr(feed, "bozo_exception", None)
-            raise RuntimeError(str(bozo_exc or "feed parse failed"))
-        return entries
-    except ModuleNotFoundError:
-        import httpx
-
-        response = httpx.get(FEED_URL, timeout=10.0, follow_redirects=True, trust_env=False)
-        response.raise_for_status()
-        return _parse_xml_feed(response.content)
+    feed = feedparser.parse(FEED_URL)
+    entries = list(getattr(feed, "entries", []) or [])
+    if getattr(feed, "bozo", 0) and not entries:
+        bozo_exc = getattr(feed, "bozo_exception", None)
+        raise RuntimeError(str(bozo_exc or "feed parse failed"))
+    return entries
 
 
 def run(query: str, query_category: str) -> dict[str, object]:

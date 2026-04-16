@@ -3,25 +3,20 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
+import re
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
-from pathlib import Path
 
 REPO = "https://github.com/rachelos/we-mp-rss"
-WORKSPACE_REPO = Path("/tmp/as-matrix/we-mp-rss")
-if str(WORKSPACE_REPO) not in sys.path:
-    sys.path.insert(0, str(WORKSPACE_REPO))
+PLATFORM = "wechat"
+PATH_ID = "wechat__we_mp_rss"
 
 
 def _result_payload(
     query: str, query_category: str, elapsed_ms: int, **extra: object
 ) -> dict[str, object]:
     payload: dict[str, object] = {
-        "platform": "wechat",
-        "path_id": "wechat__we_mp_rss",
+        "platform": PLATFORM,
+        "path_id": PATH_ID,
         "repo": REPO,
         "query": query,
         "query_category": query_category,
@@ -32,11 +27,18 @@ def _result_payload(
     return payload
 
 
+def _clean_text(value: object) -> str:
+    text = str(value or "")
+    text = re.sub(r"<[^>]+>", " ", text)
+    return " ".join(text.split())
+
+
 def _extract_item_text(item: object) -> str:
     if isinstance(item, str):
-        return item
-    if not isinstance(item, dict):
-        return str(item)
+        return _clean_text(item)
+    if not hasattr(item, "get"):
+        return _clean_text(item)
+
     for key in (
         "content",
         "desc",
@@ -49,8 +51,8 @@ def _extract_item_text(item: object) -> str:
     ):
         value = item.get(key)
         if value:
-            return str(value)
-    return json.dumps(item, ensure_ascii=False)[:300]
+            return _clean_text(value)
+    return _clean_text(json.dumps(dict(item), ensure_ascii=False))
 
 
 def _summarize_items(items: list[object]) -> tuple[int, int, str | None]:
@@ -59,98 +61,23 @@ def _summarize_items(items: list[object]) -> tuple[int, int, str | None]:
         return 0, 0, None
     texts = [_extract_item_text(item) for item in limited_items]
     avg_len = int(sum(len(text) for text in texts) / len(texts))
-    sample = " ".join(texts[0].split())[:200]
+    sample = texts[0][:200] if texts else None
     return len(limited_items), avg_len, sample or None
 
 
-def _normalize_items(payload: object) -> list[object]:
-    if isinstance(payload, list):
-        return payload
-    if not isinstance(payload, dict):
-        return []
+def _load_entries(feed_url: str) -> list[object]:
+    import feedparser
 
-    for key in (
-        "items",
-        "data",
-        "list",
-        "records",
-        "feeds",
-        "articles",
-        "result",
-        "results",
-    ):
-        value = payload.get(key)
-        if isinstance(value, list):
-            return value
-        if isinstance(value, dict):
-            nested = _normalize_items(value)
-            if nested:
-                return nested
-    return []
-
-
-def _probe_instance(base_url: str, query: str) -> list[object]:
-    base = base_url.rstrip("/")
-    openapi_url = f"{base}/openapi.json"
-    with urllib.request.urlopen(openapi_url, timeout=10) as response:
-        document = json.loads(response.read().decode("utf-8"))
-
-    paths = document.get("paths") if isinstance(document, dict) else {}
-    if not isinstance(paths, dict):
-        return []
-
-    for path, methods in paths.items():
-        if not isinstance(methods, dict) or "get" not in methods:
-            continue
-        path_lower = path.lower()
-        if not any(
-            token in path_lower
-            for token in ("rss", "feed", "article", "search", "sub", "wechat")
-        ):
-            continue
-
-        parameters = methods.get("get", {}).get("parameters") or []
-        if not isinstance(parameters, list):
-            parameters = []
-
-        query_params: dict[str, str | int] = {}
-        names = {
-            str(param.get("name"))
-            for param in parameters
-            if isinstance(param, dict) and param.get("name")
-        }
-        for candidate in ("keyword", "query", "name", "title", "q"):
-            if candidate in names:
-                query_params[candidate] = query
-                break
-        for candidate in ("limit", "size", "page_size", "per_page"):
-            if candidate in names:
-                query_params[candidate] = 20
-                break
-
-        target = urllib.parse.urljoin(f"{base}/", path.lstrip("/"))
-        if query_params:
-            target = f"{target}?{urllib.parse.urlencode(query_params)}"
-
-        with urllib.request.urlopen(target, timeout=10) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-        return _normalize_items(payload)
-
-    return []
+    feed = feedparser.parse(feed_url)
+    entries = list(getattr(feed, "entries", []) or [])
+    if getattr(feed, "bozo", 0) and not entries:
+        bozo_exc = getattr(feed, "bozo_exception", None)
+        raise RuntimeError(str(bozo_exc or "feed parse failed"))
+    return entries
 
 
 def run(query: str, query_category: str) -> dict[str, object]:
     started = time.perf_counter()
-    if not WORKSPACE_REPO.exists():
-        elapsed_ms = int((time.perf_counter() - started) * 1000)
-        return _result_payload(
-            query,
-            query_category,
-            elapsed_ms,
-            status="error",
-            error="Repository not found; run setup.sh first",
-        )
-
     base_url = os.environ.get("WE_MP_RSS_URL", "").strip()
     if not base_url:
         elapsed_ms = int((time.perf_counter() - started) * 1000)
@@ -163,14 +90,24 @@ def run(query: str, query_category: str) -> dict[str, object]:
             avg_content_len=0,
             sample=None,
             error=(
-                "Set WE_MP_RSS_URL to a hosted we-mp-rss instance. The upstream "
+                "Set WE_MP_RSS_URL to a hosted we-mp-rss RSS endpoint. The upstream "
                 "project requires service deployment plus an authenticated "
                 "account/session before article data is available."
             ),
         )
 
     try:
-        items = _probe_instance(base_url, query)
+        entries = _load_entries(base_url)
+        needle = query.casefold()
+        items = []
+        for entry in entries:
+            haystack = " ".join(
+                _clean_text(entry.get(key, ""))
+                for key in ("title", "summary", "description", "content")
+            ).casefold()
+            if needle in haystack:
+                items.append(entry)
+
         items_returned, avg_content_len, sample = _summarize_items(items)
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         return _result_payload(
@@ -181,17 +118,6 @@ def run(query: str, query_category: str) -> dict[str, object]:
             items_returned=items_returned,
             avg_content_len=avg_content_len,
             sample=sample,
-        )
-    except urllib.error.HTTPError as exc:
-        elapsed_ms = int((time.perf_counter() - started) * 1000)
-        message = f"HTTPError: {exc.code} {exc.reason}"
-        status = "needs_login" if exc.code in {401, 403} else "error"
-        return _result_payload(
-            query,
-            query_category,
-            elapsed_ms,
-            status=status,
-            error=message,
         )
     except Exception as exc:
         elapsed_ms = int((time.perf_counter() - started) * 1000)

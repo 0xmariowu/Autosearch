@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-python3 -m pip install httpx
+# No setup: this adapter intentionally reports sandbox_infeasible under rule-3.
+:
