@@ -1,0 +1,420 @@
+{
+  "generated": "2026-04-16",
+  "purpose": "43 missing adapters to reach Plan target of 80 (after disqualification of 6). Codex reads this as the single source of truth for what to build.",
+  "iron_rules": [
+    "MUST git clone the upstream repo (or pip install the packaged library) - NEVER write your own HTTP/signing/scraping code",
+    "Pure HTTP endpoints (e.g. m.weibo.cn, xueqiu.com/hq.json) are BANNED even though they 'just work' - must go through an upstream repo's wrapper function",
+    "EXCEPTION: standard RSS / Atom feeds may use feedparser directly (public standard, not custom scraping)",
+    "Each adapter = clone + import + 20-30 line mapping layer. If the repo has no usable entry point, mark status=error with reason, do NOT write your own scraper",
+    "Use /tmp/as-matrix/ for repo clone paths (e2b default workspace prefix is blocked by committer PII check)",
+    "setup.sh time budget <= 180s, run.py time budget <= 30s",
+    "Never hardcode cookies/API keys. Return status=needs_login if login required",
+    "Must follow ADAPTER_SPEC.md exactly (output schema, status enum, content filtering)"
+  ],
+  "reference_templates": {
+    "python_http_async": "tests/e2b-channel-matrix/adapters/bilibili__nemo2011/run.py",
+    "python_http_sync": "tests/e2b-channel-matrix/adapters/zhihu__lzjun567_api/run.py (if exists) or csdn__rss",
+    "rss_feedparser": "tests/e2b-channel-matrix/adapters/36kr__rss/run.py",
+    "seo_tertiary": "tests/e2b-channel-matrix/adapters/seo__bing_via_ddgs/run.py"
+  },
+  "groups": {
+    "G1_xiaohongshu": {
+      "adapters": [
+        {
+          "path_id": "xiaohongshu__xhs996_xhs_spider",
+          "platform": "xiaohongshu",
+          "repo": "https://github.com/xhs996/xhs_spider",
+          "template": "as-python-http",
+          "entry_hint": "clone + pip install -e + inspect main script / module for search function. Repo is Python signing reverse.",
+          "known_issue": "may need cookie for 461 response; if so return status=needs_login",
+          "priority": "P-C"
+        },
+        {
+          "path_id": "xiaohongshu__cv_cat_spider_xhs",
+          "platform": "xiaohongshu",
+          "repo": "https://github.com/cv-cat/Spider_XHS",
+          "template": "as-python-http",
+          "entry_hint": "JS full-domain crawler. Clone + pip install requirements. Look for apis/ directory or main.py for search entry.",
+          "known_issue": "cookie-gated; return status=needs_login if cookie check fails",
+          "priority": "S-B"
+        },
+        {
+          "path_id": "xiaohongshu__reajason_xhs",
+          "platform": "xiaohongshu",
+          "repo": "https://github.com/ReaJason/xhs",
+          "template": "as-python-http",
+          "entry_hint": "pip install xhs package then `from xhs import XhsClient`. Best documented Python SDK.",
+          "known_issue": "needs cookie via XhsClient(cookie=...)",
+          "priority": "S-C"
+        },
+        {
+          "path_id": "xiaohongshu__xpzouying_mcp",
+          "platform": "xiaohongshu",
+          "repo": "https://github.com/xpzouying/xiaohongshu-mcp",
+          "template": "as-node-browser",
+          "entry_hint": "Go MCP server. Run via docker or `go run`. Alternative: query via MCP JSON-RPC. This is the 12.9k control group (CRITICAL).",
+          "known_issue": "needs browser + cookie; try best-effort and mark status=needs_login if not feasible in sandbox",
+          "priority": "S-D (对照组)"
+        }
+      ]
+    },
+    "G2_douyin": {
+      "adapters": [
+        {
+          "path_id": "douyin__nearhuiwen_tiktok_crawler",
+          "platform": "douyin",
+          "repo": "https://github.com/NearHuiwen/TiktokCrawler",
+          "template": "as-python-http",
+          "entry_hint": "Standalone x-bogus reverse. Inspect repo for generate_x_bogus + search function.",
+          "priority": "P-C"
+        },
+        {
+          "path_id": "douyin__shilonglee_crawler",
+          "platform": "douyin",
+          "repo": "https://github.com/ShilongLee/Crawler",
+          "template": "as-python-browser",
+          "entry_hint": "Multi-platform Docker bundle. For douyin module: clone + locate douyin/ entry + call search.",
+          "known_issue": "may need Docker; try python-only mode first",
+          "priority": "S-B"
+        },
+        {
+          "path_id": "douyin__loadchange_amemv_crawler",
+          "platform": "douyin",
+          "repo": "https://github.com/loadchange/amemv-crawler",
+          "template": "as-python-http",
+          "entry_hint": "Python account-targeted downloader. Use its core HTTP client for search if available; else status=empty with note.",
+          "priority": "S-C"
+        },
+        {
+          "path_id": "douyin__freeloop4032_douyin_live",
+          "platform": "douyin",
+          "repo": "https://github.com/freeloop4032/douyin-live",
+          "template": "as-python-http",
+          "entry_hint": "Live + danmaku protocol. Will not match keyword queries well. Return status=empty for text queries, note scope is live-only.",
+          "priority": "S-D (scope mismatch)"
+        }
+      ]
+    },
+    "G3_bilibili_wechat": {
+      "adapters": [
+        {
+          "path_id": "bilibili__vespa314_bilibili_api",
+          "platform": "bilibili",
+          "repo": "https://github.com/Vespa314/bilibili-api",
+          "template": "as-python-http",
+          "entry_hint": "Older abandoned Python SDK. pip install, look for search module. Used as staleness control vs Nemo2011.",
+          "known_issue": "stopped maintenance 2+ years; may 403",
+          "priority": "S-A"
+        },
+        {
+          "path_id": "bilibili__czp3009_bilibili_api",
+          "platform": "bilibili",
+          "repo": "https://github.com/czp3009/bilibili-api",
+          "template": "as-python-http",
+          "entry_hint": "Kotlin SDK. Invoking from Python requires JVM. If Kotlin binding infeasible in sandbox, mark status=error with reason 'JVM not available'.",
+          "priority": "S-B"
+        },
+        {
+          "path_id": "wechat__wnma3mz_wechat_articles",
+          "platform": "wechat",
+          "repo": "https://github.com/wnma3mz/wechat_articles_spider",
+          "template": "as-python-http",
+          "entry_hint": "Python pip install. Look for WechatArticle class. Requires wx_token + cookie.",
+          "known_issue": "needs wx_token; return status=needs_login",
+          "priority": "S-B"
+        },
+        {
+          "path_id": "wechat__bowenpay_wechat_spider",
+          "platform": "wechat",
+          "repo": "https://github.com/bowenpay/wechat-spider",
+          "template": "as-python-http",
+          "entry_hint": "Python article scraper. Look for main.py or spider.py.",
+          "known_issue": "needs cookie",
+          "priority": "S-C"
+        }
+      ]
+    },
+    "G4_weibo_zhihu": {
+      "adapters": [
+        {
+          "path_id": "weibo__dataabc_weibo_crawler",
+          "platform": "weibo",
+          "repo": "https://github.com/dataabc/weibo-crawler",
+          "template": "as-python-http",
+          "entry_hint": "Sibling of weiboSpider, includes images/videos. pip install requirements, use weibo_crawler module.",
+          "priority": "P-B"
+        },
+        {
+          "path_id": "weibo__stay_leave_opinion",
+          "platform": "weibo",
+          "repo": "https://github.com/stay-leave/weibo-public-opinion-analysis",
+          "template": "as-python-http",
+          "entry_hint": "Contains weibo crawler + LDA. Use only the crawler submodule, ignore analysis parts.",
+          "priority": "S-A"
+        },
+        {
+          "path_id": "weibo__charesfang_weibospider",
+          "platform": "weibo",
+          "repo": "https://github.com/CharesFang/WeiboSpider",
+          "template": "as-python-http",
+          "entry_hint": "Scrapy-based. If scrapy runtime too heavy, extract core HTTP logic via scrapy.Request simulation. Otherwise mark error.",
+          "priority": "S-B"
+        },
+        {
+          "path_id": "zhihu__cv_cat_zhihu_apis",
+          "platform": "zhihu",
+          "repo": "https://github.com/cv-cat/ZhihuApis",
+          "template": "as-python-http",
+          "entry_hint": "x-zse-96 signature reverse. Inspect repo for sign + search functions.",
+          "priority": "P-B"
+        },
+        {
+          "path_id": "zhihu__liuroy_zhihu_spider",
+          "platform": "zhihu",
+          "repo": "https://github.com/LiuRoy/zhihu_spider",
+          "template": "as-python-http",
+          "entry_hint": "Old-school Scrapy project. Extract HTTP client + parse if possible.",
+          "known_issue": "likely 403 without cookie",
+          "priority": "P-C"
+        },
+        {
+          "path_id": "zhihu__littlepai_unofficial",
+          "platform": "zhihu",
+          "repo": "https://github.com/littlepai/Unofficial-Zhihu-API",
+          "template": "as-python-http",
+          "entry_hint": "Python API with deep-learning captcha. If TF/torch deps too heavy (>500MB), skip captcha step and call basic search.",
+          "priority": "S-A"
+        },
+        {
+          "path_id": "zhihu__syaning_zhihu_api",
+          "platform": "zhihu",
+          "repo": "https://github.com/syaning/zhihu-api",
+          "template": "as-node-browser",
+          "entry_hint": "JS SDK. Need Node runtime. Call via subprocess node -e or use Python port if exists.",
+          "priority": "S-B"
+        }
+      ]
+    },
+    "G5_kuaishou": {
+      "adapters": [
+        {
+          "path_id": "kuaishou__shilonglee_crawler",
+          "platform": "kuaishou",
+          "repo": "https://github.com/ShilongLee/Crawler",
+          "template": "as-python-browser",
+          "entry_hint": "Same repo as douyin G2, but use kuaishou/ module. Shared clone is OK.",
+          "priority": "P-B"
+        },
+        {
+          "path_id": "kuaishou__yuncaiji_api",
+          "platform": "kuaishou",
+          "repo": "https://github.com/yuncaiji/API",
+          "template": "as-python-http",
+          "entry_hint": "Multi-app reverse engineering (includes kuaishou). Look for kuaishou endpoint.",
+          "priority": "P-C"
+        },
+        {
+          "path_id": "kuaishou__ogslp_kuaishou_crawler",
+          "platform": "kuaishou",
+          "repo": "https://github.com/oGsLP/kuaishou-crawler",
+          "template": "as-python-http",
+          "entry_hint": "Standalone kuaishou project, stopped maintenance. Try as historical reference.",
+          "priority": "S-A"
+        },
+        {
+          "path_id": "kuaishou__sh_moranliunian_cobweb",
+          "platform": "kuaishou",
+          "repo": "https://github.com/sh-moranliunian/CobWeb",
+          "template": "as-python-http",
+          "entry_hint": "Small crawler project. Look for kuaishou module.",
+          "priority": "S-B"
+        }
+      ]
+    },
+    "G6_jike_xiaoyuzhou": {
+      "adapters": [
+        {
+          "path_id": "jike__midnightdarling_skill",
+          "platform": "jike",
+          "repo": "https://github.com/MidnightDarling/jike-skill",
+          "template": "as-python-http",
+          "entry_hint": "Claude Code Skill format - reads repo SKILL.md but functions are pure Python. Needs scan-code login - return needs_login if no token.",
+          "known_issue": "scan-code login",
+          "priority": "P-A"
+        },
+        {
+          "path_id": "jike__cypggs_jike_cli",
+          "platform": "jike",
+          "repo": "https://github.com/cypggs/jike-cli",
+          "template": "as-python-http",
+          "entry_hint": "CLI wrapper. Invoke its search command via subprocess or import its core module.",
+          "priority": "S-A"
+        },
+        {
+          "path_id": "xiaoyuzhou__slarkio_xyz_dl",
+          "platform": "xiaoyuzhou",
+          "repo": "https://github.com/slarkio/xyz-dl",
+          "template": "as-python-http",
+          "entry_hint": "Audio + text download. For search use case: list episodes if API exposed; else status=empty for keyword queries.",
+          "priority": "P-B"
+        },
+        {
+          "path_id": "xiaoyuzhou__anfushuang_download",
+          "platform": "xiaoyuzhou",
+          "repo": "https://github.com/anfushuang/xiaoyuzhoufmdownload",
+          "template": "as-python-http",
+          "entry_hint": "Python audio downloader. Same scope limitation as xyz-dl.",
+          "priority": "P-C"
+        },
+        {
+          "path_id": "xiaoyuzhou__donlon_xyz_fetcher",
+          "platform": "xiaoyuzhou",
+          "repo": "https://github.com/donlon/xyz-fetcher",
+          "template": "as-python-http",
+          "entry_hint": "Python crawler. Look for main entry.",
+          "priority": "S-A"
+        },
+        {
+          "path_id": "xiaoyuzhou__ychenjk_transcription",
+          "platform": "xiaoyuzhou",
+          "repo": "https://github.com/ychenjk-sudo/xiaoyuzhou-transcription-skill",
+          "template": "as-python-http",
+          "entry_hint": "Transcription skill. Expensive (whisper/etc). For search: use metadata only, not transcription.",
+          "known_issue": "expensive; may skip in smoke",
+          "priority": "S-B"
+        },
+        {
+          "path_id": "xiaoyuzhou__fueny_ptt_cpu",
+          "platform": "xiaoyuzhou",
+          "repo": "https://github.com/fueny/PTT-Cpu-",
+          "template": "as-python-http",
+          "entry_hint": "Xiaoyuzhou-to-text converter. Same scope/cost concern as transcription skill.",
+          "priority": "S-C"
+        }
+      ]
+    },
+    "G7_36kr_csdn": {
+      "adapters": [
+        {
+          "path_id": "36kr__cxyfreedom_hot_hub",
+          "platform": "36kr",
+          "repo": "https://github.com/cxyfreedom/website-hot-hub",
+          "template": "as-python-http",
+          "entry_hint": "Aggregated hot-rank scraper (includes 36kr). Use its 36kr scraper module.",
+          "priority": "P-B"
+        },
+        {
+          "path_id": "36kr__jiangqqlmj_crawler",
+          "platform": "36kr",
+          "repo": "https://github.com/jiangqqlmj/36Kr_Data_Crawler",
+          "template": "as-python-http",
+          "entry_hint": "Jsoup (Java) or Python. If Java only, mark error. Otherwise use HTTP client.",
+          "priority": "S-A"
+        },
+        {
+          "path_id": "36kr__ldh2068vip_crawler",
+          "platform": "36kr",
+          "repo": "https://github.com/ldh2068vip/36krCrawler",
+          "template": "as-python-http",
+          "entry_hint": "Small Java project. Likely need rewrite - if Java only, mark error=jvm_required.",
+          "priority": "S-B"
+        },
+        {
+          "path_id": "csdn__ds19991999_spider",
+          "platform": "csdn",
+          "repo": "https://github.com/ds19991999/csdn-spider",
+          "template": "as-python-http",
+          "entry_hint": "Batch user blog to MD. For keyword query, adapt its HTTP client.",
+          "priority": "P-B"
+        },
+        {
+          "path_id": "csdn__schrodingersbug_search",
+          "platform": "csdn",
+          "repo": "https://github.com/SchrodingersBug/CSDN_SearchEngine",
+          "template": "as-python-http",
+          "entry_hint": "Crawler + inverted index. Use its fetch layer only, skip index.",
+          "priority": "S-A"
+        },
+        {
+          "path_id": "csdn__kaixindelele_pageviews",
+          "platform": "csdn",
+          "repo": "https://github.com/kaixindelele/CSDN_pageviews_spider_tomysql_and_visualize",
+          "template": "as-python-http",
+          "entry_hint": "Pageviews spider. Extract its fetch layer; ignore mysql/viz.",
+          "priority": "S-B"
+        }
+      ]
+    },
+    "G8_juejin_xueqiu": {
+      "adapters": [
+        {
+          "path_id": "juejin__official_rss",
+          "platform": "juejin",
+          "repo": "https://rsshub.app/juejin (or juejin official RSS if exposed)",
+          "template": "as-python-http",
+          "entry_hint": "RSS feedparser adapter. Use feedparser - this is the ONE allowed self-written case per iron rules.",
+          "priority": "P-B"
+        },
+        {
+          "path_id": "juejin__iderekli_helper",
+          "platform": "juejin",
+          "repo": "https://github.com/iDerekLi/juejin-helper",
+          "template": "as-node-browser",
+          "entry_hint": "Node automation + API calls. Call its API layer for search.",
+          "known_issue": "needs cookie for user actions; but search may be public",
+          "priority": "S-A"
+        },
+        {
+          "path_id": "juejin__sanfengliao_vue_juejin",
+          "platform": "juejin",
+          "repo": "https://github.com/sanfengliao/vue-juejin",
+          "template": "as-python-http",
+          "entry_hint": "Vue client containing API calls. Extract api.js URL patterns, import via requests/httpx. If that counts as self-writing HTTP, use as reference only for the endpoints Juejin exposes.",
+          "priority": "S-B"
+        },
+        {
+          "path_id": "juejin__lm_rebooter_booklet",
+          "platform": "juejin",
+          "repo": "https://github.com/lm-rebooter/NuggetsBooklet",
+          "template": "as-python-http",
+          "entry_hint": "Booklet reader. Look for its API client.",
+          "priority": "S-C"
+        },
+        {
+          "path_id": "xueqiu__decaywood_superspider",
+          "platform": "xueqiu",
+          "repo": "https://github.com/decaywood/XueQiuSuperSpider",
+          "template": "as-python-http",
+          "entry_hint": "Java project. If JVM not feasible, mark error=jvm_required. Otherwise wrap Java tool via subprocess.",
+          "priority": "P-C"
+        },
+        {
+          "path_id": "xueqiu__rockyzsu_xueqiu",
+          "platform": "xueqiu",
+          "repo": "https://github.com/Rockyzsu/xueqiu",
+          "template": "as-python-http",
+          "entry_hint": "Python login + full articles. Look for main search entry.",
+          "priority": "S-A"
+        },
+        {
+          "path_id": "xueqiu__1dot75cm",
+          "platform": "xueqiu",
+          "repo": "https://github.com/1dot75cm/xueqiu",
+          "template": "as-python-http",
+          "entry_hint": "Humanize API wrapper. pip install + `from xueqiu import api` style. This REPLACES the removed xueqiu__hqjson adapter.",
+          "priority": "P-B"
+        }
+      ]
+    }
+  },
+  "per_adapter_deliverables": [
+    "tests/e2b-channel-matrix/adapters/{path_id}/setup.sh",
+    "tests/e2b-channel-matrix/adapters/{path_id}/run.py",
+    "Must self-smoke: .venv/bin/python run.py --query '\u6d4b\u8bd5' --query-category consumer (just verify argparse works; actual e2b smoke runs later)"
+  ],
+  "post_build_verification": {
+    "step_1": "Claude Code runs `.venv/bin/python tests/e2b-channel-matrix/runner.py --dry-run --only <path_id>` for each new adapter",
+    "step_2": "After all 43 adapters written, Claude Code runs full e2b smoke: all adapters x 3 queries x 1 rep = ~240 sandbox invocations, ~$0.30-0.80",
+    "step_3": "Produces reports/2026-04-16/health-matrix.json + disqualified.md + v2-routing-table.md"
+  }
+}

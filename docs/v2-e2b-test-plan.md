@@ -2,14 +2,22 @@
 
 > 目标：在 e2b sandbox 一次性跑完 13 个中文平台 × 每平台 3-7 个开源方案的可用性矩阵，产出每条路径的 **success_rate / latency / content_quality**，作为 v2 架构决策依据。
 
+## 更新日志
+
+- **2026-04-16 下午**（老板指示三条）：
+  1. 网易云音乐不纳入测试
+  2. 完整测试所有渠道，最大量走 e2b.dev
+  3. **测试的开源方案直接拿过来，严禁自写** —— 包括**纯 HTTP 调用也不允许自写 `requests.get`**，必须 `import` 开源 repo 封装函数（只有 RSS / 官方 feed 之类无反爬的公开接口可自己封 `feedparser`）
+- **本次勘误**：删除 4 处 P-A 违规（B站自写 WBI / 微博 m.weibo.cn / 雪球 hq.json / 知乎 zhuanlan HTTP），踢 6 个废弃 adapter（详见 § disqualified）
+
 ## 核心原则
 
-1. **严格抄作业，禁止自写 scraper** —— 每个 adapter 必须 `git clone` 源 repo，调用 repo 暴露的 API/函数。**不允许重写签名算法、反爬逻辑、HTTP 封装**。repo 跑不了就 RED 淘汰换 Secondary。Adapter 代码只能是 "import + 调用 + 映射到 ScrapeResult" 这 20-30 行映射层
+1. **严格抄作业，禁止自写 scraper** —— 每个 adapter 必须 `git clone` 源 repo 或 `pip install` 封装库，调用它暴露的 API/函数。**不允许重写签名算法、反爬逻辑、HTTP 封装**。连纯 HTTP 公开端点（m.weibo.cn / xueqiu.com/hq.json 等）都必须走上游 repo 的 client/wrapper 函数，不能自己 `httpx.get`。例外：**标准 RSS / Atom feed** 可以用 `feedparser` 直接解析（协议是公开标准，不是自写爬虫）。repo 跑不了就 RED 淘汰换 Secondary。Adapter 代码只能是 "import + 调用 + 映射到 ScrapeResult" 这 20-30 行映射层
 2. **统一测试 query 集**，每方案跑相同 query，横向可比
 3. **统一评分 metric**：Wilson 95% CI 下界 / 中位延迟 / 内容长度 / 反爬命中
 4. **每 adapter 独立 sandbox**，避免依赖冲突 / state 污染
 5. **按梯队推进**：第一梯队不跑通，不动第二第三梯队
-6. **Day 2 批量开发并行**：48 个 adapter 启 5 路 Codex 并行写，每路 10 个
+6. **Day 2 批量开发并行**：8 路 Codex 并行写，每路 4-7 个 adapter（共约 43 个新 adapter 补齐到 Plan 声明的总数）
 
 ## 0. 前置
 
@@ -143,9 +151,9 @@ def wilson_lower(successes, total, z=1.96):
 
 | path | repo | 类型 | 零登录 | 优先测 |
 |---|---|---|---|---|
-| P-A | 自写 WBI 签名（算法来自 SocialSisterYi 20.3k） | 纯 HTTP + 签名 | ✅ | 🥇 |
-| P-B | Nemo2011/bilibili-api (3.8k★) | Python SDK | ✅ | 🥈 |
-| P-C | cv-cat/BilibiliApis (27★) | 算法逆向 | ✅ | 🥉 |
+| ~~P-A~~ | ~~自写 WBI 签名~~ | ~~违规：2026-04-16 删除~~ | — | — |
+| P-A | Nemo2011/bilibili-api (3.8k★) | Python SDK（封装 WBI）| ✅ | 🥇 |
+| P-B | cv-cat/BilibiliApis (27★) | 算法逆向 | ✅ | 🥈 |
 | S-A | Vespa314/bilibili-api (1.4k★) | 停维护对照 | ✅ | |
 | S-B | czp3009/bilibili-api (521★) | Kotlin | ✅（调用成本高） | |
 | T | Bing site:bilibili.com | SEO 兜底 | ✅ | 永不 fail |
@@ -166,27 +174,26 @@ def wilson_lower(successes, total, z=1.96):
 
 | path | repo | 类型 | 零登录 | 优先测 |
 |---|---|---|---|---|
-| P-A | m.weibo.cn `/api/container/getIndex` | 公开 HTTP | ✅ | 🥇 |
-| P-B | dataabc/weiboSpider (9.5k★) | 用户 timeline | ✅ 部分需 cookie | 🥈 |
-| P-C | dataabc/weibo-crawler (4.5k★) | 含图片视频 | ✅ 部分 | 🥉 |
-| S-A | LiuXingMing/SinaSpider (3.3k★) | Scrapy + Redis | 🟡 | |
-| S-B | stay-leave/weibo-public-opinion-analysis (1k★) | 舆情分析链路 | 🟡 | |
-| S-C | CharesFang/WeiboSpider (139★) | — | 🟡 | |
+| ~~P-A~~ | ~~m.weibo.cn `/api/container/getIndex` 自写~~ | ~~违规：2026-04-16 删除~~ | — | — |
+| P-A | dataabc/weiboSpider (9.5k★) | 用户 timeline + 搜索 | ✅ 部分需 cookie | 🥇 |
+| P-B | dataabc/weibo-crawler (4.5k★) | 含图片视频 | ✅ 部分 | 🥈 |
+| ~~S-A~~ | ~~LiuXingMing/SinaSpider~~ | ~~Scrapy + Redis，sandbox 不适配~~ | — | — |
+| S-A | stay-leave/weibo-public-opinion-analysis (1k★) | 舆情分析链路 | 🟡 | |
+| S-B | CharesFang/WeiboSpider (139★) | — | 🟡 | |
 | T | Bing site:weibo.com | SEO 兜底 | ✅ | 永不 fail |
 
 ### 1.6 知乎
 
 | path | repo | 类型 | 零登录 | 优先测 |
 |---|---|---|---|---|
-| P-A | Bing site:zhihu.com | SEO（收录极好） | ✅ | 🥇 |
-| P-B | zhuanlan.zhihu.com HTTP | 专栏反爬松 | ✅ | 🥈 |
-| P-C | cv-cat/ZhihuApis (22★) | x-zse-96 逆向 | ✅ 存疑 | 🥉 |
-| S-A | lzjun567/zhihu-api (991★) | Python for Humans | 🟡 | |
-| S-B | moxiegushi/zhihu (528★) | 验证码识别 | 🟡 | |
-| S-C | LiuRoy/zhihu_spider (1.3k★) | 老牌 | 🟡 | |
-| S-D | littlepai/Unofficial-Zhihu-API (77★) | 深度学习识别验证码 | 🟡 | |
-| S-E | syaning/zhihu-api (265★) | JS | 🟡 | |
-| T | 百度 site:zhihu.com | SEO 兜底 | ✅ | 永不 fail |
+| ~~P-B~~ | ~~zhuanlan.zhihu.com 自写 HTTP~~ | ~~违规：2026-04-16 删除~~ | — | — |
+| P-A | lzjun567/zhihu-api (991★) | Python for Humans 封装 | 🟡 | 🥇 |
+| P-B | cv-cat/ZhihuApis (22★) | x-zse-96 逆向 | ✅ 存疑 | 🥈 |
+| P-C | LiuRoy/zhihu_spider (1.3k★) | 老牌 | 🟡 | 🥉 |
+| ~~S-A~~ | ~~moxiegushi/zhihu~~ | ~~要 tensorflow 太重，sandbox 不适配~~ | — | — |
+| S-A | littlepai/Unofficial-Zhihu-API (77★) | 深度学习识别验证码 | 🟡 | |
+| S-B | syaning/zhihu-api (265★) | JS | 🟡 | |
+| T | Bing site:zhihu.com | SEO 兜底 | ✅ | 永不 fail |
 
 ---
 
@@ -263,12 +270,12 @@ def wilson_lower(successes, total, z=1.96):
 
 | path | repo | 类型 | 零登录 | 优先测 |
 |---|---|---|---|---|
-| P-A | xueqiu.com/hq.json 公开端点 | HTTP | ✅ | 🥇 |
-| P-B | liqiongyu/xueqiu_mcp (106★) | MCP server | ✅ | 🥈 |
+| ~~P-A~~ | ~~xueqiu.com/hq.json 自写公开端点~~ | ~~违规：2026-04-16 删除~~ | — | — |
+| P-A | liqiongyu/xueqiu_mcp (106★) | MCP server | ✅ | 🥇 |
+| P-B | 1dot75cm/xueqiu (46★) | humanize API 封装 | ✅ | 🥈 |
 | P-C | decaywood/XueQiuSuperSpider (2.4k★) | Java 超级爬虫 | ✅ | 🥉 |
 | S-A | Rockyzsu/xueqiu (99★) | Python 登录 + 全文章 | 🟡 | |
-| S-B | 1dot75cm/xueqiu (46★) | humanize API | ✅ | |
-| S-C | newer027/Xueqiu_data (29★) | 组合分析 | ✅ | |
+| S-B | newer027/Xueqiu_data (29★) | 组合分析 | ✅ | |
 | T | Bing site:xueqiu.com | SEO 兜底 | ✅ | 永不 fail |
 
 ---
