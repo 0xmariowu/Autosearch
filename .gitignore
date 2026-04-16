@@ -55,3 +55,5 @@ experience/
 tests/integration/reports/
 tests/integration/tmp/
 tests/integration/sessions/
+.env
+tests/e2b-channel-matrix/reports/
