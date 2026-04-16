@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 REPO = "https://github.com/Nemo2011/bilibili-api"
-WORKSPACE_REPO = Path("/workspace/bilibili-api")
+WORKSPACE_REPO = Path("/tmp/as-matrix/bilibili-api")
 if str(WORKSPACE_REPO) not in sys.path:
     sys.path.insert(0, str(WORKSPACE_REPO))
 
@@ -71,9 +71,26 @@ async def _run(query: str, query_category: str) -> dict[str, object]:
         from bilibili_api import search
 
         response = await search.search(keyword=query)
-        items = []
+        # Bilibili search returns result groups keyed by result_type.
+        # Only keep content types useful for research: video, article, bili_user.
+        # Exclude: tips, live_user, live_room, upuser empty sets, etc.
+        CONTENT_TYPES = {"video", "article", "bili_user", "media_bangumi", "media_ft"}
+        items: list[object] = []
         if isinstance(response, dict):
-            items = response.get("result") or response.get("items") or []
+            groups = response.get("result") or response.get("items") or []
+            if (
+                isinstance(groups, list)
+                and groups
+                and isinstance(groups[0], dict)
+                and "result_type" in groups[0]
+            ):
+                for group in groups:
+                    if group.get("result_type") in CONTENT_TYPES:
+                        data = group.get("data") or []
+                        if isinstance(data, list):
+                            items.extend(data)
+            else:
+                items = groups if isinstance(groups, list) else []
         elif isinstance(response, list):
             items = response
 
