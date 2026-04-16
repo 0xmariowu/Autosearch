@@ -105,11 +105,15 @@ def write_reports(results: list[ScrapeResult]) -> Path:
     return raw_path
 
 
-async def smoke_results() -> list[ScrapeResult]:
+async def smoke_results(only: list[str] | None = None) -> list[ScrapeResult]:
     from harness.sandbox import run_adapter_batch
 
     queries = [(query, category) for category, query in SMOKE_SAMPLE]
-    tasks = [run_adapter_batch(adapter, queries, reps=1) for adapter in list_adapters()]
+    adapters = list_adapters()
+    if only:
+        wanted = set(only)
+        adapters = [a for a in adapters if a.path_id in wanted]
+    tasks = [run_adapter_batch(adapter, queries, reps=1) for adapter in adapters]
     batches = await asyncio.gather(*tasks)
     return [result for batch in batches for result in batch]
 
@@ -121,6 +125,12 @@ def parse_args() -> argparse.Namespace:
         "--smoke", action="store_true", help="run the Day 1 smoke suite"
     )
     parser.add_argument("--full", action="store_true", help="reserved for Day 2")
+    parser.add_argument(
+        "--only",
+        type=str,
+        default=None,
+        help="comma-separated path_ids to limit run to",
+    )
     return parser.parse_args()
 
 
@@ -132,11 +142,13 @@ async def async_main() -> int:
         print("Day 1 scope: smoke only")
         return 0
 
+    only = [x.strip() for x in args.only.split(",")] if args.only else None
+
     if args.dry_run:
         results = dry_run_results()
         mode = "dry-run"
     else:
-        results = await smoke_results()
+        results = await smoke_results(only=only)
         mode = "smoke"
 
     raw_path = write_reports(results)
