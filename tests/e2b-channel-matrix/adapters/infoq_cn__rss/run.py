@@ -60,7 +60,9 @@ def _extract_item_text(item: object) -> str:
         value = item.get(key)
         if value:
             if isinstance(value, list):
-                joined = " ".join(_clean_text(part.get("value", part)) for part in value)
+                joined = " ".join(
+                    _clean_text(part.get("value", part)) for part in value
+                )
                 if joined:
                     return joined
             return _clean_text(value)
@@ -145,21 +147,7 @@ def _feed_items(query: str) -> tuple[list[object], list[str], int | None]:
     signals: list[str] = []
     status_code: int | None = None
 
-    try:
-        head = httpx.head(
-            FEED_URL,
-            headers=headers,
-            follow_redirects=True,
-            timeout=10.0,
-            trust_env=False,
-        )
-        status_code = head.status_code
-        if head.status_code == 404:
-            signals.append("http_404")
-            return [], signals, status_code
-    except httpx.HTTPError:
-        pass
-
+    # Skip HEAD — infoq.cn returns 404 for HEAD but 200 for GET.
     response = httpx.get(
         FEED_URL,
         headers=headers,
@@ -192,7 +180,9 @@ def run(query: str, query_category: str) -> dict[str, object]:
     try:
         matched, signals, status_code = _feed_items(query)
         if matched:
-            items_returned, avg_content_len, sample = _summarize_items(matched, max_items=20)
+            items_returned, avg_content_len, sample = _summarize_items(
+                matched, max_items=20
+            )
             elapsed_ms = int((time.perf_counter() - started) * 1000)
             return _result_payload(
                 query,
