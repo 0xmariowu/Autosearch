@@ -200,8 +200,9 @@ for group in response["result"]:
 ## 自测流程（Codex 写完每个 adapter 必须跑）
 
 ```bash
-# 本地 dry-run 验证 JSON 结构
-python tests/e2b-channel-matrix/adapters/{path_id}/run.py \
+# ⚠️ 必须用 .venv/bin/python（Python 3.11），不是系统 python3！
+# 系统 python3 (Apple 的 py3.9) + ddgs/primp 会 SIGABRT 崩溃
+.venv/bin/python tests/e2b-channel-matrix/adapters/{path_id}/run.py \
     --query "AI 创业" --query-category consumer
 
 # 期望：stdout 输出一行 JSON，platform/path_id/status 必填齐全
