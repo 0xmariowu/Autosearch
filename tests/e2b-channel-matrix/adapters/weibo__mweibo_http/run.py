@@ -92,6 +92,19 @@ def run(query: str, query_category: str) -> dict[str, object]:
         }
         response = httpx.get(url, headers=headers, timeout=10.0, follow_redirects=True)
         response.raise_for_status()
+        ctype = response.headers.get("content-type", "")
+        if "application/json" not in ctype and "text/html" in ctype:
+            body_peek = response.content[:500]
+            if b"Visitor System" in body_peek or b"visitor" in body_peek:
+                elapsed_ms = int((time.perf_counter() - started) * 1000)
+                return _result_payload(
+                    query,
+                    query_category,
+                    elapsed_ms,
+                    status="anti_bot",
+                    error="weibo Sina Visitor System challenge (cookie required)",
+                    anti_bot_signals=["visitor_system_redirect"],
+                )
         payload = response.json()
 
         cards = payload.get("data", {}).get("cards") or []
