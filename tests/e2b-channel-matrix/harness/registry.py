@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -8,6 +9,9 @@ from harness.base import AdapterConfig
 ROOT = Path(__file__).resolve().parents[1]
 ADAPTERS_ROOT = ROOT / "adapters"
 
+REPO_RE = re.compile(r'REPO\s*=\s*["\']([^"\']+)["\']')
+PLATFORM_RE = re.compile(r'PLATFORM\s*=\s*["\']([^"\']+)["\']')
+
 
 @dataclass(frozen=True)
 class AdapterMetadata:
@@ -15,40 +19,42 @@ class AdapterMetadata:
     config: AdapterConfig
 
 
-def _adapter_dir(name: str) -> Path:
-    return ADAPTERS_ROOT / name
+def _parse_run_py(run_py: Path) -> tuple[str, str]:
+    text = run_py.read_text(encoding="utf-8")
+    repo_match = REPO_RE.search(text)
+    platform_match = PLATFORM_RE.search(text)
+    repo = repo_match.group(1) if repo_match else ""
+    platform = (
+        platform_match.group(1) if platform_match else run_py.parent.name.split("__")[0]
+    )
+    return platform, repo
 
 
-def _build_registry() -> dict[str, AdapterMetadata]:
-    bilibili_dir = _adapter_dir("bilibili__nemo2011")
-    seo_dir = _adapter_dir("seo__bing_via_ddgs")
-
-    return {
-        "bilibili__nemo2011": AdapterMetadata(
-            name="bilibili__nemo2011",
+def _auto_discover() -> dict[str, AdapterMetadata]:
+    registry: dict[str, AdapterMetadata] = {}
+    for adapter_dir in sorted(ADAPTERS_ROOT.iterdir()):
+        if not adapter_dir.is_dir():
+            continue
+        setup = adapter_dir / "setup.sh"
+        run_py = adapter_dir / "run.py"
+        if not setup.exists() or not run_py.exists():
+            continue
+        path_id = adapter_dir.name
+        platform, repo = _parse_run_py(run_py)
+        registry[path_id] = AdapterMetadata(
+            name=path_id,
             config=AdapterConfig(
-                platform="bilibili",
-                path_id="bilibili__nemo2011",
-                repo="https://github.com/Nemo2011/bilibili-api",
-                setup_script=bilibili_dir / "setup.sh",
-                run_script=bilibili_dir / "run.py",
+                platform=platform,
+                path_id=path_id,
+                repo=repo,
+                setup_script=setup,
+                run_script=run_py,
             ),
-        ),
-        "seo__bing_via_ddgs": AdapterMetadata(
-            name="seo__bing_via_ddgs",
-            config=AdapterConfig(
-                platform="seo",
-                path_id="seo__bing_via_ddgs",
-                repo="https://github.com/deedy5/ddgs",
-                setup_script=seo_dir / "setup.sh",
-                run_script=seo_dir / "run.py",
-                max_items=10,
-            ),
-        ),
-    }
+        )
+    return registry
 
 
-REGISTRY = _build_registry()
+REGISTRY = _auto_discover()
 
 
 def list_adapters() -> list[AdapterConfig]:
