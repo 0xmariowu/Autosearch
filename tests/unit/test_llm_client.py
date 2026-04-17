@@ -3,6 +3,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 import autosearch.llm.client as client_module
+from autosearch.observability.cost import CostTracker
 
 
 class DemoResponse(BaseModel):
@@ -11,6 +12,7 @@ class DemoResponse(BaseModel):
 
 class DummyProvider:
     name = "dummy"
+    model = "gpt-4o"
 
     def __init__(self, responses: list[str]) -> None:
         self.responses = responses
@@ -92,3 +94,18 @@ async def test_llm_client_raises_validation_error_on_schema_mismatch() -> None:
         await client.complete("test prompt", DemoResponse)
 
     assert provider.calls == 1
+
+
+async def test_llm_client_reports_cost_when_tracker_set() -> None:
+    provider = DummyProvider(['{"answer":"ok"}'])
+    cost_tracker = CostTracker()
+    client = client_module.LLMClient(
+        provider_name="dummy",
+        providers={"dummy": provider},
+        cost_tracker=cost_tracker,
+    )
+
+    result = await client.complete("test prompt", DemoResponse)
+
+    assert result.answer == "ok"
+    assert cost_tracker.total() > 0
