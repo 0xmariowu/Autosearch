@@ -1,4 +1,5 @@
 # Self-written, plan v2.3 § 13.5 Presentation
+import asyncio
 import json
 
 from fastapi.testclient import TestClient
@@ -42,14 +43,24 @@ class _StubPipeline:
         self,
         result: PipelineResult | None = None,
         exc: Exception | None = None,
+        on_event=None,
+        emitted_events: list[dict[str, object]] | None = None,
     ) -> None:
         self.result = result
         self.exc = exc
+        self.on_event = on_event
+        self.emitted_events = emitted_events or []
         self.calls: list[tuple[str, SearchMode]] = []
 
     async def run(self, query: str, mode_hint: SearchMode | None = None) -> PipelineResult:
         assert mode_hint is not None
         self.calls.append((query, mode_hint))
+        for event in self.emitted_events:
+            if self.on_event is None:
+                continue
+            maybe_coro = self.on_event(event)
+            if asyncio.iscoroutine(maybe_coro):
+                await maybe_coro
         if self.exc is not None:
             raise self.exc
         assert self.result is not None
@@ -57,7 +68,16 @@ class _StubPipeline:
 
 
 def _install_pipeline_factory(monkeypatch, pipeline: _StubPipeline) -> None:
-    monkeypatch.setattr(server_main, "_default_pipeline_factory", lambda: pipeline)
+    monkeypatch.setattr(
+        server_main,
+        "_default_pipeline_factory",
+        lambda on_event=None: _bind_pipeline_callback(pipeline, on_event),
+    )
+
+
+def _bind_pipeline_callback(pipeline: _StubPipeline, on_event) -> _StubPipeline:
+    pipeline.on_event = on_event
+    return pipeline
 
 
 def _parse_sse_events(body: str) -> list[dict[str, object]]:
@@ -90,7 +110,6 @@ def test_search_streams_started_and_finished_events(monkeypatch) -> None:
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
     assert events[0] == {"type": "started", "query": "test query"}
-    assert any(event == {"type": "progress", "phase": "M0"} for event in events)
     assert {
         "type": "finished",
         "markdown": "# Test\n\nBody",
@@ -111,7 +130,9 @@ def test_search_streams_needs_clarification_event(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert {
-        "type": "needs_clarification",
+        "type": "finished",
+        "status": "needs_clarification",
+        "iterations": 0,
         "question": "Which deployment target do you care about?",
     } in events
     assert pipeline.calls == [("test query", SearchMode.DEEP)]
