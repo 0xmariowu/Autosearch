@@ -1,7 +1,9 @@
 # Self-written, plan v2.3 § 2
+from collections.abc import Awaitable, Callable
 import asyncio
 import re
 import uuid
+from typing import Any
 
 import structlog
 
@@ -29,6 +31,8 @@ from autosearch.synthesis.report import ReportSynthesizer
 
 _SECTION_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$")
 _INLINE_CITATION_RE = re.compile(r"\[(\d+)\]")
+type PipelineEvent = dict[str, Any]
+type PipelineEventCallback = Callable[[PipelineEvent], Awaitable[None] | None]
 
 
 class Pipeline:
@@ -40,6 +44,7 @@ class Pipeline:
         top_k_evidence: int = 20,
         cost_tracker: CostTracker | None = None,
         session_store: SessionStore | None = None,
+        on_event: PipelineEventCallback | None = None,
     ) -> None:
         self.llm = llm or LLMClient(cost_tracker=cost_tracker)
         if cost_tracker is not None:
@@ -55,6 +60,7 @@ class Pipeline:
         self.evidence_processor = EvidenceProcessor()
         self.report_synthesizer = ReportSynthesizer()
         self.quality_gate = QualityGate()
+        self.on_event = on_event
         self.logger = structlog.get_logger(__name__).bind(component="pipeline")
 
     async def run(
@@ -66,14 +72,17 @@ class Pipeline:
             evidence_processor=self.evidence_processor,
             session_store=self.session_store,
             session_id=_new_session_id() if self.session_store is not None else None,
+            on_event=self._emit_event,
         )
         session_id = iteration_controller.session_id
         session_created = False
         session_mode = mode_hint.value if mode_hint is not None else None
         final_status = "error"
         final_markdown: str | None = None
+        current_phase = "M0"
 
         try:
+            await self._emit_phase_event(current_phase, "start")
             self.logger.info("pipeline_phase_started", phase="m0_recall", query=query)
             recall = await self.knowledge_recaller.recall(query, self.llm)
             self.logger.info(
@@ -82,7 +91,10 @@ class Pipeline:
                 known_facts=len(recall.known_facts),
                 gaps=len(recall.gaps),
             )
+            await self._emit_phase_event(current_phase, "complete")
 
+            current_phase = "M1"
+            await self._emit_phase_event(current_phase, "start")
             self.logger.info(
                 "pipeline_phase_started",
                 phase="m1_clarify",
@@ -99,6 +111,7 @@ class Pipeline:
                 rubrics=len(clarification.rubrics),
                 mode=clarification.mode.value,
             )
+            await self._emit_phase_event(current_phase, "complete")
 
             session_mode = clarification.mode.value
             await self._ensure_session_created(
@@ -120,6 +133,8 @@ class Pipeline:
                     cost=self._current_cost(),
                 )
 
+            current_phase = "M2"
+            await self._emit_phase_event(current_phase, "start")
             self.logger.info(
                 "pipeline_phase_started",
                 phase="m2_strategy",
@@ -136,7 +151,10 @@ class Pipeline:
                 phase="m2_strategy",
                 subqueries=len(initial_queries),
             )
+            await self._emit_phase_event(current_phase, "complete")
 
+            current_phase = "M3"
+            await self._emit_phase_event(current_phase, "start")
             self.logger.info(
                 "pipeline_phase_started",
                 phase="m3_iteration",
@@ -157,7 +175,10 @@ class Pipeline:
                 evidences=len(evidences),
                 iterations=iteration_controller.iterations_executed,
             )
+            await self._emit_phase_event(current_phase, "complete")
 
+            current_phase = "M5"
+            await self._emit_phase_event(current_phase, "start")
             self.logger.info(
                 "pipeline_phase_started",
                 phase="m5_evidence_processing",
@@ -170,7 +191,10 @@ class Pipeline:
                 phase="m5_evidence_processing",
                 evidences=len(processed_evidences),
             )
+            await self._emit_phase_event(current_phase, "complete")
 
+            current_phase = "M7"
+            await self._emit_phase_event(current_phase, "start")
             self.logger.info(
                 "pipeline_phase_started",
                 phase="m7_synthesis",
@@ -187,8 +211,11 @@ class Pipeline:
                 phase="m7_synthesis",
                 markdown_chars=len(markdown),
             )
+            await self._emit_phase_event(current_phase, "complete")
 
             first_section = _extract_first_section(markdown)
+            current_phase = "M8"
+            await self._emit_phase_event(current_phase, "start")
             self.logger.info(
                 "pipeline_phase_started",
                 phase="m8_quality_gate",
@@ -206,6 +233,14 @@ class Pipeline:
                 grade=quality.grade.value,
                 follow_up_gaps=len(quality.follow_up_gaps),
             )
+            await self._emit_phase_event(current_phase, "complete")
+            await self._emit_event(
+                {
+                    "type": "quality",
+                    "grade": quality.grade.value,
+                    "follow_up_count": len(quality.follow_up_gaps),
+                }
+            )
 
             if quality.grade is GradeOutcome.FAIL:
                 retry_queries = _subqueries_from_gaps(quality.follow_up_gaps)
@@ -214,6 +249,8 @@ class Pipeline:
                         max_iterations=1,
                         per_channel_rate_limit=self.budget.per_channel_rate_limit,
                     )
+                    current_phase = "M3"
+                    await self._emit_phase_event(current_phase, "start")
                     self.logger.info(
                         "pipeline_quality_retry_started",
                         retry_subqueries=len(retry_queries),
@@ -225,16 +262,20 @@ class Pipeline:
                         budget=retry_budget,
                         client=self.llm,
                     )
+                    await self._emit_phase_event(current_phase, "complete")
                     processed_evidences = self._finalize_evidences(
                         processed_evidences + retry_evidences,
                         query,
                     )
+                    current_phase = "M7"
+                    await self._emit_phase_event(current_phase, "start")
                     markdown = await self.report_synthesizer.synthesize(
                         query=query,
                         evidences=processed_evidences,
                         rubrics=clarification.rubrics,
                         client=self.llm,
                     )
+                    await self._emit_phase_event(current_phase, "complete")
                     self.logger.info(
                         "pipeline_quality_retry_completed",
                         retry_evidences=len(retry_evidences),
@@ -261,6 +302,20 @@ class Pipeline:
                 session_id=session_id,
                 cost=self._current_cost(),
             )
+        except Exception as exc:
+            self.logger.exception(
+                "pipeline_run_failed",
+                phase=current_phase,
+                error=str(exc),
+            )
+            await self._emit_event(
+                {
+                    "type": "error",
+                    "phase": current_phase,
+                    "message": str(exc),
+                }
+            )
+            raise
         finally:
             if session_id is not None:
                 if not session_created:
@@ -327,6 +382,30 @@ class Pipeline:
             return 0.0
         return self.cost_tracker.total()
 
+    async def _emit_phase_event(self, phase: str, status: str) -> None:
+        await self._emit_event(
+            {
+                "type": "phase",
+                "phase": phase,
+                "status": status,
+            }
+        )
+
+    async def _emit_event(self, event: PipelineEvent) -> None:
+        if self.on_event is None:
+            return
+        try:
+            maybe_coro = self.on_event(event)
+            if asyncio.iscoroutine(maybe_coro):
+                await maybe_coro
+        except Exception as exc:
+            self.logger.warning(
+                "pipeline_event_callback_failed",
+                event_type=event.get("type"),
+                phase=event.get("phase"),
+                error=str(exc),
+            )
+
 
 class _TrackingIterationController(IterationController):
     def __init__(
@@ -334,11 +413,14 @@ class _TrackingIterationController(IterationController):
         evidence_processor: EvidenceProcessor,
         session_store: SessionStore | None = None,
         session_id: str | None = None,
+        on_event: Callable[[PipelineEvent], Awaitable[None]] | None = None,
     ) -> None:
         super().__init__(evidence_processor=evidence_processor)
         self.iterations_executed = 0
         self.session_store = session_store
         self.session_id = session_id
+        self.on_event = on_event
+        self._latest_new_evidence_count = 0
 
     async def _search(
         self,
@@ -375,6 +457,7 @@ class _TrackingIterationController(IterationController):
                     result_count,
                 )
 
+        self._latest_new_evidence_count = len(evidences)
         return evidences
 
     async def _reflect(
@@ -387,7 +470,7 @@ class _TrackingIterationController(IterationController):
         client: LLMClient,
     ) -> list[Gap]:
         self.iterations_executed += 1
-        return await super()._reflect(
+        gaps = await super()._reflect(
             query=query,
             iteration=iteration,
             max_iterations=max_iterations,
@@ -395,6 +478,24 @@ class _TrackingIterationController(IterationController):
             evidences=evidences,
             client=client,
         )
+        if self.on_event is not None:
+            await self.on_event(
+                {
+                    "type": "iteration",
+                    "round": self.iterations_executed,
+                    "new_evidence": self._latest_new_evidence_count,
+                    "running_evidence": len(evidences),
+                }
+            )
+            for gap in gaps:
+                await self.on_event(
+                    {
+                        "type": "gap",
+                        "topic": gap.topic,
+                        "reason": gap.reason,
+                    }
+                )
+        return gaps
 
 
 def _initial_subquery_count(mode: SearchMode) -> int:
