@@ -1,6 +1,0 @@
-[lint]
-select = ["E", "F", "W", "I", "B"]
-ignore = ["E501", "E402"]
-
-[lint.per-file-ignores]
-".claude/**" = ["ALL"]

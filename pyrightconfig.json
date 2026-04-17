@@ -1,7 +1,0 @@
-{
-  "typeCheckingMode": "basic",
-  "pythonVersion": "3.11",
-  "include": ["lib", "channels", "scripts"],
-  "reportMissingImports": false,
-  "reportMissingModuleSource": false
-}
