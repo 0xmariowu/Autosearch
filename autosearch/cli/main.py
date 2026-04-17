@@ -5,6 +5,7 @@ from typing import Annotated
 
 import click
 import typer
+import uvicorn
 
 from autosearch import __version__
 from autosearch.channels.demo import DemoChannel
@@ -106,3 +107,17 @@ def mcp() -> None:
     from autosearch.mcp.cli import main as mcp_main
 
     mcp_main()
+
+
+@app.command()
+def serve(
+    host: Annotated[
+        str,
+        typer.Option("--host", help="Host interface for the FastAPI server."),
+    ] = "0.0.0.0",
+    port: Annotated[
+        int,
+        typer.Option("--port", min=1, max=65535, help="TCP port for the FastAPI server."),
+    ] = 8080,
+) -> None:
+    uvicorn.run("autosearch.server.main:app", host=host, port=port)
