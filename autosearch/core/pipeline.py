@@ -462,6 +462,16 @@ class _TrackingIterationController(IterationController):
                     subquery=query_text,
                     error=str(result),
                 )
+                if self.on_event is not None:
+                    await self.on_event(
+                        {
+                            "type": "error",
+                            "channel": channel_name,
+                            "phase": "search",
+                            "subquery": query_text,
+                            "message": str(result),
+                        }
+                    )
             else:
                 result_count = len(result)
                 evidences.extend(result)

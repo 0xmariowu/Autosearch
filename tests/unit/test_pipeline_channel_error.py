@@ -59,8 +59,9 @@ def _make_evidence(url: str, title: str, content: str) -> Evidence:
     )
 
 
-async def test_pipeline_continues_after_channel_error_without_emitting_error_event() -> None:
-    """Current behavior logs channel failures and keeps running with the remaining channels."""
+async def test_pipeline_continues_after_channel_error_and_emits_error_event() -> None:
+    """A channel raising in search() is logged, does not abort the run, and surfaces
+    as an `on_event({type: "error", ...})` envelope so consumers (CLI stream, SSE) see it."""
 
     llm = DummyClient(
         [
@@ -108,4 +109,10 @@ async def test_pipeline_continues_after_channel_error_without_emitting_error_eve
     assert working_channel.calls == 1
     assert working_channel.queries == ["working query"]
     assert any(event["type"] == "iteration" for event in events)
-    assert not any(event["type"] == "error" for event in events)
+    error_events = [event for event in events if event["type"] == "error"]
+    assert len(error_events) == 1
+    err = error_events[0]
+    assert err["channel"] == "failing"
+    assert err["phase"] == "search"
+    assert err["subquery"] == "working query"
+    assert "channel boom" in err["message"]
