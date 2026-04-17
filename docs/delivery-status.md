@@ -36,7 +36,7 @@ Snapshot of which modules from `plan v2.3 § 13.5` have landed. All shipped modu
 | Claude Code `/autosearch` slash command | ✅ shipped | `commands/autosearch.md` |
 | Citation rendering | ✅ shipped | Inline `[n]` + `## References` + `## Sources` breakdown |
 | Progress streaming | ✅ shipped | Callback → stderr NDJSON (CLI) + SSE (HTTP) |
-| OpenAI-compat `/v1/chat/completions` | ❌ pending | Plan § 13.5 HIGH — node-deepresearch port (~1.5d) |
+| OpenAI-compat `/v1/chat/completions` + `/v1/models` | ✅ shipped | node-deepresearch port; SSE chunked stream (role + content + DONE) |
 
 ## Observability & Persistence
 
@@ -63,9 +63,11 @@ Planned roadmap (plan § 5):
 
 ## Test Coverage
 
-- 73 passing tests (unit + integration), 0 ruff issues, consistent ruff format
+- 112 tests across 4 tiers: unit + integration (default CI), smoke (push-to-main), real_llm (nightly, needs secrets), perf (on-demand)
+- 0 ruff issues, consistent ruff format
 - Pre-commit hook enforces author identity + PII/codename scan
 - Pre-push rebases on main and runs pytest before publishing
+- See [`docs/testing/TEST_PLAN.md`](testing/TEST_PLAN.md) for the full pyramid
 
 ## Related Docs
 
