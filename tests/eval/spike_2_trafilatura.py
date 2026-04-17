@@ -20,10 +20,7 @@ ANTIBOT_MARKERS = ("verify you are human", "captcha", "访问验证")
 
 
 def batched(items: list[tuple[str, str]], batch_size: int) -> list[list[tuple[str, str]]]:
-    return [
-        items[index : index + batch_size]
-        for index in range(0, len(items), batch_size)
-    ]
+    return [items[index : index + batch_size] for index in range(0, len(items), batch_size)]
 
 
 def extract_text(html: str) -> str:
@@ -107,9 +104,7 @@ def build_summary(
         pass_count = sum(1 for detail in site_details if detail["pass"])
         fail_count = len(site_details) - pass_count
         fail_reason_counts = Counter(
-            detail["fail_reason"]
-            for detail in site_details
-            if detail["fail_reason"] != "ok"
+            detail["fail_reason"] for detail in site_details if detail["fail_reason"] != "ok"
         )
 
         output[site] = {
@@ -130,11 +125,7 @@ async def main() -> None:
 
     site_urls = load_site_urls(urls_path)
     ordered_sites = list(site_urls)
-    work_items = [
-        (site, url)
-        for site, urls in site_urls.items()
-        for url in urls
-    ]
+    work_items = [(site, url) for site, urls in site_urls.items() for url in urls]
 
     headers = {"User-Agent": USER_AGENT}
     timeout = httpx.Timeout(TIMEOUT_SECONDS)

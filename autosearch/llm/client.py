@@ -19,8 +19,7 @@ ResponseModelT = TypeVar("ResponseModelT", bound=BaseModel)
 class ProviderProtocol(Protocol):
     name: str
 
-    async def complete(self, prompt: str, response_model: type[BaseModel]) -> str:
-        ...
+    async def complete(self, prompt: str, response_model: type[BaseModel]) -> str: ...
 
 
 class LLMClient:
@@ -77,9 +76,7 @@ class LLMClient:
         self.logger.info("llm_providers_detected", providers=list(providers))
         return providers
 
-    async def complete(
-        self, prompt: str, response_model: type[ResponseModelT]
-    ) -> ResponseModelT:
+    async def complete(self, prompt: str, response_model: type[ResponseModelT]) -> ResponseModelT:
         for attempt in range(1, self.max_parse_retries + 1):
             raw_response = await self.provider.complete(prompt, response_model)
             raw_json = raw_response if isinstance(raw_response, str) else json.dumps(raw_response)
