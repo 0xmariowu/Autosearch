@@ -127,7 +127,7 @@ def serve(
     ] = "0.0.0.0",
     port: Annotated[
         int,
-        typer.Option("--port", min=1, max=65535, help="TCP port for the FastAPI server."),
+        typer.Option("--port", min=0, max=65535, help="TCP port for the FastAPI server."),
     ] = 8080,
 ) -> None:
     uvicorn.run("autosearch.server.main:app", host=host, port=port)
@@ -136,3 +136,7 @@ def serve(
 def _stderr_event_writer(event: dict[str, object]) -> None:
     sys.stderr.write(json.dumps(event, ensure_ascii=False) + "\n")
     sys.stderr.flush()
+
+
+if __name__ == "__main__":
+    app()
