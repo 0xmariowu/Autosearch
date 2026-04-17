@@ -11,6 +11,8 @@ except ImportError:  # pragma: no cover - exercised via fallback path
     tiktoken = None
 
 _DEFAULT_PRICING: dict[str, dict[str, float]] = {
+    "claude-sonnet-4-5": {"input_per_1k": 0.003, "output_per_1k": 0.015},
+    "claude-haiku-4-5": {"input_per_1k": 0.001, "output_per_1k": 0.005},
     "claude-3.5-sonnet": {"input_per_1k": 0.003, "output_per_1k": 0.015},
     "claude-3-5-sonnet": {"input_per_1k": 0.003, "output_per_1k": 0.015},
     "claude-code-local": {"input_per_1k": 0.0, "output_per_1k": 0.0},

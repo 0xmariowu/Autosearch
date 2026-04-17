@@ -18,7 +18,7 @@ class AnthropicProvider:
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
         if not self.api_key:
             raise ValueError("ANTHROPIC_API_KEY is required for the Anthropic provider.")
-        self.model = model or os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
+        self.model = model or os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5")
         self.http_client = http_client
 
     async def complete(self, prompt: str, response_model: type[BaseModel]) -> str:
