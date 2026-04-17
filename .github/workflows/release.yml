@@ -38,24 +38,33 @@ jobs:
 
       - name: Resolve tag and version
         id: tag
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_TAG: ${{ github.event.inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ github.event.inputs.tag }}"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            TAG="$DISPATCH_TAG"
           else
-            TAG="${GITHUB_REF#refs/tags/}"
+            TAG="$REF_NAME"
           fi
           VERSION="${TAG#v}"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          {
+            echo "tag=$TAG"
+            echo "version=$VERSION"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Verify tag matches pyproject version
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          VERSION: ${{ steps.tag.outputs.version }}
         run: |
           PY_VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
-          if [ "$PY_VERSION" != "${{ steps.tag.outputs.version }}" ]; then
-            echo "::error::tag ${{ steps.tag.outputs.tag }} implies version ${{ steps.tag.outputs.version }} but pyproject.toml is $PY_VERSION"
+          if [ "$PY_VERSION" != "$VERSION" ]; then
+            echo "::error::tag $TAG implies version $VERSION but pyproject.toml is $PY_VERSION"
             exit 1
           fi
-          echo "Verified: pyproject.toml version = ${{ steps.tag.outputs.version }}"
+          echo "Verified: pyproject.toml version = $VERSION"
 
       - name: Install build backend
         run: pip install build twine
@@ -80,20 +89,27 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          gh release create "${{ steps.tag.outputs.tag }}" \
-            --title "AutoSearch ${{ steps.tag.outputs.tag }}" \
+          gh release create "$TAG" \
+            --title "AutoSearch $TAG" \
             --generate-notes \
             dist/*
 
       - name: Summary
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          VERSION: ${{ steps.tag.outputs.version }}
+          PYPI_TOKEN_SET: ${{ secrets.PYPI_API_TOKEN != '' }}
+          SERVER_URL: ${{ github.server_url }}
+          REPO: ${{ github.repository }}
         run: |
           {
-            echo "## Released ${{ steps.tag.outputs.version }}"
-            echo "- GitHub Release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.tag.outputs.tag }}"
-            if [ -n "${{ secrets.PYPI_API_TOKEN }}" ]; then
-              echo "- PyPI: https://pypi.org/project/autosearch/${{ steps.tag.outputs.version }}/"
+            echo "## Released $VERSION"
+            echo "- GitHub Release: $SERVER_URL/$REPO/releases/tag/$TAG"
+            if [ "$PYPI_TOKEN_SET" = "true" ]; then
+              echo "- PyPI: https://pypi.org/project/autosearch/$VERSION/"
             else
-              echo "- PyPI: skipped (no token)"
+              echo "- PyPI: skipped (no PYPI_API_TOKEN secret)"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
