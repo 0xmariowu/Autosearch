@@ -34,6 +34,13 @@ autosearch-mcp = "autosearch.mcp.cli:main"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "network: tests that require network access",
+    "real_llm: tests that call a live LLM API (needs ANTHROPIC/OPENAI/GOOGLE key or claude CLI)",
+    "smoke: subprocess or live-server tests (slower, no external API calls)",
+    "perf: concurrency / load tests (local only, on-demand)",
+    "slow: tests that take > 5s",
+]
 
 [tool.ruff]
 line-length = 100
