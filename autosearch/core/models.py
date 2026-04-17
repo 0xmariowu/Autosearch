@@ -73,3 +73,15 @@ class KnowledgeRecall(BaseModel):
 
     known_facts: list[str]
     gaps: list[Gap]
+
+
+class GradeOutcome(StrEnum):
+    PASS = "pass"
+    FAIL = "fail"
+
+
+class EvaluationResult(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    grade: GradeOutcome
+    follow_up_gaps: list[Gap]
