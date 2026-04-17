@@ -18,6 +18,8 @@ def _ok_result() -> PipelineResult:
         ),
         markdown="<canned markdown>",
         iterations=1,
+        prompt_tokens=10,
+        completion_tokens=20,
     )
 
 
@@ -90,9 +92,9 @@ def test_chat_completions_returns_non_stream_response(monkeypatch) -> None:
     assert payload["choices"][0]["message"]["content"] == "<canned markdown>"
     assert payload["choices"][0]["finish_reason"] == "stop"
     assert payload["usage"] == {
-        "prompt_tokens": 0,
-        "completion_tokens": 0,
-        "total_tokens": 0,
+        "prompt_tokens": 10,
+        "completion_tokens": 20,
+        "total_tokens": 30,
     }
     assert pipeline.calls == [("test", SearchMode.FAST)]
 
