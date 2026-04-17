@@ -124,6 +124,7 @@ class Pipeline:
 
             if clarification.need_clarification:
                 final_status = "needs_clarification"
+                prompt_tokens, completion_tokens = self._current_token_usage()
                 self.logger.info("pipeline_run_completed", status=final_status)
                 return PipelineResult(
                     status=final_status,
@@ -131,6 +132,8 @@ class Pipeline:
                     iterations=0,
                     session_id=session_id,
                     cost=self._current_cost(),
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
                 )
 
             current_phase = "M2"
@@ -292,6 +295,7 @@ class Pipeline:
                 evidences=len(processed_evidences),
                 iterations=iteration_controller.iterations_executed,
             )
+            prompt_tokens, completion_tokens = self._current_token_usage()
             return PipelineResult(
                 status=final_status,
                 clarification=clarification,
@@ -301,6 +305,8 @@ class Pipeline:
                 iterations=iteration_controller.iterations_executed,
                 session_id=session_id,
                 cost=self._current_cost(),
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
             )
         except Exception as exc:
             self.logger.exception(
@@ -381,6 +387,17 @@ class Pipeline:
         if self.cost_tracker is None:
             return 0.0
         return self.cost_tracker.total()
+
+    def _current_token_usage(self) -> tuple[int, int]:
+        if self.cost_tracker is None:
+            return 0, 0
+
+        prompt_tokens = 0
+        completion_tokens = 0
+        for model_totals in self.cost_tracker.breakdown().values():
+            prompt_tokens += int(model_totals.get("input_tokens", 0))
+            completion_tokens += int(model_totals.get("output_tokens", 0))
+        return prompt_tokens, completion_tokens
 
     async def _emit_phase_event(self, phase: str, status: str) -> None:
         await self._emit_event(

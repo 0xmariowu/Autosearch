@@ -99,3 +99,5 @@ class PipelineResult:
     iterations: int = 0
     session_id: str | None = None
     cost: float = 0.0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
