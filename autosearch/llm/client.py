@@ -8,6 +8,7 @@ from typing import Protocol, TypeVar, cast
 import structlog
 from pydantic import BaseModel
 
+from autosearch.observability.cost import CostTracker, estimate_tokens
 from autosearch.llm.providers.anthropic import AnthropicProvider
 from autosearch.llm.providers.claude_code import ClaudeCodeProvider
 from autosearch.llm.providers.gemini import GeminiProvider
@@ -27,10 +28,12 @@ class LLMClient:
         self,
         provider_name: str | None = None,
         providers: Mapping[str, ProviderProtocol] | None = None,
+        cost_tracker: CostTracker | None = None,
         max_parse_retries: int = 3,
         retry_backoff_seconds: float = 0.25,
     ) -> None:
         self.logger = structlog.get_logger(__name__).bind(component="llm_client")
+        self.cost_tracker = cost_tracker
         self.max_parse_retries = max_parse_retries
         self.retry_backoff_seconds = retry_backoff_seconds
         self.providers = dict(providers) if providers is not None else self._detect_providers()
@@ -41,11 +44,12 @@ class LLMClient:
             )
 
         preferred_provider = provider_name or os.getenv("AUTOSEARCH_LLM_PROVIDER")
-        self.provider_name = preferred_provider or next(iter(self.providers))
-        if self.provider_name not in self.providers:
-            raise ValueError(f"Unknown provider: {self.provider_name}")
+        provider_key = preferred_provider or next(iter(self.providers))
+        if provider_key not in self.providers:
+            raise ValueError(f"Unknown provider: {provider_key}")
 
-        self.provider = self.providers[self.provider_name]
+        self.provider = self.providers[provider_key]
+        self.provider_name = provider_key
         self.logger.info(
             "llm_provider_selected",
             provider=self.provider_name,
@@ -96,6 +100,12 @@ class LLMClient:
                 continue
 
             result = response_model.model_validate(payload)
+            if self.cost_tracker is not None:
+                self.cost_tracker.add_usage(
+                    model=self._cost_model_name(),
+                    input_tokens=estimate_tokens(prompt),
+                    output_tokens=estimate_tokens(raw_json),
+                )
             self.logger.info(
                 "llm_completion_validated",
                 provider=self.provider_name,
@@ -104,3 +114,9 @@ class LLMClient:
             return cast(ResponseModelT, result)
 
         raise RuntimeError("LLM completion exhausted retries without returning valid JSON.")
+
+    def _cost_model_name(self) -> str:
+        model_name = getattr(self.provider, "model", None)
+        if isinstance(model_name, str) and model_name:
+            return model_name
+        return self.provider_name

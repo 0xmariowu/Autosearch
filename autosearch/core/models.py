@@ -1,6 +1,8 @@
 # Self-written, plan v2.3 § 13.5
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -85,3 +87,15 @@ class EvaluationResult(BaseModel):
 
     grade: GradeOutcome
     follow_up_gaps: list[Gap]
+
+
+@dataclass(frozen=True)
+class PipelineResult:
+    status: Literal["ok", "needs_clarification"]
+    clarification: ClarifyResult
+    markdown: str | None = None
+    evidences: list[Evidence] = field(default_factory=list)
+    quality: EvaluationResult | None = None
+    iterations: int = 0
+    session_id: str | None = None
+    cost: float = 0.0
