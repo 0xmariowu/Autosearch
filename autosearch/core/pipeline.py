@@ -61,6 +61,7 @@ class Pipeline:
         self.report_synthesizer = ReportSynthesizer()
         self.quality_gate = QualityGate()
         self.on_event = on_event
+        self._captured_reasoning_events: list[PipelineEvent] | None = None
         self.logger = structlog.get_logger(__name__).bind(component="pipeline")
 
     async def run(
@@ -68,6 +69,7 @@ class Pipeline:
         query: str,
         mode_hint: SearchMode | None = None,
     ) -> PipelineResult:
+        self._captured_reasoning_events = []
         iteration_controller = _TrackingIterationController(
             evidence_processor=self.evidence_processor,
             session_store=self.session_store,
@@ -112,6 +114,13 @@ class Pipeline:
                 mode=clarification.mode.value,
             )
             await self._emit_phase_event(current_phase, "complete")
+            await self._emit_event(
+                {
+                    "type": "rubrics",
+                    "phase": current_phase,
+                    "items": [rubric.text for rubric in clarification.rubrics],
+                }
+            )
 
             session_mode = clarification.mode.value
             await self._ensure_session_created(
@@ -130,6 +139,7 @@ class Pipeline:
                     status=final_status,
                     clarification=clarification,
                     iterations=0,
+                    reasoning_events=list(self._captured_reasoning_events or []),
                     session_id=session_id,
                     cost=self._current_cost(),
                     prompt_tokens=prompt_tokens,
@@ -155,6 +165,13 @@ class Pipeline:
                 subqueries=len(initial_queries),
             )
             await self._emit_phase_event(current_phase, "complete")
+            await self._emit_event(
+                {
+                    "type": "subqueries",
+                    "phase": current_phase,
+                    "items": [subquery.text for subquery in initial_queries],
+                }
+            )
 
             current_phase = "M3"
             await self._emit_phase_event(current_phase, "start")
@@ -301,6 +318,7 @@ class Pipeline:
                 clarification=clarification,
                 markdown=markdown,
                 evidences=processed_evidences,
+                reasoning_events=list(self._captured_reasoning_events or []),
                 quality=quality,
                 iterations=iteration_controller.iterations_executed,
                 session_id=session_id,
@@ -323,6 +341,7 @@ class Pipeline:
             )
             raise
         finally:
+            self._captured_reasoning_events = None
             if session_id is not None:
                 if not session_created:
                     fallback_mode = session_mode or _fallback_session_mode(mode_hint)
@@ -409,6 +428,7 @@ class Pipeline:
         )
 
     async def _emit_event(self, event: PipelineEvent) -> None:
+        self._capture_reasoning_event(event)
         if self.on_event is None:
             return
         try:
@@ -422,6 +442,20 @@ class Pipeline:
                 phase=event.get("phase"),
                 error=str(exc),
             )
+
+    def _capture_reasoning_event(self, event: PipelineEvent) -> None:
+        if self._captured_reasoning_events is None:
+            return
+        if not _is_reasoning_event(event):
+            return
+
+        copied_event: PipelineEvent = {}
+        for key, value in event.items():
+            if isinstance(value, list):
+                copied_event[key] = list(value)
+            else:
+                copied_event[key] = value
+        self._captured_reasoning_events.append(copied_event)
 
 
 class _TrackingIterationController(IterationController):
@@ -529,6 +563,11 @@ def _initial_subquery_count(mode: SearchMode) -> int:
     if mode is SearchMode.FAST:
         return 3
     return 5
+
+
+def _is_reasoning_event(event: PipelineEvent) -> bool:
+    event_type = event.get("type")
+    return event_type in {"rubrics", "subqueries", "iteration", "gap", "quality"}
 
 
 def _fallback_session_mode(mode_hint: SearchMode | None) -> str:
