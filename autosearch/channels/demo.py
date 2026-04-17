@@ -14,7 +14,7 @@ class DemoChannel:
         encoded_query = quote_plus(query.text)
         return [
             Evidence(
-                url=f"https://demo.local/arxiv/{encoded_query}",
+                url=f"https://demo.example/arxiv/{encoded_query}",
                 title=f"{query.text}: retrieval benchmark survey",
                 snippet=(
                     f"An arXiv-style survey discussing {query.text} and why the benchmark "
@@ -28,7 +28,7 @@ class DemoChannel:
                 fetched_at=now,
             ),
             Evidence(
-                url=f"https://demo.local/blog/{encoded_query}",
+                url=f"https://demo.example/blog/{encoded_query}",
                 title=f"Practitioner notes on {query.text}",
                 snippet=(
                     f"A blog post summarizing implementation tradeoffs for {query.text} in "
@@ -42,7 +42,7 @@ class DemoChannel:
                 fetched_at=now,
             ),
             Evidence(
-                url=f"https://demo.local/github/{encoded_query}",
+                url=f"https://demo.example/github/{encoded_query}",
                 title=f"{query.text} reference implementation",
                 snippet=(
                     f"A repository README describing a sample implementation for {query.text} "
@@ -56,7 +56,7 @@ class DemoChannel:
                 fetched_at=now,
             ),
             Evidence(
-                url=f"https://demo.local/forum/{encoded_query}",
+                url=f"https://demo.example/forum/{encoded_query}",
                 title=f"Field report: teams evaluating {query.text}",
                 snippet=(
                     f"A discussion thread where practitioners compare results for {query.text} "
