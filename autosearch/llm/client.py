@@ -95,10 +95,21 @@ class LLMClient:
         self.logger.info("llm_providers_detected", providers=list(providers))
         return providers
 
+    @staticmethod
+    def _strip_code_fences(raw: str) -> str:
+        stripped = raw.strip()
+        first_line, separator, remainder = stripped.partition("\n")
+        if first_line.startswith("```") and separator:
+            stripped = remainder
+        if stripped.endswith("```"):
+            stripped = stripped[:-3]
+        return stripped.strip()
+
     async def complete(self, prompt: str, response_model: type[ResponseModelT]) -> ResponseModelT:
         for attempt in range(1, self.max_parse_retries + 1):
             raw_response = await self.provider.complete(prompt, response_model)
             raw_json = raw_response if isinstance(raw_response, str) else json.dumps(raw_response)
+            raw_json = self._strip_code_fences(raw_json)
             try:
                 payload = json.loads(raw_json)
             except json.JSONDecodeError as exc:
