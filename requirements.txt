@@ -1,6 +1,0 @@
-browser-cookie3>=0.19.1  # optional: Twitter cookie extraction from browsers
-ddgs>=9.12.0
-httpx>=0.27.0
-lxml>=5.0
-rank-bm25>=0.2.2
-snowballstemmer>=2.2.0
