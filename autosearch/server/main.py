@@ -99,8 +99,14 @@ def _openai_error_response(
     return JSONResponse(status_code=status_code, content={"error": error})
 
 
-def _openai_usage() -> ChatCompletionUsage:
-    return ChatCompletionUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0)
+def _openai_usage(result: PipelineResult) -> ChatCompletionUsage:
+    prompt_tokens = result.prompt_tokens
+    completion_tokens = result.completion_tokens
+    return ChatCompletionUsage(
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=prompt_tokens + completion_tokens,
+    )
 
 
 def _chat_completion_id() -> str:
@@ -139,7 +145,7 @@ def _chat_completion_response(
                 message=ChatMessage(role="assistant", content=result.markdown or ""),
             )
         ],
-        usage=_openai_usage(),
+        usage=_openai_usage(result),
     )
 
 
