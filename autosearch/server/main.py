@@ -136,6 +136,7 @@ def _chat_completion_response(
     response_id: str,
     created: int,
 ) -> ChatCompletionResponse:
+    metadata = _chat_completion_metadata(result)
     return ChatCompletionResponse(
         id=response_id,
         created=created,
@@ -146,6 +147,7 @@ def _chat_completion_response(
             )
         ],
         usage=_openai_usage(result),
+        **metadata,
     )
 
 
@@ -168,6 +170,7 @@ async def _chat_completion_stream(
     )
     yield _encode_sse(role_chunk.model_dump(exclude_none=True))
 
+    metadata = _chat_completion_metadata(result)
     content_chunk = ChatCompletionChunk(
         id=response_id,
         created=created,
@@ -178,6 +181,7 @@ async def _chat_completion_stream(
                 finish_reason="stop",
             )
         ],
+        **metadata,
     )
     yield _encode_sse(content_chunk.model_dump(exclude_none=True))
     yield "data: [DONE]\n\n"
@@ -210,6 +214,142 @@ async def _event_payloads(
         return
 
     yield _terminal_payload(result)
+
+
+def _chat_completion_metadata(result: PipelineResult) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+    visited_urls = _visited_urls(result)
+    if visited_urls is not None:
+        metadata["visitedURLs"] = visited_urls
+
+    reasoning_content = _reasoning_content(result)
+    if reasoning_content is not None:
+        metadata["reasoning_content"] = reasoning_content
+    return metadata
+
+
+def _visited_urls(result: PipelineResult) -> list[str] | None:
+    seen: set[str] = set()
+    visited_urls: list[str] = []
+    for evidence in result.evidences:
+        url = evidence.url.strip()
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        visited_urls.append(url)
+    return visited_urls or None
+
+
+def _reasoning_content(result: PipelineResult) -> str | None:
+    rubrics: list[str] = []
+    subqueries: list[str] = []
+    gap_rounds: dict[int, list[str]] = {}
+    saw_iteration = False
+    current_round: int | None = None
+    quality_grade: str | None = None
+    quality_follow_up_count: int | None = None
+
+    for event in result.reasoning_events:
+        event_type = event.get("type")
+
+        if event_type == "rubrics":
+            rubrics = _event_items(event)
+            continue
+
+        if event_type == "subqueries" and event.get("phase") == "M2":
+            subqueries = _event_items(event)
+            continue
+
+        if event_type == "iteration":
+            round_value = event.get("round")
+            if isinstance(round_value, int):
+                saw_iteration = True
+                current_round = round_value
+                gap_rounds.setdefault(round_value, [])
+            continue
+
+        if event_type == "gap":
+            if current_round is None:
+                continue
+            gap_line = _format_gap(event)
+            if gap_line is not None:
+                gap_rounds.setdefault(current_round, []).append(gap_line)
+            continue
+
+        if event_type == "quality":
+            grade = event.get("grade")
+            if isinstance(grade, str) and grade:
+                quality_grade = grade
+            follow_up_count = event.get("follow_up_count")
+            if isinstance(follow_up_count, int):
+                quality_follow_up_count = follow_up_count
+
+    if not rubrics:
+        rubrics = [
+            rubric.text.strip() for rubric in result.clarification.rubrics if rubric.text.strip()
+        ]
+
+    lines: list[str] = []
+
+    if rubrics:
+        lines.append("M1 Rubrics:")
+        lines.extend(f"- {rubric}" for rubric in rubrics)
+
+    if subqueries:
+        lines.append("M2 Subqueries:")
+        lines.extend(f"- {subquery}" for subquery in subqueries)
+
+    if saw_iteration:
+        lines.append("M3 Gap Reflection:")
+        for round_number, gaps in gap_rounds.items():
+            if gaps:
+                lines.append(f"- Round {round_number}: {'; '.join(gaps)}")
+            else:
+                lines.append(f"- Round {round_number}: no major gaps identified.")
+
+    if quality_grade is not None or quality_follow_up_count is not None:
+        lines.append("M8 Quality:")
+        grade_text = quality_grade or "unknown"
+        if quality_follow_up_count is None:
+            lines.append(f"- Grade: {grade_text}")
+        else:
+            lines.append(f"- Grade: {grade_text}; follow-up gaps: {quality_follow_up_count}")
+
+    if not lines:
+        return None
+    return "\n".join(lines)
+
+
+def _event_items(event: dict[str, object]) -> list[str]:
+    raw_items = event.get("items")
+    if not isinstance(raw_items, list):
+        return []
+
+    items: list[str] = []
+    for raw_item in raw_items:
+        if not isinstance(raw_item, str):
+            continue
+        item = raw_item.strip()
+        if item:
+            items.append(item)
+    return items
+
+
+def _format_gap(event: dict[str, object]) -> str | None:
+    topic = event.get("topic")
+    if not isinstance(topic, str):
+        return None
+    topic_text = topic.strip()
+    if not topic_text:
+        return None
+
+    reason = event.get("reason")
+    if not isinstance(reason, str):
+        return topic_text
+    reason_text = reason.strip()
+    if not reason_text:
+        return topic_text
+    return f"{topic_text} ({reason_text})"
 
 
 async def _streaming_events(
@@ -292,7 +432,7 @@ async def chat_completions(request: ChatCompletionRequest):
         model=model_name,
         response_id=response_id,
         created=created,
-    )
+    ).model_dump(exclude_none=True)
 
 
 @app.post("/search")

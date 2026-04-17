@@ -95,6 +95,7 @@ class PipelineResult:
     clarification: ClarifyResult
     markdown: str | None = None
     evidences: list[Evidence] = field(default_factory=list)
+    reasoning_events: list[dict[str, object]] = field(default_factory=list)
     quality: EvaluationResult | None = None
     iterations: int = 0
     session_id: str | None = None

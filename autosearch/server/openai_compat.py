@@ -35,6 +35,8 @@ class ChatCompletionResponse(BaseModel):
     model: str
     choices: list[ChatCompletionChoice]
     usage: ChatCompletionUsage
+    visitedURLs: list[str] | None = None
+    reasoning_content: str | None = None
 
 
 class ChatCompletionDelta(BaseModel):
@@ -54,6 +56,8 @@ class ChatCompletionChunk(BaseModel):
     created: int
     model: str
     choices: list[ChatCompletionChunkChoice]
+    visitedURLs: list[str] | None = None
+    reasoning_content: str | None = None
 
 
 class ModelInfo(BaseModel):
