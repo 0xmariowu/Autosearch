@@ -99,3 +99,10 @@ def query(
         return
 
     typer.echo(result.markdown or "")
+
+
+@app.command()
+def mcp() -> None:
+    from autosearch.mcp.cli import main as mcp_main
+
+    mcp_main()
