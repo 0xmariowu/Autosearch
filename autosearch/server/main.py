@@ -1,6 +1,7 @@
 # Source: openperplex_backend_os/main.py:L14-L77 (adapted)
+import asyncio
 import json
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
 
 from fastapi import FastAPI
@@ -18,6 +19,9 @@ try:
     from sse_starlette.sse import EventSourceResponse
 except ImportError:
     EventSourceResponse = None
+
+type EventCallback = Callable[[dict[str, Any]], Awaitable[None] | None]
+type PipelineFactory = Callable[[EventCallback | None], Pipeline]
 
 
 class SearchRequest(BaseModel):
@@ -43,28 +47,21 @@ app.add_middleware(
 )
 
 
-def _default_pipeline_factory() -> Pipeline:
-    return Pipeline(llm=LLMClient(), channels=[DemoChannel()])
-
-
-def _phase_sequence(result: PipelineResult) -> list[str]:
-    if result.status == "needs_clarification":
-        return ["M0", "M1"]
-    return ["M0", "M1", "M2", *(["M3"] * max(1, result.iterations)), "M5", "M7", "M8"]
+def _default_pipeline_factory(on_event: EventCallback | None = None) -> Pipeline:
+    return Pipeline(llm=LLMClient(), channels=[DemoChannel()], on_event=on_event)
 
 
 def _terminal_payload(result: PipelineResult) -> dict[str, Any]:
-    if result.status == "needs_clarification":
-        return {
-            "type": "needs_clarification",
-            "question": result.clarification.question or "More detail is required.",
-        }
-    return {
+    payload: dict[str, Any] = {
         "type": "finished",
-        "markdown": result.markdown or "",
         "iterations": result.iterations,
         "status": result.status,
     }
+    if result.status == "needs_clarification":
+        payload["question"] = result.clarification.question or "More detail is required."
+        return payload
+    payload["markdown"] = result.markdown or ""
+    return payload
 
 
 def _encode_sse(payload: dict[str, Any]) -> str:
@@ -74,24 +71,36 @@ def _encode_sse(payload: dict[str, Any]) -> str:
 async def _event_payloads(
     query: str,
     mode: SearchMode,
-    pipeline_factory: Callable[[], Pipeline],
+    pipeline_factory: PipelineFactory,
 ) -> AsyncIterator[dict[str, Any]]:
+    queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+
     yield {"type": "started", "query": query}
+    pipeline_task = asyncio.create_task(pipeline_factory(queue.put).run(query, mode_hint=mode))
+
+    while not pipeline_task.done():
+        try:
+            yield queue.get_nowait()
+        except asyncio.QueueEmpty:
+            await asyncio.sleep(0)
+
+    while not queue.empty():
+        yield queue.get_nowait()
+
     try:
-        result = await pipeline_factory().run(query, mode_hint=mode)
+        result = await pipeline_task
     except Exception as exc:
-        yield {"type": "error", "message": str(exc)}
+        if queue.empty():
+            yield {"type": "error", "message": str(exc)}
         return
 
-    for phase in _phase_sequence(result):
-        yield {"type": "progress", "phase": phase}
     yield _terminal_payload(result)
 
 
 async def _streaming_events(
     query: str,
     mode: SearchMode,
-    pipeline_factory: Callable[[], Pipeline],
+    pipeline_factory: PipelineFactory,
 ) -> AsyncIterator[str]:
     async for payload in _event_payloads(query, mode, pipeline_factory):
         yield _encode_sse(payload)
@@ -100,7 +109,7 @@ async def _streaming_events(
 async def _eventsource_events(
     query: str,
     mode: SearchMode,
-    pipeline_factory: Callable[[], Pipeline],
+    pipeline_factory: PipelineFactory,
 ) -> AsyncIterator[dict[str, str]]:
     async for payload in _event_payloads(query, mode, pipeline_factory):
         yield {"data": json.dumps(payload, ensure_ascii=False)}

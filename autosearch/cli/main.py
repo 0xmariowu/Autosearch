@@ -1,6 +1,7 @@
 # Source: gpt-researcher/cli.py:L28-L216 (adapted)
 import asyncio
 import json
+import sys
 from typing import Annotated
 
 import click
@@ -67,13 +68,22 @@ def query(
         bool,
         typer.Option("--json", help="Emit a machine-readable JSON response envelope."),
     ] = False,
+    stream: Annotated[
+        bool,
+        typer.Option(
+            "--stream/--no-stream",
+            help="Emit newline-delimited progress events to stderr while the query runs.",
+        ),
+    ] = True,
 ) -> None:
+    stream_callback = _stderr_event_writer if stream and not json_output else None
     try:
         result = asyncio.run(
             Pipeline(
                 llm=LLMClient(),
                 channels=[DemoChannel()],
                 top_k_evidence=top_k,
+                on_event=stream_callback,
             ).run(query, mode_hint=mode)
         )
     except Exception as exc:
@@ -121,3 +131,8 @@ def serve(
     ] = 8080,
 ) -> None:
     uvicorn.run("autosearch.server.main:app", host=host, port=port)
+
+
+def _stderr_event_writer(event: dict[str, object]) -> None:
+    sys.stderr.write(json.dumps(event, ensure_ascii=False) + "\n")
+    sys.stderr.flush()
