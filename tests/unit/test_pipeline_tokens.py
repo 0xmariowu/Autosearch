@@ -1,20 +1,24 @@
-# Self-written, plan v2.3 § 11
+# Self-written, plan v2.3 § token fidelity
 import json
-import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-import pytest
 from pydantic import BaseModel
 
 from autosearch.core.clarify import _ClarifyCompletion
 from autosearch.core.iteration import _GapReflectionResponse
-from autosearch.core.models import EvaluationResult, Gap, GradeOutcome, KnowledgeRecall, SearchMode
+from autosearch.core.models import (
+    EvaluationResult,
+    Evidence,
+    Gap,
+    GradeOutcome,
+    KnowledgeRecall,
+    SearchMode,
+)
 from autosearch.core.pipeline import Pipeline
 from autosearch.core.strategy import _SubQueryBatch
 from autosearch.llm.client import LLMClient
 from autosearch.observability.cost import CostTracker
-from autosearch.persistence.session_store import SessionStore
 from autosearch.synthesis.outline import OutlineResponse
 from autosearch.synthesis.section import _SectionWriteResponse
 from tests.fixtures.fake_channel import FakeChannel
@@ -38,9 +42,6 @@ class ScriptedProvider:
 
     async def complete(self, prompt: str, response_model: type[BaseModel]) -> str:
         _ = prompt
-        if self.calls >= len(self.steps):
-            raise AssertionError(f"Unexpected extra LLM call for {response_model.__name__}")
-
         step = self.steps[self.calls]
         self.calls += 1
         if response_model is not step.response_model:
@@ -50,9 +51,7 @@ class ScriptedProvider:
         return json.dumps(step.payload)
 
 
-def _make_evidence(url: str, title: str, body: str) -> BaseModel:
-    from autosearch.core.models import Evidence
-
+def _make_evidence(url: str, title: str, body: str) -> Evidence:
     return Evidence(
         url=url,
         title=title,
@@ -64,9 +63,8 @@ def _make_evidence(url: str, title: str, body: str) -> BaseModel:
     )
 
 
-@pytest.mark.asyncio
-async def test_pipeline_run_records_session_queries_evidence_and_cost() -> None:
-    store = await SessionStore.open(":memory:")
+async def test_pipeline_populates_token_counts_from_cost_tracker_breakdown() -> None:
+    tracker = CostTracker()
     provider = ScriptedProvider(
         [
             CompletionStep(
@@ -149,7 +147,6 @@ async def test_pipeline_run_records_session_queries_evidence_and_cost() -> None:
         ]
     )
     llm = LLMClient(provider_name="scripted", providers={"scripted": provider})
-    tracker = CostTracker()
     channel = FakeChannel(
         name="web",
         evidences=[
@@ -166,26 +163,17 @@ async def test_pipeline_run_records_session_queries_evidence_and_cost() -> None:
         ],
     )
 
-    try:
-        result = await Pipeline(
-            llm=llm,
-            channels=[channel],
-            cost_tracker=tracker,
-            session_store=store,
-        ).run("Should I still use BM25 for lexical search?")
-        session = await store.fetch_session(result.session_id or "")
-    finally:
-        await store.close()
+    result = await Pipeline(
+        llm=llm,
+        channels=[channel],
+        cost_tracker=tracker,
+    ).run("Should I still use BM25 for lexical search?")
 
-    assert result.session_id is not None
-    assert re.fullmatch(r"[0-9a-f]{12}", result.session_id)
-    assert result.cost > 0.0
+    breakdown = tracker.breakdown()
+    expected_prompt_tokens = sum(int(values["input_tokens"]) for values in breakdown.values())
+    expected_completion_tokens = sum(int(values["output_tokens"]) for values in breakdown.values())
+
+    assert result.prompt_tokens == expected_prompt_tokens
+    assert result.completion_tokens == expected_completion_tokens
     assert result.prompt_tokens > 0
     assert result.completion_tokens > 0
-    assert session is not None
-    assert session["id"] == result.session_id
-    assert session["markdown"]
-    assert session["finished_at"] is not None
-    assert session["cost"] == pytest.approx(result.cost)
-    assert session["evidence"]
-    assert session["query_log"]
