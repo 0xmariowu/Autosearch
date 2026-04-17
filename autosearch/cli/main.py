@@ -1,17 +1,12 @@
 # Source: gpt-researcher/cli.py:L28-L216 (adapted)
-from enum import StrEnum
 from typing import Annotated
 
 import typer
 
 from autosearch import __version__
+from autosearch.core.models import SearchMode
 
 app = typer.Typer(add_completion=False, no_args_is_help=False)
-
-
-class SearchMode(StrEnum):
-    FAST = "fast"
-    DEEP = "deep"
 
 
 def _version_callback(value: bool) -> None:
