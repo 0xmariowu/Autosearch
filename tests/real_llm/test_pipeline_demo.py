@@ -82,7 +82,7 @@ async def test_pipeline_demo_roundtrip_uses_real_llm() -> None:
     )
     pipeline = Pipeline(llm=llm, channels=[DemoChannel()])
 
-    async with asyncio.timeout(60):
+    async with asyncio.timeout(300):
         result = await pipeline.run("retrieval augmented generation")
         if result.status == "needs_clarification":
             # Some providers treat the bare phrase as underspecified. Retry once with an explicit
