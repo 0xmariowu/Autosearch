@@ -1,0 +1,36 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "maple",
+  "name": "AutoSearch",
+  "colors": {
+    "primary": "#16A34A",
+    "light": "#22C55E",
+    "dark": "#15803D"
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": ["introduction"]
+          }
+        ]
+      }
+    ]
+  },
+  "navbar": {
+    "links": [
+      {
+        "type": "github",
+        "href": "https://github.com/0xmariowu/Autosearch"
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/0xmariowu/Autosearch"
+    }
+  }
+}
