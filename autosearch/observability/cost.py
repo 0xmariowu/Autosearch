@@ -3,7 +3,7 @@ import json
 import os
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 try:
     import tiktoken
@@ -17,6 +17,13 @@ _DEFAULT_PRICING: dict[str, dict[str, float]] = {
     "gemini-2.5-pro": {"input_per_1k": 0.00125, "output_per_1k": 0.01},
     "gpt-4o": {"input_per_1k": 0.005, "output_per_1k": 0.015},
 }
+
+
+class CostBreakdownEntry(TypedDict, total=False):
+    input_tokens: int
+    output_tokens: int
+    cost: float
+    notes: list[str]
 
 
 def estimate_tokens(text: str, model: str = "cl100k_base") -> int:
@@ -45,9 +52,16 @@ class CostTracker:
         if pricing is not None:
             self._pricing.update(_normalize_pricing(pricing))
         self._running_total = 0.0
-        self._model_totals: dict[str, dict[str, int | float]] = {}
+        self._model_totals: dict[str, CostBreakdownEntry] = {}
 
-    def add_usage(self, model: str, input_tokens: int, output_tokens: int) -> float:
+    def add_usage(
+        self,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        *,
+        note: str | None = None,
+    ) -> float:
         pricing = self._lookup_pricing(model)
         input_cost = (input_tokens / 1000) * pricing["input_per_1k"]
         output_cost = (output_tokens / 1000) * pricing["output_per_1k"]
@@ -60,6 +74,12 @@ class CostTracker:
         totals["input_tokens"] = int(totals["input_tokens"]) + input_tokens
         totals["output_tokens"] = int(totals["output_tokens"]) + output_tokens
         totals["cost"] = float(totals["cost"]) + call_cost
+        if note is not None:
+            notes = totals.get("notes")
+            if notes is None:
+                totals["notes"] = [note]
+            elif note not in notes:
+                notes.append(note)
 
         self._running_total += call_cost
         return call_cost
@@ -67,8 +87,15 @@ class CostTracker:
     def total(self) -> float:
         return self._running_total
 
-    def breakdown(self) -> dict[str, dict[str, int | float]]:
-        return {model: values.copy() for model, values in self._model_totals.items()}
+    def breakdown(self) -> dict[str, CostBreakdownEntry]:
+        breakdown: dict[str, CostBreakdownEntry] = {}
+        for model, values in self._model_totals.items():
+            copied = values.copy()
+            notes = values.get("notes")
+            if notes is not None:
+                copied["notes"] = list(notes)
+            breakdown[model] = copied
+        return breakdown
 
     def _load_config_from_env(self, env_var: str) -> dict[str, dict[str, float]]:
         config_path = os.getenv(env_var)
