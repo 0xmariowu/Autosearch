@@ -41,7 +41,9 @@ def test_llm_client_selects_provider_from_env(
     for key in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY"):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv(env_var, "test-key")
-    monkeypatch.setattr(client_module.ClaudeCodeProvider, "is_available", staticmethod(lambda: False))
+    monkeypatch.setattr(
+        client_module.ClaudeCodeProvider, "is_available", staticmethod(lambda: False)
+    )
 
     class FakeProvider:
         name = expected_name
