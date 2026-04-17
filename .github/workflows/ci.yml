@@ -18,19 +18,15 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    strategy:
-      matrix:
-        python-version: ['3.11', '3.12']
-      fail-fast: false
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.12'
 
       - name: Install dependencies
-        run: pip install pytest pytest-asyncio ruff -r requirements.txt
+        run: pip install -e .
 
       - name: Ruff lint
         run: ruff check .
@@ -40,75 +36,6 @@ jobs:
 
       - name: Test
         run: pytest -x -q -m "not network"
-
-  integration:
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
-        with:
-          python-version: '3.11'
-
-      - name: Run setup.sh
-        run: bash scripts/setup.sh
-
-      - name: Verify venv
-        run: |
-          ~/.autosearch/venv/bin/python -c "import ddgs; import httpx; print('Dependencies OK')"
-
-      - name: Verify channel loading
-        run: |
-          PYTHONPATH=. ~/.autosearch/venv/bin/python -c "
-          from channels import load_channels
-          ch = load_channels()
-          print(f'{len(ch)} channels loaded')
-          assert len(ch) >= 30, f'Expected >= 30, got {len(ch)}'
-          print('Channel loading OK')
-          "
-
-      - name: Verify search execution
-        run: |
-          RESULT=$(PYTHONPATH=. bash scripts/run_search.sh '[{"channel":"web-ddgs","query":"test","max_results":1}]' 2>/dev/null | head -1)
-          echo "$RESULT"
-          echo "$RESULT" | python3 -c "
-          import sys, json
-          r = json.loads(sys.stdin.readline())
-          assert 'url' in r, 'Missing url'
-          assert 'title' in r, 'Missing title'
-          assert 'snippet' in r, 'Missing snippet'
-          print('Search execution OK')
-          "
-
-      - name: Verify plugin structure
-        run: |
-          test -f .claude-plugin/plugin.json && echo "plugin.json OK"
-          test -f commands/autosearch.md && echo "commands/autosearch.md OK"
-          test -f commands/setup.md && echo "commands/setup.md OK"
-          test -f agents/researcher.md && echo "agents/researcher.md OK"
-          test -f PROTOCOL.md && echo "PROTOCOL.md OK"
-          test -f lib/search_runner.py && echo "search_runner.py OK"
-          test -f lib/judge.py && echo "judge.py OK"
-          test -d channels && echo "channels/ OK"
-          test -d skills && echo "skills/ OK"
-          test -d state && echo "state/ OK"
-          echo "Plugin structure OK"
-
-      - name: Verify install script syntax
-        run: bash -n scripts/install.sh && bash -n scripts/bump-version.sh && echo "Script syntax OK"
-
-      - name: Verify version consistency
-        run: |
-          python3 -c "
-          import json
-          pv = json.load(open('.claude-plugin/plugin.json'))['version']
-          mv = json.load(open('.claude-plugin/marketplace.json'))['metadata']['version']
-          assert pv == mv, f'Version mismatch: plugin.json={pv}, marketplace.json={mv}'
-          print(f'Version {pv} consistent across manifests')
-          "
 
   version-check:
     if: github.event_name == 'pull_request' && !github.event.pull_request.draft
@@ -123,7 +50,7 @@ jobs:
 
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Check version bump
         env:
@@ -139,15 +66,14 @@ jobs:
           TAG_VERSION="${LAST_TAG#v}"
           PLUGIN_VERSION=$(python3 -c "import json; print(json.load(open('.claude-plugin/plugin.json'))['version'])")
 
-          # Check if source files changed in this PR
           SOURCE_CHANGES=$(git diff --name-only "origin/main"..HEAD -- \
-            commands/ agents/ skills/ lib/ channels/ scripts/ \
-            PROTOCOL.md CLAUDE.md .claude-plugin/ \
+            autosearch/ tests/ docs/ \
+            CLAUDE.md pyproject.toml .claude-plugin/ \
             2>/dev/null | wc -l | tr -d ' ')
 
           if [ "$SOURCE_CHANGES" -gt 0 ] && [ "$TAG_VERSION" = "$PLUGIN_VERSION" ]; then
             gh pr comment "$PR_NUMBER" --body \
-              "**Version reminder**: This PR changes $SOURCE_CHANGES source file(s) but the version is still \`$PLUGIN_VERSION\` (same as tag \`$LAST_TAG\`). Run \`scripts/bump-version.sh\` before merging so users receive the update."
+              "**Version reminder**: This PR changes $SOURCE_CHANGES source file(s) but the version is still \`$PLUGIN_VERSION\` (same as tag \`$LAST_TAG\`)."
           elif [ "$TAG_VERSION" != "$PLUGIN_VERSION" ]; then
             echo "Version bumped: $TAG_VERSION → $PLUGIN_VERSION"
           else
