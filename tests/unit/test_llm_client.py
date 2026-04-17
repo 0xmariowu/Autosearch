@@ -3,6 +3,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 import autosearch.llm.client as client_module
+from autosearch.llm.providers.dummy import DummyProvider as BuiltinDummyProvider
 from autosearch.observability.cost import CostTracker
 
 
@@ -61,6 +62,22 @@ def test_llm_client_selects_provider_from_env(
 
     assert client.provider_name == expected_name
     assert list(client.providers) == [expected_name]
+
+
+def test_llm_client_selects_dummy_mode_before_other_providers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AUTOSEARCH_LLM_MODE", "dummy")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        client_module.ClaudeCodeProvider, "is_available", staticmethod(lambda: True)
+    )
+
+    client = client_module.LLMClient()
+
+    assert client.provider_name == "dummy"
+    assert list(client.providers) == ["dummy"]
+    assert isinstance(client.provider, BuiltinDummyProvider)
 
 
 async def test_llm_client_retries_on_json_parse_fail(
