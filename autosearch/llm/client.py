@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from autosearch.observability.cost import CostTracker, estimate_tokens
 from autosearch.llm.providers.anthropic import AnthropicProvider
 from autosearch.llm.providers.claude_code import ClaudeCodeProvider
+from autosearch.llm.providers.dummy import DummyProvider
 from autosearch.llm.providers.gemini import GeminiProvider
 from autosearch.llm.providers.openai import OpenAIProvider
 
@@ -24,6 +25,12 @@ class ProviderProtocol(Protocol):
 
 
 class LLMClient:
+    """Auto-detect an available provider.
+
+    Set `AUTOSEARCH_LLM_MODE=dummy` to force the in-repo `DummyProvider` for smoke tests,
+    CI, or local development without API keys.
+    """
+
     def __init__(
         self,
         provider_name: str | None = None,
@@ -57,6 +64,14 @@ class LLMClient:
         )
 
     def _detect_providers(self) -> dict[str, ProviderProtocol]:
+        if os.environ.get("AUTOSEARCH_LLM_MODE") == "dummy":
+            self.logger.info(
+                "llm_provider_forced",
+                provider="dummy",
+                reason="AUTOSEARCH_LLM_MODE=dummy",
+            )
+            return {"dummy": DummyProvider()}
+
         providers: dict[str, ProviderProtocol] = {}
 
         if ClaudeCodeProvider.is_available():
