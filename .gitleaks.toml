@@ -21,6 +21,10 @@ regex = '''[a-z0-9\-]+\.ts\.net|\.local\b'''
 tags = ["pii", "hostname"]
 keywords = [".ts.net", ".local"]
 
+  [[rules.allowlists]]
+  description = "DemoChannel placeholder URLs — RFC-safe example domain"
+  paths = ['''autosearch/channels/demo\.py$''']
+
 # ── Public-repo-only rules ───────────────────────────────────────────────────
 
 [[rules]]
