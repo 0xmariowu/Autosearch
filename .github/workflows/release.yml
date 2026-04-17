@@ -75,15 +75,26 @@ jobs:
       - name: Check wheel metadata
         run: twine check dist/*
 
+      - name: Check PyPI token availability
+        id: pypi
+        env:
+          PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          if [ -n "$PYPI_TOKEN" ]; then
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish to PyPI
-        if: ${{ secrets.PYPI_API_TOKEN != '' }}
+        if: steps.pypi.outputs.has_token == 'true'
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: twine upload dist/*
 
       - name: Note PyPI skip
-        if: ${{ !secrets.PYPI_API_TOKEN }}
+        if: steps.pypi.outputs.has_token != 'true'
         run: echo "PYPI_API_TOKEN secret not set — skipping PyPI publish, creating GitHub Release only."
 
       - name: Create GitHub Release
@@ -100,7 +111,7 @@ jobs:
         env:
           TAG: ${{ steps.tag.outputs.tag }}
           VERSION: ${{ steps.tag.outputs.version }}
-          PYPI_TOKEN_SET: ${{ secrets.PYPI_API_TOKEN != '' }}
+          PYPI_TOKEN_SET: ${{ steps.pypi.outputs.has_token }}
           SERVER_URL: ${{ github.server_url }}
           REPO: ${{ github.repository }}
         run: |
