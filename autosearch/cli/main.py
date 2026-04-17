@@ -1,12 +1,31 @@
 # Source: gpt-researcher/cli.py:L28-L216 (adapted)
+import asyncio
+import json
 from typing import Annotated
 
+import click
 import typer
 
 from autosearch import __version__
+from autosearch.channels.demo import DemoChannel
 from autosearch.core.models import SearchMode
+from autosearch.core.pipeline import Pipeline
+from autosearch.llm.client import LLMClient
 
-app = typer.Typer(add_completion=False, no_args_is_help=False)
+
+class _DefaultQueryGroup(typer.core.TyperGroup):
+    default_command = "query"
+
+    def resolve_command(
+        self, ctx: click.Context, args: list[str]
+    ) -> tuple[str | None, click.Command | None, list[str]]:
+        if args and not args[0].startswith("-") and args[0] not in self.commands:
+            command = self.get_command(ctx, self.default_command)
+            return self.default_command, command, args
+        return super().resolve_command(ctx, args)
+
+
+app = typer.Typer(add_completion=False, no_args_is_help=False, cls=_DefaultQueryGroup)
 
 
 def _version_callback(value: bool) -> None:
@@ -34,11 +53,49 @@ def main(
 
 @app.command()
 def query(
-    text: str,
+    query: Annotated[str, typer.Argument(help="The research question to run through AutoSearch.")],
     mode: Annotated[
-        SearchMode,
+        SearchMode | None,
         typer.Option("--mode", case_sensitive=False, help="Execution depth for the query."),
-    ] = SearchMode.FAST,
+    ] = None,
+    top_k: Annotated[
+        int,
+        typer.Option("--top-k", min=1, help="Maximum number of evidences to keep after reranking."),
+    ] = 20,
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", help="Emit a machine-readable JSON response envelope."),
+    ] = False,
 ) -> None:
-    _ = mode
-    typer.echo(f"M1: {text}")
+    try:
+        result = asyncio.run(
+            Pipeline(
+                llm=LLMClient(),
+                channels=[DemoChannel()],
+                top_k_evidence=top_k,
+            ).run(query, mode_hint=mode)
+        )
+    except Exception as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    if result.status == "needs_clarification":
+        typer.echo(result.clarification.question or "More detail is required.", err=True)
+        raise typer.Exit(code=2)
+
+    if json_output:
+        typer.echo(
+            json.dumps(
+                {
+                    "status": result.status,
+                    "markdown": result.markdown,
+                    "iterations": result.iterations,
+                    "quality_grade": (
+                        result.quality.grade.value if result.quality is not None else None
+                    ),
+                }
+            )
+        )
+        return
+
+    typer.echo(result.markdown or "")
