@@ -12,6 +12,7 @@ from autosearch import __version__
 from autosearch.channels.demo import DemoChannel
 from autosearch.core.models import SearchMode
 from autosearch.core.pipeline import Pipeline
+from autosearch.init_runner import InitError, InitRunner
 from autosearch.llm.client import LLMClient
 
 
@@ -117,6 +118,46 @@ def mcp() -> None:
     from autosearch.mcp.cli import main as mcp_main
 
     mcp_main()
+
+
+@app.command()
+def init(
+    overwrite: Annotated[
+        bool,
+        typer.Option(
+            "--overwrite",
+            help="Replace the generated config instead of merging detected providers into it.",
+        ),
+    ] = False,
+) -> None:
+    runner = InitRunner()
+    config_exists = runner.config_path().exists()
+    action = "merged" if config_exists and not overwrite else "created"
+    if config_exists and overwrite:
+        action = "overwritten"
+
+    try:
+        result = runner.run(overwrite=overwrite)
+    except InitError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    version = sys.version_info
+    typer.echo(f"Python 3.12+ check: OK (running {version.major}.{version.minor}.{version.micro})")
+    typer.echo("Provider detection:")
+    for provider, detected in result.providers.items():
+        status = "✅" if detected else "❌"
+        typer.echo(f"{status} {provider}")
+    typer.echo(f"Config: {action} {result.config_path}")
+
+    if result.warnings:
+        typer.echo("Warnings:")
+        for warning in result.warnings:
+            typer.echo(f"- {warning}")
+
+    typer.echo("Next steps:")
+    for step in result.next_steps:
+        typer.echo(f"- {step}")
 
 
 @app.command()
