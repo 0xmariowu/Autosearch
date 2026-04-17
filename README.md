@@ -35,8 +35,20 @@ See [`docs/delivery-status.md`](docs/delivery-status.md) for a module-by-module 
 
 ## Quick Start
 
+**Dev install (current — no PyPI release yet):**
+
 ```bash
-pipx install autosearch       # (after first tagged v2 release)
+git clone https://github.com/0xmariowu/Autosearch
+cd Autosearch
+uv venv --python 3.12
+uv pip install -e . --python .venv/bin/python
+.venv/bin/autosearch query "your topic"
+```
+
+**After the first tagged v2 release:**
+
+```bash
+pipx install autosearch
 autosearch query "your topic"
 ```
 
