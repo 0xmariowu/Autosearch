@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autosearch"
+version = "0.0.1a1"
+description = "AutoSearch v2 M1 skeleton"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi",
+  "httpx",
+  "pydantic",
+  "pytest",
+  "pytest-asyncio",
+  "pyyaml",
+  "ruff",
+  "structlog",
+  "trafilatura",
+  "typer",
+  "uvicorn",
+]
+
+[project.scripts]
+autosearch = "autosearch.cli.main:app"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.setuptools.packages.find]
+include = ["autosearch*"]
