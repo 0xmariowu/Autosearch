@@ -9,7 +9,7 @@ runner = CliRunner()
 
 
 def test_cli_serve_help_shows_host_and_port_flags() -> None:
-    result = runner.invoke(cli_main.app, ["serve", "--help"])
+    result = runner.invoke(cli_main.app, ["serve", "--help"], env={"NO_COLOR": "1", "TERM": "dumb"})
 
     assert result.exit_code == 0
     assert "--host" in result.stdout
