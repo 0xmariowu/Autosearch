@@ -9,9 +9,10 @@ import typer
 import uvicorn
 
 from autosearch import __version__
+from autosearch.channels.ddgs import DDGSChannel
 from autosearch.channels.demo import DemoChannel
 from autosearch.core.models import SearchMode
-from autosearch.core.pipeline import Pipeline
+from autosearch.core.pipeline import Pipeline, PipelineResult
 from autosearch.init_runner import InitError, InitRunner
 from autosearch.llm.client import LLMClient
 
@@ -82,7 +83,7 @@ def query(
         result = asyncio.run(
             Pipeline(
                 llm=LLMClient(),
-                channels=[DemoChannel()],
+                channels=[DemoChannel(), DDGSChannel()],
                 top_k_evidence=top_k,
                 on_event=stream_callback,
             ).run(query, mode_hint=mode)
@@ -105,6 +106,7 @@ def query(
                     "quality_grade": (
                         result.quality.grade.value if result.quality is not None else None
                     ),
+                    "sources": _json_sources(result),
                 }
             )
         )
@@ -177,6 +179,17 @@ def serve(
 def _stderr_event_writer(event: dict[str, object]) -> None:
     sys.stderr.write(json.dumps(event, ensure_ascii=False) + "\n")
     sys.stderr.flush()
+
+
+def _json_sources(result: PipelineResult) -> list[dict[str, str]]:
+    return [
+        {
+            "channel": evidence.source_channel,
+            "url": evidence.url,
+            "title": evidence.title,
+        }
+        for evidence in result.evidences
+    ]
 
 
 if __name__ == "__main__":
