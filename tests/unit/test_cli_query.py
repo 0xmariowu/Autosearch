@@ -49,7 +49,7 @@ def _clarification_result() -> PipelineResult:
     )
 
 
-class _StubDemoChannel:
+class _StubChannel:
     def __init__(self, name: str = "demo") -> None:
         self.name = name
 
@@ -79,7 +79,7 @@ def _install_cli_stubs(monkeypatch, pipeline_result: PipelineResult) -> None:
 
     monkeypatch.setattr(cli_main, "Pipeline", StubPipeline)
     monkeypatch.setattr(cli_main, "LLMClient", _StubLLMClient)
-    monkeypatch.setattr(cli_main, "DemoChannel", _StubDemoChannel)
+    monkeypatch.setattr(cli_main, "_build_channels", lambda: [_StubChannel()])
 
 
 def test_cli_query_prints_markdown_for_ok_result(monkeypatch) -> None:

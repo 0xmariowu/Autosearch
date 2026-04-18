@@ -1,10 +1,10 @@
-# Self-written, plan autosearch-0418-channels-and-skills.md § F004
+# Self-written, plan autosearch-0418-channels-and-skills.md § F003
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 
-import autosearch.channels.ddgs as ddgs_module
-from autosearch.channels.ddgs import DDGSChannel
+from autosearch.channels.base import ChannelRegistry, Environment
 from autosearch.core.models import Evidence, SubQuery
 
 
@@ -42,6 +42,15 @@ class _Logger:
         self.events.append((event, kwargs))
 
 
+def _channels_root() -> Path:
+    return Path(__file__).resolve().parents[2] / "skills" / "channels"
+
+
+def _compiled_ddgs():
+    registry = ChannelRegistry.compile_from_skills(_channels_root(), Environment())
+    return registry, registry.metadata("ddgs").methods[0].callable
+
+
 @pytest.mark.asyncio
 async def test_search_returns_evidence_list(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_hits = [
@@ -49,9 +58,10 @@ async def test_search_returns_evidence_list(monkeypatch: pytest.MonkeyPatch) -> 
         {"title": "Title 2", "href": "https://example.com/2", "body": "Snippet 2"},
         {"title": "Title 3", "href": "https://example.com/3", "body": "Snippet 3"},
     ]
-    monkeypatch.setattr(ddgs_module, "DDGS", lambda: _FakeDDGS(results=fake_hits))
+    registry, search_callable = _compiled_ddgs()
+    monkeypatch.setitem(search_callable.__globals__, "DDGS", lambda: _FakeDDGS(results=fake_hits))
 
-    results = await DDGSChannel().search(SubQuery(text="bm25", rationale="Need web results"))
+    results = await registry.get("ddgs").search(SubQuery(text="bm25", rationale="Need web results"))
 
     assert len(results) == 3
     assert all(isinstance(item, Evidence) for item in results)
@@ -65,9 +75,10 @@ async def test_search_returns_evidence_list(monkeypatch: pytest.MonkeyPatch) -> 
 
 @pytest.mark.asyncio
 async def test_search_empty_results(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(ddgs_module, "DDGS", lambda: _FakeDDGS(results=[]))
+    registry, search_callable = _compiled_ddgs()
+    monkeypatch.setitem(search_callable.__globals__, "DDGS", lambda: _FakeDDGS(results=[]))
 
-    results = await DDGSChannel().search(SubQuery(text="bm25", rationale="Need web results"))
+    results = await registry.get("ddgs").search(SubQuery(text="bm25", rationale="Need web results"))
 
     assert results == []
 
@@ -75,16 +86,19 @@ async def test_search_empty_results(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.asyncio
 async def test_search_handles_exception_gracefully(monkeypatch: pytest.MonkeyPatch) -> None:
     logger = _Logger()
-    monkeypatch.setattr(ddgs_module, "DDGS", lambda: _FakeDDGS(exc=RuntimeError("boom")))
-    monkeypatch.setattr(ddgs_module, "LOGGER", logger)
+    registry, search_callable = _compiled_ddgs()
+    monkeypatch.setitem(
+        search_callable.__globals__, "DDGS", lambda: _FakeDDGS(exc=RuntimeError("boom"))
+    )
+    monkeypatch.setitem(search_callable.__globals__, "LOGGER", logger)
 
-    results = await DDGSChannel().search(SubQuery(text="bm25", rationale="Need web results"))
+    results = await registry.get("ddgs").search(SubQuery(text="bm25", rationale="Need web results"))
 
     assert results == []
     assert logger.events == [
         (
             "ddgs_search_failed",
-            {"channel": "ddgs", "reason": "boom"},
+            {"reason": "boom"},
         )
     ]
 
@@ -92,8 +106,9 @@ async def test_search_handles_exception_gracefully(monkeypatch: pytest.MonkeyPat
 @pytest.mark.asyncio
 async def test_snippet_truncated_to_500_chars(monkeypatch: pytest.MonkeyPatch) -> None:
     long_body = "x" * 750
-    monkeypatch.setattr(
-        ddgs_module,
+    registry, search_callable = _compiled_ddgs()
+    monkeypatch.setitem(
+        search_callable.__globals__,
         "DDGS",
         lambda: _FakeDDGS(
             results=[
@@ -106,7 +121,7 @@ async def test_snippet_truncated_to_500_chars(monkeypatch: pytest.MonkeyPatch) -
         ),
     )
 
-    results = await DDGSChannel().search(SubQuery(text="bm25", rationale="Need web results"))
+    results = await registry.get("ddgs").search(SubQuery(text="bm25", rationale="Need web results"))
 
     assert len(results) == 1
     assert results[0].snippet is not None

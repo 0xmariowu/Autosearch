@@ -13,13 +13,14 @@ def _load_specs():
     return load_all(_channels_root())
 
 
-def test_all_10_channels_loadable() -> None:
+def test_all_11_channels_loadable() -> None:
     specs = _load_specs()
 
-    assert len(specs) == 10
+    assert len(specs) == 11
     assert [spec.name for spec in specs] == [
         "arxiv",
         "bilibili",
+        "ddgs",
         "douyin",
         "github",
         "hackernews",
@@ -68,18 +69,46 @@ def test_chinese_native_channels_cover_5() -> None:
     assert len(chinese_native) == 5
 
 
-def test_no_method_impl_exists_yet() -> None:
+def test_shipped_method_impls_exist_for_registry_channels() -> None:
+    expected_impls = {
+        "arxiv": ["methods/api_search.py"],
+        "ddgs": ["methods/api.py"],
+        "hackernews": ["methods/algolia.py"],
+        "youtube": ["methods/data_api_v3.py"],
+    }
+
     for spec in _load_specs():
+        expected = expected_impls.get(spec.name, [])
         for method in spec.methods:
-            assert not (spec.skill_dir / method.impl).exists()
+            exists = (spec.skill_dir / method.impl).exists()
+            assert exists is (method.impl in expected)
 
 
-def test_compile_from_skills_marks_all_unavailable() -> None:
+def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> None:
     registry = ChannelRegistry.compile_from_skills(_channels_root(), Environment())
 
-    assert [channel.name for channel in registry.available()] == []
+    assert [channel.name for channel in registry.available()] == [
+        "arxiv",
+        "ddgs",
+        "hackernews",
+    ]
     for spec in _load_specs():
         metadata = registry.metadata(spec.name)
+        expected_impls = {
+            "arxiv": "methods/api_search.py",
+            "ddgs": "methods/api.py",
+            "hackernews": "methods/algolia.py",
+        }
+        if spec.name in expected_impls:
+            assert len(metadata.methods) == 1
+            assert metadata.methods[0].available is True
+            assert metadata.methods[0].unmet_requires == []
+            continue
+        if spec.name == "youtube":
+            assert len(metadata.methods) == 1
+            assert metadata.methods[0].available is False
+            assert metadata.methods[0].unmet_requires == ["env:YOUTUBE_API_KEY"]
+            continue
 
         assert metadata.available_methods() == []
         assert len(metadata.methods) == len(spec.methods)
