@@ -7,13 +7,22 @@ from mcp.server.fastmcp import FastMCP
 from autosearch.channels.arxiv import ArxivChannel
 from autosearch.channels.ddgs import DDGSChannel
 from autosearch.channels.demo import DemoChannel
+from autosearch.channels.youtube import YouTubeChannel
 from autosearch.core.models import SearchMode
 from autosearch.core.pipeline import Pipeline
 from autosearch.llm.client import LLMClient
 
 
 def _default_pipeline_factory() -> Pipeline:
-    return Pipeline(llm=LLMClient(), channels=[DemoChannel(), DDGSChannel(), ArxivChannel()])
+    return Pipeline(
+        llm=LLMClient(),
+        channels=[
+            DemoChannel(),
+            DDGSChannel(),
+            ArxivChannel(),
+            YouTubeChannel(),
+        ],
+    )
 
 
 def create_server(pipeline_factory: Callable[[], Pipeline] | None = None) -> FastMCP:

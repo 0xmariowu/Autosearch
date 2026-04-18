@@ -15,6 +15,7 @@ from autosearch import __version__
 from autosearch.channels.arxiv import ArxivChannel
 from autosearch.channels.ddgs import DDGSChannel
 from autosearch.channels.demo import DemoChannel
+from autosearch.channels.youtube import YouTubeChannel
 from autosearch.core.models import SearchMode
 from autosearch.core.pipeline import Pipeline, PipelineResult
 from autosearch.llm.client import LLMClient
@@ -67,7 +68,12 @@ app.add_middleware(
 def _default_pipeline_factory(on_event: EventCallback | None = None) -> Pipeline:
     return Pipeline(
         llm=LLMClient(),
-        channels=[DemoChannel(), DDGSChannel(), ArxivChannel()],
+        channels=[
+            DemoChannel(),
+            DDGSChannel(),
+            ArxivChannel(),
+            YouTubeChannel(),
+        ],
         on_event=on_event,
     )
 
