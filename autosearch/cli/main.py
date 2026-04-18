@@ -9,6 +9,7 @@ import typer
 import uvicorn
 
 from autosearch import __version__
+from autosearch.channels.arxiv import ArxivChannel
 from autosearch.channels.ddgs import DDGSChannel
 from autosearch.channels.demo import DemoChannel
 from autosearch.core.models import SearchMode
@@ -83,7 +84,7 @@ def query(
         result = asyncio.run(
             Pipeline(
                 llm=LLMClient(),
-                channels=[DemoChannel(), DDGSChannel()],
+                channels=[DemoChannel(), DDGSChannel(), ArxivChannel()],
                 top_k_evidence=top_k,
                 on_event=stream_callback,
             ).run(query, mode_hint=mode)

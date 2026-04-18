@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from autosearch import __version__
+from autosearch.channels.arxiv import ArxivChannel
 from autosearch.channels.ddgs import DDGSChannel
 from autosearch.channels.demo import DemoChannel
 from autosearch.core.models import SearchMode
@@ -66,7 +67,7 @@ app.add_middleware(
 def _default_pipeline_factory(on_event: EventCallback | None = None) -> Pipeline:
     return Pipeline(
         llm=LLMClient(),
-        channels=[DemoChannel(), DDGSChannel()],
+        channels=[DemoChannel(), DDGSChannel(), ArxivChannel()],
         on_event=on_event,
     )
 

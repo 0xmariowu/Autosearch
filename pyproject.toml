@@ -12,6 +12,7 @@ dependencies = [
   "aiosqlite",
   "ddgs",
   "fastapi",
+  "feedparser",
   "httpx",
   "mcp",
   "pydantic",
