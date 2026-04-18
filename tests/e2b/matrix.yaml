@@ -607,6 +607,53 @@ phases:
           exit: 0
           stdout_contains: "arxiv_in_report_ok"
 
+  # F013 S3 — youtube channel smoke (Data API v3, needs YOUTUBE_API_KEY)
+  F013_channel_youtube_smoke:
+    parallel: 1
+    timeout: 600
+    upload:
+      - src: /tmp/autosearch-src.tar.gz
+        dst: /tmp/autosearch-src.tar.gz
+    setup: |
+      set -e
+      mkdir -p $HOME/work/autosearch
+      tar -xzf /tmp/autosearch-src.tar.gz -C $HOME/work/autosearch
+      curl -LsSf https://astral.sh/uv/install.sh | sh > /dev/null 2>&1
+      cd $HOME/work/autosearch
+      $HOME/.local/bin/uv venv --python 3.12 .venv
+      $HOME/.local/bin/uv pip install --python .venv/bin/python -e . > /tmp/install.log 2>&1
+    tasks:
+      - id: youtube_in_sources
+        timeout: 480
+        env_keys: [ANTHROPIC_API_KEY, YOUTUBE_API_KEY]
+        cmd: |
+          set -o pipefail
+          cd $HOME/work/autosearch
+          AUTOSEARCH_PROVIDER_CHAIN=anthropic \
+          .venv/bin/autosearch query "Best introductory video tutorials for BM25 ranking function" --mode fast --json 2>&1 | tail -80 | python3 -c "
+          import sys, json
+          out = sys.stdin.read()
+          start = out.index('{')
+          data = json.loads(out[start:])
+          sources = data.get('sources') or {}
+          channels = set()
+          if isinstance(sources, dict):
+              channels.update(sources.keys())
+          elif isinstance(sources, list):
+              for source in sources:
+                  if isinstance(source, dict) and 'channel' in source:
+                      channels.add(source['channel'])
+          print('channels=', sorted(channels))
+          assert 'youtube' in channels, f'youtube missing from sources: {channels}'
+          md = data.get('markdown') or ''
+          has_yt_url = 'youtube.com/watch' in md or 'youtu.be/' in md
+          assert has_yt_url, 'no youtube URL in markdown'
+          print('youtube_in_report_ok')
+          "
+        expect:
+          exit: 0
+          stdout_contains: "youtube_in_report_ok"
+
   # F002 S3 — Failure paths
   F002_S3_failure_paths:
     parallel: 1
