@@ -1,0 +1,66 @@
+{
+  "kind": "youtube#searchListResponse",
+  "etag": "fixture-etag",
+  "items": [
+    {
+      "kind": "youtube#searchResult",
+      "etag": "etag-1",
+      "id": {
+        "kind": "youtube#video",
+        "videoId": "video-001"
+      },
+      "snippet": {
+        "publishedAt": "2026-04-10T12:00:00Z",
+        "channelId": "channel-001",
+        "title": "BM25 Tutorial for Search Engineers",
+        "description": "A practical introduction to BM25 ranking for search applications.",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/video-001/default.jpg"
+          }
+        },
+        "channelTitle": "Search Lab"
+      }
+    },
+    {
+      "kind": "youtube#searchResult",
+      "etag": "etag-2",
+      "id": {
+        "kind": "youtube#video",
+        "videoId": "video-002"
+      },
+      "snippet": {
+        "publishedAt": "2026-03-28T08:30:00Z",
+        "channelId": "channel-002",
+        "title": "Understanding BM25 Step by Step",
+        "description": "Walkthrough of term frequency, inverse document frequency, and document length normalization.",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/video-002/default.jpg"
+          }
+        },
+        "channelTitle": "IR Explained"
+      }
+    },
+    {
+      "kind": "youtube#searchResult",
+      "etag": "etag-3",
+      "id": {
+        "kind": "youtube#video",
+        "videoId": "video-003"
+      },
+      "snippet": {
+        "publishedAt": "2026-02-14T17:45:00Z",
+        "channelId": "channel-003",
+        "title": "Ranking Functions in Practice",
+        "description": "Comparing BM25 with learned retrieval methods for introductory use cases.",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/video-003/default.jpg"
+          }
+        },
+        "channelTitle": "Signals and Search"
+      }
+    }
+  ]
+}
