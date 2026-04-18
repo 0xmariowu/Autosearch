@@ -30,6 +30,11 @@ keywords = [".ts.net", ".local"]
   paths = ['''tests/e2b/matrix\.yaml$''']
   regexes = ['''\$HOME/\.local/bin/uv''']
 
+  [[rules.allowlists]]
+  description = "SKILL.md prose references .local paths (Linux XDG, not a Tailscale domain)"
+  paths = ['''skills/.*/SKILL\.md$''']
+  regexes = ['''\.local/']
+
 # ── Public-repo-only rules ───────────────────────────────────────────────────
 
 [[rules]]
