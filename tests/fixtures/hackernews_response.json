@@ -1,0 +1,37 @@
+{
+  "hits": [
+    {
+      "objectID": "1001",
+      "title": "Rust vs Go in 2026",
+      "url": "https://example.com/rust-vs-go",
+      "story_text": "A comparison of Rust and Go for systems programming decisions.",
+      "author": "alice",
+      "points": 120,
+      "num_comments": 45,
+      "created_at": "2026-04-18T00:00:00Z",
+      "_tags": ["story", "author_alice"]
+    },
+    {
+      "objectID": "1002",
+      "title": "Ask HN: Show me your build cache tricks",
+      "url": null,
+      "story_text": "Self-post body with details about build cache strategies inside large monorepos.",
+      "author": "bob",
+      "points": 54,
+      "num_comments": 30,
+      "created_at": "2026-04-18T01:00:00Z",
+      "_tags": ["story", "ask_hn", "author_bob"]
+    },
+    {
+      "objectID": "1003",
+      "title": null,
+      "url": null,
+      "comment_text": "I have shipped both. Rust gives stronger safety guarantees, but Go is still easier to onboard for most teams.",
+      "author": "carol",
+      "points": null,
+      "num_comments": null,
+      "created_at": "2026-04-18T02:00:00Z",
+      "_tags": ["comment", "author_carol", "story_1001"]
+    }
+  ]
+}
