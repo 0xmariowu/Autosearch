@@ -607,6 +607,57 @@ phases:
           exit: 0
           stdout_contains: "arxiv_in_report_ok"
 
+  # F013 S4 — registry-compiled channels probe (post-F003)
+  F013_registry_channels_available:
+    parallel: 1
+    timeout: 300
+    upload:
+      - src: /tmp/autosearch-src.tar.gz
+        dst: /tmp/autosearch-src.tar.gz
+    setup: |
+      set -e
+      mkdir -p $HOME/work/autosearch
+      tar -xzf /tmp/autosearch-src.tar.gz -C $HOME/work/autosearch
+      curl -LsSf https://astral.sh/uv/install.sh | sh > /dev/null 2>&1
+      cd $HOME/work/autosearch
+      $HOME/.local/bin/uv venv --python 3.12 .venv
+      $HOME/.local/bin/uv pip install --python .venv/bin/python -e . > /tmp/install.log 2>&1
+    tasks:
+      - id: available_channels_without_any_keys
+        timeout: 60
+        unset_env: [ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, YOUTUBE_API_KEY, GITHUB_TOKEN, TWITTER_BEARER_TOKEN]
+        cmd: |
+          cd $HOME/work/autosearch
+          .venv/bin/python <<'PY'
+          from autosearch.core.channel_bootstrap import _build_channels
+          chans = _build_channels()
+          names = sorted(c.name for c in chans)
+          print("available=", names)
+          assert 'arxiv' in names, f'arxiv missing: {names}'
+          assert 'ddgs' in names, f'ddgs missing: {names}'
+          assert 'hackernews' in names, f'hackernews missing: {names}'
+          assert 'youtube' not in names, f'youtube should be excluded without key: {names}'
+          PY
+        expect:
+          exit: 0
+          stdout_contains: "available="
+      - id: youtube_unlocks_with_key
+        timeout: 60
+        env_keys: [YOUTUBE_API_KEY]
+        unset_env: [ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, GITHUB_TOKEN, TWITTER_BEARER_TOKEN]
+        cmd: |
+          cd $HOME/work/autosearch
+          .venv/bin/python <<'PY'
+          from autosearch.core.channel_bootstrap import _build_channels
+          chans = _build_channels()
+          names = sorted(c.name for c in chans)
+          print("available=", names)
+          assert 'youtube' in names, f'youtube should appear with key: {names}'
+          PY
+        expect:
+          exit: 0
+          stdout_contains: "youtube"
+
   # F002 S3 — Failure paths
   F002_S3_failure_paths:
     parallel: 1
