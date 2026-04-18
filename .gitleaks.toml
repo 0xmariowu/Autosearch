@@ -25,6 +25,11 @@ keywords = [".ts.net", ".local"]
   description = "DemoChannel placeholder URLs — RFC-safe example domain"
   paths = ['''autosearch/channels/demo\.py$''']
 
+  [[rules.allowlists]]
+  description = "E2B matrix references $HOME/.local/bin/uv (Linux XDG path, not a Tailscale domain)"
+  paths = ['''tests/e2b/matrix\.yaml$''']
+  regexes = ['''\$HOME/\.local/bin/uv''']
+
 # ── Public-repo-only rules ───────────────────────────────────────────────────
 
 [[rules]]
