@@ -41,7 +41,8 @@ if [ -z "$PYTHON" ]; then
   exit 0
 fi
 
-PYTHONPATH="$REPO_ROOT" "$PYTHON" -m pytest tests/ -x -q -m "not network" 2>/dev/null \
+PYTHONPATH="$REPO_ROOT" "$PYTHON" -m pytest tests/ -x -q \
+  -m "not real_llm and not perf and not slow and not network" 2>/dev/null \
   || PYTHONPATH="$REPO_ROOT" "$PYTHON" -m unittest discover -s tests -q
 
 # --- Version bump check ---
