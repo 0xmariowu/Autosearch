@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <id>http://arxiv.org/api/query?search_query=all:retrieval+augmented+generation</id>
+  <title>ArXiv Query: all:retrieval augmented generation</title>
+  <updated>2026-04-18T00:00:00Z</updated>
+  <entry>
+    <id>http://arxiv.org/abs/2304.12345v1</id>
+    <title>Retrieval-Augmented Generation for Large Language Models: A Survey</title>
+    <summary>Large language models demonstrate remarkable capabilities across a broad range of reasoning and generation tasks, but they remain bounded by static training corpora and weak source attribution. Retrieval-augmented generation combines parametric models with external knowledge stores to improve factuality, freshness, and controllability for downstream applications.</summary>
+    <link href="http://arxiv.org/abs/2304.12345v1" rel="alternate" type="text/html" />
+    <published>2026-04-15T00:00:00Z</published>
+    <author><name>Ada Researcher</name></author>
+    <author><name>Lin Scholar</name></author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2401.54321v2</id>
+    <title>Long Context Retrieval Pipelines for Enterprise Search</title>
+    <summary>Enterprise retrieval systems increasingly join lexical ranking, dense retrieval, re-ranking, grounding, evaluation, and tool usage inside one response loop. This paper studies how long-context models interact with retrieval pipelines, how citation quality degrades when chunking is naive, and how evaluation should separate answer accuracy from evidence precision. We report controlled experiments across documentation search, question answering, and support workflows, analyze index freshness and failure modes, and propose a staged architecture that preserves citation fidelity under load while keeping latency predictable for end users in production systems with heterogeneous corpora and dynamic access constraints.</summary>
+    <link href="http://arxiv.org/abs/2401.54321v2" rel="alternate" type="text/html" />
+    <published>2026-04-10T00:00:00Z</published>
+    <author><name>Sam Engineer</name></author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2502.99999v1</id>
+    <title>
+      Chain-of-Thought   Prompting
+      for   Retrieval    Systems
+    </title>
+    <summary>We examine whether explicit reasoning traces improve retrieval planning, citation selection, and error recovery in open-domain systems that mix search with generation.</summary>
+    <link href="http://arxiv.org/abs/2502.99999v1" rel="alternate" type="text/html" />
+    <published>2026-04-01T00:00:00Z</published>
+    <author><name>Casey Analyst</name></author>
+  </entry>
+</feed>
