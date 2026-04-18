@@ -29,15 +29,18 @@ class GeminiProvider:
             },
         }
         url = (
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{self.model}:generateContent?key={self.api_key}"
+            f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
         )
+        headers = {
+            "content-type": "application/json",
+            "x-goog-api-key": self.api_key,
+        }
 
         if self.http_client is not None:
-            response = await self.http_client.post(url, json=payload)
+            response = await self.http_client.post(url, json=payload, headers=headers)
         else:
             async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(url, json=payload)
+                response = await client.post(url, json=payload, headers=headers)
 
         response.raise_for_status()
         data = response.json()
