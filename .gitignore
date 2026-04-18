@@ -58,3 +58,6 @@ tests/integration/sessions/
 
 # E2B per-run artifacts (transient per-task stdout/stderr logs); master reports live in docs/validation/
 reports/
+
+# Autosearch runtime state (cookies, caches) — never versioned
+.autosearch/
