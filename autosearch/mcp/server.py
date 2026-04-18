@@ -4,6 +4,7 @@ from typing import Literal
 
 from mcp.server.fastmcp import FastMCP
 
+from autosearch.channels.ddgs import DDGSChannel
 from autosearch.channels.demo import DemoChannel
 from autosearch.core.models import SearchMode
 from autosearch.core.pipeline import Pipeline
@@ -11,7 +12,7 @@ from autosearch.llm.client import LLMClient
 
 
 def _default_pipeline_factory() -> Pipeline:
-    return Pipeline(llm=LLMClient(), channels=[DemoChannel()])
+    return Pipeline(llm=LLMClient(), channels=[DemoChannel(), DDGSChannel()])
 
 
 def create_server(pipeline_factory: Callable[[], Pipeline] | None = None) -> FastMCP:

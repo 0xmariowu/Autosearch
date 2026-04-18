@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from autosearch import __version__
+from autosearch.channels.ddgs import DDGSChannel
 from autosearch.channels.demo import DemoChannel
 from autosearch.core.models import SearchMode
 from autosearch.core.pipeline import Pipeline, PipelineResult
@@ -63,7 +64,11 @@ app.add_middleware(
 
 
 def _default_pipeline_factory(on_event: EventCallback | None = None) -> Pipeline:
-    return Pipeline(llm=LLMClient(), channels=[DemoChannel()], on_event=on_event)
+    return Pipeline(
+        llm=LLMClient(),
+        channels=[DemoChannel(), DDGSChannel()],
+        on_event=on_event,
+    )
 
 
 def _terminal_payload(result: PipelineResult) -> dict[str, Any]:
