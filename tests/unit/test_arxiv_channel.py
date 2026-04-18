@@ -1,12 +1,10 @@
-# Self-written, plan autosearch-0418-channels-and-skills.md § F005
-from pathlib import Path
 import re
+from pathlib import Path
 
 import httpx
 import pytest
 
-import autosearch.channels.arxiv as arxiv_module
-from autosearch.channels.arxiv import ArxivChannel
+from autosearch.channels.base import ChannelRegistry, Environment
 from autosearch.core.models import Evidence, SubQuery
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
@@ -22,6 +20,15 @@ class _Logger:
 
 def _fixture_text(name: str) -> str:
     return (FIXTURES_DIR / name).read_text(encoding="utf-8")
+
+
+def _channels_root() -> Path:
+    return Path(__file__).resolve().parents[2] / "skills" / "channels"
+
+
+def _compiled_arxiv():
+    registry = ChannelRegistry.compile_from_skills(_channels_root(), Environment())
+    return registry, registry.metadata("arxiv").methods[0].callable
 
 
 def _response(
@@ -43,6 +50,7 @@ async def test_search_returns_evidence_from_atom_feed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, object] = {}
+    registry, search_callable = _compiled_arxiv()
 
     async def fake_get(self, url: str, *, params: dict[str, object]) -> httpx.Response:
         _ = self
@@ -50,9 +58,9 @@ async def test_search_returns_evidence_from_atom_feed(
         captured["params"] = dict(params)
         return _response(_fixture_text("arxiv_response.atom"), url=url, params=params)
 
-    monkeypatch.setattr(arxiv_module.httpx.AsyncClient, "get", fake_get)
+    monkeypatch.setattr(search_callable.__globals__["httpx"].AsyncClient, "get", fake_get)
 
-    results = await ArxivChannel().search(
+    results = await registry.get("arxiv").search(
         SubQuery(text="retrieval augmented generation", rationale="Need paper coverage")
     )
 
@@ -75,6 +83,7 @@ async def test_search_returns_evidence_from_atom_feed(
 @pytest.mark.asyncio
 async def test_search_empty_feed_returns_empty_list(monkeypatch: pytest.MonkeyPatch) -> None:
     logger = _Logger()
+    registry, search_callable = _compiled_arxiv()
 
     async def fake_get(self, url: str, *, params: dict[str, object]) -> httpx.Response:
         _ = self
@@ -90,10 +99,10 @@ async def test_search_empty_feed_returns_empty_list(monkeypatch: pytest.MonkeyPa
             params=params,
         )
 
-    monkeypatch.setattr(arxiv_module.httpx.AsyncClient, "get", fake_get)
-    monkeypatch.setattr(arxiv_module, "LOGGER", logger)
+    monkeypatch.setattr(search_callable.__globals__["httpx"].AsyncClient, "get", fake_get)
+    monkeypatch.setitem(search_callable.__globals__, "LOGGER", logger)
 
-    results = await ArxivChannel().search(
+    results = await registry.get("arxiv").search(
         SubQuery(text="retrieval augmented generation", rationale="Need paper coverage")
     )
 
@@ -101,7 +110,7 @@ async def test_search_empty_feed_returns_empty_list(monkeypatch: pytest.MonkeyPa
     assert logger.events == [
         (
             "arxiv_search_failed",
-            {"channel": "arxiv", "reason": "empty feed"},
+            {"reason": "empty feed"},
         )
     ]
 
@@ -111,22 +120,25 @@ async def test_search_handles_network_error_gracefully(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     logger = _Logger()
+    registry, search_callable = _compiled_arxiv()
 
     async def fake_get(self, url: str, *, params: dict[str, object]) -> httpx.Response:
         _ = self
         _ = params
         raise httpx.ConnectError("boom", request=httpx.Request("GET", url))
 
-    monkeypatch.setattr(arxiv_module.httpx.AsyncClient, "get", fake_get)
-    monkeypatch.setattr(arxiv_module, "LOGGER", logger)
+    monkeypatch.setattr(search_callable.__globals__["httpx"].AsyncClient, "get", fake_get)
+    monkeypatch.setitem(search_callable.__globals__, "LOGGER", logger)
 
-    results = await ArxivChannel().search(SubQuery(text="rag", rationale="Need paper coverage"))
+    results = await registry.get("arxiv").search(
+        SubQuery(text="rag", rationale="Need paper coverage")
+    )
 
     assert results == []
     assert logger.events == [
         (
             "arxiv_search_failed",
-            {"channel": "arxiv", "reason": "boom"},
+            {"reason": "boom"},
         )
     ]
 
@@ -136,31 +148,36 @@ async def test_search_handles_parse_error_gracefully(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     logger = _Logger()
+    registry, search_callable = _compiled_arxiv()
 
     async def fake_get(self, url: str, *, params: dict[str, object]) -> httpx.Response:
         _ = self
         return _response("<feed><entry>", url=url, params=params)
 
-    monkeypatch.setattr(arxiv_module.httpx.AsyncClient, "get", fake_get)
-    monkeypatch.setattr(arxiv_module, "LOGGER", logger)
+    monkeypatch.setattr(search_callable.__globals__["httpx"].AsyncClient, "get", fake_get)
+    monkeypatch.setitem(search_callable.__globals__, "LOGGER", logger)
 
-    results = await ArxivChannel().search(SubQuery(text="rag", rationale="Need paper coverage"))
+    results = await registry.get("arxiv").search(
+        SubQuery(text="rag", rationale="Need paper coverage")
+    )
 
     assert results == []
     assert logger.events
     assert logger.events[0][0] == "arxiv_search_failed"
-    assert logger.events[0][1]["channel"] == "arxiv"
+    assert "reason" in logger.events[0][1]
 
 
 @pytest.mark.asyncio
 async def test_snippet_truncated_to_500_chars(monkeypatch: pytest.MonkeyPatch) -> None:
+    registry, search_callable = _compiled_arxiv()
+
     async def fake_get(self, url: str, *, params: dict[str, object]) -> httpx.Response:
         _ = self
         return _response(_fixture_text("arxiv_response.atom"), url=url, params=params)
 
-    monkeypatch.setattr(arxiv_module.httpx.AsyncClient, "get", fake_get)
+    monkeypatch.setattr(search_callable.__globals__["httpx"].AsyncClient, "get", fake_get)
 
-    results = await ArxivChannel().search(
+    results = await registry.get("arxiv").search(
         SubQuery(text="retrieval augmented generation", rationale="Need paper coverage")
     )
 
@@ -171,13 +188,15 @@ async def test_snippet_truncated_to_500_chars(monkeypatch: pytest.MonkeyPatch) -
 
 @pytest.mark.asyncio
 async def test_title_whitespace_normalized(monkeypatch: pytest.MonkeyPatch) -> None:
+    registry, search_callable = _compiled_arxiv()
+
     async def fake_get(self, url: str, *, params: dict[str, object]) -> httpx.Response:
         _ = self
         return _response(_fixture_text("arxiv_response.atom"), url=url, params=params)
 
-    monkeypatch.setattr(arxiv_module.httpx.AsyncClient, "get", fake_get)
+    monkeypatch.setattr(search_callable.__globals__["httpx"].AsyncClient, "get", fake_get)
 
-    results = await ArxivChannel().search(
+    results = await registry.get("arxiv").search(
         SubQuery(text="retrieval augmented generation", rationale="Need paper coverage")
     )
 
