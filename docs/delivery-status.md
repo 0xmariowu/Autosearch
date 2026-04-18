@@ -63,10 +63,10 @@ Planned roadmap (plan § 5):
 
 ## Test Coverage
 
-- 112 tests across 4 tiers: unit + integration (default CI), smoke (push-to-main), real_llm (nightly, needs secrets), perf (on-demand)
+- 131 tests across 4 tiers: unit + integration (default CI), smoke (push-to-main), real_llm (nightly, needs secrets), perf (on-demand)
 - 0 ruff issues, consistent ruff format
 - Pre-commit hook enforces author identity + PII/codename scan
-- Pre-push rebases on main and runs pytest before publishing
+- Pre-push rebases on main and runs the default selector (`not real_llm and not perf and not slow and not network`) in ~2 s
 - See [`docs/testing/TEST_PLAN.md`](testing/TEST_PLAN.md) for the full pyramid
 
 ## Related Docs
