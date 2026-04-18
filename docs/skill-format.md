@@ -1,5 +1,10 @@
-<!-- Self-written, plan autosearch-0418-channels-and-skills.md § F001 -->
+---
+title: "Skill Format Reference"
+---
+
 # Skill Format
+
+> Source: self-written, plan `autosearch-0418-channels-and-skills.md` § F001.
 
 ## Overview
 
