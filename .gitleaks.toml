@@ -33,7 +33,7 @@ keywords = [".ts.net", ".local"]
   [[rules.allowlists]]
   description = "SKILL.md prose references .local paths (Linux XDG, not a Tailscale domain)"
   paths = ['''skills/.*/SKILL\.md$''']
-  regexes = ['''\.local/']
+  regexes = ['''\.local/''']
 
 # ── Public-repo-only rules ───────────────────────────────────────────────────
 
