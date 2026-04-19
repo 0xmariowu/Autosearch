@@ -13,10 +13,10 @@ def _load_specs():
     return load_all(_channels_root())
 
 
-def test_all_18_channels_loadable() -> None:
+def test_all_19_channels_loadable() -> None:
     specs = _load_specs()
 
-    assert len(specs) == 18
+    assert len(specs) == 19
     assert [spec.name for spec in specs] == [
         "arxiv",
         "bilibili",
@@ -24,6 +24,7 @@ def test_all_18_channels_loadable() -> None:
         "devto",
         "douyin",
         "github",
+        "google_news",
         "hackernews",
         "package_search",
         "papers",
@@ -82,6 +83,7 @@ def test_shipped_method_impls_exist_for_registry_channels() -> None:
         "ddgs": ["methods/api.py"],
         "devto": ["methods/api_search.py"],
         "github": ["methods/search_public_repos.py"],
+        "google_news": ["methods/api_search.py"],
         "hackernews": ["methods/algolia.py"],
         "package_search": ["methods/api_search.py"],
         "papers": ["methods/via_paper_search.py"],
@@ -108,6 +110,7 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
         "ddgs",
         "devto",
         "github",
+        "google_news",
         "hackernews",
         "package_search",
         "papers",
@@ -122,6 +125,7 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
             "arxiv": "methods/api_search.py",
             "ddgs": "methods/api.py",
             "devto": "methods/api_search.py",
+            "google_news": "methods/api_search.py",
             "hackernews": "methods/algolia.py",
             "package_search": "methods/api_search.py",
             "papers": "methods/via_paper_search.py",
