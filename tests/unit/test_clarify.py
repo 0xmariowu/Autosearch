@@ -19,6 +19,28 @@ class DummyClient:
         return response_model.model_validate(self.payload)
 
 
+class _FakeWhenToUse:
+    def __init__(self, query_types: list[str]) -> None:
+        self.query_types = query_types
+
+
+class _FakeMetadata:
+    def __init__(self, query_types: list[str]) -> None:
+        self.when_to_use = _FakeWhenToUse(query_types)
+
+
+class FakeChannel:
+    languages = ["en"]
+
+    def __init__(self, name: str, query_types: list[str]) -> None:
+        self.name = name
+        self._metadata = _FakeMetadata(query_types)
+
+    async def search(self, query):  # pragma: no cover - unused in clarify tests
+        _ = query
+        raise AssertionError("search should not be called in clarify tests")
+
+
 async def test_clarifier_returns_question_for_ambiguous_query() -> None:
     client = DummyClient(
         {
@@ -101,3 +123,40 @@ async def test_clarifier_includes_mode_hint_when_provided() -> None:
     assert result.mode is SearchMode.DEEP
     assert "The user prefers deep mode." in client.prompts[0]
     assert client.calls == 1
+
+
+async def test_clarifier_outputs_query_type_and_channel_prefs() -> None:
+    client = DummyClient(
+        {
+            "need_clarification": False,
+            "question": "",
+            "verification": "I have enough information to proceed.",
+            "rubrics": [
+                "Uses live implementation details",
+                "Includes current API behavior",
+                "Explains concrete tradeoffs",
+            ],
+            "mode": "fast",
+            "query_type": "code",
+            "channel_priority": ["stackoverflow", "github", "not-a-channel"],
+            "channel_skip": ["xiaohongshu", "another-miss"],
+        }
+    )
+    channels = [
+        FakeChannel("stackoverflow", ["programming-error", "how-to"]),
+        FakeChannel("github", ["code", "library"]),
+        FakeChannel("xiaohongshu", ["product-review", "experience-report"]),
+    ]
+
+    result = await Clarifier().clarify(
+        ClarifyRequest(query="How do I fix a FastAPI dependency override issue?"),
+        client,
+        channels=channels,
+    )
+
+    assert result.query_type == "code"
+    assert result.channel_priority == ["stackoverflow", "github"]
+    assert result.channel_skip == ["xiaohongshu"]
+    assert "Available research channels (3 total):" in client.prompts[0]
+    assert "- stackoverflow: programming-error, how-to" in client.prompts[0]
+    assert "- github: code, library" in client.prompts[0]
