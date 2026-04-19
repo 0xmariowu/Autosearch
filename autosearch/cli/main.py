@@ -7,11 +7,14 @@ from typing import Annotated
 import click
 import typer
 import uvicorn
+from pydantic import ValidationError
 
 from autosearch import __version__
 from autosearch.core.channel_bootstrap import _build_channels
 from autosearch.core.models import SearchMode
 from autosearch.core.pipeline import Pipeline, PipelineResult
+from autosearch.core.scope_clarifier import ScopeClarifier
+from autosearch.core.search_scope import ScopeQuestion, SearchScope
 from autosearch.init_runner import InitError, InitRunner
 from autosearch.llm.client import LLMClient
 
@@ -69,6 +72,40 @@ def query(
         bool,
         typer.Option("--json", help="Emit a machine-readable JSON response envelope."),
     ] = False,
+    languages: Annotated[
+        str | None,
+        typer.Option(
+            "--languages",
+            help='Channel scope: "all" (default), "en_only", "zh_only", or "mixed".',
+            case_sensitive=False,
+        ),
+    ] = None,
+    depth: Annotated[
+        str | None,
+        typer.Option(
+            "--depth",
+            help='Search depth: "fast" (default), "deep", or "comprehensive".',
+            case_sensitive=False,
+        ),
+    ] = None,
+    output_format: Annotated[
+        str | None,
+        typer.Option(
+            "--format",
+            help='Output format: "md" (default) or "html".',
+            case_sensitive=False,
+        ),
+    ] = None,
+    interactive: Annotated[
+        bool | None,
+        typer.Option(
+            "--interactive/--no-interactive",
+            help=(
+                "Force (or suppress) the interactive prompt when flags are missing. "
+                "Defaults to auto-detect based on TTY."
+            ),
+        ),
+    ] = None,
     stream: Annotated[
         bool,
         typer.Option(
@@ -77,6 +114,20 @@ def query(
         ),
     ] = True,
 ) -> None:
+    if mode is not None and depth is not None:
+        typer.echo("--mode ignored because --depth was also provided", err=True)
+
+    provided = {
+        "channel_scope": _normalize_option_value(languages),
+        "depth": _normalize_option_value(depth) or (mode.value if mode is not None else None),
+        "output_format": _normalize_option_value(output_format),
+    }
+    scope = _resolve_scope(
+        provided=provided,
+        interactive=interactive,
+        json_output=json_output,
+    )
+    resolved_mode = _depth_to_mode(scope.depth, mode)
     stream_callback = _stderr_event_writer if stream and not json_output else None
     try:
         result = asyncio.run(
@@ -85,7 +136,7 @@ def query(
                 channels=_build_channels(),
                 top_k_evidence=top_k,
                 on_event=stream_callback,
-            ).run(query, mode_hint=mode)
+            ).run(query, mode_hint=resolved_mode)
         )
     except Exception as exc:
         typer.echo(str(exc), err=True)
@@ -95,23 +146,38 @@ def query(
         typer.echo(result.clarification.question or "More detail is required.", err=True)
         raise typer.Exit(code=2)
 
+    try:
+        rendered_output = _render_output(
+            markdown_text=result.markdown or "",
+            title=query,
+            output_format=scope.output_format,
+        )
+    except Exception as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
     if json_output:
         typer.echo(
             json.dumps(
                 {
                     "status": result.status,
-                    "markdown": result.markdown,
+                    "markdown": rendered_output,
                     "iterations": result.iterations,
                     "quality_grade": (
                         result.quality.grade.value if result.quality is not None else None
                     ),
                     "sources": _json_sources(result),
+                    "scope": {
+                        "channel_scope": scope.channel_scope,
+                        "depth": scope.depth,
+                        "output_format": scope.output_format,
+                    },
                 }
             )
         )
         return
 
-    typer.echo(result.markdown or "")
+    typer.echo(rendered_output)
 
 
 @app.command()
@@ -178,6 +244,119 @@ def serve(
 def _stderr_event_writer(event: dict[str, object]) -> None:
     sys.stderr.write(json.dumps(event, ensure_ascii=False) + "\n")
     sys.stderr.flush()
+
+
+def _normalize_option_value(value: str | None) -> str | None:
+    if value is None:
+        return None
+    return value.lower()
+
+
+def _resolve_scope(
+    *,
+    provided: dict[str, str | None],
+    interactive: bool | None,
+    json_output: bool,
+) -> SearchScope:
+    provided_non_none = {key: value for key, value in provided.items() if value is not None}
+    try:
+        if _should_prompt_for_scope(interactive=interactive, json_output=json_output):
+            clarifier = ScopeClarifier()
+            answers = _prompt_for_scope_answers(clarifier.questions_for(provided))
+            return clarifier.apply_answers(SearchScope(), {**provided_non_none, **answers})
+        return SearchScope(**provided_non_none)
+    except ValidationError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+
+def _should_prompt_for_scope(*, interactive: bool | None, json_output: bool) -> bool:
+    if interactive is True:
+        return True
+    if interactive is False:
+        return False
+    return sys.stdin.isatty() and sys.stdout.isatty() and not json_output
+
+
+def _prompt_for_scope_answers(questions: list[ScopeQuestion]) -> dict[str, str]:
+    answers: dict[str, str] = {}
+    for question in questions:
+        answers[question.field] = _prompt_for_scope_question(question)
+    return answers
+
+
+def _prompt_for_scope_question(question: ScopeQuestion) -> str:
+    choices_text = ", ".join(
+        f"{index}. {option}" for index, option in enumerate(question.options, start=1)
+    )
+    prompt_text = f"{question.prompt} [{choices_text}]"
+    for _ in range(3):
+        answer = typer.prompt(prompt_text).strip()
+        resolved = _resolve_prompt_answer(answer, question.options)
+        if resolved is not None:
+            return resolved
+        typer.echo(
+            f"Invalid choice. Enter 1-{len(question.options)} or one of: "
+            f"{', '.join(question.options)}",
+            err=True,
+        )
+    raise typer.Exit(code=2)
+
+
+def _resolve_prompt_answer(answer: str, options: list[str]) -> str | None:
+    normalized = answer.strip().lower()
+    if not normalized:
+        return None
+    if normalized.isdigit():
+        index = int(normalized) - 1
+        if 0 <= index < len(options):
+            return options[index]
+        return None
+    for option in options:
+        if normalized == option.lower():
+            return option
+    return None
+
+
+def _depth_to_mode(depth: str | None, fallback: SearchMode | None) -> SearchMode | None:
+    if depth is None:
+        return fallback
+    normalized = depth.lower()
+    if normalized == "fast":
+        return SearchMode.FAST
+    if normalized == "deep":
+        return SearchMode.DEEP
+    if normalized == "comprehensive":
+        return SearchMode.COMPREHENSIVE
+    raise typer.BadParameter(f"invalid --depth: {depth}")
+
+
+def _render_output(markdown_text: str, title: str, output_format: str) -> str:
+    if output_format == "html":
+        return _render_html(markdown_text=markdown_text, title=title)
+    return markdown_text
+
+
+def _render_html(markdown_text: str, title: str) -> str:
+    import html as html_lib
+
+    try:
+        import markdown as md
+    except ImportError as exc:
+        try:
+            from markdown_it import MarkdownIt
+        except ImportError:
+            raise RuntimeError("markdown package is required for --format html") from exc
+        body = MarkdownIt("js-default").render(markdown_text or "")
+    else:
+        body = md.markdown(markdown_text or "", extensions=["tables", "fenced_code"])
+    safe_title = html_lib.escape(title)
+    return (
+        "<!doctype html>\n"
+        '<html lang="en">\n'
+        '<head><meta charset="utf-8"><title>{title}</title></head>\n'
+        "<body><article>\n{body}\n</article></body>\n"
+        "</html>\n"
+    ).format(title=safe_title, body=body)
 
 
 def _json_sources(result: PipelineResult) -> list[dict[str, str]]:
