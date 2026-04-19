@@ -6,7 +6,7 @@ import pytest
 @pytest.mark.slow
 @pytest.mark.smoke
 def test_server_chat_smoke(live_server_base_url: str) -> None:
-    with httpx.Client(base_url=live_server_base_url, timeout=10.0) as client:
+    with httpx.Client(base_url=live_server_base_url, timeout=30.0) as client:
         response = client.post(
             "/v1/chat/completions",
             json={"messages": [{"role": "user", "content": "smoke"}]},

@@ -209,6 +209,38 @@ async def test_search_continues_when_one_source_raises(
 
 
 @pytest.mark.asyncio
+async def test_search_skips_source_that_exceeds_per_source_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import time
+
+    logger = _Logger()
+    monkeypatch.setattr(MODULE, "LOGGER", logger)
+
+    class _SlowSearcher:
+        def search(self, query: str, max_results: int) -> list[Paper]:
+            _ = (query, max_results)
+            time.sleep(0.5)
+            return []
+
+    sources = {
+        "arxiv": _make_searcher([_paper("a1", url="https://arxiv.org/abs/a1")]),
+        "biorxiv": _SlowSearcher,
+    }
+
+    results = await search(_query(), sources=sources, per_source_timeout_seconds=0.05)
+
+    assert len(results) == 1
+    assert results[0].source_channel == "papers:arxiv"
+    assert logger.events == [
+        (
+            "papers_source_timeout",
+            {"source": "biorxiv", "timeout_seconds": 0.05},
+        )
+    ]
+
+
+@pytest.mark.asyncio
 async def test_search_tags_source_channel_with_source_name() -> None:
     sources = {
         "arxiv": _make_searcher([_paper("a1", url="https://arxiv.org/abs/a1")]),
