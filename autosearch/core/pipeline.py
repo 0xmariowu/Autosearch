@@ -139,7 +139,7 @@ class Pipeline:
                 prompt_tokens, completion_tokens = self._current_token_usage()
                 self.logger.info("pipeline_run_completed", status=final_status)
                 return PipelineResult(
-                    status=final_status,
+                    delivery_status=final_status,
                     clarification=clarification,
                     iterations=0,
                     reasoning_events=list(self._captured_reasoning_events or []),
@@ -336,7 +336,7 @@ class Pipeline:
             )
             prompt_tokens, completion_tokens = self._current_token_usage()
             return PipelineResult(
-                status=final_status,
+                delivery_status=final_status,
                 clarification=clarification,
                 markdown=markdown,
                 evidences=processed_evidences,
