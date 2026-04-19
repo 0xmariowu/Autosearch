@@ -14,6 +14,7 @@ from autosearch.core.iteration import IterationBudget, IterationController
 from autosearch.core.knowledge import KnowledgeRecaller
 from autosearch.core.models import (
     ClarifyRequest,
+    ClarifyResult,
     Evidence,
     Gap,
     GradeOutcome,
@@ -87,6 +88,18 @@ class Pipeline:
         current_phase = "M0"
 
         try:
+            active_channels = self.channels
+            if scope is not None:
+                scoped_channels = filter_channels_by_scope(self.channels, scope.channel_scope)
+                if not scoped_channels:
+                    self.logger.warning(
+                        "channel_scope_filter_empty",
+                        channel_scope=scope.channel_scope,
+                        original_count=len(self.channels),
+                    )
+                else:
+                    active_channels = scoped_channels
+
             await self._emit_phase_event(current_phase, "start")
             self.logger.info("pipeline_phase_started", phase="m0_recall", query=query)
             recall = await self.knowledge_recaller.recall(query, self.llm)
@@ -108,6 +121,7 @@ class Pipeline:
             clarification = await self.clarifier.clarify(
                 ClarifyRequest(query=query, mode_hint=mode_hint),
                 self.llm,
+                channels=active_channels,
             )
             self.logger.info(
                 "pipeline_phase_completed",
@@ -133,6 +147,7 @@ class Pipeline:
                 session_created=session_created,
             )
             session_created = True
+            routing_trace = _build_routing_trace(clarification)
 
             if clarification.need_clarification:
                 final_status = "needs_clarification"
@@ -143,6 +158,7 @@ class Pipeline:
                     clarification=clarification,
                     iterations=0,
                     reasoning_events=list(self._captured_reasoning_events or []),
+                    routing_trace=routing_trace,
                     session_id=session_id,
                     cost=self._current_cost(),
                     prompt_tokens=prompt_tokens,
@@ -176,16 +192,7 @@ class Pipeline:
                 }
             )
 
-            active_channels = self.channels
             if scope is not None:
-                active_channels = filter_channels_by_scope(self.channels, scope.channel_scope)
-                if not active_channels:
-                    self.logger.warning(
-                        "channel_scope_filter_empty",
-                        channel_scope=scope.channel_scope,
-                        original_count=len(self.channels),
-                    )
-                    active_channels = self.channels
                 await self._emit_event(
                     {
                         "type": "channels_filtered",
@@ -210,7 +217,10 @@ class Pipeline:
                 channels=active_channels,
                 budget=self.budget,
                 client=self.llm,
+                priority_channels=set(clarification.channel_priority),
+                skip_channels=set(clarification.channel_skip),
             )
+            routing_trace = _build_routing_trace(clarification, iteration_controller.routing_trace)
             self.logger.info(
                 "pipeline_phase_completed",
                 phase="m3_iteration",
@@ -303,6 +313,8 @@ class Pipeline:
                         channels=active_channels,
                         budget=retry_budget,
                         client=self.llm,
+                        priority_channels=set(clarification.channel_priority),
+                        skip_channels=set(clarification.channel_skip),
                     )
                     await self._emit_phase_event(current_phase, "complete")
                     processed_evidences = self._finalize_evidences(
@@ -342,6 +354,7 @@ class Pipeline:
                 evidences=processed_evidences,
                 channel_empty_calls=iteration_controller.empty_counts_by_channel(),
                 reasoning_events=list(self._captured_reasoning_events or []),
+                routing_trace=routing_trace,
                 quality=quality,
                 iterations=iteration_controller.iterations_executed,
                 session_id=session_id,
@@ -501,8 +514,16 @@ class _TrackingIterationController(IterationController):
         subqueries: list[SubQuery],
         channels: list[Channel],
         iteration: int,
+        priority_channels: set[str] | None = None,
+        skip_channels: set[str] | None = None,
     ) -> list[Evidence]:
-        evidences = await super()._search(subqueries, channels, iteration)
+        evidences = await super()._search(
+            subqueries,
+            channels,
+            iteration,
+            priority_channels=priority_channels,
+            skip_channels=skip_channels,
+        )
         self._latest_new_evidence_count = len(evidences)
         return evidences
 
@@ -659,3 +680,14 @@ def _extract_ref_ids(content: str) -> list[int]:
         seen.add(ref_id)
         ref_ids.append(ref_id)
     return ref_ids
+
+
+def _build_routing_trace(
+    clarification: ClarifyResult,
+    runtime_trace: dict[str, object] | None = None,
+) -> dict[str, object]:
+    trace = dict(runtime_trace or {})
+    trace["query_type"] = clarification.query_type
+    trace["priority"] = list(clarification.channel_priority)
+    trace["skip"] = list(clarification.channel_skip)
+    return trace

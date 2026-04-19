@@ -62,6 +62,9 @@ def make_pipeline(on_event=None) -> Pipeline:
                     "Explain tradeoffs",
                 ],
                 "mode": "fast",
+                "query_type": "technical",
+                "channel_priority": ["fake"],
+                "channel_skip": [],
             },
             {
                 "subqueries": [
@@ -180,3 +183,16 @@ async def test_pipeline_result_includes_channel_empty_calls() -> None:
     assert result.delivery_status == "ok"
     assert result.evidences == []
     assert result.channel_empty_calls == {"fake": 1}
+
+
+async def test_routing_trace_recorded_on_pipeline_result() -> None:
+    pipeline = make_pipeline()
+
+    result = await pipeline.run("How does streaming progress work?", mode_hint=SearchMode.FAST)
+
+    assert result.routing_trace["query_type"] == "technical"
+    assert result.routing_trace["priority"] == ["fake"]
+    assert result.routing_trace["skip"] == []
+    assert result.routing_trace["priority_ran"] == ["fake"]
+    assert result.routing_trace["fallback_triggered"] is False
+    assert result.routing_trace["priority_evidence_count"] == 4
