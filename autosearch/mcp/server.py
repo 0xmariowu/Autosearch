@@ -46,7 +46,7 @@ def create_server(pipeline_factory: Callable[[], Pipeline] | None = None) -> Fas
         except Exception as exc:
             return f"[error] {exc}"
 
-        if result.status == "needs_clarification":
+        if result.delivery_status == "needs_clarification":
             question = result.clarification.question or "More detail is required."
             return f"[clarification needed] {question}"
 

@@ -84,9 +84,9 @@ def _terminal_payload(result: PipelineResult) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "type": "finished",
         "iterations": result.iterations,
-        "status": result.status,
+        "delivery_status": result.delivery_status,
     }
-    if result.status == "needs_clarification":
+    if result.delivery_status == "needs_clarification":
         payload["question"] = result.clarification.question or "More detail is required."
         return payload
     payload["markdown"] = result.markdown or ""
@@ -491,7 +491,7 @@ async def chat_completions(request: ChatCompletionRequest):
             code="internal_error",
         )
 
-    if result.status == "needs_clarification":
+    if result.delivery_status == "needs_clarification":
         question = result.clarification.question or "More detail is required."
         return _openai_error_response(
             message=f"Clarification needed: {question}",
