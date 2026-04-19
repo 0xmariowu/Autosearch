@@ -1,7 +1,7 @@
 # Self-written, plan autosearch-0419-channels-scope-proxy.md § F101
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -10,6 +10,7 @@ from autosearch.core.models import SearchMode
 ChannelScope = Literal["all", "en_only", "zh_only", "mixed"]
 Depth = Literal["fast", "deep", "comprehensive"]
 OutputFormat = Literal["md", "html"]
+T = TypeVar("T")
 
 
 class SearchScope(BaseModel):
@@ -51,3 +52,19 @@ def depth_to_mode(depth: str | None) -> SearchMode | None:
     if normalized == "comprehensive":
         return SearchMode.COMPREHENSIVE
     raise ValueError(f"invalid depth: {depth}")
+
+
+def filter_channels_by_scope(channels: list[T], channel_scope: str) -> list[T]:
+    """Return channels whose languages match the scope filter.
+
+    - "all" / "mixed" -> no filter
+    - "en_only" -> drop channels missing "en" from languages
+    - "zh_only" -> drop channels missing "zh" from languages
+    """
+
+    if channel_scope in ("all", "mixed"):
+        return list(channels)
+    required = {"en_only": "en", "zh_only": "zh"}.get(channel_scope)
+    if required is None:
+        return list(channels)
+    return [channel for channel in channels if required in getattr(channel, "languages", [])]

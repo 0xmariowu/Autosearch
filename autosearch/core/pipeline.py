@@ -22,6 +22,7 @@ from autosearch.core.models import (
     Section,
     SubQuery,
 )
+from autosearch.core.search_scope import SearchScope, filter_channels_by_scope
 from autosearch.core.strategy import QueryStrategist
 from autosearch.llm.client import LLMClient
 from autosearch.observability.cost import CostTracker
@@ -68,6 +69,8 @@ class Pipeline:
         self,
         query: str,
         mode_hint: SearchMode | None = None,
+        *,
+        scope: SearchScope | None = None,
     ) -> PipelineResult:
         self._captured_reasoning_events = []
         iteration_controller = _TrackingIterationController(
@@ -173,19 +176,38 @@ class Pipeline:
                 }
             )
 
+            active_channels = self.channels
+            if scope is not None:
+                active_channels = filter_channels_by_scope(self.channels, scope.channel_scope)
+                if not active_channels:
+                    self.logger.warning(
+                        "channel_scope_filter_empty",
+                        channel_scope=scope.channel_scope,
+                        original_count=len(self.channels),
+                    )
+                    active_channels = self.channels
+                await self._emit_event(
+                    {
+                        "type": "channels_filtered",
+                        "scope": scope.channel_scope,
+                        "before": len(self.channels),
+                        "after": len(active_channels),
+                    }
+                )
+
             current_phase = "M3"
             await self._emit_phase_event(current_phase, "start")
             self.logger.info(
                 "pipeline_phase_started",
                 phase="m3_iteration",
                 subqueries=len(initial_queries),
-                channels=len(self.channels),
+                channels=len(active_channels),
                 max_iterations=self.budget.max_iterations,
             )
             evidences = await iteration_controller.run(
                 query=query,
                 initial_queries=initial_queries,
-                channels=self.channels,
+                channels=active_channels,
                 budget=self.budget,
                 client=self.llm,
             )
@@ -278,7 +300,7 @@ class Pipeline:
                     retry_evidences = await iteration_controller.run(
                         query=query,
                         initial_queries=retry_queries,
-                        channels=self.channels,
+                        channels=active_channels,
                         budget=retry_budget,
                         client=self.llm,
                     )
