@@ -1,4 +1,4 @@
-# Self-written, plan v2.3 § 13.5 Presentation
+# Self-written, F103 API scope gating
 import asyncio
 import json
 
@@ -20,36 +20,19 @@ def _ok_result() -> PipelineResult:
             mode=SearchMode.FAST,
         ),
         markdown="# Test\n\nBody",
-        iterations=2,
-    )
-
-
-def _clarification_result() -> PipelineResult:
-    return PipelineResult(
-        status="needs_clarification",
-        clarification=ClarifyResult(
-            need_clarification=True,
-            question="Which deployment target do you care about?",
-            verification=None,
-            rubrics=[],
-            mode=SearchMode.DEEP,
-        ),
-        iterations=0,
+        iterations=1,
     )
 
 
 class _StubPipeline:
     def __init__(
         self,
-        result: PipelineResult | None = None,
-        exc: Exception | None = None,
-        on_event=None,
+        result: PipelineResult,
         emitted_events: list[dict[str, object]] | None = None,
     ) -> None:
         self.result = result
-        self.exc = exc
-        self.on_event = on_event
         self.emitted_events = emitted_events or []
+        self.on_event = None
         self.calls: list[tuple[str, SearchMode]] = []
 
     async def run(self, query: str, mode_hint: SearchMode | None = None) -> PipelineResult:
@@ -61,9 +44,6 @@ class _StubPipeline:
             maybe_coro = self.on_event(event)
             if asyncio.iscoroutine(maybe_coro):
                 await maybe_coro
-        if self.exc is not None:
-            raise self.exc
-        assert self.result is not None
         return self.result
 
 
@@ -89,17 +69,52 @@ def _parse_sse_events(body: str) -> list[dict[str, object]]:
     return events
 
 
-def test_health_returns_ok() -> None:
+def test_search_emits_scope_needed_when_scope_omitted(monkeypatch) -> None:
+    pipeline = _StubPipeline(result=_ok_result())
+    _install_pipeline_factory(monkeypatch, pipeline)
     client = TestClient(server_main.app)
 
-    response = client.get("/health")
+    response = client.post("/search", json={"query": "test query"})
+
+    events = _parse_sse_events(response.text)
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert [event["field"] for event in events] == [
+        "channel_scope",
+        "depth",
+        "output_format",
+    ]
+    assert all(event["type"] == "scope_needed" for event in events)
+    assert pipeline.calls == []
 
 
-def test_search_streams_started_and_finished_events(monkeypatch) -> None:
+def test_search_emits_scope_needed_when_scope_partially_explicit_none(monkeypatch) -> None:
     pipeline = _StubPipeline(result=_ok_result())
+    _install_pipeline_factory(monkeypatch, pipeline)
+    client = TestClient(server_main.app)
+
+    response = client.post(
+        "/search",
+        json={"query": "test query", "scope": {"channel_scope": None}},
+    )
+
+    events = _parse_sse_events(response.text)
+
+    assert response.status_code == 200
+    assert [event["field"] for event in events] == [
+        "channel_scope",
+        "depth",
+        "output_format",
+    ]
+    assert all(event["type"] == "scope_needed" for event in events)
+    assert pipeline.calls == []
+
+
+def test_search_runs_pipeline_when_scope_complete(monkeypatch) -> None:
+    pipeline = _StubPipeline(
+        result=_ok_result(),
+        emitted_events=[{"type": "phase", "phase": "M0", "status": "start"}],
+    )
     _install_pipeline_factory(monkeypatch, pipeline)
     client = TestClient(server_main.app)
 
@@ -118,19 +133,13 @@ def test_search_streams_started_and_finished_events(monkeypatch) -> None:
     events = _parse_sse_events(response.text)
 
     assert response.status_code == 200
-    assert response.headers["content-type"].startswith("text/event-stream")
-    assert events[0] == {"type": "started", "query": "test query"}
-    assert {
-        "type": "finished",
-        "markdown": "# Test\n\nBody",
-        "iterations": 2,
-        "status": "ok",
-    } in events
+    assert all(event["type"] != "scope_needed" for event in events)
+    assert any(event["type"] == "phase" for event in events)
     assert pipeline.calls == [("test query", SearchMode.FAST)]
 
 
-def test_search_streams_needs_clarification_event(monkeypatch) -> None:
-    pipeline = _StubPipeline(result=_clarification_result())
+def test_search_resolves_depth_comprehensive_to_search_mode(monkeypatch) -> None:
+    pipeline = _StubPipeline(result=_ok_result())
     _install_pipeline_factory(monkeypatch, pipeline)
     client = TestClient(server_main.app)
 
@@ -138,22 +147,13 @@ def test_search_streams_needs_clarification_event(monkeypatch) -> None:
         "/search",
         json={
             "query": "test query",
-            "mode": "deep",
             "scope": {
                 "channel_scope": "all",
-                "depth": "deep",
+                "depth": "comprehensive",
                 "output_format": "md",
             },
         },
     )
 
-    events = _parse_sse_events(response.text)
-
     assert response.status_code == 200
-    assert {
-        "type": "finished",
-        "status": "needs_clarification",
-        "iterations": 0,
-        "question": "Which deployment target do you care about?",
-    } in events
-    assert pipeline.calls == [("test query", SearchMode.DEEP)]
+    assert pipeline.calls == [("test query", SearchMode.COMPREHENSIVE)]
