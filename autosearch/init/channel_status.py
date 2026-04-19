@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from importlib import resources
 from pathlib import Path
 from typing import Literal
 
@@ -28,10 +27,7 @@ class ChannelStatus:
 
 
 def default_channels_root() -> Path:
-    root = Path(__file__).resolve().parent.parent / "skills" / "channels"
-    if root.is_dir():
-        return root
-    return Path(resources.files("autosearch.skills") / "channels")
+    return Path(__file__).resolve().parent.parent / "skills" / "channels"
 
 
 def infer_tier(metadata: ChannelMetadata) -> Tier:

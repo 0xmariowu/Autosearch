@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import os
-from importlib import resources
 from pathlib import Path
 
 import structlog
@@ -15,10 +14,7 @@ LOGGER = structlog.get_logger(__name__).bind(component="channel_bootstrap")
 
 
 def _default_channels_root() -> Path:
-    root = Path(__file__).resolve().parent.parent / "skills" / "channels"
-    if root.is_dir():
-        return root
-    return Path(resources.files("autosearch.skills") / "channels")
+    return Path(__file__).resolve().parent.parent / "skills" / "channels"
 
 
 def _build_channels(
