@@ -12,6 +12,7 @@ from autosearch.core.models import (
     SearchMode,
 )
 from autosearch.core.pipeline import PipelineResult
+from autosearch.core.search_scope import SearchScope
 
 runner = CliRunner()
 
@@ -35,10 +36,10 @@ def _ok_result() -> PipelineResult:
     )
 
 
-def _install_cli_spy(monkeypatch, pipeline_result: PipelineResult) -> list[SearchMode | None]:
+def _install_cli_spy(monkeypatch, pipeline_result: PipelineResult) -> list[dict[str, object]]:
     import autosearch.cli.main as cli_main
 
-    calls: list[SearchMode | None] = []
+    calls: list[dict[str, object]] = []
 
     class StubPipeline:
         def __init__(self, llm, channels, top_k_evidence: int, on_event=None) -> None:
@@ -55,8 +56,7 @@ def _install_cli_spy(monkeypatch, pipeline_result: PipelineResult) -> list[Searc
             scope=None,
         ) -> PipelineResult:
             _ = query
-            _ = scope
-            calls.append(mode_hint)
+            calls.append({"mode_hint": mode_hint, "scope": scope})
             return pipeline_result
 
     monkeypatch.setattr(cli_main, "Pipeline", StubPipeline)
@@ -77,9 +77,9 @@ def test_interactive_prompts_for_missing_fields(monkeypatch) -> None:
     import autosearch.cli.main as cli_main
 
     prompts: list[str] = []
-    answers = iter(["mixed", "comprehensive", "html"])
+    answers = iter(["backend, performance", "mixed", "comprehensive", "html"])
 
-    def fake_prompt(text: str) -> str:
+    def fake_prompt(text: str, *args, **kwargs) -> str:
         prompts.append(text)
         return next(answers)
 
@@ -88,9 +88,20 @@ def test_interactive_prompts_for_missing_fields(monkeypatch) -> None:
     result = runner.invoke(app, ["query", "test", "--interactive", "--json"])
 
     assert result.exit_code == 0
-    assert len(prompts) == 3
-    assert calls == [SearchMode.COMPREHENSIVE]
+    assert len(prompts) == 4
+    assert calls == [
+        {
+            "mode_hint": SearchMode.COMPREHENSIVE,
+            "scope": SearchScope(
+                domain_followups=["backend", "performance"],
+                channel_scope="mixed",
+                depth="comprehensive",
+                output_format="html",
+            ),
+        }
+    ]
     assert json.loads(result.stdout)["scope"] == {
+        "domain_followups": ["backend", "performance"],
         "channel_scope": "mixed",
         "depth": "comprehensive",
         "output_format": "html",
@@ -103,14 +114,25 @@ def test_interactive_accepts_index_or_value(monkeypatch) -> None:
 
     import autosearch.cli.main as cli_main
 
-    answers = iter(["zh_only", "2", "2"])
-    monkeypatch.setattr(cli_main.typer, "prompt", lambda text: next(answers))
+    answers = iter(["", "zh_only", "2", "2"])
+    monkeypatch.setattr(cli_main.typer, "prompt", lambda text, *args, **kwargs: next(answers))
 
     result = runner.invoke(app, ["query", "test", "--interactive", "--json"])
 
     assert result.exit_code == 0
-    assert calls == [SearchMode.DEEP]
+    assert calls == [
+        {
+            "mode_hint": SearchMode.DEEP,
+            "scope": SearchScope(
+                domain_followups=[],
+                channel_scope="zh_only",
+                depth="deep",
+                output_format="html",
+            ),
+        }
+    ]
     assert json.loads(result.stdout)["scope"] == {
+        "domain_followups": [],
         "channel_scope": "zh_only",
         "depth": "deep",
         "output_format": "html",
@@ -123,8 +145,8 @@ def test_interactive_rejects_invalid_answer_three_times_then_exits(monkeypatch) 
 
     import autosearch.cli.main as cli_main
 
-    answers = iter(["bogus", "bogus", "bogus"])
-    monkeypatch.setattr(cli_main.typer, "prompt", lambda text: next(answers))
+    answers = iter(["", "bogus", "bogus", "bogus"])
+    monkeypatch.setattr(cli_main.typer, "prompt", lambda text, *args, **kwargs: next(answers))
 
     result = runner.invoke(app, ["query", "test", "--interactive", "--json"])
 
@@ -147,8 +169,9 @@ def test_interactive_skipped_when_not_tty(monkeypatch) -> None:
     result = runner.invoke(app, ["query", "test", "--json"])
 
     assert result.exit_code == 0
-    assert calls == [SearchMode.FAST]
+    assert calls == [{"mode_hint": SearchMode.FAST, "scope": SearchScope()}]
     assert json.loads(result.stdout)["scope"] == {
+        "domain_followups": [],
         "channel_scope": "all",
         "depth": "fast",
         "output_format": "md",
@@ -170,8 +193,9 @@ def test_interactive_skipped_in_json_mode(monkeypatch) -> None:
     result = runner.invoke(app, ["query", "test", "--json"])
 
     assert result.exit_code == 0
-    assert calls == [SearchMode.FAST]
+    assert calls == [{"mode_hint": SearchMode.FAST, "scope": SearchScope()}]
     assert json.loads(result.stdout)["scope"] == {
+        "domain_followups": [],
         "channel_scope": "all",
         "depth": "fast",
         "output_format": "md",

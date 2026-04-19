@@ -84,12 +84,16 @@ def test_query_accepts_all_new_flags_noninteractive(monkeypatch) -> None:
         [
             "query",
             "test",
-            "--languages",
+            "--channel-scope",
             "MIXED",
             "--depth",
             "DEEP",
-            "--format",
+            "--output-format",
             "HTML",
+            "--domain-followup",
+            "backend",
+            "--domain-followup",
+            "performance",
             "--no-interactive",
             "--json",
         ],
@@ -102,6 +106,7 @@ def test_query_accepts_all_new_flags_noninteractive(monkeypatch) -> None:
             "mode_hint": SearchMode.DEEP,
             "top_k_evidence": 20,
             "scope": SearchScope(
+                domain_followups=["backend", "performance"],
                 channel_scope="mixed",
                 depth="deep",
                 output_format="html",
@@ -109,6 +114,7 @@ def test_query_accepts_all_new_flags_noninteractive(monkeypatch) -> None:
         }
     ]
     assert json.loads(result.stdout)["scope"] == {
+        "domain_followups": ["backend", "performance"],
         "channel_scope": "mixed",
         "depth": "deep",
         "output_format": "html",
@@ -155,11 +161,56 @@ def test_query_invalid_depth_is_bad_parameter() -> None:
     assert "Error" in result.stderr
 
 
-def test_query_invalid_languages_is_bad_parameter() -> None:
-    result = runner.invoke(app, ["query", "test", "--languages", "bogus"])
+def test_channel_scope_flag_sets_scope(monkeypatch) -> None:
+    calls = _install_cli_spy(monkeypatch, _ok_result())
+
+    result = runner.invoke(
+        app,
+        ["query", "test", "--channel-scope", "zh_only", "--no-interactive", "--json"],
+    )
+
+    assert result.exit_code == 0
+    assert calls[0]["scope"] == SearchScope(channel_scope="zh_only")
+
+
+def test_output_format_flag_sets_scope(monkeypatch) -> None:
+    calls = _install_cli_spy(monkeypatch, _ok_result())
+
+    result = runner.invoke(
+        app,
+        ["query", "test", "--output-format", "html", "--no-interactive", "--json"],
+    )
+
+    assert result.exit_code == 0
+    assert calls[0]["scope"] == SearchScope(output_format="html")
+
+
+def test_domain_followup_flag_repeatable(monkeypatch) -> None:
+    calls = _install_cli_spy(monkeypatch, _ok_result())
+
+    result = runner.invoke(
+        app,
+        [
+            "query",
+            "test",
+            "--domain-followup",
+            "a",
+            "--domain-followup",
+            "b",
+            "--no-interactive",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert calls[0]["scope"] == SearchScope(domain_followups=["a", "b"])
+
+
+def test_invalid_channel_scope_rejected() -> None:
+    result = runner.invoke(app, ["query", "test", "--channel-scope", "invalid"])
 
     assert result.exit_code == 2
-    assert "channel_scope" in result.stderr
+    assert "--channel-scope" in result.stderr
 
 
 def test_query_format_html_renders_html_output(monkeypatch) -> None:
@@ -168,7 +219,7 @@ def test_query_format_html_renders_html_output(monkeypatch) -> None:
 
     result = runner.invoke(
         app,
-        ["query", "html-test", "--format", "html", "--no-stream"],
+        ["query", "html-test", "--output-format", "html", "--no-stream"],
     )
 
     assert result.exit_code == 0
@@ -185,7 +236,7 @@ def test_query_format_md_passes_through(monkeypatch) -> None:
 
     result = runner.invoke(
         app,
-        ["query", "md-test", "--format", "md", "--no-stream"],
+        ["query", "md-test", "--output-format", "md", "--no-stream"],
     )
 
     assert result.exit_code == 0
@@ -213,6 +264,7 @@ def test_query_interactive_false_skips_prompt_even_in_tty(monkeypatch) -> None:
     assert result.exit_code == 0
     assert calls[0]["mode_hint"] is SearchMode.DEEP
     assert json.loads(result.stdout)["scope"] == {
+        "domain_followups": [],
         "channel_scope": "all",
         "depth": "deep",
         "output_format": "md",

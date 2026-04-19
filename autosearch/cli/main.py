@@ -15,7 +15,14 @@ from autosearch.core.environment_probe import probe_environment
 from autosearch.core.models import SearchMode
 from autosearch.core.pipeline import Pipeline, PipelineResult
 from autosearch.core.scope_clarifier import ScopeClarifier
-from autosearch.core.search_scope import ScopeQuestion, SearchScope, depth_to_mode
+from autosearch.core.search_scope import (
+    ChannelScope,
+    Depth,
+    OutputFormat,
+    ScopeQuestion,
+    SearchScope,
+    depth_to_mode,
+)
 from autosearch.init.channel_status import (
     TIER_LABELS,
     TIER_ORDER,
@@ -80,16 +87,17 @@ def query(
         bool,
         typer.Option("--json", help="Emit a machine-readable JSON response envelope."),
     ] = False,
-    languages: Annotated[
-        str | None,
+    channel_scope: Annotated[
+        ChannelScope | None,
         typer.Option(
+            "--channel-scope",
             "--languages",
             help='Channel scope: "all" (default), "en_only", "zh_only", or "mixed".',
             case_sensitive=False,
         ),
     ] = None,
     depth: Annotated[
-        str | None,
+        Depth | None,
         typer.Option(
             "--depth",
             help='Search depth: "fast" (default), "deep", or "comprehensive".',
@@ -97,11 +105,19 @@ def query(
         ),
     ] = None,
     output_format: Annotated[
-        str | None,
+        OutputFormat | None,
         typer.Option(
+            "--output-format",
             "--format",
             help='Output format: "md" (default) or "html".',
             case_sensitive=False,
+        ),
+    ] = None,
+    domain_followup: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--domain-followup",
+            help="Repeatable; each value is one follow-up angle to prioritize.",
         ),
     ] = None,
     interactive: Annotated[
@@ -125,11 +141,17 @@ def query(
     if mode is not None and depth is not None:
         typer.echo("--mode ignored because --depth was also provided", err=True)
 
-    provided = {
-        "channel_scope": _normalize_option_value(languages),
-        "depth": _normalize_option_value(depth) or (mode.value if mode is not None else None),
-        "output_format": _normalize_option_value(output_format),
-    }
+    provided: dict[str, object] = {}
+    if channel_scope is not None:
+        provided["channel_scope"] = channel_scope
+    if depth is not None:
+        provided["depth"] = depth
+    elif mode is not None:
+        provided["depth"] = mode.value
+    if output_format is not None:
+        provided["output_format"] = output_format
+    if domain_followup is not None:
+        provided["domain_followups"] = domain_followup
     scope = _resolve_scope(
         provided=provided,
         interactive=interactive,
@@ -176,6 +198,7 @@ def query(
                     ),
                     "sources": _json_sources(result),
                     "scope": {
+                        "domain_followups": scope.domain_followups,
                         "channel_scope": scope.channel_scope,
                         "depth": scope.depth,
                         "output_format": scope.output_format,
@@ -317,25 +340,18 @@ def _stderr_event_writer(event: dict[str, object]) -> None:
     sys.stderr.flush()
 
 
-def _normalize_option_value(value: str | None) -> str | None:
-    if value is None:
-        return None
-    return value.lower()
-
-
 def _resolve_scope(
     *,
-    provided: dict[str, str | None],
+    provided: dict[str, object],
     interactive: bool | None,
     json_output: bool,
 ) -> SearchScope:
-    provided_non_none = {key: value for key, value in provided.items() if value is not None}
     try:
+        clarifier = ScopeClarifier()
         if _should_prompt_for_scope(interactive=interactive, json_output=json_output):
-            clarifier = ScopeClarifier()
             answers = _prompt_for_scope_answers(clarifier.questions_for(provided))
-            return clarifier.apply_answers(SearchScope(), {**provided_non_none, **answers})
-        return SearchScope(**provided_non_none)
+            return clarifier.apply_answers(SearchScope(), {**provided, **answers})
+        return clarifier.apply_answers(SearchScope(), provided)
     except ValidationError as exc:
         raise typer.BadParameter(str(exc)) from exc
 
@@ -348,14 +364,17 @@ def _should_prompt_for_scope(*, interactive: bool | None, json_output: bool) -> 
     return sys.stdin.isatty() and sys.stdout.isatty() and not json_output
 
 
-def _prompt_for_scope_answers(questions: list[ScopeQuestion]) -> dict[str, str]:
-    answers: dict[str, str] = {}
+def _prompt_for_scope_answers(questions: list[ScopeQuestion]) -> dict[str, object]:
+    answers: dict[str, object] = {}
     for question in questions:
         answers[question.field] = _prompt_for_scope_question(question)
     return answers
 
 
 def _prompt_for_scope_question(question: ScopeQuestion) -> str:
+    if not question.options:
+        return typer.prompt(question.prompt, default="", show_default=False).strip()
+
     choices_text = ", ".join(
         f"{index}. {option}" for index, option in enumerate(question.options, start=1)
     )
@@ -403,7 +422,7 @@ def _render_html(markdown_text: str, title: str) -> str:
         try:
             from markdown_it import MarkdownIt
         except ImportError:
-            raise RuntimeError("markdown package is required for --format html") from exc
+            raise RuntimeError("markdown package is required for --output-format html") from exc
         body = MarkdownIt("js-default").render(markdown_text or "")
     else:
         body = md.markdown(markdown_text or "", extensions=["tables", "fenced_code"])
