@@ -224,7 +224,7 @@ class ChannelRegistry:
         impl_path = skill_dir / method.impl
         if not impl_path.is_file():
             if log_missing_impls:
-                LOGGER.info(
+                LOGGER.debug(
                     "channel_method_impl_missing",
                     channel=channel_name,
                     method=method.id,
