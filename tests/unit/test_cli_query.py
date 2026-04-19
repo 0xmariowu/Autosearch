@@ -68,9 +68,16 @@ def _install_cli_stubs(monkeypatch, pipeline_result: PipelineResult) -> None:
             self.top_k_evidence = top_k_evidence
             self.on_event = on_event
 
-        async def run(self, query: str, mode_hint: SearchMode | None = None) -> PipelineResult:
+        async def run(
+            self,
+            query: str,
+            mode_hint: SearchMode | None = None,
+            *,
+            scope=None,
+        ) -> PipelineResult:
             _ = query
             _ = mode_hint
+            _ = scope
             if self.on_event is not None:
                 maybe_coro = self.on_event({"type": "phase", "phase": "M0", "status": "start"})
                 if asyncio.iscoroutine(maybe_coro):

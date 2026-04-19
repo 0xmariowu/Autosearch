@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 import autosearch.server.main as server_main
 from autosearch.core.models import ClarifyResult, SearchMode
 from autosearch.core.pipeline import PipelineResult
+from autosearch.core.search_scope import SearchScope
 
 
 def _ok_result() -> PipelineResult:
@@ -26,12 +27,18 @@ def _ok_result() -> PipelineResult:
 class _StubPipeline:
     def __init__(self, result: PipelineResult) -> None:
         self.result = result
-        self.calls: list[tuple[str, SearchMode]] = []
+        self.calls: list[tuple[str, SearchMode, SearchScope | None]] = []
         self.on_event = None
 
-    async def run(self, query: str, mode_hint: SearchMode | None = None) -> PipelineResult:
+    async def run(
+        self,
+        query: str,
+        mode_hint: SearchMode | None = None,
+        *,
+        scope: SearchScope | None = None,
+    ) -> PipelineResult:
         assert mode_hint is not None
-        self.calls.append((query, mode_hint))
+        self.calls.append((query, mode_hint, scope))
         return self.result
 
 
@@ -64,7 +71,7 @@ def test_chat_completions_accepts_scope_metadata(monkeypatch) -> None:
     payload = response.json()
 
     assert response.status_code == 200
-    assert pipeline.calls == [("test", SearchMode.DEEP)]
+    assert pipeline.calls == [("test", SearchMode.DEEP, SearchScope(depth="deep"))]
     assert payload["metadata"]["scope_used"]["depth"] == "deep"
 
 
@@ -81,7 +88,7 @@ def test_chat_completions_scope_uses_defaults_when_metadata_absent(monkeypatch) 
     payload = response.json()
 
     assert response.status_code == 200
-    assert pipeline.calls == [("test", SearchMode.FAST)]
+    assert pipeline.calls == [("test", SearchMode.FAST, SearchScope())]
     assert payload["metadata"]["scope_used"] == {
         "domain_followups": [],
         "channel_scope": "all",

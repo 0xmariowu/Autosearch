@@ -43,8 +43,15 @@ class _StubPipeline:
         self.calls: list[tuple[str, SearchMode]] = []
         self.on_event = None
 
-    async def run(self, query: str, mode_hint: SearchMode | None = None) -> PipelineResult:
+    async def run(
+        self,
+        query: str,
+        mode_hint: SearchMode | None = None,
+        *,
+        scope=None,
+    ) -> PipelineResult:
         assert mode_hint is not None
+        _ = scope
         self.calls.append((query, mode_hint))
         return self.result
 

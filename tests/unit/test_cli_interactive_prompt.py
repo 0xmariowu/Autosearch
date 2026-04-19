@@ -47,8 +47,15 @@ def _install_cli_spy(monkeypatch, pipeline_result: PipelineResult) -> list[Searc
             self.top_k_evidence = top_k_evidence
             self.on_event = on_event
 
-        async def run(self, query: str, mode_hint: SearchMode | None = None) -> PipelineResult:
+        async def run(
+            self,
+            query: str,
+            mode_hint: SearchMode | None = None,
+            *,
+            scope=None,
+        ) -> PipelineResult:
             _ = query
+            _ = scope
             calls.append(mode_hint)
             return pipeline_result
 

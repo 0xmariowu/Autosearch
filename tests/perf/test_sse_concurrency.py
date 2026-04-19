@@ -40,7 +40,10 @@ class _ImmediatePipeline:
         self,
         query: str,
         mode_hint: SearchMode | None = None,
+        *,
+        scope=None,
     ) -> PipelineResult:
+        _ = scope
         self.call_log.append((query, mode_hint))
         await asyncio.sleep(0)
         return self.result

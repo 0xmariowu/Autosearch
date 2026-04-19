@@ -50,7 +50,10 @@ class _StubPipeline:
         self,
         query: str,
         mode_hint: SearchMode | None = None,
+        *,
+        scope=None,
     ) -> PipelineResult:
+        _ = scope
         self.calls.append((query, mode_hint))
         if self.exc is not None:
             raise self.exc
