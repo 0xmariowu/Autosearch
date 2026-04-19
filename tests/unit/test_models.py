@@ -121,6 +121,7 @@ def test_models_validate_and_are_frozen(
 def test_search_mode_parses_valid_values() -> None:
     assert SearchMode("fast") is SearchMode.FAST
     assert SearchMode("deep") is SearchMode.DEEP
+    assert SearchMode("comprehensive") is SearchMode.COMPREHENSIVE
 
 
 def test_search_mode_rejects_invalid_values() -> None:
