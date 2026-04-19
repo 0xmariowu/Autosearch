@@ -3,6 +3,15 @@ from __future__ import annotations
 
 from autosearch.core.search_scope import ScopeQuestion, SearchScope
 
+_DOMAIN_FOLLOWUPS_QUESTION = ScopeQuestion(
+    field="domain_followups",
+    prompt=(
+        "Any domain-specific angle, sub-topic, or framing to prioritize? "
+        "(comma-separated, or leave empty)"
+    ),
+    options=[],
+)
+
 _CHANNEL_SCOPE_QUESTION = ScopeQuestion(
     field="channel_scope",
     prompt="Which channel scope should the search cover?",
@@ -25,8 +34,8 @@ _FORMAT_QUESTION = ScopeQuestion(
 class ScopeClarifier:
     """Return clarification questions for SearchScope fields the caller omitted.
 
-    Domain follow-ups are handled later by the domain clarifier; this class only manages
-    the explicit UX scope fields collected before the pipeline runs.
+    Questions are asked in the same order the CLI/API should collect them, with domain
+    context first and UX/output preferences after that.
     """
 
     def __init__(self) -> None:
@@ -44,6 +53,8 @@ class ScopeClarifier:
         provided = provided or {}
         questions: list[ScopeQuestion] = []
 
+        if provided.get("domain_followups") is None:
+            questions.append(_DOMAIN_FOLLOWUPS_QUESTION)
         if provided.get("channel_scope") is None:
             questions.append(_CHANNEL_SCOPE_QUESTION)
         if provided.get("depth") is None:
@@ -62,5 +73,12 @@ class ScopeClarifier:
 
         Raises ValidationError if any provided value does not satisfy the target field.
         """
-        merged = base.model_dump() | {k: v for k, v in answers.items() if v is not None}
+        merged = base.model_dump()
+        for field, value in answers.items():
+            if value is None:
+                continue
+            if field == "domain_followups" and isinstance(value, str):
+                merged[field] = [part.strip() for part in value.split(",") if part.strip()]
+            else:
+                merged[field] = value
         return SearchScope(**merged)

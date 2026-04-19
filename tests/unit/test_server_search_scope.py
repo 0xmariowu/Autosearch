@@ -87,6 +87,7 @@ def test_search_emits_scope_needed_when_scope_omitted(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert [event["field"] for event in events] == [
+        "domain_followups",
         "channel_scope",
         "depth",
         "output_format",
@@ -109,6 +110,7 @@ def test_search_emits_scope_needed_when_scope_partially_explicit_none(monkeypatc
 
     assert response.status_code == 200
     assert [event["field"] for event in events] == [
+        "domain_followups",
         "channel_scope",
         "depth",
         "output_format",
@@ -130,6 +132,7 @@ def test_search_runs_pipeline_when_scope_complete(monkeypatch) -> None:
         json={
             "query": "test query",
             "scope": {
+                "domain_followups": [],
                 "channel_scope": "all",
                 "depth": "fast",
                 "output_format": "md",
@@ -157,6 +160,7 @@ def test_search_resolves_depth_comprehensive_to_search_mode(monkeypatch) -> None
         json={
             "query": "test query",
             "scope": {
+                "domain_followups": [],
                 "channel_scope": "all",
                 "depth": "comprehensive",
                 "output_format": "md",
