@@ -150,7 +150,7 @@ def query(
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
 
-    if result.status == "needs_clarification":
+    if result.delivery_status == "needs_clarification":
         typer.echo(result.clarification.question or "More detail is required.", err=True)
         raise typer.Exit(code=2)
 
@@ -168,7 +168,7 @@ def query(
         typer.echo(
             json.dumps(
                 {
-                    "status": result.status,
+                    "delivery_status": result.delivery_status,
                     "markdown": rendered_output,
                     "iterations": result.iterations,
                     "quality_grade": (
