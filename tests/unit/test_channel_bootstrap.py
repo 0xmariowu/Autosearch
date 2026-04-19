@@ -7,7 +7,7 @@ from autosearch.core.channel_bootstrap import _build_channels
 
 
 def _skills_root() -> Path:
-    return Path(__file__).resolve().parents[2] / "skills" / "channels"
+    return Path(__file__).resolve().parents[2] / "autosearch" / "skills" / "channels"
 
 
 def test_build_channels_falls_back_to_demo_for_empty_skills_dir(tmp_path: Path) -> None:

@@ -6,7 +6,7 @@ from autosearch.skills.loader import load_all
 
 
 def _channels_root() -> Path:
-    return Path(__file__).resolve().parents[2] / "skills" / "channels"
+    return Path(__file__).resolve().parents[2] / "autosearch" / "skills" / "channels"
 
 
 def _load_specs():

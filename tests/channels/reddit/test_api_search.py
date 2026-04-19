@@ -13,6 +13,7 @@ from autosearch.core.models import SubQuery
 def _load_module():
     module_path = (
         Path(__file__).resolve().parents[3]
+        / "autosearch"
         / "skills"
         / "channels"
         / "reddit"

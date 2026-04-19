@@ -41,6 +41,7 @@ RSS_FIXTURE = """<?xml version="1.0" encoding="UTF-8"?>
 def _load_module():
     module_path = (
         Path(__file__).resolve().parents[3]
+        / "autosearch"
         / "skills"
         / "channels"
         / "google_news"
