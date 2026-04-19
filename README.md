@@ -1,8 +1,6 @@
-<p align="center">
-  <img src="docs/assets/og-banner.png" alt="AutoSearch" width="600">
-</p>
-
-<h1 align="center">AutoSearch</h1>
+<h1 align="center">
+  <img src="docs/assets/logo.png" alt="" height="60" style="vertical-align:middle"> AutoSearch
+</h1>
 
 <p align="center">
   <strong>Open-source deep research tool for AI coding developers.</strong><br>
