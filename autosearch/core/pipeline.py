@@ -562,6 +562,8 @@ class _TrackingIterationController(IterationController):
 def _initial_subquery_count(mode: SearchMode) -> int:
     if mode is SearchMode.FAST:
         return 3
+    if mode is SearchMode.COMPREHENSIVE:
+        return 7
     return 5
 
 
