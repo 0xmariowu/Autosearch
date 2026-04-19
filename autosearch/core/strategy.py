@@ -1,46 +1,15 @@
 # Source: gpt-researcher/gpt_researcher/prompts.py:L213-L255 (adapted)
 # Source: gpt-researcher/gpt_researcher/actions/query_processing.py:L37-L80 (adapted)
 from datetime import datetime, timezone
-from textwrap import dedent
 
 import structlog
 from pydantic import BaseModel, Field
 
 from autosearch.core.models import ClarifyResult, KnowledgeRecall, SubQuery
 from autosearch.llm.client import LLMClient
+from autosearch.skills.prompts import load_prompt
 
-SEARCH_QUERY_PROMPT = dedent(
-    """\
-    Write {n} search queries to search online that form an objective view of the following task:
-    "{task}"
-
-    Assume the current date is {today} if required.
-
-    Context:
-    {context}
-
-    Use this context to inform and refine your search queries. The context provides task guidance,
-    evaluation criteria, and known information gaps that should shape more specific and relevant
-    searches.
-
-    Respond in valid JSON with this exact schema:
-    {{
-      "subqueries": [
-        {{
-          "text": "search query",
-          "rationale": "why this query helps cover the task"
-        }}
-      ]
-    }}
-
-    Rules:
-    - Return exactly {n} subqueries
-    - Make the queries mutually complementary rather than redundant
-    - Prefer concrete search terms over vague natural-language questions
-    - Use current-year or date terms only when the task is time-sensitive
-    - Keep each rationale concise and specific
-    """
-).strip()
+SEARCH_QUERY_PROMPT = load_prompt("m2_search_query")
 
 
 class _SubQueryBatch(BaseModel):

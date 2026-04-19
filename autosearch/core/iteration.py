@@ -1,7 +1,6 @@
 # Source: open_deep_research/src/legacy/graph.py:L235-L354 (adapted)
 import asyncio
 from dataclasses import dataclass
-from textwrap import dedent
 
 import structlog
 from pydantic import BaseModel, Field
@@ -10,80 +9,10 @@ from autosearch.channels.base import Channel
 from autosearch.core.evidence import EvidenceProcessor
 from autosearch.core.models import Evidence, Gap, SubQuery
 from autosearch.llm.client import LLMClient
+from autosearch.skills.prompts import load_prompt
 
-GAP_REFLECTION_PROMPT = dedent(
-    """\
-    Review the current research progress and identify only the most important remaining gaps.
-
-    <Original user query>
-    {query}
-    </Original user query>
-
-    <Current iteration>
-    {iteration} of {max_iterations}
-    </Current iteration>
-
-    <Queries already executed>
-    {subqueries}
-    </Queries already executed>
-
-    <Collected evidence>
-    {evidence_context}
-    </Collected evidence>
-
-    Respond in valid JSON with this exact schema:
-    {{
-      "gaps": [
-        {{
-          "topic": "missing research topic",
-          "reason": "why this missing information matters"
-        }}
-      ]
-    }}
-
-    Rules:
-    - Return at most 3 gaps
-    - Return an empty list if the evidence already covers the query well enough to draft a report
-    - Focus on missing evidence, missing comparisons, missing time-sensitive details, or unanswered
-      sub-questions
-    - Keep each topic concrete enough to search directly
-    - Do not repeat gaps that are already covered by the collected evidence
-    """
-).strip()
-
-FOLLOW_UP_QUERY_PROMPT = dedent(
-    """\
-    Convert the identified research gaps into focused follow-up search queries.
-
-    <Original user query>
-    {query}
-    </Original user query>
-
-    <Research gaps>
-    {gap_context}
-    </Research gaps>
-
-    <Collected evidence so far>
-    {evidence_context}
-    </Collected evidence so far>
-
-    Respond in valid JSON with this exact schema:
-    {{
-      "subqueries": [
-        {{
-          "text": "search query",
-          "rationale": "why this query helps close a specific gap"
-        }}
-      ]
-    }}
-
-    Rules:
-    - Return at most one subquery per gap
-    - Keep the queries specific, concrete, and non-redundant
-    - Use date terms only when the gap is clearly time-sensitive
-    - Make each rationale concise and directly tied to a gap
-    """
-).strip()
+GAP_REFLECTION_PROMPT = load_prompt("m3_gap_reflection")
+FOLLOW_UP_QUERY_PROMPT = load_prompt("m3_follow_up_query")
 
 
 @dataclass(frozen=True)
