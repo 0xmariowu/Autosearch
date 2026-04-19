@@ -13,6 +13,7 @@ from autosearch.skills.prompts import load_prompt
 
 GAP_REFLECTION_PROMPT = load_prompt("m3_gap_reflection")
 FOLLOW_UP_QUERY_PROMPT = load_prompt("m3_follow_up_query")
+FALLBACK_THRESHOLD = 5
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,7 @@ class _FollowUpQueryResponse(BaseModel):
 class IterationController:
     def __init__(self, evidence_processor: EvidenceProcessor | None = None) -> None:
         self.evidence_processor = evidence_processor or EvidenceProcessor()
+        self.routing_trace: dict[str, object] = {}
         self.logger = structlog.get_logger(__name__).bind(component="iteration_controller")
         self._empty_counts: dict[str, int] = {}
 
@@ -42,8 +44,17 @@ class IterationController:
         channels: list[Channel],
         budget: IterationBudget,
         client: LLMClient,
+        priority_channels: set[str] | None = None,
+        skip_channels: set[str] | None = None,
     ) -> list[Evidence]:
         self._empty_counts = {}
+        effective_priority = set(priority_channels or [])
+        effective_skip = set(skip_channels or [])
+        self.routing_trace = _initial_routing_trace(
+            channels,
+            priority_channels=effective_priority,
+            skip_channels=effective_skip,
+        )
         if budget.max_iterations <= 0 or not initial_queries or not channels:
             return []
 
@@ -68,7 +79,13 @@ class IterationController:
                 channels=len(channels),
                 subqueries=len(active_queries),
             )
-            round_evidence = await self._search(active_queries, channels, iteration)
+            round_evidence = await self._search(
+                active_queries,
+                channels,
+                iteration,
+                priority_channels=effective_priority,
+                skip_channels=effective_skip,
+            )
             self.logger.info(
                 "iteration_phase_completed",
                 phase="search",
@@ -165,7 +182,58 @@ class IterationController:
         subqueries: list[SubQuery],
         channels: list[Channel],
         iteration: int,
+        priority_channels: set[str] | None = None,
+        skip_channels: set[str] | None = None,
     ) -> list[Evidence]:
+        effective_priority = set(priority_channels or [])
+        effective_skip = set(skip_channels or [])
+        self._ensure_routing_trace(
+            channels,
+            priority_channels=effective_priority,
+            skip_channels=effective_skip,
+        )
+
+        runnable_channels = [channel for channel in channels if channel.name not in effective_skip]
+        skipped_names = [channel.name for channel in channels if channel.name in effective_skip]
+        _extend_unique_names(self.routing_trace, "skipped_channels", skipped_names)
+
+        if not effective_priority:
+            rest_names = [channel.name for channel in runnable_channels]
+            _extend_unique_names(self.routing_trace, "rest_ran", rest_names)
+            return await self._run_channel_batch(subqueries, runnable_channels, iteration)
+
+        priority_batch = [
+            channel for channel in runnable_channels if channel.name in effective_priority
+        ]
+        rest_batch = [
+            channel for channel in runnable_channels if channel.name not in effective_priority
+        ]
+
+        priority_names = [channel.name for channel in priority_batch]
+        _extend_unique_names(self.routing_trace, "priority_ran", priority_names)
+        priority_evidence = await self._run_channel_batch(subqueries, priority_batch, iteration)
+        self.routing_trace["priority_evidence_count"] = (
+            int(self.routing_trace.get("priority_evidence_count", 0)) + len(priority_evidence)
+        )
+
+        if len(priority_evidence) >= FALLBACK_THRESHOLD or not rest_batch:
+            return priority_evidence
+
+        self.routing_trace["fallback_triggered"] = True
+        rest_names = [channel.name for channel in rest_batch]
+        _extend_unique_names(self.routing_trace, "rest_ran", rest_names)
+        rest_evidence = await self._run_channel_batch(subqueries, rest_batch, iteration)
+        return priority_evidence + rest_evidence
+
+    async def _run_channel_batch(
+        self,
+        subqueries: list[SubQuery],
+        channels: list[Channel],
+        iteration: int,
+    ) -> list[Evidence]:
+        if not subqueries or not channels:
+            return []
+
         tasks = [channel.search(subquery) for subquery in subqueries for channel in channels]
         task_metadata = [
             (channel.name, subquery.text) for subquery in subqueries for channel in channels
@@ -210,6 +278,32 @@ class IterationController:
                 subquery=query_text[:80],
             )
         return result
+
+    def _ensure_routing_trace(
+        self,
+        channels: list[Channel],
+        *,
+        priority_channels: set[str],
+        skip_channels: set[str],
+    ) -> None:
+        expected_priority = _ordered_channel_names(
+            channels,
+            include=priority_channels,
+            exclude=skip_channels,
+        )
+        expected_skip = _ordered_channel_names(channels, include=skip_channels)
+
+        if (
+            self.routing_trace.get("priority") == expected_priority
+            and self.routing_trace.get("skip") == expected_skip
+        ):
+            return
+
+        self.routing_trace = _initial_routing_trace(
+            channels,
+            priority_channels=priority_channels,
+            skip_channels=skip_channels,
+        )
 
     def _summarize(self, evidences: list[Evidence], query: str) -> list[Evidence]:
         deduped = self.evidence_processor.dedup_urls(evidences)
@@ -310,3 +404,54 @@ def _format_evidence(evidences: list[Evidence], max_items: int) -> str:
         formatted.append(f"... {len(evidences) - max_items} additional evidence items omitted")
 
     return "\n\n".join(formatted)
+
+
+def _initial_routing_trace(
+    channels: list[Channel],
+    *,
+    priority_channels: set[str],
+    skip_channels: set[str],
+) -> dict[str, object]:
+    skipped = _ordered_channel_names(channels, include=skip_channels)
+    priority = _ordered_channel_names(
+        channels,
+        include=priority_channels,
+        exclude=skip_channels,
+    )
+    return {
+        "priority": priority,
+        "skip": skipped,
+        "priority_ran": [],
+        "rest_ran": [],
+        "priority_evidence_count": 0,
+        "fallback_triggered": False,
+        "skipped_channels": list(skipped),
+    }
+
+
+def _ordered_channel_names(
+    channels: list[Channel],
+    *,
+    include: set[str],
+    exclude: set[str] | None = None,
+) -> list[str]:
+    excluded = exclude or set()
+    return [
+        channel.name
+        for channel in channels
+        if channel.name in include and channel.name not in excluded
+    ]
+
+
+def _extend_unique_names(trace: dict[str, object], key: str, names: list[str]) -> None:
+    existing = trace.get(key)
+    if not isinstance(existing, list):
+        existing = []
+        trace[key] = existing
+
+    seen = {name for name in existing if isinstance(name, str)}
+    for name in names:
+        if name in seen:
+            continue
+        existing.append(name)
+        seen.add(name)
