@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/logo.svg" width="128" height="128" alt="AutoSearch">
+  <img src="docs/assets/og-banner.png" alt="AutoSearch">
 </p>
 
 <h1 align="center">AutoSearch</h1>
