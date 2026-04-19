@@ -74,6 +74,7 @@ def test_shipped_method_impls_exist_for_registry_channels() -> None:
         "arxiv": ["methods/api_search.py"],
         "ddgs": ["methods/api.py"],
         "hackernews": ["methods/algolia.py"],
+        "zhihu": ["methods/via_tikhub.py"],
         "youtube": ["methods/data_api_v3.py"],
     }
 
@@ -108,6 +109,17 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
             assert len(metadata.methods) == 1
             assert metadata.methods[0].available is False
             assert metadata.methods[0].unmet_requires == ["env:YOUTUBE_API_KEY"]
+            continue
+        if spec.name == "zhihu":
+            methods = {method.id: method for method in metadata.methods}
+
+            assert metadata.available_methods() == []
+            assert methods["via_tikhub"].available is False
+            assert methods["via_tikhub"].unmet_requires == ["env:TIKHUB_API_KEY"]
+            assert methods["api_search"].available is False
+            assert methods["api_search"].unmet_requires == ["impl_missing"]
+            assert methods["api_answer_detail"].available is False
+            assert methods["api_answer_detail"].unmet_requires == ["impl_missing"]
             continue
 
         assert metadata.available_methods() == []
