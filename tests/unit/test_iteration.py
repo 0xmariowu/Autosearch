@@ -26,6 +26,7 @@ class DummyClient:
 
 class FakeChannel:
     name = "fake"
+    languages = ["en", "mixed"]
 
     def __init__(self, responses: list[list[Evidence]]) -> None:
         self.responses = list(responses)

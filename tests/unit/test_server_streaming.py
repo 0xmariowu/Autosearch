@@ -28,9 +28,16 @@ class _StreamingStubPipeline:
     def __init__(self, on_event=None) -> None:
         self.on_event = on_event
 
-    async def run(self, query: str, mode_hint: SearchMode | None = None) -> PipelineResult:
+    async def run(
+        self,
+        query: str,
+        mode_hint: SearchMode | None = None,
+        *,
+        scope=None,
+    ) -> PipelineResult:
         _ = query
         _ = mode_hint
+        _ = scope
         for event in [
             {"type": "phase", "phase": "M0", "status": "start"},
             {"type": "iteration", "round": 1, "new_evidence": 2, "running_evidence": 2},

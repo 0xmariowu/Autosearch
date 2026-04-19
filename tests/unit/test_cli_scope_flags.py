@@ -12,6 +12,7 @@ from autosearch.core.models import (
     SearchMode,
 )
 from autosearch.core.pipeline import PipelineResult
+from autosearch.core.search_scope import SearchScope
 
 runner = CliRunner()
 
@@ -47,12 +48,19 @@ def _install_cli_spy(monkeypatch, pipeline_result: PipelineResult) -> list[dict[
             self.top_k_evidence = top_k_evidence
             self.on_event = on_event
 
-        async def run(self, query: str, mode_hint: SearchMode | None = None) -> PipelineResult:
+        async def run(
+            self,
+            query: str,
+            mode_hint: SearchMode | None = None,
+            *,
+            scope: SearchScope | None = None,
+        ) -> PipelineResult:
             calls.append(
                 {
                     "query": query,
                     "mode_hint": mode_hint,
                     "top_k_evidence": self.top_k_evidence,
+                    "scope": scope,
                 }
             )
             return pipeline_result
@@ -93,6 +101,11 @@ def test_query_accepts_all_new_flags_noninteractive(monkeypatch) -> None:
             "query": "test",
             "mode_hint": SearchMode.DEEP,
             "top_k_evidence": 20,
+            "scope": SearchScope(
+                channel_scope="mixed",
+                depth="deep",
+                output_format="html",
+            ),
         }
     ]
     assert json.loads(result.stdout)["scope"] == {

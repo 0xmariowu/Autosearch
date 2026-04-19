@@ -11,8 +11,10 @@ class FakeChannel(Channel):
         name: str,
         evidences: list[Evidence] | None = None,
         factory: Callable[[SubQuery], list[Evidence]] | None = None,
+        languages: list[str] | None = None,
     ) -> None:
         self.name = name
+        self.languages = list(languages or ["en", "mixed"])
         self._evidences = list(evidences or [])
         self._factory = factory
         self.call_count = 0

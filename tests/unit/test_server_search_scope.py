@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 import autosearch.server.main as server_main
 from autosearch.core.models import ClarifyResult, SearchMode
 from autosearch.core.pipeline import PipelineResult
+from autosearch.core.search_scope import SearchScope
 
 
 def _ok_result() -> PipelineResult:
@@ -33,11 +34,17 @@ class _StubPipeline:
         self.result = result
         self.emitted_events = emitted_events or []
         self.on_event = None
-        self.calls: list[tuple[str, SearchMode]] = []
+        self.calls: list[tuple[str, SearchMode, SearchScope | None]] = []
 
-    async def run(self, query: str, mode_hint: SearchMode | None = None) -> PipelineResult:
+    async def run(
+        self,
+        query: str,
+        mode_hint: SearchMode | None = None,
+        *,
+        scope: SearchScope | None = None,
+    ) -> PipelineResult:
         assert mode_hint is not None
-        self.calls.append((query, mode_hint))
+        self.calls.append((query, mode_hint, scope))
         for event in self.emitted_events:
             if self.on_event is None:
                 continue
@@ -135,7 +142,9 @@ def test_search_runs_pipeline_when_scope_complete(monkeypatch) -> None:
     assert response.status_code == 200
     assert all(event["type"] != "scope_needed" for event in events)
     assert any(event["type"] == "phase" for event in events)
-    assert pipeline.calls == [("test query", SearchMode.FAST)]
+    assert pipeline.calls == [
+        ("test query", SearchMode.FAST, SearchScope(channel_scope="all", depth="fast"))
+    ]
 
 
 def test_search_resolves_depth_comprehensive_to_search_mode(monkeypatch) -> None:
@@ -156,4 +165,10 @@ def test_search_resolves_depth_comprehensive_to_search_mode(monkeypatch) -> None
     )
 
     assert response.status_code == 200
-    assert pipeline.calls == [("test query", SearchMode.COMPREHENSIVE)]
+    assert pipeline.calls == [
+        (
+            "test query",
+            SearchMode.COMPREHENSIVE,
+            SearchScope(channel_scope="all", depth="comprehensive"),
+        )
+    ]

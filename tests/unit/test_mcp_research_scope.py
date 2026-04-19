@@ -4,6 +4,7 @@ import pytest
 import autosearch.mcp.server as mcp_server
 from autosearch.core.models import ClarifyResult, SearchMode
 from autosearch.core.pipeline import PipelineResult
+from autosearch.core.search_scope import SearchScope
 
 
 def _ok_result() -> PipelineResult:
@@ -24,14 +25,16 @@ def _ok_result() -> PipelineResult:
 class _StubPipeline:
     def __init__(self, result: PipelineResult) -> None:
         self.result = result
-        self.calls: list[tuple[str, SearchMode | None]] = []
+        self.calls: list[tuple[str, SearchMode | None, SearchScope | None]] = []
 
     async def run(
         self,
         query: str,
         mode_hint: SearchMode | None = None,
+        *,
+        scope: SearchScope | None = None,
     ) -> PipelineResult:
-        self.calls.append((query, mode_hint))
+        self.calls.append((query, mode_hint, scope))
         return self.result
 
 
@@ -58,7 +61,7 @@ async def test_research_accepts_scope_params_with_defaults(
 
     assert research_tool is not None
     assert await research_tool.run({"query": "test query"}) == "# Test\n\nBody"
-    assert pipeline.calls == [("test query", SearchMode.FAST)]
+    assert pipeline.calls == [("test query", SearchMode.FAST, SearchScope())]
 
 
 @pytest.mark.asyncio
@@ -73,7 +76,9 @@ async def test_research_maps_depth_comprehensive_to_pipeline(
 
     assert research_tool is not None
     await research_tool.run({"query": "test query", "depth": "comprehensive"})
-    assert pipeline.calls == [("test query", SearchMode.COMPREHENSIVE)]
+    assert pipeline.calls == [
+        ("test query", SearchMode.COMPREHENSIVE, SearchScope(depth="comprehensive"))
+    ]
 
 
 @pytest.mark.asyncio
@@ -88,7 +93,7 @@ async def test_research_depth_wins_over_mode(
 
     assert research_tool is not None
     await research_tool.run({"query": "test query", "mode": "fast", "depth": "deep"})
-    assert pipeline.calls == [("test query", SearchMode.DEEP)]
+    assert pipeline.calls == [("test query", SearchMode.DEEP, SearchScope(depth="deep"))]
 
 
 @pytest.mark.asyncio

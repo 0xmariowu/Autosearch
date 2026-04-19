@@ -24,6 +24,7 @@ class DummyClient:
 
 class FailingChannel:
     name = "failing"
+    languages = ["en", "mixed"]
 
     def __init__(self) -> None:
         self.calls = 0
@@ -36,6 +37,7 @@ class FailingChannel:
 
 class FakeChannel:
     name = "working"
+    languages = ["en", "mixed"]
 
     def __init__(self, evidences: list[Evidence]) -> None:
         self.evidences = list(evidences)

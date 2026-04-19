@@ -2,7 +2,13 @@
 import pytest
 from pydantic import ValidationError
 
-from autosearch.core.search_scope import ScopeQuestion, SearchScope
+from autosearch.core.search_scope import ScopeQuestion, SearchScope, filter_channels_by_scope
+
+
+class _Channel:
+    def __init__(self, name: str, languages: list[str]) -> None:
+        self.name = name
+        self.languages = languages
 
 
 def test_search_scope_defaults() -> None:
@@ -49,3 +55,54 @@ def test_scope_question_frozen_and_serializable() -> None:
 
     assert ScopeQuestion.model_config["frozen"] is True
     assert loaded == question
+
+
+def test_filter_channels_all_keeps_all() -> None:
+    channels = [_Channel("en", ["en"]), _Channel("zh", ["zh"])]
+
+    filtered = filter_channels_by_scope(channels, "all")
+
+    assert filtered == channels
+
+
+def test_filter_channels_en_only_drops_zh_only_channels() -> None:
+    channels = [
+        _Channel("en", ["en"]),
+        _Channel("zh", ["zh"]),
+        _Channel("zh_mixed", ["zh", "mixed"]),
+    ]
+
+    filtered = filter_channels_by_scope(channels, "en_only")
+
+    assert [channel.name for channel in filtered] == ["en"]
+
+
+def test_filter_channels_zh_only_drops_en_only_channels() -> None:
+    channels = [
+        _Channel("en", ["en"]),
+        _Channel("en_mixed", ["en", "mixed"]),
+        _Channel("zh", ["zh"]),
+    ]
+
+    filtered = filter_channels_by_scope(channels, "zh_only")
+
+    assert [channel.name for channel in filtered] == ["zh"]
+
+
+def test_filter_channels_mixed_is_noop() -> None:
+    channels = [_Channel("en", ["en"]), _Channel("zh", ["zh"])]
+
+    filtered = filter_channels_by_scope(channels, "mixed")
+
+    assert filtered == channels
+
+
+def test_filter_channels_bilingual_channel_kept_for_both() -> None:
+    bilingual = _Channel("bilingual", ["en", "zh", "mixed"])
+    channels = [_Channel("en", ["en"]), bilingual, _Channel("zh", ["zh"])]
+
+    en_filtered = filter_channels_by_scope(channels, "en_only")
+    zh_filtered = filter_channels_by_scope(channels, "zh_only")
+
+    assert bilingual in en_filtered
+    assert bilingual in zh_filtered

@@ -32,7 +32,10 @@ class _ImmediatePipeline:
         self,
         query: str,
         mode_hint: SearchMode | None = None,
+        *,
+        scope=None,
     ) -> PipelineResult:
+        _ = scope
         self.calls.append((query, mode_hint))
         return self.result
 
