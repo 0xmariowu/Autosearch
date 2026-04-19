@@ -13,10 +13,10 @@ def _load_specs():
     return load_all(_channels_root())
 
 
-def test_all_23_channels_loadable() -> None:
+def test_all_25_channels_loadable() -> None:
     specs = _load_specs()
 
-    assert len(specs) == 23
+    assert len(specs) == 25
     assert [spec.name for spec in specs] == [
         "arxiv",
         "bilibili",
@@ -28,12 +28,14 @@ def test_all_23_channels_loadable() -> None:
         "hackernews",
         "infoq_cn",
         "kr36",
+        "kuaishou",
         "package_search",
         "papers",
         "podcast_cn",
         "reddit",
         "sogou_weixin",
         "stackoverflow",
+        "tiktok",
         "twitter",
         "weibo",
         "wikidata",
@@ -64,7 +66,7 @@ def test_fallback_chain_matches_methods() -> None:
         assert set(spec.fallback_chain).issubset(method_ids)
 
 
-def test_chinese_native_channels_cover_9() -> None:
+def test_chinese_native_channels_cover_10() -> None:
     chinese_native = {
         spec.name
         for spec in _load_specs()
@@ -75,6 +77,7 @@ def test_chinese_native_channels_cover_9() -> None:
         "bilibili",
         "douyin",
         "infoq_cn",
+        "kuaishou",
         "kr36",
         "podcast_cn",
         "sogou_weixin",
@@ -82,7 +85,7 @@ def test_chinese_native_channels_cover_9() -> None:
         "xiaohongshu",
         "zhihu",
     }
-    assert len(chinese_native) == 9
+    assert len(chinese_native) == 10
 
 
 def test_shipped_method_impls_exist_for_registry_channels() -> None:
@@ -96,6 +99,7 @@ def test_shipped_method_impls_exist_for_registry_channels() -> None:
         "google_news": ["methods/api_search.py"],
         "hackernews": ["methods/algolia.py"],
         "infoq_cn": ["methods/api_search.py"],
+        "kuaishou": ["methods/via_tikhub.py"],
         "kr36": ["methods/api_search.py"],
         "package_search": ["methods/api_search.py"],
         "podcast_cn": ["methods/api_search.py"],
@@ -103,6 +107,7 @@ def test_shipped_method_impls_exist_for_registry_channels() -> None:
         "reddit": ["methods/api_search.py"],
         "sogou_weixin": ["methods/api_search.py"],
         "stackoverflow": ["methods/api_search.py"],
+        "tiktok": ["methods/via_tikhub.py"],
         "twitter": ["methods/via_tikhub.py"],
         "weibo": ["methods/via_tikhub.py"],
         "wikidata": ["methods/api_search.py"],
@@ -218,7 +223,21 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
             assert methods["api_search"].available is False
             assert methods["api_search"].unmet_requires == ["impl_missing"]
             continue
+        if spec.name == "tiktok":
+            methods = {method.id: method for method in metadata.methods}
+
+            assert metadata.available_methods() == []
+            assert methods["via_tikhub"].available is False
+            assert methods["via_tikhub"].unmet_requires == ["env:TIKHUB_API_KEY"]
+            continue
         if spec.name == "weibo":
+            methods = {method.id: method for method in metadata.methods}
+
+            assert metadata.available_methods() == []
+            assert methods["via_tikhub"].available is False
+            assert methods["via_tikhub"].unmet_requires == ["env:TIKHUB_API_KEY"]
+            continue
+        if spec.name == "kuaishou":
             methods = {method.id: method for method in metadata.methods}
 
             assert metadata.available_methods() == []
