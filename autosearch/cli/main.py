@@ -171,6 +171,7 @@ def query(
                     "delivery_status": result.delivery_status,
                     "markdown": rendered_output,
                     "iterations": result.iterations,
+                    "channel_empty_calls": result.channel_empty_calls,
                     "quality_grade": (
                         result.quality.grade.value if result.quality is not None else None
                     ),

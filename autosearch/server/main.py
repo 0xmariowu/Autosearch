@@ -85,6 +85,7 @@ def _terminal_payload(result: PipelineResult) -> dict[str, Any]:
         "type": "finished",
         "iterations": result.iterations,
         "delivery_status": result.delivery_status,
+        "channel_empty_calls": result.channel_empty_calls,
     }
     if result.delivery_status == "needs_clarification":
         payload["question"] = result.clarification.question or "More detail is required."
