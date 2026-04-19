@@ -118,11 +118,13 @@ Generated from `autosearch/skills/channels/*/SKILL.md`. Run `.venv/bin/python sc
 |---|---|---|---|---|
 | youtube | en, zh, mixed | env:YOUTUBE_API_KEY | Use for video tutorial discovery, conference talks, technical walkthroughs, and product demos. | medium |
 
-### Tier 2 - BYOK paid (6)
+### Tier 2 - BYOK paid (8)
 | Channel | Languages | Required env | Description | Typical yield |
 |---|---|---|---|---|
 | bilibili | zh, mixed | env:TIKHUB_API_KEY | Chinese tech video platform with tutorials, conference recordings, and uploader-authored articles, via TikHub. | medium |
 | douyin | zh | env:TIKHUB_API_KEY | Chinese short-video content with product demos, tech reviews, and viral trends, via TikHub. | medium |
+| kuaishou | zh, mixed | env:TIKHUB_API_KEY | Chinese short-video platform with lifestyle, humor, regional culture, and product demos, via TikHub. | medium |
+| tiktok | en, mixed | env:TIKHUB_API_KEY | Global short-video platform with creator content, product demos, viral trends, and topical reactions, via TikHub. | medium |
 | twitter | en, mixed | env:TIKHUB_API_KEY | Real-time public discourse including product launches, tech announcements, and breaking news, via TikHub. | medium |
 | weibo | zh, mixed | env:TIKHUB_API_KEY | Chinese microblog platform for real-time opinion, trending topics, and event-level commentary in Chinese discourse, via TikHub. | medium |
 | xiaohongshu | zh, mixed | env:TIKHUB_API_KEY | Chinese lifestyle + experience-sharing notes with strong product/beauty/travel/food coverage, via TikHub. | high |
