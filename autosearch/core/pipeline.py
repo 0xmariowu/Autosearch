@@ -340,6 +340,7 @@ class Pipeline:
                 clarification=clarification,
                 markdown=markdown,
                 evidences=processed_evidences,
+                channel_empty_calls=iteration_controller.empty_counts_by_channel(),
                 reasoning_events=list(self._captured_reasoning_events or []),
                 quality=quality,
                 iterations=iteration_controller.iterations_executed,
@@ -501,46 +502,43 @@ class _TrackingIterationController(IterationController):
         channels: list[Channel],
         iteration: int,
     ) -> list[Evidence]:
-        tasks = [channel.search(subquery) for subquery in subqueries for channel in channels]
-        task_metadata = [
-            (channel.name, subquery.text) for subquery in subqueries for channel in channels
-        ]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        evidences: list[Evidence] = []
-        for (channel_name, query_text), result in zip(task_metadata, results, strict=True):
-            result_count = 0
-            if isinstance(result, Exception):
-                self.logger.warning(
-                    "channel_search_failed",
-                    iteration=iteration,
-                    channel=channel_name,
-                    subquery=query_text,
-                    error=str(result),
-                )
-                if self.on_event is not None:
-                    await self.on_event(
-                        {
-                            "type": "error",
-                            "channel": channel_name,
-                            "phase": "search",
-                            "subquery": query_text,
-                            "message": str(result),
-                        }
-                    )
-            else:
-                result_count = len(result)
-                evidences.extend(result)
-
-            if self.session_store is not None and self.session_id is not None:
-                await self.session_store.add_query_log(
-                    self.session_id,
-                    query_text,
-                    channel_name,
-                    result_count,
-                )
-
+        evidences = await super()._search(subqueries, channels, iteration)
         self._latest_new_evidence_count = len(evidences)
+        return evidences
+
+    async def _handle_search_result(
+        self,
+        *,
+        channel_name: str,
+        query_text: str,
+        result: list[Evidence] | Exception,
+        iteration: int,
+    ) -> list[Evidence]:
+        evidences = await super()._handle_search_result(
+            channel_name=channel_name,
+            query_text=query_text,
+            result=result,
+            iteration=iteration,
+        )
+        result_count = len(evidences)
+        if isinstance(result, Exception) and self.on_event is not None:
+            await self.on_event(
+                {
+                    "type": "error",
+                    "channel": channel_name,
+                    "phase": "search",
+                    "subquery": query_text,
+                    "message": str(result),
+                }
+            )
+
+        if self.session_store is not None and self.session_id is not None:
+            await self.session_store.add_query_log(
+                self.session_id,
+                query_text,
+                channel_name,
+                result_count,
+            )
         return evidences
 
     async def _reflect(
