@@ -13,11 +13,10 @@ Each skill lives in its own directory and declares validated frontmatter plus hu
 The loader reads the frontmatter at compile time and turns it into typed Python models.
 The prose body remains documentation for maintainers and operators.
 
-AutoSearch uses three skill categories:
+AutoSearch uses two skill categories, both under the `autosearch/` package:
 
-1. `skills/meta/` for runtime agent behavior that may be compiled into pipeline prompts.
-2. `skills/tools/` for reusable primitives such as cookie access, rate limiting, or fetch helpers.
-3. `autosearch/skills/channels/` for per-channel search capabilities compiled at startup.
+1. `autosearch/skills/channels/` for per-channel search capabilities compiled at startup.
+2. `autosearch/skills/prompts/` for pipeline prompts (M2 strategy, M3 iteration, M7 synthesis, M8 quality) loaded at module import.
 
 The important split is compile time versus runtime:
 
@@ -251,7 +250,7 @@ from autosearch.skills.loader import load_all, load_skill
 
 channels_root = Path("autosearch/skills/channels")
 channel_specs = load_all(channels_root)
-one_tool = load_skill(Path("skills/tools/fetch-webpage"))
+one_channel = load_skill(Path("autosearch/skills/channels/arxiv"))
 ```
 
 The loader raises `SkillLoadError` with a clear message when validation fails.
@@ -271,9 +270,8 @@ This keeps startup failures local to the broken skill source.
 ## Related Files
 
 - `autosearch/skills/loader.py` implements parsing and validation.
-- `skills/meta/README.md` describes runtime behavior skills.
-- `skills/tools/README.md` describes reusable primitive skills.
 - `autosearch/skills/channels/README.md` describes per-channel search skills.
+- `autosearch/skills/prompts/__init__.py` implements the prompt loader.
 - Plan reference: `~/.claude/plans/autosearch-0418-channels-and-skills.md` section `F001`.
 
 This document is intentionally compile-time focused.
