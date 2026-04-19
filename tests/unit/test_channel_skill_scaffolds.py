@@ -13,14 +13,15 @@ def _load_specs():
     return load_all(_channels_root())
 
 
-def test_all_14_channels_loadable() -> None:
+def test_all_15_channels_loadable() -> None:
     specs = _load_specs()
 
-    assert len(specs) == 14
+    assert len(specs) == 15
     assert [spec.name for spec in specs] == [
         "arxiv",
         "bilibili",
         "ddgs",
+        "devto",
         "douyin",
         "github",
         "hackernews",
@@ -76,6 +77,8 @@ def test_shipped_method_impls_exist_for_registry_channels() -> None:
     expected_impls = {
         "arxiv": ["methods/api_search.py"],
         "ddgs": ["methods/api.py"],
+        "devto": ["methods/api_search.py"],
+        "github": ["methods/search_public_repos.py"],
         "hackernews": ["methods/algolia.py"],
         "papers": ["methods/via_paper_search.py"],
         "reddit": ["methods/api_search.py"],
@@ -97,6 +100,8 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
     assert [channel.name for channel in registry.available()] == [
         "arxiv",
         "ddgs",
+        "devto",
+        "github",
         "hackernews",
         "papers",
         "reddit",
@@ -107,11 +112,30 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
         expected_impls = {
             "arxiv": "methods/api_search.py",
             "ddgs": "methods/api.py",
+            "devto": "methods/api_search.py",
             "hackernews": "methods/algolia.py",
             "papers": "methods/via_paper_search.py",
             "reddit": "methods/api_search.py",
             "stackoverflow": "methods/api_search.py",
         }
+        if spec.name == "github":
+            methods = {method.id: method for method in metadata.methods}
+
+            assert [method.id for method in metadata.available_methods()] == ["search_public_repos"]
+            assert methods["search_public_repos"].available is True
+            assert methods["search_public_repos"].unmet_requires == []
+            assert methods["search_repositories"].available is False
+            assert methods["search_repositories"].unmet_requires == ["impl_missing"]
+            assert methods["search_issues"].available is False
+            assert methods["search_issues"].unmet_requires == ["impl_missing"]
+            assert methods["search_code"].available is False
+            assert methods["search_code"].unmet_requires == ["impl_missing"]
+            continue
+        if spec.name == "devto":
+            assert len(metadata.methods) == 1
+            assert metadata.methods[0].available is True
+            assert metadata.methods[0].unmet_requires == []
+            continue
         if spec.name in expected_impls:
             assert len(metadata.methods) == 1
             assert metadata.methods[0].available is True
