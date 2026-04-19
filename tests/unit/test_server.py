@@ -22,6 +22,13 @@ def _ok_result(channel_empty_calls: dict[str, int] | None = None) -> PipelineRes
         markdown="# Test\n\nBody",
         iterations=2,
         channel_empty_calls=channel_empty_calls or {},
+        routing_trace={
+            "query_type": "code",
+            "priority": ["github"],
+            "skip": ["xiaohongshu"],
+            "fallback_triggered": False,
+            "priority_evidence_count": 6,
+        },
     )
 
 
@@ -36,6 +43,11 @@ def _clarification_result() -> PipelineResult:
             mode=SearchMode.DEEP,
         ),
         iterations=0,
+        routing_trace={
+            "query_type": "deployment",
+            "priority": ["github"],
+            "skip": [],
+        },
     )
 
 
@@ -135,6 +147,13 @@ def test_search_streams_started_and_finished_events(monkeypatch) -> None:
         "iterations": 2,
         "delivery_status": "ok",
         "channel_empty_calls": {},
+        "routing_trace": {
+            "query_type": "code",
+            "priority": ["github"],
+            "skip": ["xiaohongshu"],
+            "fallback_triggered": False,
+            "priority_evidence_count": 6,
+        },
     } in events
     assert pipeline.calls == [("test query", SearchMode.FAST)]
 
@@ -167,9 +186,13 @@ def test_search_streams_needs_clarification_event(monkeypatch) -> None:
         "iterations": 0,
         "channel_empty_calls": {},
         "question": "Which deployment target do you care about?",
+        "routing_trace": {
+            "query_type": "deployment",
+            "priority": ["github"],
+            "skip": [],
+        },
     } in events
     assert pipeline.calls == [("test query", SearchMode.DEEP)]
-
 
 def test_search_endpoint_returns_channel_empty_calls_in_json(monkeypatch) -> None:
     pipeline = _StubPipeline(result=_ok_result(channel_empty_calls={"arxiv": 3}))
@@ -194,3 +217,27 @@ def test_search_endpoint_returns_channel_empty_calls_in_json(monkeypatch) -> Non
 
     assert response.status_code == 200
     assert finished["channel_empty_calls"] == {"arxiv": 3}
+
+
+def test_search_endpoint_includes_routing_trace(monkeypatch) -> None:
+    pipeline = _StubPipeline(result=_ok_result())
+    _install_pipeline_factory(monkeypatch, pipeline)
+    client = TestClient(server_main.app)
+
+    response = client.post(
+        "/search",
+        json={
+            "query": "test query",
+            "scope": {
+                "channel_scope": "all",
+                "depth": "fast",
+                "output_format": "md",
+            },
+        },
+    )
+
+    events = _parse_sse_events(response.text)
+    finished = next(event for event in events if event["type"] == "finished")
+
+    assert finished["routing_trace"]["query_type"] == "code"
+    assert finished["routing_trace"]["priority"] == ["github"]

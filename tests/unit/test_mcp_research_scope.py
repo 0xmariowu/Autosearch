@@ -19,6 +19,14 @@ def _ok_result() -> PipelineResult:
         ),
         markdown="# Test\n\nBody",
         iterations=1,
+        channel_empty_calls={"arxiv": 2},
+        routing_trace={
+            "query_type": "code",
+            "priority": ["github"],
+            "skip": ["xiaohongshu"],
+            "fallback_triggered": False,
+            "priority_evidence_count": 6,
+        },
     )
 
 
@@ -138,3 +146,34 @@ async def test_research_html_format_wraps_markdown(
     assert research_tool is not None
     result = await research_tool.run({"query": "test query", "output_format": "html"})
     assert result.startswith("<!doctype html>")
+
+
+@pytest.mark.asyncio
+async def test_research_response_includes_routing_trace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipeline = _StubPipeline(result=_ok_result())
+    _install_default_factory(monkeypatch, pipeline)
+    server = mcp_server.create_server()
+
+    research_tool = server._tool_manager.get_tool("research")
+
+    assert research_tool is not None
+    result = await research_tool.run({"query": "test query"})
+    assert result.routing_trace["query_type"] == "code"
+    assert result.routing_trace["priority"] == ["github"]
+
+
+@pytest.mark.asyncio
+async def test_research_response_includes_channel_empty_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipeline = _StubPipeline(result=_ok_result())
+    _install_default_factory(monkeypatch, pipeline)
+    server = mcp_server.create_server()
+
+    research_tool = server._tool_manager.get_tool("research")
+
+    assert research_tool is not None
+    result = await research_tool.run({"query": "test query"})
+    assert result.channel_empty_calls == {"arxiv": 2}
