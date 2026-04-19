@@ -33,6 +33,13 @@ def _ok_result(channel_empty_calls: dict[str, int] | None = None) -> PipelineRes
         ),
         iterations=2,
         channel_empty_calls=channel_empty_calls or {},
+        routing_trace={
+            "query_type": "code",
+            "priority": ["github"],
+            "skip": ["xiaohongshu"],
+            "fallback_triggered": False,
+            "priority_evidence_count": 6,
+        },
     )
 
 
@@ -47,6 +54,11 @@ def _clarification_result() -> PipelineResult:
             mode=SearchMode.DEEP,
         ),
         iterations=0,
+        routing_trace={
+            "query_type": "deployment",
+            "priority": ["github"],
+            "skip": [],
+        },
     )
 
 
@@ -136,6 +148,13 @@ def test_cli_query_json_outputs_machine_readable_envelope(monkeypatch) -> None:
         "markdown": "# Test\n\nBody",
         "iterations": 2,
         "channel_empty_calls": {},
+        "routing_trace": {
+            "query_type": "code",
+            "priority": ["github"],
+            "skip": ["xiaohongshu"],
+            "fallback_triggered": False,
+            "priority_evidence_count": 6,
+        },
         "quality_grade": "pass",
         "sources": [],
         "scope": {
@@ -164,3 +183,14 @@ def test_cli_query_exits_two_for_needs_clarification(monkeypatch) -> None:
     assert result.exit_code == 2
     assert result.stdout == ""
     assert result.stderr == "Which deployment target do you care about?\n"
+
+
+def test_cli_json_includes_routing_trace(monkeypatch) -> None:
+    _install_cli_stubs(monkeypatch, _ok_result())
+
+    result = runner.invoke(app, ["query", "test", "--json"])
+
+    payload = json.loads(result.stdout)
+
+    assert payload["routing_trace"]["query_type"] == "code"
+    assert payload["routing_trace"]["priority"] == ["github"]

@@ -10,6 +10,24 @@ from autosearch.core.search_scope import SearchScope, depth_to_mode
 from autosearch.llm.client import LLMClient
 
 
+class ResearchResponse(str):
+    def __new__(
+        cls,
+        content: str,
+        *,
+        channel_empty_calls: dict[str, int],
+        routing_trace: dict[str, object],
+        delivery_status: str,
+        scope: SearchScope,
+    ) -> "ResearchResponse":
+        instance = str.__new__(cls, content)
+        instance.channel_empty_calls = dict(channel_empty_calls)
+        instance.routing_trace = dict(routing_trace)
+        instance.delivery_status = delivery_status
+        instance.scope = scope.model_dump()
+        return instance
+
+
 def _default_pipeline_factory() -> Pipeline:
     return Pipeline(llm=LLMClient(), channels=_build_channels())
 
@@ -44,21 +62,39 @@ def create_server(pipeline_factory: Callable[[], Pipeline] | None = None) -> Fas
         try:
             result = await factory().run(query, mode_hint=mode_hint, scope=scope)
         except Exception as exc:
-            return f"[error] {exc}"
+            return ResearchResponse(
+                f"[error] {exc}",
+                channel_empty_calls={},
+                routing_trace={},
+                delivery_status="error",
+                scope=scope,
+            )
 
         if result.delivery_status == "needs_clarification":
             question = result.clarification.question or "More detail is required."
-            return f"[clarification needed] {question}"
+            return ResearchResponse(
+                f"[clarification needed] {question}",
+                channel_empty_calls=result.channel_empty_calls,
+                routing_trace=result.routing_trace,
+                delivery_status=result.delivery_status,
+                scope=scope,
+            )
 
         banner = _scope_banner(scope)
         markdown_text = result.markdown or ""
         if banner is not None:
             markdown_text = f"{banner}\n\n{markdown_text}" if markdown_text else banner
 
-        return _render_output(
-            markdown_text=markdown_text,
-            title=query,
-            output_format=scope.output_format,
+        return ResearchResponse(
+            _render_output(
+                markdown_text=markdown_text,
+                title=query,
+                output_format=scope.output_format,
+            ),
+            channel_empty_calls=result.channel_empty_calls,
+            routing_trace=result.routing_trace,
+            delivery_status=result.delivery_status,
+            scope=scope,
         )
 
     @server.tool()

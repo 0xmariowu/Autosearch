@@ -194,6 +194,7 @@ def query(
                     "markdown": rendered_output,
                     "iterations": result.iterations,
                     "channel_empty_calls": result.channel_empty_calls,
+                    "routing_trace": result.routing_trace,
                     "quality_grade": (
                         result.quality.grade.value if result.quality is not None else None
                     ),
