@@ -115,20 +115,57 @@ def _sanitize_response_json(
     return {"payload": sanitized}
 
 
+def _normalize_base_url(base_url: str) -> str:
+    return base_url[:-1] if base_url.endswith("/") else base_url
+
+
 class TikhubClient:
     def __init__(
         self,
         api_key: str | None = None,
+        base_url: str | None = None,
+        proxy_token: str | None = None,
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
-        self.api_key = api_key or os.getenv("TIKHUB_API_KEY")
-        if not self.api_key:
-            raise ValueError("TIKHUB_API_KEY is required for TikHub access.")
         self.http_client = http_client
+        explicit_base_url = _normalize_base_url(base_url) if base_url is not None else None
+        proxy_url = os.getenv("AUTOSEARCH_PROXY_URL")
+        env_proxy_url = _normalize_base_url(proxy_url) if proxy_url else None
+
+        if explicit_base_url is not None and api_key is not None:
+            self.base_url = explicit_base_url
+            self._auth_header_value = f"Bearer {api_key}"
+            return
+
+        if explicit_base_url is not None and proxy_token is not None:
+            self.base_url = explicit_base_url
+            self._auth_header_value = f"Bearer {proxy_token}"
+            return
+
+        if env_proxy_url:
+            resolved_proxy_token = proxy_token or os.getenv("AUTOSEARCH_PROXY_TOKEN")
+            if not resolved_proxy_token:
+                raise ValueError(
+                    "AUTOSEARCH_PROXY_TOKEN is required when AUTOSEARCH_PROXY_URL is set."
+                )
+
+            self.base_url = explicit_base_url or env_proxy_url
+            self._auth_header_value = f"Bearer {resolved_proxy_token}"
+            return
+
+        tikhub_base_url = os.getenv("TIKHUB_BASE_URL")
+        env_tikhub_base_url = _normalize_base_url(tikhub_base_url) if tikhub_base_url else None
+        self.base_url = explicit_base_url or env_tikhub_base_url or BASE_URL
+
+        resolved_api_key = api_key or os.getenv("TIKHUB_API_KEY")
+        if not resolved_api_key:
+            raise ValueError("TIKHUB_API_KEY is required for TikHub access.")
+
+        self._auth_header_value = f"Bearer {resolved_api_key}"
 
     async def get(self, path: str, params: dict[str, object]) -> dict[str, object]:
         url = self._build_url(path)
-        headers = {"Authorization": f"Bearer {self.api_key}"}
+        headers = {"Authorization": self._auth_header_value}
 
         for attempt in range(len(RETRY_DELAYS_SECONDS) + 1):
             try:
@@ -184,10 +221,15 @@ class TikhubClient:
 
         return {"payload": sanitized}
 
-    @staticmethod
-    def _build_url(path: str) -> str:
+    def _build_url(self, path: str) -> str:
         normalized_path = path if path.startswith("/") else f"/{path}"
-        return f"{BASE_URL}{normalized_path}"
+        # Callers pass full API paths, so only strip a duplicate /api/v1 when base_url already embeds it.
+        if self.base_url.endswith("/api/v1") and (
+            normalized_path == "/api/v1" or normalized_path.startswith("/api/v1/")
+        ):
+            normalized_path = normalized_path.removeprefix("/api/v1")
+
+        return f"{self.base_url}{normalized_path}"
 
     async def _request(
         self,
