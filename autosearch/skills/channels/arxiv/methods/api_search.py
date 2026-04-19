@@ -12,7 +12,7 @@ LOGGER = structlog.get_logger(__name__).bind(component="channel", channel="arxiv
 
 MAX_RESULTS = 10
 HTTP_TIMEOUT = 30.0
-BASE_URL = "http://export.arxiv.org/api/query"
+BASE_URL = "https://export.arxiv.org/api/query"
 
 
 def _normalize_whitespace(text: str) -> str:
@@ -21,7 +21,7 @@ def _normalize_whitespace(text: str) -> str:
 
 async def search(query: SubQuery) -> list[Evidence]:
     try:
-        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, follow_redirects=True) as client:
             response = await client.get(
                 BASE_URL,
                 params={
