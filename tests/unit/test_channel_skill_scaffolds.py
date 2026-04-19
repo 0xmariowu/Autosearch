@@ -13,10 +13,10 @@ def _load_specs():
     return load_all(_channels_root())
 
 
-def test_all_21_channels_loadable() -> None:
+def test_all_23_channels_loadable() -> None:
     specs = _load_specs()
 
-    assert len(specs) == 21
+    assert len(specs) == 23
     assert [spec.name for spec in specs] == [
         "arxiv",
         "bilibili",
@@ -26,9 +26,11 @@ def test_all_21_channels_loadable() -> None:
         "github",
         "google_news",
         "hackernews",
+        "infoq_cn",
         "kr36",
         "package_search",
         "papers",
+        "podcast_cn",
         "reddit",
         "sogou_weixin",
         "stackoverflow",
@@ -62,7 +64,7 @@ def test_fallback_chain_matches_methods() -> None:
         assert set(spec.fallback_chain).issubset(method_ids)
 
 
-def test_chinese_native_channels_cover_7() -> None:
+def test_chinese_native_channels_cover_9() -> None:
     chinese_native = {
         spec.name
         for spec in _load_specs()
@@ -72,13 +74,15 @@ def test_chinese_native_channels_cover_7() -> None:
     assert chinese_native == {
         "bilibili",
         "douyin",
+        "infoq_cn",
         "kr36",
+        "podcast_cn",
         "sogou_weixin",
         "weibo",
         "xiaohongshu",
         "zhihu",
     }
-    assert len(chinese_native) == 7
+    assert len(chinese_native) == 9
 
 
 def test_shipped_method_impls_exist_for_registry_channels() -> None:
@@ -91,8 +95,10 @@ def test_shipped_method_impls_exist_for_registry_channels() -> None:
         "github": ["methods/search_public_repos.py"],
         "google_news": ["methods/api_search.py"],
         "hackernews": ["methods/algolia.py"],
+        "infoq_cn": ["methods/api_search.py"],
         "kr36": ["methods/api_search.py"],
         "package_search": ["methods/api_search.py"],
+        "podcast_cn": ["methods/api_search.py"],
         "papers": ["methods/via_paper_search.py"],
         "reddit": ["methods/api_search.py"],
         "sogou_weixin": ["methods/api_search.py"],
@@ -122,9 +128,11 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
         "github",
         "google_news",
         "hackernews",
+        "infoq_cn",
         "kr36",
         "package_search",
         "papers",
+        "podcast_cn",
         "reddit",
         "sogou_weixin",
         "stackoverflow",
@@ -139,8 +147,10 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
             "devto": "methods/api_search.py",
             "google_news": "methods/api_search.py",
             "hackernews": "methods/algolia.py",
+            "infoq_cn": "methods/api_search.py",
             "kr36": "methods/api_search.py",
             "package_search": "methods/api_search.py",
+            "podcast_cn": "methods/api_search.py",
             "papers": "methods/via_paper_search.py",
             "reddit": "methods/api_search.py",
             "sogou_weixin": "methods/api_search.py",
