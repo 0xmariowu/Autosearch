@@ -93,7 +93,7 @@ AutoSearch runs as:
 Generated from `autosearch/skills/channels/*/SKILL.md`. Run `.venv/bin/python scripts/generate_channels_table.py` after adding or changing a channel.
 
 <!-- channels-table-start -->
-### Tier 0 - always-on (19)
+### Tier 0 - always-on (20)
 | Channel | Languages | Description | Typical yield |
 |---|---|---|---|
 | arxiv | en | Use for academic preprint searches in CS/ML/physics when query is English or mixed and expects peer-reviewed or preprint papers. | medium-high |
@@ -113,6 +113,7 @@ Generated from `autosearch/skills/channels/*/SKILL.md`. Run `.venv/bin/python sc
 | sec_edgar | en | US public company filings (10-K, 10-Q, 8-K) via SEC EDGAR full-text search — financial and regulatory disclosures for research. | medium |
 | sogou_weixin | zh, mixed | Chinese WeChat Official Account articles via the public Sogou WeChat search SERP. | high |
 | stackoverflow | en, mixed | Programming Q&A with community-voted answers across 200+ technical tags via api.stackexchange.com. | high |
+| v2ex | zh, mixed | Chinese developer community discussions on programming, tech, and career — useful for native-zh developer sentiment and niche technical troubleshooting. | medium |
 | wikidata | en, mixed | Structured entity data (people, places, concepts) from Wikidata knowledge graph. | medium |
 | wikipedia | en, mixed | Authoritative encyclopedia articles via the Wikipedia Action API (English edition). | high |
 
