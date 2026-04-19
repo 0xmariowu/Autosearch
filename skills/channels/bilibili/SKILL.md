@@ -3,10 +3,14 @@
 
 ---
 name: bilibili
-description: Chinese video platform for tech tutorials, comparison videos, gaming/ACG, and expert breakdowns — use for visual content in Chinese.
+description: Chinese tech video platform with tutorials, conference recordings, and uploader-authored articles, via TikHub.
 version: 1
 languages: [zh, mixed]
 methods:
+  - id: via_tikhub
+    impl: methods/via_tikhub.py
+    requires: [env:TIKHUB_API_KEY]
+    rate_limit: {per_min: 60, per_hour: 1000}
   - id: api_search
     impl: methods/api_search.py
     requires: []
@@ -15,7 +19,7 @@ methods:
     impl: methods/api_video_detail.py
     requires: [cookie:bilibili]
     rate_limit: {per_min: 20, per_hour: 300}
-fallback_chain: [api_search, api_video_detail]
+fallback_chain: [via_tikhub, api_search, api_video_detail]
 when_to_use:
   query_languages: [zh, mixed]
   query_types: [tutorial-video, comparison, breakdown, tech-opinion]
@@ -41,12 +45,17 @@ For autosearch coverage, this channel fills a gap between global video search an
 
 ## How To Search (Planned)
 
+- `via_tikhub` - Use TikHub's paid Bilibili general search API to retrieve mixed result groups, then map only video and article results into normalized evidence.
+- `via_tikhub` - Strip Bilibili search-hit HTML markers, normalize uploader identity, and derive canonical video or article URLs from `bvid` / article ids when needed.
 - `api_search` - Call Bilibili search endpoints for videos and creators using Chinese or mixed query text, then rank by topical relevance and engagement.
 - `api_video_detail` - Fetch richer metadata for shortlisted videos with authenticated detail access when `cookie:bilibili` is available.
 - `api_video_detail` - Normalize title, uploader, publish time, duration, play stats, and canonical video URL.
 
 ## Known Quirks
 
+- TikHub billing applies per request, so this route should avoid wasteful exploratory fan-out.
+- Search titles and descriptions can include `<em class="keyword">` hit markers that must be stripped before ranking or display.
+- Only `video` and `article` result types are mapped today; user, live, and topic-style results are intentionally ignored.
 - Basic search works without auth, but video detail and richer metadata are more stable with a valid cookie.
 - Many results are entertainment-adjacent, so ranking must distinguish tech and tutorial intent carefully.
 - Some high-signal tutorials use slang or fandom terminology that generic keyword matching may miss.
