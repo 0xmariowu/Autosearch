@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class SearchMode(StrEnum):
     FAST = "fast"
     DEEP = "deep"
+    COMPREHENSIVE = "comprehensive"
 
 
 class SubQuery(BaseModel):
