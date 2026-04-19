@@ -129,6 +129,11 @@ def test_cli_query_json_outputs_machine_readable_envelope(monkeypatch) -> None:
         "iterations": 2,
         "quality_grade": "pass",
         "sources": [],
+        "scope": {
+            "channel_scope": "all",
+            "depth": "fast",
+            "output_format": "md",
+        },
     }
 
 
