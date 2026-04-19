@@ -92,7 +92,7 @@ class EvaluationResult(BaseModel):
 
 @dataclass(frozen=True)
 class PipelineResult:
-    status: Literal["ok", "needs_clarification"]
+    delivery_status: Literal["ok", "needs_clarification"]
     clarification: ClarifyResult
     markdown: str | None = None
     evidences: list[Evidence] = field(default_factory=list)
