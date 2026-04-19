@@ -141,10 +141,12 @@ async def test_iteration_fallback_not_triggered_when_priority_sufficient() -> No
     channels = [
         FakeChannel(
             "A",
-            [[
-                make_evidence(f"https://example.com/a-{index}", source_channel="A")
-                for index in range(FALLBACK_THRESHOLD)
-            ]],
+            [
+                [
+                    make_evidence(f"https://example.com/a-{index}", source_channel="A")
+                    for index in range(FALLBACK_THRESHOLD)
+                ]
+            ],
             call_order=call_order,
         ),
         FakeChannel(

@@ -212,9 +212,9 @@ class IterationController:
         priority_names = [channel.name for channel in priority_batch]
         _extend_unique_names(self.routing_trace, "priority_ran", priority_names)
         priority_evidence = await self._run_channel_batch(subqueries, priority_batch, iteration)
-        self.routing_trace["priority_evidence_count"] = (
-            int(self.routing_trace.get("priority_evidence_count", 0)) + len(priority_evidence)
-        )
+        self.routing_trace["priority_evidence_count"] = int(
+            self.routing_trace.get("priority_evidence_count", 0)
+        ) + len(priority_evidence)
 
         if len(priority_evidence) >= FALLBACK_THRESHOLD or not rest_batch:
             return priority_evidence
