@@ -90,9 +90,46 @@ AutoSearch runs as:
 - **MCP server**: `autosearch mcp` (or `autosearch-mcp` console script) — exposes a `research` tool to Claude Code, Cursor, and other MCP clients
 - **Claude Code slash command**: `/autosearch` (ships in `commands/autosearch.md`)
 
-## Channels
+## Supported Channels
 
-v2 currently ships `DemoChannel` as a placeholder. Real channel adapters (arxiv, GitHub, HackerNews, Reddit, StackOverflow, YouTube, ProductHunt, DDGS, Semantic Scholar, HuggingFace, npm/PyPI — plus 中文 sources: 小红书 / B 站 / 微信 / 知乎 / 抖音 / 微博) are on the roadmap. See plan roadmap in `docs/delivery-status.md`.
+Generated from `skills/channels/*/SKILL.md`. Run `.venv/bin/python scripts/generate_channels_table.py` after adding or changing a channel.
+
+<!-- channels-table-start -->
+### Tier 0 - always-on (12)
+| Channel | Languages | Description | Typical yield |
+|---|---|---|---|
+| arxiv | en | Use for academic preprint searches in CS/ML/physics when query is English or mixed and expects peer-reviewed or preprint papers. | medium-high |
+| ddgs | en, mixed | DuckDuckGo Search — free general web search with no auth, use as broad default for any English or mixed query. | medium |
+| devto | en, mixed | Developer blog articles tagged by technology topic, via the public dev.to API. | medium |
+| github | en | Use for code-level, issue-level, and repository discovery when query involves a library, framework, or implementation detail. | high |
+| google_news | en, mixed | Current news headlines aggregated across publishers via Google News RSS (English US feed). | high |
+| hackernews | en | Use for real-time developer discussion, tooling opinions, and early-stage product signals from the HN community. | medium-high |
+| package_search | en, mixed | Discover packages across PyPI (exact-name lookup) and npm (full-text search) registries. | medium |
+| papers | en, mixed | Multi-source academic paper search (arxiv, pubmed, biorxiv, medrxiv, google_scholar) via paper-search-mcp. | high |
+| reddit | en, mixed | Reddit community discussions, user experience reports, and topic debates via the public search.json endpoint. | medium |
+| stackoverflow | en, mixed | Programming Q&A with community-voted answers across 200+ technical tags via api.stackexchange.com. | high |
+| wikidata | en, mixed | Structured entity data (people, places, concepts) from Wikidata knowledge graph. | medium |
+| wikipedia | en, mixed | Authoritative encyclopedia articles via the Wikipedia Action API (English edition). | high |
+
+### Tier 1 - env-gated (1)
+| Channel | Languages | Required env | Description | Typical yield |
+|---|---|---|---|---|
+| youtube | en, zh, mixed | env:YOUTUBE_API_KEY | Use for video tutorial discovery, conference talks, technical walkthroughs, and product demos. | medium |
+
+### Tier 2 - BYOK paid (5)
+| Channel | Languages | Required env | Description | Typical yield |
+|---|---|---|---|---|
+| bilibili | zh, mixed | env:TIKHUB_API_KEY | Chinese tech video platform with tutorials, conference recordings, and uploader-authored articles, via TikHub. | medium |
+| douyin | zh | env:TIKHUB_API_KEY | Chinese short-video content with product demos, tech reviews, and viral trends, via TikHub. | medium |
+| twitter | en, mixed | env:TIKHUB_API_KEY | Real-time public discourse including product launches, tech announcements, and breaking news, via TikHub. | medium |
+| xiaohongshu | zh, mixed | env:TIKHUB_API_KEY | Chinese lifestyle + experience-sharing notes with strong product/beauty/travel/food coverage, via TikHub. | high |
+| zhihu | zh, mixed | env:TIKHUB_API_KEY | Chinese Q&A platform with deep technical discussions and user experience reports — use when query is Chinese or mixed and targets developer opinions, comparisons, or tutorials. | medium-high |
+
+### Scaffold-only (channel templates not shipped) (1)
+| Channel | Languages | Description | Typical yield |
+|---|---|---|---|
+| weibo | zh, mixed | Chinese microblog platform for real-time opinion, trending topics, and event-level commentary in Chinese discourse. | medium |
+<!-- channels-table-end -->
 
 ## Contributing
 
