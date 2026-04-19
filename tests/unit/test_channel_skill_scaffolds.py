@@ -16,10 +16,12 @@ def _load_specs():
 def test_all_channels_loadable() -> None:
     specs = _load_specs()
 
-    assert len(specs) == 29
+    assert len(specs) == 31
     assert [spec.name for spec in specs] == [
         "arxiv",
         "bilibili",
+        "crossref",
+        "dblp",
         "ddgs",
         "devto",
         "douyin",
@@ -97,6 +99,8 @@ def test_shipped_method_impls_exist_for_registry_channels() -> None:
     expected_impls = {
         "arxiv": ["methods/api_search.py"],
         "bilibili": ["methods/via_tikhub.py"],
+        "crossref": ["methods/api_search.py"],
+        "dblp": ["methods/api_search.py"],
         "ddgs": ["methods/api.py"],
         "devto": ["methods/api_search.py"],
         "douyin": ["methods/via_tikhub.py"],
@@ -138,6 +142,8 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
 
     assert [channel.name for channel in registry.available()] == [
         "arxiv",
+        "crossref",
+        "dblp",
         "ddgs",
         "devto",
         "github",
@@ -162,6 +168,8 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
         metadata = registry.metadata(spec.name)
         expected_impls = {
             "arxiv": "methods/api_search.py",
+            "crossref": "methods/api_search.py",
+            "dblp": "methods/api_search.py",
             "ddgs": "methods/api.py",
             "devto": "methods/api_search.py",
             "google_news": "methods/api_search.py",
