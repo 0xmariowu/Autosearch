@@ -14,7 +14,7 @@ from autosearch.core.channel_bootstrap import _build_channels
 from autosearch.core.models import SearchMode
 from autosearch.core.pipeline import Pipeline, PipelineResult
 from autosearch.core.scope_clarifier import ScopeClarifier
-from autosearch.core.search_scope import ScopeQuestion, SearchScope
+from autosearch.core.search_scope import ScopeQuestion, SearchScope, depth_to_mode
 from autosearch.init_runner import InitError, InitRunner
 from autosearch.llm.client import LLMClient
 
@@ -127,7 +127,7 @@ def query(
         interactive=interactive,
         json_output=json_output,
     )
-    resolved_mode = _depth_to_mode(scope.depth, mode)
+    resolved_mode = depth_to_mode(scope.depth)
     stream_callback = _stderr_event_writer if stream and not json_output else None
     try:
         result = asyncio.run(
@@ -315,19 +315,6 @@ def _resolve_prompt_answer(answer: str, options: list[str]) -> str | None:
         if normalized == option.lower():
             return option
     return None
-
-
-def _depth_to_mode(depth: str | None, fallback: SearchMode | None) -> SearchMode | None:
-    if depth is None:
-        return fallback
-    normalized = depth.lower()
-    if normalized == "fast":
-        return SearchMode.FAST
-    if normalized == "deep":
-        return SearchMode.DEEP
-    if normalized == "comprehensive":
-        return SearchMode.COMPREHENSIVE
-    raise typer.BadParameter(f"invalid --depth: {depth}")
 
 
 def _render_output(markdown_text: str, title: str, output_format: str) -> str:

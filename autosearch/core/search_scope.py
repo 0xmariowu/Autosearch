@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from autosearch.core.models import SearchMode
+
 ChannelScope = Literal["all", "en_only", "zh_only", "mixed"]
 Depth = Literal["fast", "deep", "comprehensive"]
 OutputFormat = Literal["md", "html"]
@@ -36,3 +38,16 @@ class ScopeQuestion(BaseModel):
     field: Literal["domain_followups", "channel_scope", "depth", "output_format"]
     prompt: str
     options: list[str] = Field(default_factory=list)
+
+
+def depth_to_mode(depth: str | None) -> SearchMode | None:
+    if depth is None:
+        return None
+    normalized = depth.lower()
+    if normalized == "fast":
+        return SearchMode.FAST
+    if normalized == "deep":
+        return SearchMode.DEEP
+    if normalized == "comprehensive":
+        return SearchMode.COMPREHENSIVE
+    raise ValueError(f"invalid depth: {depth}")
