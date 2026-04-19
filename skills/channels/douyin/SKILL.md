@@ -3,15 +3,19 @@
 
 ---
 name: douyin
-description: Chinese short-form video platform for trending content, product launches, consumer commentary, and lifestyle segments in Chinese.
+description: Chinese short-video content with product demos, tech reviews, and viral trends, via TikHub.
 version: 1
 languages: [zh]
 methods:
+  - id: via_tikhub
+    impl: methods/via_tikhub.py
+    requires: [env:TIKHUB_API_KEY]
+    rate_limit: {per_min: 60, per_hour: 1000}
   - id: via_douyin_mcp
     impl: methods/via_douyin_mcp.py
     requires: [mcp:douyin-mcp-server, cookie:douyin]
     rate_limit: {per_min: 10, per_hour: 120}
-fallback_chain: [via_douyin_mcp]
+fallback_chain: [via_tikhub, via_douyin_mcp]
 when_to_use:
   query_languages: [zh]
   query_types: [trending, short-form, product-launch, consumer-commentary, lifestyle]
@@ -37,12 +41,17 @@ For autosearch coverage, this channel adds a format and audience segment that ne
 
 ## How To Search (Planned)
 
+- `via_tikhub` - Use TikHub's paid Douyin search API to discover public video results by keyword without relying on local session cookies.
+- `via_tikhub` - Normalize caption text, creator nickname, canonical share URL, and fallback video URL from `aweme_id` when the share link is missing.
 - `via_douyin_mcp` - Use the `douyin-mcp-server` route with authenticated session access to search clips, creators, and topical results.
 - `via_douyin_mcp` - Normalize clip title or caption, creator identity, publish time, engagement counts, and canonical share URL.
 - `via_douyin_mcp` - Keep extraction lightweight and ranking recency-aware because the platform is heavily short-form and trend-driven.
 
 ## Known Quirks
 
+- TikHub billing applies per request, so this route should stay deliberate rather than broad exploratory search.
+- TikHub search currently exposes caption text only; it does not provide transcript or in-video OCR extraction.
+- Engagement stats are present in the payload but are not yet mapped into `Evidence`; they remain a future rerank signal.
 - The planned route depends on both `mcp:douyin-mcp-server` and `cookie:douyin`.
 - Short-form content is high-noise and can be weak on factual detail without corroboration.
 - Trend vocabulary changes quickly, so rigid keyword matching will miss some relevant clips.
