@@ -1,6 +1,7 @@
 # Self-written, plan autosearch-0418-channels-and-skills.md § F003
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import structlog
@@ -21,6 +22,9 @@ def _build_channels(
     channels_root: Path | None = None,
     env: Environment | None = None,
 ) -> list[Channel]:
+    if os.getenv("AUTOSEARCH_LLM_MODE") == "dummy":
+        return [DemoChannel()]
+
     root = channels_root or _default_channels_root()
     if not root.is_dir():
         # TODO: fall back to importlib.resources once skills/ ships as package data for pipx.
