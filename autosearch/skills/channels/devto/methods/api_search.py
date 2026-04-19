@@ -51,7 +51,7 @@ async def search(
             response = await http_client.get(
                 BASE_URL,
                 params={
-                    "tag": query.text,
+                    "search": query.text,
                     "per_page": MAX_RESULTS,
                 },
             )
@@ -60,7 +60,7 @@ async def search(
                 response = await client.get(
                     BASE_URL,
                     params={
-                        "tag": query.text,
+                        "search": query.text,
                         "per_page": MAX_RESULTS,
                     },
                 )
