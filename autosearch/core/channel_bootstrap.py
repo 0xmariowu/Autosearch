@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from importlib import resources
 from pathlib import Path
 
 import structlog
@@ -14,7 +15,10 @@ LOGGER = structlog.get_logger(__name__).bind(component="channel_bootstrap")
 
 
 def _default_channels_root() -> Path:
-    return Path(__file__).resolve().parents[2] / "skills" / "channels"
+    root = Path(__file__).resolve().parent.parent / "skills" / "channels"
+    if root.is_dir():
+        return root
+    return Path(resources.files("autosearch.skills") / "channels")
 
 
 def _build_channels(
@@ -27,7 +31,6 @@ def _build_channels(
 
     root = channels_root or _default_channels_root()
     if not root.is_dir():
-        # TODO: fall back to importlib.resources once skills/ ships as package data for pipx.
         LOGGER.warning("channel_skills_root_missing", channels_root=str(root))
         return [DemoChannel()]
 

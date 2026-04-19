@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate the 'Supported Channels' table in README.md from skills/channels/*/SKILL.md."""
+"""Regenerate the README channels table from autosearch/skills/channels/*/SKILL.md."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ START_MARKER = "<!-- channels-table-start -->"
 END_MARKER = "<!-- channels-table-end -->"
 TIER_ORDER = ("t0", "t1", "t2", "scaffold")
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CHANNELS_ROOT = REPO_ROOT / "skills" / "channels"
+DEFAULT_CHANNELS_ROOT = REPO_ROOT / "autosearch" / "skills" / "channels"
 DEFAULT_README_PATH = REPO_ROOT / "README.md"
 
 
@@ -45,7 +45,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--channels-root",
         type=Path,
         default=DEFAULT_CHANNELS_ROOT,
-        help="Path to the channel skills root. Defaults to skills/channels in this repo.",
+        help="Path to the channel skills root. Defaults to autosearch/skills/channels.",
     )
     parser.add_argument(
         "--readme",
