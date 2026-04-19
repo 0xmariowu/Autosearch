@@ -16,7 +16,7 @@ from autosearch.core.pipeline import PipelineResult
 runner = CliRunner()
 
 
-def _ok_result() -> PipelineResult:
+def _ok_result(channel_empty_calls: dict[str, int] | None = None) -> PipelineResult:
     return PipelineResult(
         delivery_status="ok",
         clarification=ClarifyResult(
@@ -32,6 +32,7 @@ def _ok_result() -> PipelineResult:
             follow_up_gaps=[],
         ),
         iterations=2,
+        channel_empty_calls=channel_empty_calls or {},
     )
 
 
@@ -134,6 +135,7 @@ def test_cli_query_json_outputs_machine_readable_envelope(monkeypatch) -> None:
         "delivery_status": "ok",
         "markdown": "# Test\n\nBody",
         "iterations": 2,
+        "channel_empty_calls": {},
         "quality_grade": "pass",
         "sources": [],
         "scope": {
@@ -142,6 +144,15 @@ def test_cli_query_json_outputs_machine_readable_envelope(monkeypatch) -> None:
             "output_format": "md",
         },
     }
+
+
+def test_cli_json_output_includes_channel_empty_calls(monkeypatch) -> None:
+    _install_cli_stubs(monkeypatch, _ok_result(channel_empty_calls={"arxiv": 3}))
+
+    result = runner.invoke(app, ["query", "test", "--json"])
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["channel_empty_calls"] == {"arxiv": 3}
 
 
 def test_cli_query_exits_two_for_needs_clarification(monkeypatch) -> None:

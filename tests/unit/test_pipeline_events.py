@@ -143,3 +143,40 @@ async def test_pipeline_awaits_async_event_callbacks() -> None:
 
     assert any(event["type"] == "phase" for event in recorded)
     assert recorded[-1] == {"type": "quality", "grade": "pass", "follow_up_count": 0}
+
+
+async def test_pipeline_result_includes_channel_empty_calls() -> None:
+    client = DummyClient(
+        [
+            {
+                "known_facts": ["Typer is a Python CLI framework."],
+                "gaps": [{"topic": "Current feature coverage", "reason": "Needs fresh evidence"}],
+            },
+            {
+                "need_clarification": False,
+                "question": "",
+                "verification": "Research empty channel result handling.",
+                "rubrics": ["Explain observed behavior"],
+                "mode": "fast",
+            },
+            {
+                "subqueries": [
+                    {"text": "empty channel result behavior", "rationale": "exercise the channel"}
+                ]
+            },
+            {"gaps": []},
+            {"headings": ["Overview"]},
+            {"content": "The channel produced no evidence in this run.", "ref_ids": []},
+            {"grade": "pass", "follow_up_gaps": []},
+        ]
+    )
+    channel = FakeChannel([[]])
+
+    result = await Pipeline(llm=client, channels=[channel]).run(
+        "How are empty channel results exposed?",
+        mode_hint=SearchMode.FAST,
+    )
+
+    assert result.delivery_status == "ok"
+    assert result.evidences == []
+    assert result.channel_empty_calls == {"fake": 1}

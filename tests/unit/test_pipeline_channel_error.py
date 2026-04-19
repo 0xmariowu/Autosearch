@@ -106,6 +106,7 @@ async def test_pipeline_continues_after_channel_error_and_emits_error_event() ->
 
     assert result.delivery_status == "ok"
     assert [evidence.url for evidence in result.evidences] == ["https://example.com/working"]
+    assert result.channel_empty_calls == {}
     assert "Working evidence supports the answer" in (result.markdown or "")
     assert failing_channel.calls == 1
     assert working_channel.calls == 1
