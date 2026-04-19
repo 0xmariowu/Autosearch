@@ -78,6 +78,7 @@ class ChannelMetadata:
 
 class Channel(Protocol):
     name: str
+    languages: list[str]
 
     async def search(self, query: SubQuery) -> list[Evidence]: ...
 
@@ -89,6 +90,7 @@ class _CompiledChannel:
         health_provider: Callable[[], ChannelHealth | None],
     ) -> None:
         self.name = metadata.name
+        self.languages = list(metadata.languages)
         self._metadata = metadata
         self._health_provider = health_provider
         self._methods_by_id = {method.id: method for method in metadata.methods}
