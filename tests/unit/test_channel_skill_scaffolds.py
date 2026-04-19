@@ -80,8 +80,10 @@ def test_chinese_native_channels_cover_5() -> None:
 def test_shipped_method_impls_exist_for_registry_channels() -> None:
     expected_impls = {
         "arxiv": ["methods/api_search.py"],
+        "bilibili": ["methods/via_tikhub.py"],
         "ddgs": ["methods/api.py"],
         "devto": ["methods/api_search.py"],
+        "douyin": ["methods/via_tikhub.py"],
         "github": ["methods/search_public_repos.py"],
         "google_news": ["methods/api_search.py"],
         "hackernews": ["methods/algolia.py"],
@@ -194,6 +196,28 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
             assert methods["via_tikhub"].unmet_requires == ["env:TIKHUB_API_KEY"]
             assert methods["api_search"].available is False
             assert methods["api_search"].unmet_requires == ["impl_missing"]
+            continue
+        if spec.name == "douyin":
+            methods = {method.id: method for method in metadata.methods}
+
+            assert metadata.available_methods() == []
+            assert methods["via_tikhub"].available is False
+            assert methods["via_tikhub"].unmet_requires == ["env:TIKHUB_API_KEY"]
+            for other_id, method in methods.items():
+                if other_id != "via_tikhub":
+                    assert method.available is False
+                    assert method.unmet_requires == ["impl_missing"]
+            continue
+        if spec.name == "bilibili":
+            methods = {method.id: method for method in metadata.methods}
+
+            assert metadata.available_methods() == []
+            assert methods["via_tikhub"].available is False
+            assert methods["via_tikhub"].unmet_requires == ["env:TIKHUB_API_KEY"]
+            for other_id, method in methods.items():
+                if other_id != "via_tikhub":
+                    assert method.available is False
+                    assert method.unmet_requires == ["impl_missing"]
             continue
 
         assert metadata.available_methods() == []
