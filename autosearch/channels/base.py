@@ -179,7 +179,13 @@ class ChannelRegistry:
         self._health: ChannelHealth | None = None
 
     @classmethod
-    def compile_from_skills(cls, channels_root: Path, env: Environment) -> Self:
+    def compile_from_skills(
+        cls,
+        channels_root: Path,
+        env: Environment,
+        *,
+        log_missing_impls: bool = True,
+    ) -> Self:
         registry = cls()
         for skill in load_all(channels_root):
             methods = [
@@ -188,6 +194,7 @@ class ChannelRegistry:
                     skill_dir=skill.skill_dir,
                     method=method,
                     env=env,
+                    log_missing_impls=log_missing_impls,
                 )
                 for method in skill.methods
             ]
@@ -212,15 +219,17 @@ class ChannelRegistry:
         skill_dir: Path,
         method: MethodSpec,
         env: Environment,
+        log_missing_impls: bool,
     ) -> CompiledMethod:
         impl_path = skill_dir / method.impl
         if not impl_path.is_file():
-            LOGGER.info(
-                "channel_method_impl_missing",
-                channel=channel_name,
-                method=method.id,
-                impl=str(impl_path),
-            )
+            if log_missing_impls:
+                LOGGER.info(
+                    "channel_method_impl_missing",
+                    channel=channel_name,
+                    method=method.id,
+                    impl=str(impl_path),
+                )
             return CompiledMethod(
                 id=method.id,
                 skill_method=method,
