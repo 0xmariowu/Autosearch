@@ -19,7 +19,11 @@ methods:
     impl: methods/search_code.py
     requires: [env:GITHUB_TOKEN]
     rate_limit: {per_min: 10, per_hour: 5000}
-fallback_chain: [search_repositories, search_issues, search_code]
+  - id: search_public_repos
+    impl: methods/search_public_repos.py
+    requires: []
+    rate_limit: {per_min: 10, per_hour: 60}
+fallback_chain: [search_repositories, search_issues, search_code, search_public_repos]
 when_to_use:
   query_languages: [en, mixed]
   query_types: [code, library, implementation, debugging, tooling]
@@ -52,7 +56,8 @@ For autosearch, this channel anchors developer intent to concrete artifacts inst
 
 ## Known Quirks
 
-- All planned methods require `GITHUB_TOKEN`; unauthenticated search is too constrained for reliable routing.
+- The richer search methods still require `GITHUB_TOKEN`; `search_public_repos` is the anonymous fallback when no token is present.
+- `search_public_repos` is capped at roughly 10 requests/minute per IP anonymously, compared with about 30 requests/minute when a token is available.
 - Code search is usually the tightest rate-limited method, so it belongs later in the fallback chain.
 - Repository popularity can overwhelm niche but relevant results if ranking is not intent-aware.
 - Issue search returns mixed issue and PR style records, so later impls should normalize thread type carefully.
