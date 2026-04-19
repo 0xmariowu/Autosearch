@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="docs/assets/logo.png" alt="" height="60" style="vertical-align:middle"> AutoSearch
+  <img src="docs/assets/logo.png" alt="" height="60" align="absmiddle">&nbsp;AutoSearch
 </h1>
 
 <p align="center">
