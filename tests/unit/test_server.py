@@ -11,7 +11,7 @@ from autosearch.core.pipeline import PipelineResult
 
 def _ok_result() -> PipelineResult:
     return PipelineResult(
-        status="ok",
+        delivery_status="ok",
         clarification=ClarifyResult(
             need_clarification=False,
             question=None,
@@ -26,7 +26,7 @@ def _ok_result() -> PipelineResult:
 
 def _clarification_result() -> PipelineResult:
     return PipelineResult(
-        status="needs_clarification",
+        delivery_status="needs_clarification",
         clarification=ClarifyResult(
             need_clarification=True,
             question="Which deployment target do you care about?",
@@ -131,7 +131,7 @@ def test_search_streams_started_and_finished_events(monkeypatch) -> None:
         "type": "finished",
         "markdown": "# Test\n\nBody",
         "iterations": 2,
-        "status": "ok",
+        "delivery_status": "ok",
     } in events
     assert pipeline.calls == [("test query", SearchMode.FAST)]
 
@@ -159,7 +159,7 @@ def test_search_streams_needs_clarification_event(monkeypatch) -> None:
     assert response.status_code == 200
     assert {
         "type": "finished",
-        "status": "needs_clarification",
+        "delivery_status": "needs_clarification",
         "iterations": 0,
         "question": "Which deployment target do you care about?",
     } in events

@@ -74,7 +74,7 @@ async def test_pipeline_exits_early_when_clarification_is_required() -> None:
 
     result = await Pipeline(llm=llm, channels=[channel]).run("best search tool")
 
-    assert result.status == "needs_clarification"
+    assert result.delivery_status == "needs_clarification"
     assert result.markdown is None
     assert result.evidences == []
     assert result.quality is None

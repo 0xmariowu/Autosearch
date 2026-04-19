@@ -9,7 +9,7 @@ from autosearch.core.pipeline import PipelineResult
 
 def _ok_result() -> PipelineResult:
     return PipelineResult(
-        status="ok",
+        delivery_status="ok",
         clarification=ClarifyResult(
             need_clarification=False,
             question=None,
@@ -24,7 +24,7 @@ def _ok_result() -> PipelineResult:
 
 def _clarification_result() -> PipelineResult:
     return PipelineResult(
-        status="needs_clarification",
+        delivery_status="needs_clarification",
         clarification=ClarifyResult(
             need_clarification=True,
             question="Which deployment target matters most?",

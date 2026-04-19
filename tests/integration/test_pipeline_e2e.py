@@ -186,7 +186,7 @@ async def test_pipeline_run_produces_report_and_quality_pass() -> None:
         "Should I still use BM25 for lexical search?",
     )
 
-    assert result.status == "ok"
+    assert result.delivery_status == "ok"
     assert result.markdown is not None
     assert "## References" in result.markdown
     assert "## Sources" in result.markdown

@@ -84,7 +84,7 @@ async def test_pipeline_demo_roundtrip_uses_real_llm() -> None:
 
     async with asyncio.timeout(300):
         result = await pipeline.run("retrieval augmented generation")
-        if result.status == "needs_clarification":
+        if result.delivery_status == "needs_clarification":
             # Some providers treat the bare phrase as underspecified. Retry once with an explicit
             # report request instead of looping indefinitely.
             result = await pipeline.run(
@@ -92,7 +92,7 @@ async def test_pipeline_demo_roundtrip_uses_real_llm() -> None:
                 "covering what it is, key architecture tradeoffs, and cited sources."
             )
 
-    assert result.status == "ok"
+    assert result.delivery_status == "ok"
     assert result.markdown is not None
     assert "## References" in result.markdown
     assert "## Sources" in result.markdown

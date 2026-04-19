@@ -22,7 +22,7 @@ def _evidence(url: str, title: str) -> Evidence:
 
 def _ok_result() -> PipelineResult:
     return PipelineResult(
-        status="ok",
+        delivery_status="ok",
         clarification=ClarifyResult(
             need_clarification=False,
             question=None,

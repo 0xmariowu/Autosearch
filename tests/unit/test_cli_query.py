@@ -18,7 +18,7 @@ runner = CliRunner()
 
 def _ok_result() -> PipelineResult:
     return PipelineResult(
-        status="ok",
+        delivery_status="ok",
         clarification=ClarifyResult(
             need_clarification=False,
             question=None,
@@ -37,7 +37,7 @@ def _ok_result() -> PipelineResult:
 
 def _clarification_result() -> PipelineResult:
     return PipelineResult(
-        status="needs_clarification",
+        delivery_status="needs_clarification",
         clarification=ClarifyResult(
             need_clarification=True,
             question="Which deployment target do you care about?",
@@ -131,7 +131,7 @@ def test_cli_query_json_outputs_machine_readable_envelope(monkeypatch) -> None:
     assert result.exit_code == 0
     assert result.stderr == ""
     assert json.loads(result.stdout) == {
-        "status": "ok",
+        "delivery_status": "ok",
         "markdown": "# Test\n\nBody",
         "iterations": 2,
         "quality_grade": "pass",

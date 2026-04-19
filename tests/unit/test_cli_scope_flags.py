@@ -19,7 +19,7 @@ runner = CliRunner()
 
 def _ok_result(markdown: str = "# Test\n\nBody") -> PipelineResult:
     return PipelineResult(
-        status="ok",
+        delivery_status="ok",
         clarification=ClarifyResult(
             need_clarification=False,
             question=None,
