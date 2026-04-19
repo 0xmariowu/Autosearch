@@ -61,7 +61,17 @@ def test_search_streams_phase_events_before_finished(monkeypatch) -> None:
     )
     client = TestClient(server_main.app)
 
-    response = client.post("/search", json={"query": "test query"})
+    response = client.post(
+        "/search",
+        json={
+            "query": "test query",
+            "scope": {
+                "channel_scope": "all",
+                "depth": "fast",
+                "output_format": "md",
+            },
+        },
+    )
 
     events = _parse_sse_events(response.text)
     phase_index = next(index for index, event in enumerate(events) if event["type"] == "phase")
