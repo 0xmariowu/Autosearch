@@ -22,7 +22,7 @@ KNOWN_ENV_KEYS = {
 
 
 def _default_channels_root() -> Path:
-    return Path(__file__).resolve().parents[2] / "skills" / "channels"
+    return Path(__file__).resolve().parent.parent / "skills" / "channels"
 
 
 def _discover_env_keys_from_skills(channels_root: Path) -> set[str]:

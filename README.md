@@ -92,7 +92,7 @@ AutoSearch runs as:
 
 ## Supported Channels
 
-Generated from `skills/channels/*/SKILL.md`. Run `.venv/bin/python scripts/generate_channels_table.py` after adding or changing a channel.
+Generated from `autosearch/skills/channels/*/SKILL.md`. Run `.venv/bin/python scripts/generate_channels_table.py` after adding or changing a channel.
 
 <!-- channels-table-start -->
 ### Tier 0 - always-on (12)
