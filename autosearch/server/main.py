@@ -9,12 +9,14 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError, field_validator
 
 from autosearch import __version__
 from autosearch.core.channel_bootstrap import _build_channels
 from autosearch.core.models import SearchMode
 from autosearch.core.pipeline import Pipeline, PipelineResult
+from autosearch.core.scope_clarifier import ScopeClarifier
+from autosearch.core.search_scope import ScopeQuestion, SearchScope, depth_to_mode
 from autosearch.llm.client import LLMClient
 from autosearch.server.openai_compat import (
     ChatCompletionChunk,
@@ -41,6 +43,14 @@ type PipelineFactory = Callable[[EventCallback | None], Pipeline]
 class SearchRequest(BaseModel):
     query: str
     mode: SearchMode = SearchMode.FAST
+    scope: SearchScope | None = None
+
+    @field_validator("scope", mode="before")
+    @classmethod
+    def _normalize_scope(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            return {key: item for key, item in value.items() if item is not None}
+        return value
 
 
 _DEFAULT_OPENAI_MODEL = "autosearch"
@@ -139,8 +149,8 @@ def _chat_completion_response(
     model: str,
     response_id: str,
     created: int,
+    scope: SearchScope,
 ) -> ChatCompletionResponse:
-    metadata = _chat_completion_metadata(result)
     return ChatCompletionResponse(
         id=response_id,
         created=created,
@@ -151,7 +161,8 @@ def _chat_completion_response(
             )
         ],
         usage=_openai_usage(result),
-        **metadata,
+        metadata={"scope_used": scope.model_dump()},
+        **_chat_completion_result_fields(result),
     )
 
 
@@ -174,7 +185,6 @@ async def _chat_completion_stream(
     )
     yield _encode_sse(role_chunk.model_dump(exclude_none=True))
 
-    metadata = _chat_completion_metadata(result)
     content_chunk = ChatCompletionChunk(
         id=response_id,
         created=created,
@@ -185,7 +195,7 @@ async def _chat_completion_stream(
                 finish_reason="stop",
             )
         ],
-        **metadata,
+        **_chat_completion_result_fields(result),
     )
     yield _encode_sse(content_chunk.model_dump(exclude_none=True))
     yield "data: [DONE]\n\n"
@@ -220,16 +230,42 @@ async def _event_payloads(
     yield _terminal_payload(result)
 
 
-def _chat_completion_metadata(result: PipelineResult) -> dict[str, Any]:
-    metadata: dict[str, Any] = {}
+async def _scope_needed_payloads(
+    questions: list[ScopeQuestion],
+) -> AsyncIterator[dict[str, Any]]:
+    for question in questions:
+        yield {
+            "type": "scope_needed",
+            "field": question.field,
+            "prompt": question.prompt,
+            "options": question.options,
+        }
+
+
+async def _encoded_streaming_payloads(
+    payloads: AsyncIterator[dict[str, Any]],
+) -> AsyncIterator[str]:
+    async for payload in payloads:
+        yield _encode_sse(payload)
+
+
+async def _encoded_eventsource_payloads(
+    payloads: AsyncIterator[dict[str, Any]],
+) -> AsyncIterator[dict[str, str]]:
+    async for payload in payloads:
+        yield {"data": json.dumps(payload, ensure_ascii=False)}
+
+
+def _chat_completion_result_fields(result: PipelineResult) -> dict[str, Any]:
+    response_fields: dict[str, Any] = {}
     visited_urls = _visited_urls(result)
     if visited_urls is not None:
-        metadata["visitedURLs"] = visited_urls
+        response_fields["visitedURLs"] = visited_urls
 
     reasoning_content = _reasoning_content(result)
     if reasoning_content is not None:
-        metadata["reasoning_content"] = reasoning_content
-    return metadata
+        response_fields["reasoning_content"] = reasoning_content
+    return response_fields
 
 
 def _visited_urls(result: PipelineResult) -> list[str] | None:
@@ -361,8 +397,10 @@ async def _streaming_events(
     mode: SearchMode,
     pipeline_factory: PipelineFactory,
 ) -> AsyncIterator[str]:
-    async for payload in _event_payloads(query, mode, pipeline_factory):
-        yield _encode_sse(payload)
+    async for payload in _encoded_streaming_payloads(
+        _event_payloads(query, mode, pipeline_factory)
+    ):
+        yield payload
 
 
 async def _eventsource_events(
@@ -370,8 +408,20 @@ async def _eventsource_events(
     mode: SearchMode,
     pipeline_factory: PipelineFactory,
 ) -> AsyncIterator[dict[str, str]]:
-    async for payload in _event_payloads(query, mode, pipeline_factory):
-        yield {"data": json.dumps(payload, ensure_ascii=False)}
+    async for payload in _encoded_eventsource_payloads(
+        _event_payloads(query, mode, pipeline_factory)
+    ):
+        yield payload
+
+
+def _scope_questions(request: SearchRequest) -> list[ScopeQuestion]:
+    if request.scope is None:
+        provided: dict[str, str] | None = None
+    else:
+        provided = {
+            field: getattr(request.scope, field) for field in request.scope.model_fields_set
+        }
+    return ScopeClarifier().questions_for(provided)
 
 
 @app.get("/health")
@@ -396,8 +446,33 @@ async def chat_completions(request: ChatCompletionRequest):
             code="invalid_messages",
         )
 
+    raw_scope_input = (request.metadata or {}).get("scope")
+    if raw_scope_input is None:
+        scope = SearchScope()
+        mode = _mode_from_reasoning_effort(request.reasoning_effort)
+    else:
+        if not isinstance(raw_scope_input, dict):
+            return _openai_error_response(
+                message="metadata.scope must be an object.",
+                error_type="invalid_request_error",
+                status_code=400,
+                code="invalid_scope",
+            )
+        try:
+            scope = SearchScope(
+                **{key: value for key, value in raw_scope_input.items() if value is not None}
+            )
+        except ValidationError as exc:
+            return _openai_error_response(
+                message=str(exc),
+                error_type="invalid_request_error",
+                status_code=400,
+                code="invalid_scope",
+            )
+        mode = depth_to_mode(scope.depth)
+        assert mode is not None
+
     model_name = _resolve_model_name(request.model)
-    mode = _mode_from_reasoning_effort(request.reasoning_effort)
     response_id = _chat_completion_id()
     created = int(time.time())
 
@@ -421,6 +496,8 @@ async def chat_completions(request: ChatCompletionRequest):
         )
 
     if request.stream:
+        # Keep streamed chunks stable for v1 clients; scope metadata is echoed only on
+        # the non-streaming response envelope.
         return StreamingResponse(
             _chat_completion_stream(
                 result=result,
@@ -436,16 +513,34 @@ async def chat_completions(request: ChatCompletionRequest):
         model=model_name,
         response_id=response_id,
         created=created,
+        scope=scope,
     ).model_dump(exclude_none=True)
 
 
 @app.post("/search")
 async def search(request: SearchRequest):
+    questions = _scope_questions(request)
+    if questions:
+        if EventSourceResponse is not None:
+            return EventSourceResponse(
+                _encoded_eventsource_payloads(_scope_needed_payloads(questions))
+            )
+        return StreamingResponse(
+            _encoded_streaming_payloads(_scope_needed_payloads(questions)),
+            media_type="text/event-stream",
+        )
+
+    mode = request.mode
+    if request.scope is not None:
+        resolved_mode = depth_to_mode(request.scope.depth)
+        assert resolved_mode is not None
+        mode = resolved_mode
+
     if EventSourceResponse is not None:
         return EventSourceResponse(
-            _eventsource_events(request.query, request.mode, _default_pipeline_factory)
+            _eventsource_events(request.query, mode, _default_pipeline_factory)
         )
     return StreamingResponse(
-        _streaming_events(request.query, request.mode, _default_pipeline_factory),
+        _streaming_events(request.query, mode, _default_pipeline_factory),
         media_type="text/event-stream",
     )

@@ -1,5 +1,5 @@
 # Self-written, plan v2.3 § 13.5
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -14,6 +14,7 @@ class ChatCompletionRequest(BaseModel):
     messages: list[ChatMessage]
     stream: bool = False
     reasoning_effort: Literal["low", "medium", "high"] | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class ChatCompletionUsage(BaseModel):
@@ -35,6 +36,7 @@ class ChatCompletionResponse(BaseModel):
     model: str
     choices: list[ChatCompletionChoice]
     usage: ChatCompletionUsage
+    metadata: dict[str, Any] | None = None
     visitedURLs: list[str] | None = None
     reasoning_content: str | None = None
 
