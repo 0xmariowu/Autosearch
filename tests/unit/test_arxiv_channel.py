@@ -35,7 +35,7 @@ def _response(
     text: str,
     *,
     status_code: int = 200,
-    url: str = "http://export.arxiv.org/api/query",
+    url: str = "https://export.arxiv.org/api/query",
     params: dict[str, object] | None = None,
 ) -> httpx.Response:
     return httpx.Response(
@@ -68,7 +68,7 @@ async def test_search_returns_evidence_from_atom_feed(
     assert all(isinstance(item, Evidence) for item in results)
     assert re.compile(r"^https?://arxiv\.org/abs/").search(results[0].url)
     assert all(re.compile(r"^https?://arxiv\.org/abs/").search(item.url) for item in results)
-    assert captured["url"] == "http://export.arxiv.org/api/query"
+    assert captured["url"] == "https://export.arxiv.org/api/query"
     assert captured["params"] == {
         "search_query": "all:retrieval augmented generation",
         "start": 0,
