@@ -42,7 +42,7 @@ def create_server(pipeline_factory: Callable[[], Pipeline] | None = None) -> Fas
         assert mode_hint is not None
 
         try:
-            result = await factory().run(query, mode_hint=mode_hint)
+            result = await factory().run(query, mode_hint=mode_hint, scope=scope)
         except Exception as exc:
             return f"[error] {exc}"
 

@@ -204,12 +204,15 @@ async def _chat_completion_stream(
 async def _event_payloads(
     query: str,
     mode: SearchMode,
+    scope: SearchScope,
     pipeline_factory: PipelineFactory,
 ) -> AsyncIterator[dict[str, Any]]:
     queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
 
     yield {"type": "started", "query": query}
-    pipeline_task = asyncio.create_task(pipeline_factory(queue.put).run(query, mode_hint=mode))
+    pipeline_task = asyncio.create_task(
+        pipeline_factory(queue.put).run(query, mode_hint=mode, scope=scope)
+    )
 
     while not pipeline_task.done():
         try:
@@ -395,10 +398,11 @@ def _format_gap(event: dict[str, object]) -> str | None:
 async def _streaming_events(
     query: str,
     mode: SearchMode,
+    scope: SearchScope,
     pipeline_factory: PipelineFactory,
 ) -> AsyncIterator[str]:
     async for payload in _encoded_streaming_payloads(
-        _event_payloads(query, mode, pipeline_factory)
+        _event_payloads(query, mode, scope, pipeline_factory)
     ):
         yield payload
 
@@ -406,10 +410,11 @@ async def _streaming_events(
 async def _eventsource_events(
     query: str,
     mode: SearchMode,
+    scope: SearchScope,
     pipeline_factory: PipelineFactory,
 ) -> AsyncIterator[dict[str, str]]:
     async for payload in _encoded_eventsource_payloads(
-        _event_payloads(query, mode, pipeline_factory)
+        _event_payloads(query, mode, scope, pipeline_factory)
     ):
         yield payload
 
@@ -477,7 +482,7 @@ async def chat_completions(request: ChatCompletionRequest):
     created = int(time.time())
 
     try:
-        result = await _default_pipeline_factory(None).run(query, mode_hint=mode)
+        result = await _default_pipeline_factory(None).run(query, mode_hint=mode, scope=scope)
     except Exception as exc:
         return _openai_error_response(
             message=str(exc),
@@ -538,9 +543,19 @@ async def search(request: SearchRequest):
 
     if EventSourceResponse is not None:
         return EventSourceResponse(
-            _eventsource_events(request.query, mode, _default_pipeline_factory)
+            _eventsource_events(
+                request.query,
+                mode,
+                request.scope,
+                _default_pipeline_factory,
+            )
         )
     return StreamingResponse(
-        _streaming_events(request.query, mode, _default_pipeline_factory),
+        _streaming_events(
+            request.query,
+            mode,
+            request.scope,
+            _default_pipeline_factory,
+        ),
         media_type="text/event-stream",
     )
