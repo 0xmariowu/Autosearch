@@ -7,6 +7,29 @@ if [ "$branch" = "main" ]; then
   exit 0
 fi
 
+# Stash untracked/modified work-tree files (unrelated to the push) so rebase
+# doesn't abort. trap restores them on every exit path.
+STASH_MARKER="pre-push-auto-$$"
+STASH_CREATED=false
+cleanup_stash() {
+  if [ "$STASH_CREATED" = true ]; then
+    STASH_REF=$(git stash list | grep -F "$STASH_MARKER" | head -1 | cut -d: -f1)
+    if [ -n "$STASH_REF" ]; then
+      if ! git stash pop "$STASH_REF" --quiet; then
+        echo "WARNING: stash pop conflicted. Your changes are preserved in '$STASH_REF' — resolve manually."
+      fi
+    fi
+  fi
+}
+trap cleanup_stash EXIT
+
+if [ -n "$(git status --porcelain)" ]; then
+  if git stash push -u -m "$STASH_MARKER" --quiet; then
+    STASH_CREATED=true
+    echo "Stashed unrelated work-tree changes before rebase ($STASH_MARKER)"
+  fi
+fi
+
 # Rebase on main before push
 git fetch origin main --quiet
 if ! git rebase origin/main --quiet; then
