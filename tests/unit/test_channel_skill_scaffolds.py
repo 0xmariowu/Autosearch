@@ -13,10 +13,10 @@ def _load_specs():
     return load_all(_channels_root())
 
 
-def test_all_12_channels_loadable() -> None:
+def test_all_14_channels_loadable() -> None:
     specs = _load_specs()
 
-    assert len(specs) == 12
+    assert len(specs) == 14
     assert [spec.name for spec in specs] == [
         "arxiv",
         "bilibili",
@@ -25,6 +25,8 @@ def test_all_12_channels_loadable() -> None:
         "github",
         "hackernews",
         "papers",
+        "reddit",
+        "stackoverflow",
         "twitter",
         "weibo",
         "xiaohongshu",
@@ -76,6 +78,8 @@ def test_shipped_method_impls_exist_for_registry_channels() -> None:
         "ddgs": ["methods/api.py"],
         "hackernews": ["methods/algolia.py"],
         "papers": ["methods/via_paper_search.py"],
+        "reddit": ["methods/api_search.py"],
+        "stackoverflow": ["methods/api_search.py"],
         "zhihu": ["methods/via_tikhub.py"],
         "youtube": ["methods/data_api_v3.py"],
     }
@@ -95,6 +99,8 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
         "ddgs",
         "hackernews",
         "papers",
+        "reddit",
+        "stackoverflow",
     ]
     for spec in _load_specs():
         metadata = registry.metadata(spec.name)
@@ -103,6 +109,8 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
             "ddgs": "methods/api.py",
             "hackernews": "methods/algolia.py",
             "papers": "methods/via_paper_search.py",
+            "reddit": "methods/api_search.py",
+            "stackoverflow": "methods/api_search.py",
         }
         if spec.name in expected_impls:
             assert len(metadata.methods) == 1
