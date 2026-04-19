@@ -55,6 +55,8 @@ experience/
 tests/integration/reports/
 tests/integration/tmp/
 tests/integration/sessions/
+tests/perf/channel_wall_time_last.json
+tests/perf/channel_wall_time_baseline.json
 
 # E2B per-run artifacts (transient per-task stdout/stderr logs); master reports live in docs/validation/
 reports/
