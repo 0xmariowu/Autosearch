@@ -11,10 +11,18 @@ from pydantic import ValidationError
 
 from autosearch import __version__
 from autosearch.core.channel_bootstrap import _build_channels
+from autosearch.core.environment_probe import probe_environment
 from autosearch.core.models import SearchMode
 from autosearch.core.pipeline import Pipeline, PipelineResult
 from autosearch.core.scope_clarifier import ScopeClarifier
 from autosearch.core.search_scope import ScopeQuestion, SearchScope, depth_to_mode
+from autosearch.init.channel_status import (
+    TIER_LABELS,
+    TIER_ORDER,
+    ChannelStatus,
+    compile_channel_statuses,
+    default_channels_root,
+)
 from autosearch.init_runner import InitError, InitRunner
 from autosearch.llm.client import LLMClient
 
@@ -189,6 +197,13 @@ def mcp() -> None:
 
 @app.command()
 def init(
+    check_channels: Annotated[
+        bool,
+        typer.Option(
+            "--check-channels",
+            help="Print a tier-grouped status table of all available channels.",
+        ),
+    ] = False,
     overwrite: Annotated[
         bool,
         typer.Option(
@@ -197,6 +212,10 @@ def init(
         ),
     ] = False,
 ) -> None:
+    if check_channels:
+        _print_channel_check()
+        return
+
     runner = InitRunner()
     config_exists = runner.config_path().exists()
     action = "merged" if config_exists and not overwrite else "created"
@@ -225,6 +244,58 @@ def init(
     typer.echo("Next steps:")
     for step in result.next_steps:
         typer.echo(f"- {step}")
+
+
+def _print_channel_check() -> None:
+    channels_root = default_channels_root()
+    if not channels_root.is_dir():
+        typer.echo(f"Channel skills root missing: {channels_root}", err=True)
+        raise typer.Exit(code=1)
+
+    rows = compile_channel_statuses(channels_root, probe_environment())
+    grouped: dict[str, list[ChannelStatus]] = {tier: [] for tier in TIER_ORDER}
+    totals = {"available": 0, "blocked": 0, "scaffold-only": 0}
+    for row in rows:
+        grouped[row.tier].append(row)
+        totals[row.status] += 1
+
+    for tier in TIER_ORDER:
+        typer.echo(f"{TIER_LABELS[tier]} ({len(grouped[tier])})")
+        for row in grouped[tier]:
+            symbol = _channel_status_symbol(row)
+            typer.echo(f"  {symbol} {row.channel:<18}", nl=False)
+            typer.secho(f"{row.status:<14}", fg=_channel_status_color(row.status), nl=False)
+            if row.unmet_requires:
+                typer.echo(f" {', '.join(row.unmet_requires)}")
+            else:
+                typer.echo()
+        typer.echo()
+
+    typer.echo(
+        "Total: "
+        f"{len(rows)} channels | "
+        f"{totals['available']} available | "
+        f"{totals['blocked']} blocked | "
+        f"{totals['scaffold-only']} scaffold-only"
+    )
+
+
+def _channel_status_color(status: str) -> str | None:
+    if status == "available":
+        return typer.colors.GREEN
+    if status == "blocked":
+        return typer.colors.RED
+    if status == "scaffold-only":
+        return typer.colors.YELLOW
+    return None
+
+
+def _channel_status_symbol(row: ChannelStatus) -> str:
+    if row.status == "available":
+        return "✓"
+    if row.status == "blocked":
+        return "✗"
+    return "·"
 
 
 @app.command()
