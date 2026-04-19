@@ -93,7 +93,7 @@ AutoSearch runs as:
 Generated from `autosearch/skills/channels/*/SKILL.md`. Run `.venv/bin/python scripts/generate_channels_table.py` after adding or changing a channel.
 
 <!-- channels-table-start -->
-### Tier 0 - always-on (16)
+### Tier 0 - always-on (18)
 | Channel | Languages | Description | Typical yield |
 |---|---|---|---|
 | arxiv | en | Use for academic preprint searches in CS/ML/physics when query is English or mixed and expects peer-reviewed or preprint papers. | medium-high |
@@ -102,8 +102,10 @@ Generated from `autosearch/skills/channels/*/SKILL.md`. Run `.venv/bin/python sc
 | github | en | Use for code-level, issue-level, and repository discovery when query involves a library, framework, or implementation detail. | high |
 | google_news | en, mixed | Current news headlines aggregated across publishers via Google News RSS (English US feed). | high |
 | hackernews | en | Use for real-time developer discussion, tooling opinions, and early-stage product signals from the HN community. | medium-high |
+| huggingface_hub | en, mixed | Discover open machine learning models on Hugging Face Hub via the public model search API. | high |
 | infoq_cn | zh, mixed | Chinese engineering articles covering architecture, AI, and enterprise tech from InfoQ 中文, via public RSS feed. | medium |
 | kr36 | zh, mixed | Chinese tech business news, startup funding, and industry analysis from 36kr. | medium |
+| openalex | en, mixed | Search scholarly works through OpenAlex's public works search API with open-access URL fallback. | high |
 | package_search | en, mixed | Discover packages across PyPI (exact-name lookup) and npm (full-text search) registries. | medium |
 | papers | en, mixed | Multi-source academic paper search (arxiv, pubmed, biorxiv, medrxiv, google_scholar) via paper-search-mcp. | high |
 | podcast_cn | zh, mixed | Chinese-language podcasts searchable via the Apple iTunes store public API. | low |
