@@ -17,7 +17,7 @@ AutoSearch uses three skill categories:
 
 1. `skills/meta/` for runtime agent behavior that may be compiled into pipeline prompts.
 2. `skills/tools/` for reusable primitives such as cookie access, rate limiting, or fetch helpers.
-3. `skills/channels/` for per-channel search capabilities compiled at startup.
+3. `autosearch/skills/channels/` for per-channel search capabilities compiled at startup.
 
 The important split is compile time versus runtime:
 
@@ -38,7 +38,7 @@ Each skill directory should contain:
 Typical channel layout:
 
 ```text
-skills/channels/arxiv/
+autosearch/skills/channels/arxiv/
 ├── SKILL.md
 └── methods/
     ├── api_search.py
@@ -249,7 +249,7 @@ from pathlib import Path
 
 from autosearch.skills.loader import load_all, load_skill
 
-channels_root = Path("skills/channels")
+channels_root = Path("autosearch/skills/channels")
 channel_specs = load_all(channels_root)
 one_tool = load_skill(Path("skills/tools/fetch-webpage"))
 ```
@@ -273,7 +273,7 @@ This keeps startup failures local to the broken skill source.
 - `autosearch/skills/loader.py` implements parsing and validation.
 - `skills/meta/README.md` describes runtime behavior skills.
 - `skills/tools/README.md` describes reusable primitive skills.
-- `skills/channels/README.md` describes per-channel search skills.
+- `autosearch/skills/channels/README.md` describes per-channel search skills.
 - Plan reference: `~/.claude/plans/autosearch-0418-channels-and-skills.md` section `F001`.
 
 This document is intentionally compile-time focused.
