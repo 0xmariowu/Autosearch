@@ -33,6 +33,7 @@ class IterationController:
     def __init__(self, evidence_processor: EvidenceProcessor | None = None) -> None:
         self.evidence_processor = evidence_processor or EvidenceProcessor()
         self.logger = structlog.get_logger(__name__).bind(component="iteration_controller")
+        self._empty_counts: dict[str, int] = {}
 
     async def run(
         self,
@@ -42,6 +43,7 @@ class IterationController:
         budget: IterationBudget,
         client: LLMClient,
     ) -> list[Evidence]:
+        self._empty_counts = {}
         if budget.max_iterations <= 0 or not initial_queries or not channels:
             return []
 
@@ -155,6 +157,9 @@ class IterationController:
 
         return accumulated_evidence
 
+    def empty_counts_by_channel(self) -> dict[str, int]:
+        return dict(self._empty_counts)
+
     async def _search(
         self,
         subqueries: list[SubQuery],
@@ -169,18 +174,42 @@ class IterationController:
 
         evidences: list[Evidence] = []
         for (channel_name, query_text), result in zip(task_metadata, results, strict=True):
-            if isinstance(result, Exception):
-                self.logger.warning(
-                    "channel_search_failed",
+            evidences.extend(
+                await self._handle_search_result(
+                    channel_name=channel_name,
+                    query_text=query_text,
+                    result=result,
                     iteration=iteration,
-                    channel=channel_name,
-                    subquery=query_text,
-                    error=str(result),
                 )
-                continue
-            evidences.extend(result)
+            )
 
         return evidences
+
+    async def _handle_search_result(
+        self,
+        *,
+        channel_name: str,
+        query_text: str,
+        result: list[Evidence] | Exception,
+        iteration: int,
+    ) -> list[Evidence]:
+        if isinstance(result, Exception):
+            self.logger.warning(
+                "channel_search_failed",
+                iteration=iteration,
+                channel=channel_name,
+                subquery=query_text,
+                error=str(result),
+            )
+            return []
+        if result == []:
+            self._empty_counts[channel_name] = self._empty_counts.get(channel_name, 0) + 1
+            self.logger.warning(
+                "channel_empty_result",
+                channel=channel_name,
+                subquery=query_text[:80],
+            )
+        return result
 
     def _summarize(self, evidences: list[Evidence], query: str) -> list[Evidence]:
         deduped = self.evidence_processor.dedup_urls(evidences)
