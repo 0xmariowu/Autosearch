@@ -1,40 +1,14 @@
 # Source: storm/knowledge_storm/storm_wiki/modules/article_generation.py:L136-L177 (adapted)
 import re
-from textwrap import dedent
 
 import structlog
 from pydantic import BaseModel, Field
 
 from autosearch.core.models import Evidence, Section
 from autosearch.llm.client import LLMClient
+from autosearch.skills.prompts import load_prompt
 
-SECTION_WRITE_PROMPT = dedent(
-    """\
-    Write the body content for this report section using only the provided evidence.
-
-    <Section heading>
-    {heading}
-    </Section heading>
-
-    <Evidence list>
-    {evidence_context}
-    </Evidence list>
-
-    Respond in valid JSON with this exact schema:
-    {{
-      "content": "section body in markdown",
-      "ref_ids": [1, 2]
-    }}
-
-    Rules:
-    - Use inline citations like [1], [2], ... directly in the prose
-    - The citation number must equal the evidence list index plus 1
-    - Use only citation numbers that exist in the provided evidence list
-    - Do not include the section heading line itself in the content
-    - Do not add a references section
-    - Return "ref_ids" as the 1-based evidence indexes actually cited in the content
-    """
-).strip()
+SECTION_WRITE_PROMPT = load_prompt("m7_section_write")
 
 _INLINE_CITATION_RE = re.compile(r"\[(\d+)\]")
 

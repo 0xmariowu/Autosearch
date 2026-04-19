@@ -1,37 +1,12 @@
 # Source: storm/knowledge_storm/storm_wiki/modules/outline_generation.py:L128-L167 (adapted)
-from textwrap import dedent
-
 import structlog
 from pydantic import BaseModel, Field
 
 from autosearch.core.models import Evidence
 from autosearch.llm.client import LLMClient
+from autosearch.skills.prompts import load_prompt
 
-OUTLINE_PROMPT = dedent(
-    """\
-    Create a concise report outline for the research task below.
-
-    <User query>
-    {query}
-    </User query>
-
-    <Evidence>
-    {evidence_context}
-    </Evidence>
-
-    Respond in valid JSON with this exact schema:
-    {{
-      "headings": ["section heading", "section heading"]
-    }}
-
-    Rules:
-    - Return 2 to 6 section headings when possible
-    - Make the headings complementary rather than redundant
-    - Use the same language as the user query
-    - Return headings only, without markdown markers or numbering
-    - Prefer headings that reflect the evidence already collected
-    """
-).strip()
+OUTLINE_PROMPT = load_prompt("m7_outline")
 
 
 class OutlineResponse(BaseModel):
