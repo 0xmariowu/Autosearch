@@ -13,10 +13,10 @@ def _load_specs():
     return load_all(_channels_root())
 
 
-def test_all_16_channels_loadable() -> None:
+def test_all_18_channels_loadable() -> None:
     specs = _load_specs()
 
-    assert len(specs) == 16
+    assert len(specs) == 18
     assert [spec.name for spec in specs] == [
         "arxiv",
         "bilibili",
@@ -31,6 +31,8 @@ def test_all_16_channels_loadable() -> None:
         "stackoverflow",
         "twitter",
         "weibo",
+        "wikidata",
+        "wikipedia",
         "xiaohongshu",
         "youtube",
         "zhihu",
@@ -85,6 +87,8 @@ def test_shipped_method_impls_exist_for_registry_channels() -> None:
         "papers": ["methods/via_paper_search.py"],
         "reddit": ["methods/api_search.py"],
         "stackoverflow": ["methods/api_search.py"],
+        "wikidata": ["methods/api_search.py"],
+        "wikipedia": ["methods/api_search.py"],
         "zhihu": ["methods/via_tikhub.py"],
         "youtube": ["methods/data_api_v3.py"],
     }
@@ -109,6 +113,8 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
         "papers",
         "reddit",
         "stackoverflow",
+        "wikidata",
+        "wikipedia",
     ]
     for spec in _load_specs():
         metadata = registry.metadata(spec.name)
@@ -121,6 +127,8 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
             "papers": "methods/via_paper_search.py",
             "reddit": "methods/api_search.py",
             "stackoverflow": "methods/api_search.py",
+            "wikidata": "methods/api_search.py",
+            "wikipedia": "methods/api_search.py",
         }
         if spec.name == "github":
             methods = {method.id: method for method in metadata.methods}
