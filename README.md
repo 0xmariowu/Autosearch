@@ -95,7 +95,7 @@ AutoSearch runs as:
 Generated from `autosearch/skills/channels/*/SKILL.md`. Run `.venv/bin/python scripts/generate_channels_table.py` after adding or changing a channel.
 
 <!-- channels-table-start -->
-### Tier 0 - always-on (12)
+### Tier 0 - always-on (14)
 | Channel | Languages | Description | Typical yield |
 |---|---|---|---|
 | arxiv | en | Use for academic preprint searches in CS/ML/physics when query is English or mixed and expects peer-reviewed or preprint papers. | medium-high |
@@ -104,9 +104,11 @@ Generated from `autosearch/skills/channels/*/SKILL.md`. Run `.venv/bin/python sc
 | github | en | Use for code-level, issue-level, and repository discovery when query involves a library, framework, or implementation detail. | high |
 | google_news | en, mixed | Current news headlines aggregated across publishers via Google News RSS (English US feed). | high |
 | hackernews | en | Use for real-time developer discussion, tooling opinions, and early-stage product signals from the HN community. | medium-high |
+| kr36 | zh, mixed | Chinese tech business news, startup funding, and industry analysis from 36kr. | medium |
 | package_search | en, mixed | Discover packages across PyPI (exact-name lookup) and npm (full-text search) registries. | medium |
 | papers | en, mixed | Multi-source academic paper search (arxiv, pubmed, biorxiv, medrxiv, google_scholar) via paper-search-mcp. | high |
 | reddit | en, mixed | Reddit community discussions, user experience reports, and topic debates via the public search.json endpoint. | medium |
+| sogou_weixin | zh, mixed | Chinese WeChat Official Account articles via the public Sogou WeChat search SERP. | high |
 | stackoverflow | en, mixed | Programming Q&A with community-voted answers across 200+ technical tags via api.stackexchange.com. | high |
 | wikidata | en, mixed | Structured entity data (people, places, concepts) from Wikidata knowledge graph. | medium |
 | wikipedia | en, mixed | Authoritative encyclopedia articles via the Wikipedia Action API (English edition). | high |
