@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from datetime import UTC, datetime
 
 import structlog
@@ -25,23 +26,40 @@ SOURCES: dict[str, type] = {
 }
 
 
+PER_SOURCE_TIMEOUT_SECONDS = 8.0
+
+
 async def search(
     query: SubQuery,
     *,
     sources: dict[str, type] | None = None,
     max_results_per_source: int = 5,
+    per_source_timeout_seconds: float = PER_SOURCE_TIMEOUT_SECONDS,
 ) -> list[Evidence]:
+    if os.getenv("AUTOSEARCH_LLM_MODE") == "dummy":
+        return []
     active_sources = sources or SOURCES
     fetched_at = datetime.now(UTC)
     source_items = list(active_sources.items())
     tasks = [
-        asyncio.to_thread(_search_source, searcher_cls, query.text, max_results_per_source)
+        asyncio.wait_for(
+            asyncio.to_thread(_search_source, searcher_cls, query.text, max_results_per_source),
+            timeout=per_source_timeout_seconds,
+        )
         for _, searcher_cls in source_items
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     evidence_by_source: dict[str, list[Evidence]] = {}
     for (source_name, _), result in zip(source_items, results, strict=True):
+        if isinstance(result, TimeoutError):
+            LOGGER.warning(
+                "papers_source_timeout",
+                source=source_name,
+                timeout_seconds=per_source_timeout_seconds,
+            )
+            evidence_by_source[source_name] = []
+            continue
         if isinstance(result, Exception):
             LOGGER.warning("papers_source_failed", source=source_name, reason=str(result))
             evidence_by_source[source_name] = []
