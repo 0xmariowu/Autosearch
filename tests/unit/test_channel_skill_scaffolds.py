@@ -13,10 +13,10 @@ def _load_specs():
     return load_all(_channels_root())
 
 
-def test_all_27_channels_loadable() -> None:
+def test_all_channels_loadable() -> None:
     specs = _load_specs()
 
-    assert len(specs) == 27
+    assert len(specs) == 28
     assert [spec.name for spec in specs] == [
         "arxiv",
         "bilibili",
@@ -35,6 +35,7 @@ def test_all_27_channels_loadable() -> None:
         "papers",
         "podcast_cn",
         "reddit",
+        "sec_edgar",
         "sogou_weixin",
         "stackoverflow",
         "tiktok",
@@ -109,6 +110,7 @@ def test_shipped_method_impls_exist_for_registry_channels() -> None:
         "podcast_cn": ["methods/api_search.py"],
         "papers": ["methods/via_paper_search.py"],
         "reddit": ["methods/api_search.py"],
+        "sec_edgar": ["methods/api_search.py"],
         "sogou_weixin": ["methods/api_search.py"],
         "stackoverflow": ["methods/api_search.py"],
         "tiktok": ["methods/via_tikhub.py"],
@@ -146,6 +148,7 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
         "papers",
         "podcast_cn",
         "reddit",
+        "sec_edgar",
         "sogou_weixin",
         "stackoverflow",
         "wikidata",
@@ -167,6 +170,7 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
             "podcast_cn": "methods/api_search.py",
             "papers": "methods/via_paper_search.py",
             "reddit": "methods/api_search.py",
+            "sec_edgar": "methods/api_search.py",
             "sogou_weixin": "methods/api_search.py",
             "stackoverflow": "methods/api_search.py",
             "wikidata": "methods/api_search.py",
