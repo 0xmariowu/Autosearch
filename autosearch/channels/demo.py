@@ -6,6 +6,8 @@ from autosearch.core.models import Evidence, SubQuery
 
 
 class DemoChannel:
+    languages: list[str] = ["en", "mixed"]
+
     def __init__(self, name: str = "demo") -> None:
         self.name = name
 
