@@ -115,6 +115,7 @@ def test_search_streams_started_and_finished_events(monkeypatch) -> None:
         json={
             "query": "test query",
             "scope": {
+                "domain_followups": [],
                 "channel_scope": "all",
                 "depth": "fast",
                 "output_format": "md",
@@ -147,6 +148,7 @@ def test_search_streams_needs_clarification_event(monkeypatch) -> None:
             "query": "test query",
             "mode": "deep",
             "scope": {
+                "domain_followups": [],
                 "channel_scope": "all",
                 "depth": "deep",
                 "output_format": "md",

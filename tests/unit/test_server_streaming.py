@@ -73,6 +73,7 @@ def test_search_streams_phase_events_before_finished(monkeypatch) -> None:
         json={
             "query": "test query",
             "scope": {
+                "domain_followups": [],
                 "channel_scope": "all",
                 "depth": "fast",
                 "output_format": "md",
