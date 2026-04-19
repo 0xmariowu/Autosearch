@@ -89,8 +89,10 @@ def test_shipped_method_impls_exist_for_registry_channels() -> None:
         "papers": ["methods/via_paper_search.py"],
         "reddit": ["methods/api_search.py"],
         "stackoverflow": ["methods/api_search.py"],
+        "twitter": ["methods/via_tikhub.py"],
         "wikidata": ["methods/api_search.py"],
         "wikipedia": ["methods/api_search.py"],
+        "xiaohongshu": ["methods/via_tikhub.py"],
         "zhihu": ["methods/via_tikhub.py"],
         "youtube": ["methods/data_api_v3.py"],
     }
@@ -172,6 +174,26 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
             assert methods["api_search"].unmet_requires == ["impl_missing"]
             assert methods["api_answer_detail"].available is False
             assert methods["api_answer_detail"].unmet_requires == ["impl_missing"]
+            continue
+        if spec.name == "xiaohongshu":
+            methods = {method.id: method for method in metadata.methods}
+
+            assert metadata.available_methods() == []
+            assert methods["via_tikhub"].available is False
+            assert methods["via_tikhub"].unmet_requires == ["env:TIKHUB_API_KEY"]
+            assert methods["via_mcporter"].available is False
+            assert methods["via_mcporter"].unmet_requires == ["impl_missing"]
+            assert methods["via_xhs_cli"].available is False
+            assert methods["via_xhs_cli"].unmet_requires == ["impl_missing"]
+            continue
+        if spec.name == "twitter":
+            methods = {method.id: method for method in metadata.methods}
+
+            assert metadata.available_methods() == []
+            assert methods["via_tikhub"].available is False
+            assert methods["via_tikhub"].unmet_requires == ["env:TIKHUB_API_KEY"]
+            assert methods["api_search"].available is False
+            assert methods["api_search"].unmet_requires == ["impl_missing"]
             continue
 
         assert metadata.available_methods() == []
