@@ -7,6 +7,10 @@ description: Chinese Q&A platform with deep technical discussions and user exper
 version: 1
 languages: [zh, mixed]
 methods:
+  - id: via_tikhub
+    impl: methods/via_tikhub.py
+    requires: [env:TIKHUB_API_KEY]
+    rate_limit: {per_min: 60, per_hour: 1000}
   - id: api_search
     impl: methods/api_search.py
     requires: []
@@ -15,7 +19,7 @@ methods:
     impl: methods/api_answer.py
     requires: [cookie:zhihu]
     rate_limit: {per_min: 20, per_hour: 300}
-fallback_chain: [api_search, api_answer_detail]
+fallback_chain: [via_tikhub, api_search, api_answer_detail]
 when_to_use:
   query_languages: [zh, mixed]
   query_types: [technical, experience-report, product-review, tutorial, comparison]
@@ -41,12 +45,14 @@ For autosearch coverage, this channel brings native Chinese discourse that is no
 
 ## How To Search (Planned)
 
+- `via_tikhub` - Use TikHub's paid Zhihu article search API for direct article discovery without relying on local cookies.
 - `api_search` - Use Zhihu search endpoints to discover questions, answers, and articles matching the query, then extract canonical URLs and brief snippets.
 - `api_answer_detail` - Fetch fuller answer detail for shortlisted posts using authenticated endpoints when a cookie is available.
 - `api_answer_detail` - Normalize answer author, vote count, created time, question title, and answer body excerpt for downstream ranking.
 
 ## Known Quirks
 
+- TikHub access is paid and currently costs about `$0.0036/request`, so it should stay first in fallback only where the direct API win justifies spend.
 - Unauthenticated search can work, but deeper answer detail is more reliable with a valid `cookie:zhihu`.
 - Zhihu content quality varies from expert long-form posts to shallow SEO-style reposts.
 - Answer pages can change structure, so detail extraction is more brittle than simple search discovery.
