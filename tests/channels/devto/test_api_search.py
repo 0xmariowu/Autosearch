@@ -52,7 +52,7 @@ def _client(handler) -> httpx.AsyncClient:
 @pytest.mark.asyncio
 async def test_search_maps_devto_articles_to_evidence() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.params["tag"] == "python"
+        assert request.url.params["search"] == "python"
         assert request.url.params["per_page"] == "10"
         return httpx.Response(
             200,
