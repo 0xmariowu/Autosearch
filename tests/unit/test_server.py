@@ -9,7 +9,7 @@ from autosearch.core.models import ClarifyResult, SearchMode
 from autosearch.core.pipeline import PipelineResult
 
 
-def _ok_result() -> PipelineResult:
+def _ok_result(channel_empty_calls: dict[str, int] | None = None) -> PipelineResult:
     return PipelineResult(
         delivery_status="ok",
         clarification=ClarifyResult(
@@ -21,6 +21,7 @@ def _ok_result() -> PipelineResult:
         ),
         markdown="# Test\n\nBody",
         iterations=2,
+        channel_empty_calls=channel_empty_calls or {},
     )
 
 
@@ -133,6 +134,7 @@ def test_search_streams_started_and_finished_events(monkeypatch) -> None:
         "markdown": "# Test\n\nBody",
         "iterations": 2,
         "delivery_status": "ok",
+        "channel_empty_calls": {},
     } in events
     assert pipeline.calls == [("test query", SearchMode.FAST)]
 
@@ -163,6 +165,31 @@ def test_search_streams_needs_clarification_event(monkeypatch) -> None:
         "type": "finished",
         "delivery_status": "needs_clarification",
         "iterations": 0,
+        "channel_empty_calls": {},
         "question": "Which deployment target do you care about?",
     } in events
     assert pipeline.calls == [("test query", SearchMode.DEEP)]
+
+
+def test_search_endpoint_returns_channel_empty_calls_in_json(monkeypatch) -> None:
+    pipeline = _StubPipeline(result=_ok_result(channel_empty_calls={"arxiv": 3}))
+    _install_pipeline_factory(monkeypatch, pipeline)
+    client = TestClient(server_main.app)
+
+    response = client.post(
+        "/search",
+        json={
+            "query": "test query",
+            "scope": {
+                "channel_scope": "all",
+                "depth": "fast",
+                "output_format": "md",
+            },
+        },
+    )
+
+    events = _parse_sse_events(response.text)
+    finished = next(event for event in events if event["type"] == "finished")
+
+    assert response.status_code == 200
+    assert finished["channel_empty_calls"] == {"arxiv": 3}
