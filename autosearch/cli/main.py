@@ -144,7 +144,7 @@ def query(
                 channels=_build_channels(),
                 top_k_evidence=top_k,
                 on_event=stream_callback,
-            ).run(query, mode_hint=resolved_mode)
+            ).run(query, mode_hint=resolved_mode, scope=scope)
         )
     except Exception as exc:
         typer.echo(str(exc), err=True)
