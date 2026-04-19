@@ -113,7 +113,7 @@ async def test_pipeline_emits_phase_iteration_gap_and_quality_events() -> None:
     phase_starts = {(event["phase"], event["status"]) for event in phase_events}
     iteration_events = [event for event in events if event["type"] == "iteration"]
 
-    assert result.status == "ok"
+    assert result.delivery_status == "ok"
     assert len(phase_events) >= 10
     assert {
         ("M0", "start"),

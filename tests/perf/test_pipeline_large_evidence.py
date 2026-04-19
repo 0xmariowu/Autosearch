@@ -167,7 +167,7 @@ async def test_pipeline_handles_five_hundred_evidence_items_quickly() -> None:
     result = await pipeline.run(QUERY)
     elapsed = time.perf_counter() - started_at
 
-    assert result.status == "ok"
+    assert result.delivery_status == "ok"
     assert result.markdown
     assert elapsed < 15.0
     assert channel.call_count == 3

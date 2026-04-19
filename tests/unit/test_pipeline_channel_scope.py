@@ -98,7 +98,7 @@ async def test_pipeline_filters_channels_by_scope_zh_only() -> None:
         scope=SearchScope(channel_scope="zh_only"),
     )
 
-    assert result.status == "ok"
+    assert result.delivery_status == "ok"
     assert en_a.calls == 0
     assert en_b.calls == 0
     assert zh_a.calls == 1
@@ -121,7 +121,7 @@ async def test_pipeline_keeps_all_channels_when_scope_is_all() -> None:
         scope=SearchScope(channel_scope="all"),
     )
 
-    assert result.status == "ok"
+    assert result.delivery_status == "ok"
     assert [channel.calls for channel in channels] == [1, 1, 1, 1]
 
 
@@ -148,7 +148,7 @@ async def test_pipeline_falls_back_when_scope_filter_empty(
         scope=SearchScope(channel_scope="zh_only"),
     )
 
-    assert result.status == "ok"
+    assert result.delivery_status == "ok"
     assert [channel.calls for channel in channels] == [1, 1]
     assert warnings == [
         (
