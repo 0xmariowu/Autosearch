@@ -15,6 +15,7 @@ dependencies = [
   "feedparser",
   "httpx",
   "mcp",
+  "paper-search-mcp",
   "pydantic",
   "pytest",
   "pytest-asyncio",
