@@ -20,6 +20,7 @@ SEARCH_REFLECTION_PROMPT = load_prompt("m3_search_reflection")
 FOLLOW_UP_QUERY_PROMPT = load_prompt("m3_follow_up_query")
 FALLBACK_THRESHOLD = 5
 SUBQUERY_BATCH_SIZE = 3
+logger = structlog.get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -53,7 +54,14 @@ async def generate_perspectives(
 ) -> list[str]:
     """Generate short perspective labels from the query alone."""
 
-    requested_count = max(1, min(num_perspectives, 3))
+    requested_count = num_perspectives
+    if requested_count > 3:
+        logger.warning(
+            "num_perspectives_clamped",
+            requested=requested_count,
+            actual=3,
+        )
+    requested_count = max(1, min(requested_count, 3))
     prompt = PERSPECTIVE_LABELS_PROMPT.format(
         query=query,
         num_perspectives=requested_count,
@@ -113,6 +121,8 @@ class IterationController:
                 num_perspectives=budget.num_perspectives,
             )
         multi_perspective = budget.num_perspectives >= 2 and len(perspectives) >= 2
+        perspective_mode = "multi" if multi_perspective else "single"
+        active_perspective_count = len(perspectives) if multi_perspective else 1
         accumulated_evidence: list[Evidence] = []
         compactor = ContextCompactor(
             token_budget=budget.context_token_budget,
@@ -226,6 +236,8 @@ class IterationController:
                     accumulated=len(accumulated_evidence),
                     gaps=len(batch_gaps),
                     compacted=digest is not None,
+                    perspective_mode=perspective_mode,
+                    num_perspectives=active_perspective_count,
                 )
             self.logger.info(
                 "iteration_phase_completed",
@@ -281,6 +293,8 @@ class IterationController:
                 phase="reflect",
                 iteration=iteration,
                 gaps=len(gaps),
+                perspective_mode=perspective_mode,
+                num_perspectives=active_perspective_count,
             )
 
             all_gaps = _dedup_gaps(gaps + collected_batch_gaps)

@@ -6,8 +6,8 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import BaseModel
 
-from autosearch.core import context_compaction as context_compaction_module
 import autosearch.core.iteration as iteration_module
+from autosearch.core import context_compaction as context_compaction_module
 from autosearch.core.iteration import IterationBudget, IterationController
 from autosearch.core.models import Evidence, EvidenceDigest, Gap, SubQuery
 from autosearch.persistence.session_store import SessionStore
@@ -39,6 +39,18 @@ class FakeChannel:
     async def search(self, query: SubQuery) -> list[Evidence]:
         self.queries.append(query.text)
         return self.responses.pop(0)
+
+
+class RecordingLogger:
+    def __init__(self) -> None:
+        self.info_calls: list[tuple[str, dict[str, object]]] = []
+        self.warning_calls: list[tuple[str, dict[str, object]]] = []
+
+    def info(self, event: str, **kwargs: object) -> None:
+        self.info_calls.append((event, kwargs))
+
+    def warning(self, event: str, **kwargs: object) -> None:
+        self.warning_calls.append((event, kwargs))
 
 
 class ArtifactStoreWithoutLookup:
@@ -832,6 +844,93 @@ async def test_iteration_multi_perspective_research_trace_tags_perspective(
             "perspective": perspectives,
         }
     ]
+
+
+async def test_iteration_batch_log_includes_perspective_mode(monkeypatch) -> None:
+    controller = IterationController()
+    logger = RecordingLogger()
+    monkeypatch.setattr(controller, "logger", logger)
+    channel = FakeChannel(
+        [
+            [make_evidence("https://example.com/one", "First result", "first evidence")],
+            [make_evidence("https://example.com/two", "Second result", "second evidence")],
+        ]
+    )
+    client = DummyClient([])
+    perspectives = [
+        "economic feasibility",
+        "environmental impact",
+    ]
+
+    async def fake_generate_perspectives(
+        query: str,
+        client: DummyClient,
+        *,
+        num_perspectives: int = 3,
+    ) -> list[str]:
+        _ = (query, client, num_perspectives)
+        return perspectives
+
+    async def fake_per_search_reflect_multi_perspective(
+        *,
+        batch_evidence: list[Evidence],
+        query: str,
+        client: DummyClient,
+        batch_subqueries: list[SubQuery] | None = None,
+        perspectives: list[str],
+    ) -> dict[str, list[Gap]]:
+        _ = (batch_evidence, query, client, batch_subqueries)
+        return {perspective: [] for perspective in perspectives}
+
+    async def fake_reflect_multi_perspective(
+        *,
+        query: str,
+        iteration: int,
+        max_iterations: int,
+        subqueries: list[SubQuery],
+        evidences: list[Evidence],
+        perspectives: list[str],
+        client: DummyClient,
+    ) -> dict[str, list[Gap]]:
+        _ = (query, iteration, max_iterations, subqueries, evidences, client)
+        return {perspective: [] for perspective in perspectives}
+
+    monkeypatch.setattr(iteration_module, "generate_perspectives", fake_generate_perspectives)
+    monkeypatch.setattr(
+        controller,
+        "_per_search_reflect_multi_perspective",
+        fake_per_search_reflect_multi_perspective,
+    )
+    monkeypatch.setattr(controller, "_reflect_multi_perspective", fake_reflect_multi_perspective)
+
+    await controller.run(
+        query="renewable energy adoption",
+        initial_queries=make_subqueries(2),
+        channels=[channel],
+        budget=IterationBudget(
+            max_iterations=1,
+            per_channel_rate_limit=0.0,
+            subquery_batch_size=1,
+            num_perspectives=3,
+        ),
+        client=client,
+    )
+
+    batch_completed_calls = [
+        kwargs for event, kwargs in logger.info_calls if event == "iteration_batch_completed"
+    ]
+    assert len(batch_completed_calls) == 2
+    assert all(call["perspective_mode"] == "multi" for call in batch_completed_calls)
+    assert all(call["num_perspectives"] == 2 for call in batch_completed_calls)
+
+    reflect_completed_calls = [
+        kwargs
+        for event, kwargs in logger.info_calls
+        if event == "iteration_phase_completed" and kwargs.get("phase") == "reflect"
+    ]
+    assert len(reflect_completed_calls) == 1
+    assert reflect_completed_calls[0]["perspective_mode"] == "multi"
+    assert reflect_completed_calls[0]["num_perspectives"] == 2
 
 
 async def test_iteration_perspective_generation_error_fallback_runs_single(
