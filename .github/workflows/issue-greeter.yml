@@ -7,8 +7,6 @@ name: Issue Greeter
 #
 # See blueprint:
 #   https://github.com/0xmariowu/AgentLint/blob/main/docs/plans/...  (optional)
-# Plan:
-#   ~/AIMD/cross-project/2026-04-20-ai-native-dev-workflow-overhaul.md §3.7
 
 on:
   issues:
