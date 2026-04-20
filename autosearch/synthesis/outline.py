@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import structlog
 from pydantic import BaseModel, Field
 
-from autosearch.core.models import Evidence, OutlineNode, ResearchTurn, parse_markdown_outline
+from autosearch.core.models import OutlineNode, ResearchTurn, parse_markdown_outline
 from autosearch.llm.client import LLMClient
 from autosearch.skills.prompts import load_prompt
 
@@ -95,30 +95,6 @@ async def refine_outline(
         research_turns=len(normalized_trace),
     )
     return outline
-
-
-class OutlineGenerator:
-    def __init__(self) -> None:
-        self.logger = structlog.get_logger(__name__).bind(component="outline_generator")
-
-    async def outline(
-        self,
-        query: str,
-        evidences: list[Evidence],
-        client: LLMClient,
-    ) -> list[str]:
-        self.logger.info(
-            "outline_generation_started",
-            query=query,
-            evidences=len(evidences),
-        )
-        draft = await draft_outline(query, client)
-        refined = await refine_outline(query, draft, [], client)
-        headings = _top_level_headings(refined)
-        if not headings:
-            headings = [query.strip() or "Overview"]
-        self.logger.info("outline_generation_completed", headings=len(headings))
-        return headings
 
 
 def _parse_outline_response(
