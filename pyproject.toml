@@ -37,6 +37,10 @@ dependencies = [
 browser = [
   "playwright>=1.40",
 ]
+embeddings = [
+  "sentence-transformers>=2.5",
+  "scikit-learn>=1.4",
+]
 
 [project.scripts]
 autosearch = "autosearch.cli.main:app"
