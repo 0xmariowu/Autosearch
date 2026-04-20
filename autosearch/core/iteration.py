@@ -14,10 +14,13 @@ from autosearch.persistence.session_store import SessionStore
 from autosearch.skills.prompts import load_prompt
 
 GAP_REFLECTION_PROMPT = load_prompt("m3_gap_reflection")
+GAP_REFLECTION_PERSPECTIVE_PROMPT = load_prompt("m3_gap_reflection_perspective")
+PERSPECTIVE_LABELS_PROMPT = load_prompt("m3_perspective_labels")
 SEARCH_REFLECTION_PROMPT = load_prompt("m3_search_reflection")
 FOLLOW_UP_QUERY_PROMPT = load_prompt("m3_follow_up_query")
 FALLBACK_THRESHOLD = 5
 SUBQUERY_BATCH_SIZE = 3
+logger = structlog.get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -28,14 +31,48 @@ class IterationBudget:
     context_token_budget: int = 16000
     compact_hot_set_size: int = 10
     compact_trigger_pct: float = 0.8
+    num_perspectives: int = 0
 
 
 class _GapReflectionResponse(BaseModel):
     gaps: list[Gap] = Field(default_factory=list)
 
 
+class _PerspectiveResponse(BaseModel):
+    labels: list[str] = Field(default_factory=list)
+
+
 class _FollowUpQueryResponse(BaseModel):
     subqueries: list[SubQuery] = Field(default_factory=list)
+
+
+async def generate_perspectives(
+    query: str,
+    client: LLMClient,
+    *,
+    num_perspectives: int = 3,
+) -> list[str]:
+    """Generate short perspective labels from the query alone."""
+
+    requested_count = num_perspectives
+    if requested_count > 3:
+        logger.warning(
+            "num_perspectives_clamped",
+            requested=requested_count,
+            actual=3,
+        )
+    requested_count = max(1, min(requested_count, 3))
+    prompt = PERSPECTIVE_LABELS_PROMPT.format(
+        query=query,
+        num_perspectives=requested_count,
+    )
+    try:
+        response = await client.complete(prompt, _PerspectiveResponse)
+    except Exception:
+        return ["default"]
+
+    labels = _clean_perspective_labels(response.labels, limit=requested_count)
+    return labels or ["default"]
 
 
 class IterationController:
@@ -76,6 +113,16 @@ class IterationController:
             return [], research_trace
 
         active_queries = _dedup_subqueries(initial_queries)
+        perspectives = ["default"]
+        if budget.num_perspectives >= 2:
+            perspectives = await generate_perspectives(
+                query,
+                client,
+                num_perspectives=budget.num_perspectives,
+            )
+        multi_perspective = budget.num_perspectives >= 2 and len(perspectives) >= 2
+        perspective_mode = "multi" if multi_perspective else "single"
+        active_perspective_count = len(perspectives) if multi_perspective else 1
         accumulated_evidence: list[Evidence] = []
         compactor = ContextCompactor(
             token_budget=budget.context_token_budget,
@@ -135,12 +182,29 @@ class IterationController:
                 )
                 batch_gaps: list[Gap] = []
                 if run_batch_reflection:
-                    batch_gaps = await self._per_search_reflect(
-                        batch_evidence=batch_evidence,
-                        query=query,
-                        client=client,
-                        batch_subqueries=batch_subqueries,
-                    )
+                    if multi_perspective:
+                        batch_gaps = _dedup_gaps(
+                            [
+                                gap
+                                for gaps in (
+                                    await self._per_search_reflect_multi_perspective(
+                                        batch_evidence=batch_evidence,
+                                        query=query,
+                                        client=client,
+                                        batch_subqueries=batch_subqueries,
+                                        perspectives=perspectives,
+                                    )
+                                ).values()
+                                for gap in gaps
+                            ]
+                        )
+                    else:
+                        batch_gaps = await self._per_search_reflect(
+                            batch_evidence=batch_evidence,
+                            query=query,
+                            client=client,
+                            batch_subqueries=batch_subqueries,
+                        )
                     collected_batch_gaps.extend(batch_gaps)
 
                 digest_id: int | str | None = None
@@ -162,6 +226,8 @@ class IterationController:
                         "digest_id_if_any": digest_id,
                     }
                 )
+                if multi_perspective:
+                    research_trace[-1]["perspective"] = list(perspectives)
                 self.logger.info(
                     "iteration_batch_completed",
                     iteration=iteration,
@@ -170,6 +236,8 @@ class IterationController:
                     accumulated=len(accumulated_evidence),
                     gaps=len(batch_gaps),
                     compacted=digest is not None,
+                    perspective_mode=perspective_mode,
+                    num_perspectives=active_perspective_count,
                 )
             self.logger.info(
                 "iteration_phase_completed",
@@ -193,19 +261,40 @@ class IterationController:
             )
 
             self.logger.info("iteration_phase_started", phase="reflect", iteration=iteration)
-            gaps = await self._reflect(
-                query=query,
-                iteration=iteration,
-                max_iterations=budget.max_iterations,
-                subqueries=active_queries,
-                evidences=accumulated_evidence,
-                client=client,
-            )
+            if multi_perspective:
+                gaps = _dedup_gaps(
+                    [
+                        gap
+                        for gaps in (
+                            await self._reflect_multi_perspective(
+                                query=query,
+                                iteration=iteration,
+                                max_iterations=budget.max_iterations,
+                                subqueries=active_queries,
+                                evidences=accumulated_evidence,
+                                perspectives=perspectives,
+                                client=client,
+                            )
+                        ).values()
+                        for gap in gaps
+                    ]
+                )
+            else:
+                gaps = await self._reflect(
+                    query=query,
+                    iteration=iteration,
+                    max_iterations=budget.max_iterations,
+                    subqueries=active_queries,
+                    evidences=accumulated_evidence,
+                    client=client,
+                )
             self.logger.info(
                 "iteration_phase_completed",
                 phase="reflect",
                 iteration=iteration,
                 gaps=len(gaps),
+                perspective_mode=perspective_mode,
+                num_perspectives=active_perspective_count,
             )
 
             all_gaps = _dedup_gaps(gaps + collected_batch_gaps)
@@ -409,10 +498,62 @@ class IterationController:
         evidences: list[Evidence],
         client: LLMClient,
     ) -> list[Gap]:
-        prompt = GAP_REFLECTION_PROMPT.format(
+        return await self._reflect_for_perspective(
             query=query,
             iteration=iteration,
             max_iterations=max_iterations,
+            subqueries=subqueries,
+            evidences=evidences,
+            perspective=None,
+            client=client,
+        )
+
+    async def _reflect_multi_perspective(
+        self,
+        *,
+        query: str,
+        iteration: int,
+        max_iterations: int,
+        subqueries: list[SubQuery],
+        evidences: list[Evidence],
+        perspectives: list[str],
+        client: LLMClient,
+    ) -> dict[str, list[Gap]]:
+        results = await asyncio.gather(
+            *[
+                self._reflect_for_perspective(
+                    query=query,
+                    iteration=iteration,
+                    max_iterations=max_iterations,
+                    subqueries=subqueries,
+                    evidences=evidences,
+                    perspective=perspective,
+                    client=client,
+                )
+                for perspective in perspectives
+            ]
+        )
+        return dict(zip(perspectives, results, strict=True))
+
+    async def _reflect_for_perspective(
+        self,
+        *,
+        query: str,
+        iteration: int,
+        max_iterations: int,
+        subqueries: list[SubQuery],
+        evidences: list[Evidence],
+        perspective: str | None,
+        client: LLMClient,
+    ) -> list[Gap]:
+        prompt_template = (
+            GAP_REFLECTION_PERSPECTIVE_PROMPT if perspective else GAP_REFLECTION_PROMPT
+        )
+        prompt = prompt_template.format(
+            query=query,
+            iteration=iteration,
+            max_iterations=max_iterations,
+            perspective=perspective or "",
             subqueries=_format_subqueries(subqueries),
             evidence_context=_format_evidence(evidences, max_items=12),
         )
@@ -427,11 +568,53 @@ class IterationController:
         client: LLMClient,
         batch_subqueries: list[SubQuery] | None = None,
     ) -> list[Gap]:
+        return await self._per_search_reflect_for_perspective(
+            batch_evidence=batch_evidence,
+            query=query,
+            client=client,
+            batch_subqueries=batch_subqueries,
+            perspective=None,
+        )
+
+    async def _per_search_reflect_multi_perspective(
+        self,
+        *,
+        batch_evidence: list[Evidence],
+        query: str,
+        client: LLMClient,
+        batch_subqueries: list[SubQuery] | None = None,
+        perspectives: list[str],
+    ) -> dict[str, list[Gap]]:
+        results = await asyncio.gather(
+            *[
+                self._per_search_reflect_for_perspective(
+                    batch_evidence=batch_evidence,
+                    query=query,
+                    client=client,
+                    batch_subqueries=batch_subqueries,
+                    perspective=perspective,
+                )
+                for perspective in perspectives
+            ]
+        )
+        return dict(zip(perspectives, results, strict=True))
+
+    async def _per_search_reflect_for_perspective(
+        self,
+        *,
+        batch_evidence: list[Evidence],
+        query: str,
+        client: LLMClient,
+        batch_subqueries: list[SubQuery] | None = None,
+        perspective: str | None,
+    ) -> list[Gap]:
         prompt = SEARCH_REFLECTION_PROMPT.format(
             query=query,
             batch_subqueries=_format_subqueries(batch_subqueries or []),
             batch_evidence_context=_format_evidence(batch_evidence, max_items=6),
         )
+        if perspective:
+            prompt = _prepend_perspective_block(prompt, perspective)
         response = await client.complete(prompt, _GapReflectionResponse)
         return _dedup_gaps(response.gaps)
 
@@ -485,6 +668,23 @@ def _dedup_gaps(gaps: list[Gap]) -> list[Gap]:
     return deduped
 
 
+def _clean_perspective_labels(labels: list[str], *, limit: int) -> list[str]:
+    seen: set[str] = set()
+    cleaned: list[str] = []
+    for label in labels:
+        normalized = " ".join(label.strip().split())
+        if not normalized or len(normalized) > 60:
+            continue
+        dedup_key = normalized.casefold()
+        if dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+        cleaned.append(normalized)
+        if len(cleaned) >= limit:
+            break
+    return cleaned
+
+
 def _format_subqueries(subqueries: list[SubQuery]) -> str:
     if not subqueries:
         return "- None"
@@ -520,6 +720,10 @@ def _format_evidence(evidences: list[Evidence], max_items: int) -> str:
         formatted.append(f"... {len(evidences) - max_items} additional evidence items omitted")
 
     return "\n\n".join(formatted)
+
+
+def _prepend_perspective_block(prompt: str, perspective: str) -> str:
+    return f"<Perspective lens>\n{perspective}\n</Perspective lens>\n\n{prompt}"
 
 
 def _initial_routing_trace(

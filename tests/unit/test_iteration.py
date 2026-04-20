@@ -1,10 +1,12 @@
 # Self-written, plan v2.3 § 13.5
+import asyncio
 from dataclasses import FrozenInstanceError
 from datetime import UTC, datetime
 
 import pytest
 from pydantic import BaseModel
 
+import autosearch.core.iteration as iteration_module
 from autosearch.core import context_compaction as context_compaction_module
 from autosearch.core.iteration import IterationBudget, IterationController
 from autosearch.core.models import Evidence, EvidenceDigest, Gap, SubQuery
@@ -37,6 +39,18 @@ class FakeChannel:
     async def search(self, query: SubQuery) -> list[Evidence]:
         self.queries.append(query.text)
         return self.responses.pop(0)
+
+
+class RecordingLogger:
+    def __init__(self) -> None:
+        self.info_calls: list[tuple[str, dict[str, object]]] = []
+        self.warning_calls: list[tuple[str, dict[str, object]]] = []
+
+    def info(self, event: str, **kwargs: object) -> None:
+        self.info_calls.append((event, kwargs))
+
+    def warning(self, event: str, **kwargs: object) -> None:
+        self.warning_calls.append((event, kwargs))
 
 
 class ArtifactStoreWithoutLookup:
@@ -585,3 +599,394 @@ def test_iteration_budget_is_frozen() -> None:
 
     with pytest.raises(FrozenInstanceError):
         budget.max_iterations = 2
+
+
+async def test_iteration_single_perspective_backward_compat(monkeypatch) -> None:
+    controller = IterationController()
+    channel = FakeChannel(
+        [[make_evidence("https://example.com/one", "Pricing update", "pricing update evidence")]]
+    )
+    client = DummyClient([])
+    generate_calls = 0
+
+    async def fake_generate_perspectives(
+        query: str,
+        client: DummyClient,
+        *,
+        num_perspectives: int = 3,
+    ) -> list[str]:
+        _ = (query, client, num_perspectives)
+        nonlocal generate_calls
+        generate_calls += 1
+        return ["economic feasibility", "environmental impact", "policy implementation"]
+
+    async def fake_reflect(
+        query: str,
+        iteration: int,
+        max_iterations: int,
+        subqueries: list[SubQuery],
+        evidences: list[Evidence],
+        client: DummyClient,
+    ) -> list[Gap]:
+        _ = (query, iteration, max_iterations, subqueries, evidences, client)
+        return []
+
+    monkeypatch.setattr(iteration_module, "generate_perspectives", fake_generate_perspectives)
+    monkeypatch.setattr(controller, "_reflect", fake_reflect)
+
+    _, research_trace = await controller.run(
+        query="pricing update",
+        initial_queries=[SubQuery(text="pricing update", rationale="seed query")],
+        channels=[channel],
+        budget=IterationBudget(
+            max_iterations=1,
+            per_channel_rate_limit=0.0,
+            num_perspectives=0,
+        ),
+        client=client,
+    )
+
+    assert generate_calls == 0
+    assert research_trace == [
+        {
+            "iteration": 1,
+            "batch_index": 1,
+            "subqueries": ["pricing update"],
+            "gaps": [],
+            "digest_id_if_any": None,
+        }
+    ]
+
+
+async def test_iteration_multi_perspective_reflects_in_parallel(monkeypatch) -> None:
+    controller = IterationController()
+    channel = FakeChannel(
+        [
+            [
+                make_evidence(
+                    "https://example.com/one",
+                    "Perspective update",
+                    "perspective evidence",
+                )
+            ]
+        ]
+    )
+    client = DummyClient([])
+    perspectives = [
+        "economic feasibility",
+        "environmental impact",
+        "policy implementation",
+    ]
+    call_perspectives: list[str] = []
+    active_calls = 0
+    max_active_calls = 0
+
+    async def fake_generate_perspectives(
+        query: str,
+        client: DummyClient,
+        *,
+        num_perspectives: int = 3,
+    ) -> list[str]:
+        _ = (query, client, num_perspectives)
+        return perspectives
+
+    async def fake_reflect_for_perspective(
+        *,
+        query: str,
+        iteration: int,
+        max_iterations: int,
+        subqueries: list[SubQuery],
+        evidences: list[Evidence],
+        perspective: str | None,
+        client: DummyClient,
+    ) -> list[Gap]:
+        _ = (query, iteration, max_iterations, subqueries, evidences, client)
+        assert perspective is not None
+        nonlocal active_calls, max_active_calls
+        call_perspectives.append(perspective)
+        active_calls += 1
+        max_active_calls = max(max_active_calls, active_calls)
+        await asyncio.sleep(0.01)
+        active_calls -= 1
+        return [Gap(topic=f"{perspective} gap", reason="perspective-specific gap")]
+
+    monkeypatch.setattr(iteration_module, "generate_perspectives", fake_generate_perspectives)
+    monkeypatch.setattr(controller, "_reflect_for_perspective", fake_reflect_for_perspective)
+
+    _, research_trace = await controller.run(
+        query="renewable energy adoption",
+        initial_queries=[SubQuery(text="renewable energy adoption", rationale="seed query")],
+        channels=[channel],
+        budget=IterationBudget(
+            max_iterations=1,
+            per_channel_rate_limit=0.0,
+            num_perspectives=3,
+        ),
+        client=client,
+    )
+
+    assert set(call_perspectives) == set(perspectives)
+    assert len(call_perspectives) == 3
+    assert max_active_calls >= 2
+    assert research_trace[0]["perspective"] == perspectives
+
+
+async def test_iteration_multi_perspective_gaps_deduplicated(monkeypatch) -> None:
+    controller = IterationController()
+    channel = FakeChannel(
+        [[make_evidence("https://example.com/one", "Pricing update", "pricing update evidence")]]
+    )
+    client = DummyClient([])
+    follow_up_gaps: list[Gap] = []
+
+    async def fake_generate_perspectives(
+        query: str,
+        client: DummyClient,
+        *,
+        num_perspectives: int = 3,
+    ) -> list[str]:
+        _ = (query, client, num_perspectives)
+        return ["economic feasibility", "environmental impact"]
+
+    async def fake_reflect_multi_perspective(
+        *,
+        query: str,
+        iteration: int,
+        max_iterations: int,
+        subqueries: list[SubQuery],
+        evidences: list[Evidence],
+        perspectives: list[str],
+        client: DummyClient,
+    ) -> dict[str, list[Gap]]:
+        _ = (query, iteration, max_iterations, subqueries, evidences, perspectives, client)
+        return {
+            "economic feasibility": [Gap(topic="grid costs", reason="Need updated capex numbers")],
+            "environmental impact": [Gap(topic="grid costs", reason="Need updated capex numbers")],
+        }
+
+    async def fake_follow_up(
+        query: str,
+        gaps: list[Gap],
+        evidences: list[Evidence],
+        client: DummyClient,
+    ) -> list[SubQuery]:
+        _ = (query, evidences, client)
+        follow_up_gaps.extend(gaps)
+        return []
+
+    monkeypatch.setattr(iteration_module, "generate_perspectives", fake_generate_perspectives)
+    monkeypatch.setattr(controller, "_reflect_multi_perspective", fake_reflect_multi_perspective)
+    monkeypatch.setattr(controller, "_follow_up", fake_follow_up)
+
+    await controller.run(
+        query="renewable energy adoption",
+        initial_queries=[SubQuery(text="renewable energy adoption", rationale="seed query")],
+        channels=[channel],
+        budget=IterationBudget(
+            max_iterations=2,
+            per_channel_rate_limit=0.0,
+            num_perspectives=3,
+        ),
+        client=client,
+    )
+
+    assert follow_up_gaps == [Gap(topic="grid costs", reason="Need updated capex numbers")]
+
+
+async def test_iteration_multi_perspective_research_trace_tags_perspective(
+    monkeypatch,
+) -> None:
+    controller = IterationController()
+    channel = FakeChannel(
+        [[make_evidence("https://example.com/one", "Pricing update", "pricing update evidence")]]
+    )
+    client = DummyClient([])
+    perspectives = [
+        "economic feasibility",
+        "environmental impact",
+        "policy implementation",
+    ]
+
+    async def fake_generate_perspectives(
+        query: str,
+        client: DummyClient,
+        *,
+        num_perspectives: int = 3,
+    ) -> list[str]:
+        _ = (query, client, num_perspectives)
+        return perspectives
+
+    async def fake_reflect_multi_perspective(**_: object) -> dict[str, list[Gap]]:
+        return {perspective: [] for perspective in perspectives}
+
+    monkeypatch.setattr(iteration_module, "generate_perspectives", fake_generate_perspectives)
+    monkeypatch.setattr(controller, "_reflect_multi_perspective", fake_reflect_multi_perspective)
+
+    _, research_trace = await controller.run(
+        query="renewable energy adoption",
+        initial_queries=[SubQuery(text="renewable energy adoption", rationale="seed query")],
+        channels=[channel],
+        budget=IterationBudget(
+            max_iterations=1,
+            per_channel_rate_limit=0.0,
+            num_perspectives=3,
+        ),
+        client=client,
+    )
+
+    assert research_trace == [
+        {
+            "iteration": 1,
+            "batch_index": 1,
+            "subqueries": ["renewable energy adoption"],
+            "gaps": [],
+            "digest_id_if_any": None,
+            "perspective": perspectives,
+        }
+    ]
+
+
+async def test_iteration_batch_log_includes_perspective_mode(monkeypatch) -> None:
+    controller = IterationController()
+    logger = RecordingLogger()
+    monkeypatch.setattr(controller, "logger", logger)
+    channel = FakeChannel(
+        [
+            [make_evidence("https://example.com/one", "First result", "first evidence")],
+            [make_evidence("https://example.com/two", "Second result", "second evidence")],
+        ]
+    )
+    client = DummyClient([])
+    perspectives = [
+        "economic feasibility",
+        "environmental impact",
+    ]
+
+    async def fake_generate_perspectives(
+        query: str,
+        client: DummyClient,
+        *,
+        num_perspectives: int = 3,
+    ) -> list[str]:
+        _ = (query, client, num_perspectives)
+        return perspectives
+
+    async def fake_per_search_reflect_multi_perspective(
+        *,
+        batch_evidence: list[Evidence],
+        query: str,
+        client: DummyClient,
+        batch_subqueries: list[SubQuery] | None = None,
+        perspectives: list[str],
+    ) -> dict[str, list[Gap]]:
+        _ = (batch_evidence, query, client, batch_subqueries)
+        return {perspective: [] for perspective in perspectives}
+
+    async def fake_reflect_multi_perspective(
+        *,
+        query: str,
+        iteration: int,
+        max_iterations: int,
+        subqueries: list[SubQuery],
+        evidences: list[Evidence],
+        perspectives: list[str],
+        client: DummyClient,
+    ) -> dict[str, list[Gap]]:
+        _ = (query, iteration, max_iterations, subqueries, evidences, client)
+        return {perspective: [] for perspective in perspectives}
+
+    monkeypatch.setattr(iteration_module, "generate_perspectives", fake_generate_perspectives)
+    monkeypatch.setattr(
+        controller,
+        "_per_search_reflect_multi_perspective",
+        fake_per_search_reflect_multi_perspective,
+    )
+    monkeypatch.setattr(controller, "_reflect_multi_perspective", fake_reflect_multi_perspective)
+
+    await controller.run(
+        query="renewable energy adoption",
+        initial_queries=make_subqueries(2),
+        channels=[channel],
+        budget=IterationBudget(
+            max_iterations=1,
+            per_channel_rate_limit=0.0,
+            subquery_batch_size=1,
+            num_perspectives=3,
+        ),
+        client=client,
+    )
+
+    batch_completed_calls = [
+        kwargs for event, kwargs in logger.info_calls if event == "iteration_batch_completed"
+    ]
+    assert len(batch_completed_calls) == 2
+    assert all(call["perspective_mode"] == "multi" for call in batch_completed_calls)
+    assert all(call["num_perspectives"] == 2 for call in batch_completed_calls)
+
+    reflect_completed_calls = [
+        kwargs
+        for event, kwargs in logger.info_calls
+        if event == "iteration_phase_completed" and kwargs.get("phase") == "reflect"
+    ]
+    assert len(reflect_completed_calls) == 1
+    assert reflect_completed_calls[0]["perspective_mode"] == "multi"
+    assert reflect_completed_calls[0]["num_perspectives"] == 2
+
+
+async def test_iteration_perspective_generation_error_fallback_runs_single(
+    monkeypatch,
+) -> None:
+    controller = IterationController()
+    channel = FakeChannel(
+        [[make_evidence("https://example.com/one", "Pricing update", "pricing update evidence")]]
+    )
+    client = DummyClient([])
+    single_reflect_calls = 0
+    multi_reflect_calls = 0
+
+    async def fake_generate_perspectives(
+        query: str,
+        client: DummyClient,
+        *,
+        num_perspectives: int = 3,
+    ) -> list[str]:
+        _ = (query, client, num_perspectives)
+        return ["default"]
+
+    async def fake_reflect(
+        query: str,
+        iteration: int,
+        max_iterations: int,
+        subqueries: list[SubQuery],
+        evidences: list[Evidence],
+        client: DummyClient,
+    ) -> list[Gap]:
+        _ = (query, iteration, max_iterations, subqueries, evidences, client)
+        nonlocal single_reflect_calls
+        single_reflect_calls += 1
+        return []
+
+    async def fake_reflect_multi_perspective(**_: object) -> dict[str, list[Gap]]:
+        nonlocal multi_reflect_calls
+        multi_reflect_calls += 1
+        return {"default": []}
+
+    monkeypatch.setattr(iteration_module, "generate_perspectives", fake_generate_perspectives)
+    monkeypatch.setattr(controller, "_reflect", fake_reflect)
+    monkeypatch.setattr(controller, "_reflect_multi_perspective", fake_reflect_multi_perspective)
+
+    _, research_trace = await controller.run(
+        query="renewable energy adoption",
+        initial_queries=[SubQuery(text="renewable energy adoption", rationale="seed query")],
+        channels=[channel],
+        budget=IterationBudget(
+            max_iterations=1,
+            per_channel_rate_limit=0.0,
+            num_perspectives=3,
+        ),
+        client=client,
+    )
+
+    assert single_reflect_calls == 1
+    assert multi_reflect_calls == 0
+    assert "perspective" not in research_trace[0]
