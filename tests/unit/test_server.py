@@ -181,6 +181,7 @@ def test_search_endpoint_returns_channel_empty_calls_in_json(monkeypatch) -> Non
         json={
             "query": "test query",
             "scope": {
+                "domain_followups": [],
                 "channel_scope": "all",
                 "depth": "fast",
                 "output_format": "md",
