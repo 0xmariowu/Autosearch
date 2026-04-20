@@ -1,0 +1,5 @@
+# Allowlist: historical commit 6c0b771 contained an internal name in
+# issue-greeter.yml:11 (now removed). Keep this fingerprint so gitleaks
+# scan of the PR's full commit history doesn't re-surface the old
+# finding. Safe to remove once this branch is squash-merged.
+6c0b771cf5d295e2b04fcef4ff6107279d3bf3a8:.github/workflows/issue-greeter.yml:internal-project-name:11
