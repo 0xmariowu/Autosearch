@@ -74,8 +74,23 @@ async def fetch_page(
     # TODO: fetch_html only returns the response body today; return response metadata to preserve
     # the real status code here instead of assuming 200 on success.
     status_code = 200
-    soup = BeautifulSoup(raw_html, "html.parser")
-    cleaned_html = PruningCleaner().clean(raw_html) if run_prune else raw_html
+    return _parse_html_into_page(
+        url=url,
+        html=raw_html,
+        status_code=status_code,
+        run_prune=run_prune,
+    )
+
+
+def _parse_html_into_page(
+    *,
+    url: str,
+    html: str,
+    status_code: int,
+    run_prune: bool = True,
+) -> FetchedPage:
+    soup = BeautifulSoup(html, "html.parser")
+    cleaned_html = PruningCleaner().clean(html) if run_prune else html
     markdown = markdownify(
         cleaned_html,
         heading_style="ATX",
@@ -85,7 +100,7 @@ async def fetch_page(
     return FetchedPage(
         url=url,
         status_code=status_code,
-        html=raw_html,
+        html=html,
         cleaned_html=cleaned_html,
         markdown=markdown,
         links=_extract_links(soup, base_url=url),
