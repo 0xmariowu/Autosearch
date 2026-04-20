@@ -74,6 +74,22 @@ def test_scrub_handles_content_without_markers() -> None:
     assert scrubbed == content
 
 
+def test_scrub_preserves_bracket_digit_in_fenced_code() -> None:
+    content = "Prose [1] here [99].\n```python\narr[1]\narr[99]\n```\nMore [2]."
+
+    scrubbed = scrub_invalid_inline_citations(content, valid_ids={1, 2})
+
+    assert scrubbed == "Prose [1] here.\n```python\narr[1]\narr[99]\n```\nMore [2]."
+
+
+def test_scrub_preserves_bracket_digit_in_inline_code() -> None:
+    content = "Use `arr[5]` to access [1]."
+
+    scrubbed = scrub_invalid_inline_citations(content, valid_ids={1})
+
+    assert scrubbed == content
+
+
 def test_renumber_by_first_appearance_basic() -> None:
     content, ref_table = renumber_by_first_appearance(
         "[5] text [2] more [5]",
@@ -117,6 +133,26 @@ def test_renumber_empty_content_returns_empty_table() -> None:
 
     assert content == ""
     assert ref_table == {}
+
+
+def test_renumber_preserves_code_blocks() -> None:
+    content, ref_table = renumber_by_first_appearance(
+        "[5] first.\n```\ntest[5]test\n```\n[2] second.",
+        {2: "b", 5: "a"},
+    )
+
+    assert content == "[1] first.\n```\ntest[5]test\n```\n[2] second."
+    assert ref_table == {1: "a", 2: "b"}
+
+
+def test_renumber_preserves_inline_code() -> None:
+    content, ref_table = renumber_by_first_appearance(
+        "See [5] and `x[5]`.",
+        {5: "a"},
+    )
+
+    assert content == "See [1] and `x[5]`."
+    assert ref_table == {1: "a"}
 
 
 def test_renderer_scrubs_before_remap() -> None:

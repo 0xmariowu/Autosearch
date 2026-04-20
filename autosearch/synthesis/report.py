@@ -17,7 +17,11 @@ from autosearch.core.models import (
     Section,
 )
 from autosearch.llm.client import LLMClient
-from autosearch.synthesis.citation import CitationRenderer, scrub_invalid_inline_citations
+from autosearch.synthesis.citation import (
+    CitationRenderer,
+    apply_to_prose,
+    scrub_invalid_inline_citations,
+)
 from autosearch.synthesis.outline import draft_outline, refine_outline
 from autosearch.synthesis.section import SectionWriter
 
@@ -188,11 +192,11 @@ def _rewrite_section_to_global_snippet_ids(
             return ""
         return f"[{global_ref_id}]"
 
-    rewritten_content = _INLINE_CITATION_RE.sub(replacer, scrubbed_content)
-    rewritten_content = re.sub(r"[ \t]{2,}", " ", rewritten_content)
-    rewritten_content = re.sub(r"[ \t]+([,.])", r"\1", rewritten_content)
-    rewritten_content = re.sub(r"[ \t]+(?=\n)", "", rewritten_content)
-    rewritten_content = re.sub(r"[ \t]+$", "", rewritten_content)
+    rewritten_content = apply_to_prose(
+        scrubbed_content,
+        lambda text: _INLINE_CITATION_RE.sub(replacer, text),
+    )
+    rewritten_content = apply_to_prose(rewritten_content, _normalize_citation_spacing)
     rewritten_ref_ids = [
         local_to_global[ref_id] for ref_id in section.ref_ids if ref_id in local_to_global
     ]
@@ -261,6 +265,14 @@ def _dedup_ints(values: list[int]) -> list[int]:
         seen.add(value)
         deduped.append(value)
     return deduped
+
+
+def _normalize_citation_spacing(text: str) -> str:
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = re.sub(r"[ \t]+([,.])", r"\1", text)
+    text = re.sub(r"[ \t]+(?=\n)", "", text)
+    text = re.sub(r"[ \t]+$", "", text)
+    return text
 
 
 def _fallback_timestamp():

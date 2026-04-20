@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import BaseModel
 
-from autosearch.core.models import Evidence
+from autosearch.core.models import Evidence, EvidenceSnippet, Section
 from autosearch.synthesis.outline import OutlineResponse
 from autosearch.synthesis.report import ReportSynthesizer
 import autosearch.synthesis.report as report_module
@@ -88,6 +88,35 @@ def install_retrieve_stub(
 
 def cited_numbers(content: str) -> list[int]:
     return [int(match.group(1)) for match in re.finditer(r"\[(\d+)\]", content)]
+
+
+def test_report_local_to_global_rewrite_skips_code_blocks() -> None:
+    section = Section(
+        heading="Claim",
+        content="Claim [1].\n```\nmatrix[1]\n```\nDone.",
+        ref_ids=[1],
+    )
+    selected = [
+        EvidenceSnippet(
+            evidence_id="evidence-2",
+            text="Second snippet",
+            offset=1,
+            source_url="https://example.com/2",
+            source_title="Source 2",
+        )
+    ]
+    snippet_ids = {
+        report_module._snippet_identity(selected[0]): 2,
+    }
+
+    rewritten = report_module._rewrite_section_to_global_snippet_ids(
+        section=section,
+        selected=selected,
+        snippet_ids=snippet_ids,
+    )
+
+    assert rewritten.content == "Claim [2].\n```\nmatrix[1]\n```\nDone."
+    assert rewritten.ref_ids == [2]
 
 
 @pytest.mark.asyncio
