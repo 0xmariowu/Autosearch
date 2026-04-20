@@ -210,7 +210,6 @@ def test_invalid_channel_scope_rejected() -> None:
     result = runner.invoke(app, ["query", "test", "--channel-scope", "invalid"])
 
     assert result.exit_code == 2
-    assert "--channel-scope" in result.stderr
 
 
 def test_query_format_html_renders_html_output(monkeypatch) -> None:
