@@ -8,15 +8,158 @@ from autosearch.core.models import (
     ClarifyRequest,
     ClarifyResult,
     Evidence,
+    FetchedPage,
     Gap,
     KnowledgeRecall,
+    LinkRef,
+    MediaRef,
     Rubric,
     SearchMode,
     Section,
     SubQuery,
+    TableData,
 )
 
 FIXED_TIME = datetime(2026, 4, 17, 12, 0, tzinfo=UTC)
+
+
+def test_fetched_page_minimum_fields_roundtrip() -> None:
+    page = FetchedPage(url="https://example.com/article", status_code=200)
+
+    payload = page.model_dump_json()
+    restored = FetchedPage.model_validate_json(payload)
+
+    assert restored == page
+    assert restored.html == ""
+    assert restored.cleaned_html == ""
+    assert restored.markdown == ""
+    assert restored.links == []
+    assert restored.metadata == {}
+    assert restored.tables == []
+    assert restored.media == []
+
+
+def test_fetched_page_full_roundtrip() -> None:
+    page = FetchedPage(
+        url="https://example.com/article",
+        status_code=200,
+        fetched_at=FIXED_TIME,
+        html="<html><body><h1>Title</h1></body></html>",
+        cleaned_html="<article><h1>Title</h1></article>",
+        markdown="# Title\n\nBody",
+        links=[
+            LinkRef(
+                href="https://example.com/internal",
+                text="Read more",
+                internal=True,
+            ),
+            LinkRef(
+                href="https://external.example.org",
+                text="External source",
+            ),
+        ],
+        metadata={
+            "title": "Example Title",
+            "og:title": "Example OG Title",
+            "description": "Example description",
+            "author": "Author Name",
+            "published_at": "2026-04-17T12:00:00+00:00",
+        },
+        tables=[
+            TableData(
+                headers=["Name", "Value"],
+                rows=[
+                    {"Name": "foo", "Value": "1"},
+                    {"Name": "bar", "Value": "2"},
+                ],
+            )
+        ],
+        media=[
+            MediaRef(src="https://example.com/image.png", alt="Diagram"),
+            MediaRef(
+                src="https://example.com/video.mp4",
+                alt="Demo",
+                kind="video",
+            ),
+        ],
+    )
+
+    payload = page.model_dump_json()
+    restored = FetchedPage.model_validate_json(payload)
+
+    assert restored == page
+
+
+def test_evidence_with_source_page() -> None:
+    evidence = Evidence(
+        url="https://example.com",
+        title="Example",
+        snippet="snippet",
+        content="content",
+        source_channel="web",
+        fetched_at=FIXED_TIME,
+        score=0.8,
+        source_page=FetchedPage(
+            url="https://example.com",
+            status_code=200,
+            fetched_at=FIXED_TIME,
+            markdown="# Example",
+            links=[LinkRef(href="https://example.com/about", text="About", internal=True)],
+            metadata={"title": "Example"},
+        ),
+    )
+
+    payload = evidence.model_dump_json()
+    restored = Evidence.model_validate_json(payload)
+
+    assert restored == evidence
+    assert restored.source_page is not None
+    assert restored.source_page.markdown == "# Example"
+
+
+def test_evidence_without_source_page_still_valid() -> None:
+    evidence = Evidence(
+        url="https://example.com",
+        title="Example",
+        snippet="snippet",
+        content="content",
+        source_channel="web",
+        fetched_at=FIXED_TIME,
+        score=0.8,
+    )
+
+    payload = evidence.model_dump_json()
+    restored = Evidence.model_validate_json(payload)
+
+    assert restored == evidence
+    assert restored.source_page is None
+
+
+def test_link_ref_internal_flag() -> None:
+    link = LinkRef(href="https://example.com/about", text="About")
+
+    assert link.internal is False
+
+
+def test_table_data_roundtrip() -> None:
+    table = TableData(
+        headers=["Name", "Role"],
+        rows=[
+            {"Name": "Alice", "Role": "Maintainer"},
+            {"Name": "Bob", "Role": "Reviewer"},
+        ],
+    )
+
+    payload = table.model_dump_json()
+    restored = TableData.model_validate_json(payload)
+
+    assert restored == table
+
+
+def test_media_ref_default_kind_image() -> None:
+    media = MediaRef(src="https://example.com/image.png", alt="A screenshot")
+
+    assert media.kind == "image"
 
 
 @pytest.mark.parametrize(

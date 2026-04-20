@@ -10,7 +10,7 @@ import httpx
 import structlog
 
 from autosearch.core.models import Evidence, SubQuery
-from autosearch.lib.html_scraper import HtmlFetchError, fetch_html
+from autosearch.lib.html_scraper import HtmlFetchError, fetch_html, fetch_page
 
 LOGGER = structlog.get_logger(__name__).bind(component="channel", channel="kr36")
 
@@ -133,6 +133,37 @@ def _parse_results(html_text: str, *, fetched_at: datetime) -> list[Evidence]:
     return evidences
 
 
+async def _enrich_evidence(
+    evidence: Evidence,
+    *,
+    http_client: httpx.AsyncClient | None = None,
+) -> Evidence:
+    try:
+        page = await fetch_page(evidence.url, client=http_client)
+    except HtmlFetchError as exc:
+        LOGGER.warning(
+            "kr36_result_fetch_failed",
+            url=evidence.url,
+            reason=str(exc),
+        )
+        return evidence
+    except Exception as exc:
+        LOGGER.warning(
+            "kr36_result_fetch_failed",
+            url=evidence.url,
+            reason=str(exc),
+        )
+        return evidence
+
+    return evidence.model_copy(
+        update={
+            "snippet": page.markdown[:MAX_SNIPPET_LENGTH],
+            "content": page.markdown,
+            "source_page": page,
+        }
+    )
+
+
 async def search(
     query: SubQuery,
     *,
@@ -144,7 +175,7 @@ async def search(
             http_client=http_client,
             params={"searchType": "post", "q": query.text},
         )
-        return await asyncio.to_thread(
+        evidences = await asyncio.to_thread(
             _parse_results,
             html_text,
             fetched_at=datetime.now(UTC),
@@ -155,3 +186,7 @@ async def search(
     except Exception as exc:
         LOGGER.warning("kr36_search_failed", reason=str(exc))
         return []
+
+    return await asyncio.gather(
+        *[_enrich_evidence(evidence, http_client=http_client) for evidence in evidences]
+    )
