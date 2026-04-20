@@ -33,6 +33,11 @@ dependencies = [
   "uvicorn",
 ]
 
+[project.optional-dependencies]
+browser = [
+  "playwright>=1.40",
+]
+
 [project.scripts]
 autosearch = "autosearch.cli.main:app"
 autosearch-mcp = "autosearch.mcp.cli:main"
