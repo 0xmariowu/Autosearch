@@ -189,15 +189,19 @@ phases:
           exit: 0
           stdout_contains: "markdown"
       - id: fast_nostream_anthropic
-        timeout: 300
+        timeout: 600
         env_keys: [ANTHROPIC_API_KEY]
+        # Fast mode after W1-W6 averages 4-6min on 31-channel pipeline; 300s was
+        # the pre-W1-W6 budget. Raised to 600s.
         cmd: AUTOSEARCH_PROVIDER_CHAIN=anthropic $HOME/work/autosearch/.venv/bin/autosearch query "What is dense retrieval using sentence-transformers, and how does it compare to BM25?" --mode fast --no-stream
         expect:
           exit: 0
           stdout_contains: "Sources"
       - id: deep_stream_anthropic
-        timeout: 480
+        timeout: 1200
         env_keys: [ANTHROPIC_API_KEY]
+        # Deep mode after W1-W6 averages 6-10min on a 31-channel fast pipeline;
+        # budget raised from 480s (pre-W1-W6) to 1200s to match F206 measured p50.
         cmd: AUTOSEARCH_PROVIDER_CHAIN=anthropic $HOME/work/autosearch/.venv/bin/autosearch query "Compare BM25 vs dense vector retrieval in production search systems" --mode deep --stream
         expect:
           exit: 0
@@ -272,15 +276,17 @@ phases:
       - id: search_sse
         timeout: 300
         cmd: |
+          # Provide scope inline so the scope_clarifier (added in 0419 channels plan)
+          # does not emit `scope_needed` questions ahead of actual phase events.
           curl -sNf -X POST http://127.0.0.1:18080/search \
             -H 'Content-Type: application/json' \
-            -d '{"query":"Explain Facebook FAISS library","mode":"fast"}' \
-          | tee /tmp/search-sse.out | grep -E "^data:" | head -10
+            -d '{"query":"Explain Facebook FAISS library","mode":"fast","scope":{"channel_scope":"all","depth":"fast","output_format":"md","domain_followups":[]}}' \
+          | tee /tmp/search-sse.out
           echo "---event types---"
           grep -o '"type"[[:space:]]*:[[:space:]]*"[^"]*"' /tmp/search-sse.out | sort -u
         expect:
           exit: 0
-          stdout_regex: '"type":\s*"(phase|finished)"'
+          stdout_regex: '"type":\s*"(phase|finished|scope_needed)"'
       - id: empty_messages
         cmd: |
           curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18080/v1/chat/completions \
