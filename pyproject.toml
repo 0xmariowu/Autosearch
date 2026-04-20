@@ -17,6 +17,7 @@ dependencies = [
   "httpx",
   "mcp",
   "markdown",
+  "markdownify>=0.11",
   "paper-search-mcp",
   "pydantic",
   "pytest",
