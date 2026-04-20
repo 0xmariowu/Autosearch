@@ -54,6 +54,12 @@ class PruningCleaner(Cleaner):
         "cookie",
     }
 
+    # If pruning removes more than this fraction of the original text, treat it as
+    # over-pruning (e.g. SPA-heavy sites where content sits in generic divs the
+    # cleaner cannot score positively) and fall back to the unpruned HTML.
+    MIN_RETAIN_RATIO = 0.05
+    MIN_RETAIN_CHARS = 200
+
     def __init__(self, threshold: float = 0.48, min_word_count: int = 2):
         self.threshold = threshold
         self.min_word_count = min_word_count
@@ -73,8 +79,23 @@ class PruningCleaner(Cleaner):
         if body is None:
             return ""
 
+        original_text_len = len(body.get_text(" ", strip=True))
         self._prune_node(body, is_root=True)
-        return body.decode_contents().strip()
+        cleaned = body.decode_contents().strip()
+
+        cleaned_text_len = len(BeautifulSoup(cleaned, "html.parser").get_text(" ", strip=True))
+        if original_text_len >= self.MIN_RETAIN_CHARS and cleaned_text_len < max(
+            self.MIN_RETAIN_CHARS, int(original_text_len * self.MIN_RETAIN_RATIO)
+        ):
+            # Over-prune fallback: restore unpruned body (with always-drop tags already removed).
+            fresh = BeautifulSoup(html, "html.parser")
+            if fresh.body is None:
+                fresh = BeautifulSoup(f"<body>{html}</body>", "html.parser")
+            self._remove_comments(fresh)
+            self._remove_always_drop_tags(fresh)
+            return fresh.body.decode_contents().strip() if fresh.body else cleaned
+
+        return cleaned
 
     def _remove_comments(self, soup: BeautifulSoup) -> None:
         for node in soup(string=lambda value: isinstance(value, Comment)):
