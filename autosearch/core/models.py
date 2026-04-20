@@ -1,4 +1,6 @@
 # Self-written, plan v2.3 § 13.5
+import re
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -83,6 +85,91 @@ class EvidenceDigest(BaseModel):
     token_count_after: int = 0
 
 
+class OutlineNode(BaseModel):
+    """Hierarchical outline tree used by synthesis for section-scoped retrieval."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    heading: str
+    level: int = Field(ge=0, le=6)
+    children: list["OutlineNode"] = Field(default_factory=list)
+    section_query: str | None = None
+
+    def get_subtree_headings(
+        self,
+        root_name: str | None = None,
+        separator: str = " > ",
+    ) -> list[str]:
+        """Return this subtree as breadcrumb headings in depth-first order."""
+        headings: list[str] = []
+        prefix = [root_name] if root_name else []
+
+        def visit(node: OutlineNode, ancestors: list[str]) -> None:
+            current = ancestors
+            if node.heading:
+                current = [*ancestors, node.heading]
+                headings.append(separator.join(current))
+            for child in node.children:
+                visit(child, current)
+
+        visit(self, prefix)
+        return headings
+
+    def walk_leaves(self) -> Iterator["OutlineNode"]:
+        """Yield leaf nodes in document order."""
+        if not self.children:
+            yield self
+            return
+        for child in self.children:
+            yield from child.walk_leaves()
+
+    def walk_depth_first(self) -> Iterator["OutlineNode"]:
+        """Yield this node and all descendants in document order."""
+        yield self
+        for child in self.children:
+            yield from child.walk_depth_first()
+
+
+_MARKDOWN_HEADING_RE = re.compile(r"^\s*(#{1,6})\s+(.*?)\s*$")
+_TRAILING_HASHES_RE = re.compile(r"\s+#+\s*$")
+
+
+def parse_markdown_outline(markdown: str) -> OutlineNode:
+    """Parse a markdown heading outline into an OutlineNode tree."""
+    root = OutlineNode(heading="", level=0)
+    parsed_headings: list[tuple[int, str]] = []
+
+    for raw_line in markdown.splitlines():
+        match = _MARKDOWN_HEADING_RE.match(raw_line)
+        if not match:
+            continue
+        heading = _TRAILING_HASHES_RE.sub("", match.group(2)).strip()
+        if not heading:
+            continue
+        parsed_headings.append((len(match.group(1)), heading))
+
+    if not parsed_headings:
+        root.children.extend(
+            OutlineNode(heading=line.strip(), level=1)
+            for line in markdown.splitlines()
+            if line.strip()
+        )
+        return root
+
+    stack: list[OutlineNode] = [root]
+    for level, heading in parsed_headings:
+        node = OutlineNode(heading=heading, level=level)
+        while stack and stack[-1].level >= level:
+            stack.pop()
+        parent = stack[-1] if stack else root
+        parent.children.append(node)
+        stack.append(node)
+
+    if len(root.children) == 1 and root.children[0].level == 1:
+        return root.children[0]
+    return root
+
+
 class Gap(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -144,6 +231,33 @@ class EvaluationResult(BaseModel):
     follow_up_gaps: list[Gap]
 
 
+class ResearchTurn(BaseModel):
+    """One research step the iteration engine took."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    iteration: int
+    batch_index: int = 0
+    perspective: str | None = None
+    question: str
+    answer: str
+    search_queries: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+    digest_trace_id: int | None = None
+
+
+class EvidenceSnippet(BaseModel):
+    """A chunk of evidence content used for section-scoped retrieval."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    evidence_id: str
+    text: str
+    offset: int = Field(ge=0)
+    source_url: str
+    source_title: str = ""
+
+
 @dataclass(frozen=True)
 class PipelineResult:
     delivery_status: Literal["ok", "needs_clarification"]
@@ -160,3 +274,6 @@ class PipelineResult:
     cost: float = 0.0
     prompt_tokens: int = 0
     completion_tokens: int = 0
+
+
+OutlineNode.model_rebuild()
