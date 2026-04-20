@@ -4,11 +4,15 @@ import re
 import structlog
 from pydantic import BaseModel, Field
 
-from autosearch.core.models import Evidence, Section
+from autosearch.core.models import Evidence, EvidenceSnippet, OutlineNode, Section
 from autosearch.llm.client import LLMClient
 from autosearch.skills.prompts import load_prompt
 
 SECTION_WRITE_PROMPT = load_prompt("m7_section_write")
+SECTION_WRITE_FROM_SNIPPETS_PROMPT = load_prompt("m7_section_write_v2")
+
+_MAX_SNIPPETS_PER_PROMPT = 12
+_MAX_SNIPPET_EXCERPT_CHARS = 600
 
 _INLINE_CITATION_RE = re.compile(r"\[(\d+)\]")
 
@@ -21,6 +25,48 @@ class _SectionWriteResponse(BaseModel):
 class SectionWriter:
     def __init__(self) -> None:
         self.logger = structlog.get_logger(__name__).bind(component="section_writer")
+
+    async def write_section_from_snippets(
+        self,
+        node: OutlineNode,
+        snippets: list[EvidenceSnippet],
+        topic: str,
+        client: LLMClient,
+    ) -> Section:
+        prompt_snippets = snippets[:_MAX_SNIPPETS_PER_PROMPT]
+        self.logger.info(
+            "section_write_started",
+            heading=node.heading,
+            snippets=len(snippets),
+            prompt_snippets=len(prompt_snippets),
+        )
+        if not prompt_snippets:
+            self.logger.info(
+                "section_write_completed",
+                heading=node.heading,
+                ref_ids=0,
+                prompt_snippets=0,
+            )
+            return Section(heading=node.heading, content="", ref_ids=[])
+
+        snippets_context, _ = _format_snippets_for_prompt(prompt_snippets)
+        prompt = SECTION_WRITE_FROM_SNIPPETS_PROMPT.format(
+            topic=topic,
+            section_heading=node.heading,
+            section_outline=_format_section_outline(node),
+            snippets_context=snippets_context,
+        )
+        response = await client.complete(prompt, _SectionWriteResponse)
+        content = _normalize_content(response.content, node.heading)
+        ref_ids = _normalize_ref_ids(content, response.ref_ids, len(prompt_snippets))
+        section = Section(heading=node.heading, content=content, ref_ids=ref_ids)
+        self.logger.info(
+            "section_write_completed",
+            heading=section.heading,
+            ref_ids=len(section.ref_ids),
+            prompt_snippets=len(prompt_snippets),
+        )
+        return section
 
     async def write_section(
         self,
@@ -77,6 +123,28 @@ def _normalize_ref_ids(content: str, ref_ids: list[int], evidence_count: int) ->
     return normalized
 
 
+def _format_section_outline(node: OutlineNode) -> str:
+    headings = node.get_subtree_headings()
+    if not headings:
+        return "- No local subsection context provided"
+    return "\n".join(f"- {heading}" for heading in headings)
+
+
+def _format_snippets_for_prompt(snippets: list[EvidenceSnippet]) -> tuple[str, list[str]]:
+    prompt_snippets = snippets[:_MAX_SNIPPETS_PER_PROMPT]
+    if not prompt_snippets:
+        return "- No snippets provided", []
+
+    formatted: list[str] = []
+    url_ordered_list: list[str] = []
+    for index, snippet in enumerate(prompt_snippets, start=1):
+        excerpt = _truncate_excerpt(snippet.text)
+        source_url = snippet.source_url or "unknown"
+        formatted.append(f'[{index}] "{excerpt}" (source: {source_url})')
+        url_ordered_list.append(source_url)
+    return "\n".join(formatted), url_ordered_list
+
+
 def _format_evidence(evidences: list[Evidence]) -> str:
     if not evidences:
         return "- No evidence provided"
@@ -96,3 +164,12 @@ def _format_evidence(evidences: list[Evidence]) -> str:
             )
         )
     return "\n\n".join(formatted)
+
+
+def _truncate_excerpt(text: str, limit: int = _MAX_SNIPPET_EXCERPT_CHARS) -> str:
+    normalized = " ".join(text.split())
+    if not normalized:
+        return "(no excerpt available)"
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[:limit].rstrip() + "..."

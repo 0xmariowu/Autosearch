@@ -254,12 +254,14 @@ class Pipeline:
                 phase="m7_synthesis",
                 evidences=len(processed_evidences),
             )
-            markdown = await self.report_synthesizer.synthesize(
+            report = await self.report_synthesizer.synthesize(
                 query=query,
                 evidences=processed_evidences,
                 rubrics=clarification.rubrics,
                 client=self.llm,
+                research_trace=research_trace,
             )
+            markdown = report.markdown
             self.logger.info(
                 "pipeline_phase_completed",
                 phase="m7_synthesis",
@@ -326,12 +328,14 @@ class Pipeline:
                     )
                     current_phase = "M7"
                     await self._emit_phase_event(current_phase, "start")
-                    markdown = await self.report_synthesizer.synthesize(
+                    report = await self.report_synthesizer.synthesize(
                         query=query,
                         evidences=processed_evidences,
                         rubrics=clarification.rubrics,
                         client=self.llm,
+                        research_trace=research_trace,
                     )
+                    markdown = report.markdown
                     await self._emit_phase_event(current_phase, "complete")
                     self.logger.info(
                         "pipeline_quality_retry_completed",

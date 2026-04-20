@@ -120,6 +120,12 @@ async def test_pipeline_run_records_session_queries_evidence_and_cost() -> None:
                 ),
             ),
             CompletionStep(
+                response_model=OutlineResponse,
+                payload=OutlineResponse(headings=["Overview", "Practical Takeaways"]).model_dump(
+                    mode="json"
+                ),
+            ),
+            CompletionStep(
                 response_model=_SectionWriteResponse,
                 payload=_SectionWriteResponse(
                     content=(
