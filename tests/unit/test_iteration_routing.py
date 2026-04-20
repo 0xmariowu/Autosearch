@@ -119,7 +119,7 @@ async def test_iteration_fallback_triggered_when_priority_empty() -> None:
     ]
     client = DummyClient([{"gaps": []}])
 
-    evidences = await controller.run(
+    evidences, _ = await controller.run(
         query="empty priority evidence",
         initial_queries=[SubQuery(text="empty priority evidence", rationale="seed")],
         channels=channels,
@@ -157,7 +157,7 @@ async def test_iteration_fallback_not_triggered_when_priority_sufficient() -> No
     ]
     client = DummyClient([{"gaps": []}])
 
-    evidences = await controller.run(
+    evidences, _ = await controller.run(
         query="sufficient priority evidence",
         initial_queries=[SubQuery(text="sufficient priority evidence", rationale="seed")],
         channels=channels,

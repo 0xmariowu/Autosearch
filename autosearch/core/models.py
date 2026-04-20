@@ -152,6 +152,7 @@ class PipelineResult:
     evidences: list[Evidence] = field(default_factory=list)
     channel_empty_calls: dict[str, int] = field(default_factory=dict)
     reasoning_events: list[dict[str, object]] = field(default_factory=list)
+    research_trace: list[dict[str, object]] = field(default_factory=list)
     routing_trace: dict[str, object] = field(default_factory=dict)
     quality: EvaluationResult | None = None
     iterations: int = 0

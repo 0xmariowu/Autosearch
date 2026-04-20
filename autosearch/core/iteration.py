@@ -6,20 +6,28 @@ import structlog
 from pydantic import BaseModel, Field
 
 from autosearch.channels.base import Channel
+from autosearch.core.context_compaction import ContextCompactor
 from autosearch.core.evidence import EvidenceProcessor
-from autosearch.core.models import Evidence, Gap, SubQuery
+from autosearch.core.models import Evidence, EvidenceDigest, Gap, SubQuery
 from autosearch.llm.client import LLMClient
+from autosearch.persistence.session_store import SessionStore
 from autosearch.skills.prompts import load_prompt
 
 GAP_REFLECTION_PROMPT = load_prompt("m3_gap_reflection")
+SEARCH_REFLECTION_PROMPT = load_prompt("m3_search_reflection")
 FOLLOW_UP_QUERY_PROMPT = load_prompt("m3_follow_up_query")
 FALLBACK_THRESHOLD = 5
+SUBQUERY_BATCH_SIZE = 3
 
 
 @dataclass(frozen=True)
 class IterationBudget:
     max_iterations: int = 5
     per_channel_rate_limit: float = 0.5
+    subquery_batch_size: int = SUBQUERY_BATCH_SIZE
+    context_token_budget: int = 16000
+    compact_hot_set_size: int = 10
+    compact_trigger_pct: float = 0.8
 
 
 class _GapReflectionResponse(BaseModel):
@@ -31,11 +39,19 @@ class _FollowUpQueryResponse(BaseModel):
 
 
 class IterationController:
-    def __init__(self, evidence_processor: EvidenceProcessor | None = None) -> None:
+    def __init__(
+        self,
+        evidence_processor: EvidenceProcessor | None = None,
+        *,
+        store: SessionStore | None = None,
+        session_id: str | None = None,
+    ) -> None:
         self.evidence_processor = evidence_processor or EvidenceProcessor()
         self.routing_trace: dict[str, object] = {}
         self.logger = structlog.get_logger(__name__).bind(component="iteration_controller")
         self._empty_counts: dict[str, int] = {}
+        self._store = store
+        self._session_id = session_id
 
     async def run(
         self,
@@ -46,7 +62,7 @@ class IterationController:
         client: LLMClient,
         priority_channels: set[str] | None = None,
         skip_channels: set[str] | None = None,
-    ) -> list[Evidence]:
+    ) -> tuple[list[Evidence], list[dict[str, object]]]:
         self._empty_counts = {}
         effective_priority = set(priority_channels or [])
         effective_skip = set(skip_channels or [])
@@ -55,11 +71,23 @@ class IterationController:
             priority_channels=effective_priority,
             skip_channels=effective_skip,
         )
+        research_trace: list[dict[str, object]] = []
         if budget.max_iterations <= 0 or not initial_queries or not channels:
-            return []
+            return [], research_trace
 
         active_queries = _dedup_subqueries(initial_queries)
         accumulated_evidence: list[Evidence] = []
+        compactor = ContextCompactor(
+            token_budget=budget.context_token_budget,
+            hot_set_size=budget.compact_hot_set_size,
+            compact_when_over_pct=budget.compact_trigger_pct,
+            client=client,
+            store=self._store if self._store is not None and self._session_id is not None else None,
+            session_id=self._session_id
+            if self._store is not None and self._session_id is not None
+            else None,
+        )
+        batch_size = max(1, budget.subquery_batch_size)
 
         for iteration in range(1, budget.max_iterations + 1):
             if not active_queries:
@@ -72,25 +100,78 @@ class IterationController:
                 )
                 break
 
+            collected_batch_gaps: list[Gap] = []
+            subquery_batches = _partition_subqueries(active_queries, batch_size)
+            round_evidence_count = 0
             self.logger.info(
                 "iteration_phase_started",
                 phase="search",
                 iteration=iteration,
                 channels=len(channels),
                 subqueries=len(active_queries),
+                batches=len(subquery_batches),
             )
-            round_evidence = await self._search(
-                active_queries,
-                channels,
-                iteration,
-                priority_channels=effective_priority,
-                skip_channels=effective_skip,
-            )
+            # When an iteration collapses to one batch, the aggregate reflection already sees the
+            # same evidence, so skip the narrower reflection call to avoid duplicate LLM work.
+            run_batch_reflection = len(subquery_batches) > 1
+            for batch_index, batch_subqueries in enumerate(subquery_batches, start=1):
+                self.logger.info(
+                    "iteration_batch_started",
+                    iteration=iteration,
+                    batch_index=batch_index,
+                    subqueries=len(batch_subqueries),
+                    channels=len(channels),
+                )
+                batch_evidence = await self._search(
+                    batch_subqueries,
+                    channels,
+                    iteration,
+                    priority_channels=effective_priority,
+                    skip_channels=effective_skip,
+                )
+                round_evidence_count += len(batch_evidence)
+                accumulated_evidence = self._dedup_accumulated_evidence(
+                    accumulated_evidence + batch_evidence
+                )
+                batch_gaps: list[Gap] = []
+                if run_batch_reflection:
+                    batch_gaps = await self._per_search_reflect(
+                        batch_evidence=batch_evidence,
+                        query=query,
+                        client=client,
+                        batch_subqueries=batch_subqueries,
+                    )
+                    collected_batch_gaps.extend(batch_gaps)
+
+                digest_id: int | str | None = None
+                hot, digest = await compactor.compact(accumulated_evidence, query)
+                if digest is not None:
+                    accumulated_evidence = hot
+                    digest_id = await self._resolve_digest_trace_id(digest)
+
+                research_trace.append(
+                    {
+                        "iteration": iteration,
+                        "batch_index": batch_index,
+                        "subqueries": [subquery.text for subquery in batch_subqueries],
+                        "gaps": [gap.model_dump(mode="json") for gap in batch_gaps],
+                        "digest_id_if_any": digest_id,
+                    }
+                )
+                self.logger.info(
+                    "iteration_batch_completed",
+                    iteration=iteration,
+                    batch_index=batch_index,
+                    evidences=len(batch_evidence),
+                    accumulated=len(accumulated_evidence),
+                    gaps=len(batch_gaps),
+                    compacted=digest is not None,
+                )
             self.logger.info(
                 "iteration_phase_completed",
                 phase="search",
                 iteration=iteration,
-                evidences=len(round_evidence),
+                evidences=round_evidence_count,
             )
 
             self.logger.info(
@@ -99,7 +180,7 @@ class IterationController:
                 iteration=iteration,
                 accumulated_before=len(accumulated_evidence),
             )
-            accumulated_evidence = self._summarize(accumulated_evidence + round_evidence, query)
+            accumulated_evidence = self._summarize(accumulated_evidence, query)
             self.logger.info(
                 "iteration_phase_completed",
                 phase="summarize",
@@ -123,7 +204,9 @@ class IterationController:
                 gaps=len(gaps),
             )
 
-            if iteration >= budget.max_iterations or not gaps:
+            all_gaps = _dedup_gaps(gaps + collected_batch_gaps)
+
+            if iteration >= budget.max_iterations or not all_gaps:
                 self.logger.info(
                     "iteration_phase_completed",
                     phase="route",
@@ -140,7 +223,7 @@ class IterationController:
             self.logger.info("iteration_phase_started", phase="followup", iteration=iteration)
             active_queries = await self._follow_up(
                 query=query,
-                gaps=gaps,
+                gaps=all_gaps,
                 evidences=accumulated_evidence,
                 client=client,
             )
@@ -172,7 +255,7 @@ class IterationController:
             if budget.per_channel_rate_limit > 0:
                 await asyncio.sleep(budget.per_channel_rate_limit)
 
-        return accumulated_evidence
+        return accumulated_evidence, research_trace
 
     def empty_counts_by_channel(self) -> dict[str, int]:
         return dict(self._empty_counts)
@@ -306,9 +389,12 @@ class IterationController:
         )
 
     def _summarize(self, evidences: list[Evidence], query: str) -> list[Evidence]:
-        deduped = self.evidence_processor.dedup_urls(evidences)
-        deduped = self.evidence_processor.dedup_simhash(deduped)
+        deduped = self._dedup_accumulated_evidence(evidences)
         return self.evidence_processor.rerank_bm25(deduped, query, top_k=len(deduped))
+
+    def _dedup_accumulated_evidence(self, evidences: list[Evidence]) -> list[Evidence]:
+        deduped = self.evidence_processor.dedup_urls(evidences)
+        return self.evidence_processor.dedup_simhash(deduped)
 
     async def _reflect(
         self,
@@ -329,6 +415,22 @@ class IterationController:
         response = await client.complete(prompt, _GapReflectionResponse)
         return _dedup_gaps(response.gaps)
 
+    async def _per_search_reflect(
+        self,
+        *,
+        batch_evidence: list[Evidence],
+        query: str,
+        client: LLMClient,
+        batch_subqueries: list[SubQuery] | None = None,
+    ) -> list[Gap]:
+        prompt = SEARCH_REFLECTION_PROMPT.format(
+            query=query,
+            batch_subqueries=_format_subqueries(batch_subqueries or []),
+            batch_evidence_context=_format_evidence(batch_evidence, max_items=6),
+        )
+        response = await client.complete(prompt, _GapReflectionResponse)
+        return _dedup_gaps(response.gaps)
+
     async def _follow_up(
         self,
         query: str,
@@ -344,6 +446,28 @@ class IterationController:
         response = await client.complete(prompt, _FollowUpQueryResponse)
         return _dedup_subqueries(response.subqueries)
 
+    async def _resolve_digest_trace_id(
+        self,
+        digest: EvidenceDigest,
+    ) -> int | str:
+        fallback_id = digest.compressed_at.isoformat()
+        if self._store is None or self._session_id is None:
+            return fallback_id
+
+        try:
+            artifacts = await self._store.load_artifacts(
+                session_id=self._session_id,
+                kind="compacted_digest",
+            )
+        except Exception:
+            return fallback_id
+
+        latest_artifact = artifacts[-1] if artifacts else None
+        artifact_id = latest_artifact.get("id") if isinstance(latest_artifact, dict) else None
+        if isinstance(artifact_id, int):
+            return artifact_id
+        return fallback_id
+
 
 def _dedup_subqueries(subqueries: list[SubQuery]) -> list[SubQuery]:
     seen: set[str] = set()
@@ -355,6 +479,16 @@ def _dedup_subqueries(subqueries: list[SubQuery]) -> list[SubQuery]:
         seen.add(normalized)
         deduped.append(subquery)
     return deduped
+
+
+def _partition_subqueries(subqueries: list[SubQuery], batch_size: int) -> list[list[SubQuery]]:
+    if not subqueries:
+        return []
+    normalized_batch_size = max(1, batch_size)
+    return [
+        subqueries[index : index + normalized_batch_size]
+        for index in range(0, len(subqueries), normalized_batch_size)
+    ]
 
 
 def _dedup_gaps(gaps: list[Gap]) -> list[Gap]:
