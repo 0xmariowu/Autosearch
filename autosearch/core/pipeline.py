@@ -86,6 +86,7 @@ class Pipeline:
         final_status = "error"
         final_markdown: str | None = None
         current_phase = "M0"
+        research_trace: list[dict[str, object]] = []
 
         try:
             active_channels = self.channels
@@ -158,6 +159,7 @@ class Pipeline:
                     clarification=clarification,
                     iterations=0,
                     reasoning_events=list(self._captured_reasoning_events or []),
+                    research_trace=research_trace,
                     routing_trace=routing_trace,
                     session_id=session_id,
                     cost=self._current_cost(),
@@ -211,7 +213,7 @@ class Pipeline:
                 channels=len(active_channels),
                 max_iterations=self.budget.max_iterations,
             )
-            evidences = await iteration_controller.run(
+            evidences, research_trace = await iteration_controller.run(
                 query=query,
                 initial_queries=initial_queries,
                 channels=active_channels,
@@ -307,7 +309,7 @@ class Pipeline:
                         "pipeline_quality_retry_started",
                         retry_subqueries=len(retry_queries),
                     )
-                    retry_evidences = await iteration_controller.run(
+                    retry_evidences, retry_research_trace = await iteration_controller.run(
                         query=query,
                         initial_queries=retry_queries,
                         channels=active_channels,
@@ -317,6 +319,7 @@ class Pipeline:
                         skip_channels=set(clarification.channel_skip),
                     )
                     await self._emit_phase_event(current_phase, "complete")
+                    research_trace.extend(retry_research_trace)
                     processed_evidences = self._finalize_evidences(
                         processed_evidences + retry_evidences,
                         query,
@@ -354,6 +357,7 @@ class Pipeline:
                 evidences=processed_evidences,
                 channel_empty_calls=iteration_controller.empty_counts_by_channel(),
                 reasoning_events=list(self._captured_reasoning_events or []),
+                research_trace=research_trace,
                 routing_trace=routing_trace,
                 quality=quality,
                 iterations=iteration_controller.iterations_executed,
@@ -502,12 +506,17 @@ class _TrackingIterationController(IterationController):
         session_id: str | None = None,
         on_event: Callable[[PipelineEvent], Awaitable[None]] | None = None,
     ) -> None:
-        super().__init__(evidence_processor=evidence_processor)
+        super().__init__(
+            evidence_processor=evidence_processor,
+            store=session_store,
+            session_id=session_id,
+        )
         self.iterations_executed = 0
         self.session_store = session_store
         self.session_id = session_id
         self.on_event = on_event
         self._latest_new_evidence_count = 0
+        self._latest_iteration_for_search: int | None = None
 
     async def _search(
         self,
@@ -524,7 +533,10 @@ class _TrackingIterationController(IterationController):
             priority_channels=priority_channels,
             skip_channels=skip_channels,
         )
-        self._latest_new_evidence_count = len(evidences)
+        if self._latest_iteration_for_search != iteration:
+            self._latest_iteration_for_search = iteration
+            self._latest_new_evidence_count = 0
+        self._latest_new_evidence_count += len(evidences)
         return evidences
 
     async def _handle_search_result(
@@ -597,6 +609,8 @@ class _TrackingIterationController(IterationController):
                         "reason": gap.reason,
                     }
                 )
+        self._latest_iteration_for_search = None
+        self._latest_new_evidence_count = 0
         return gaps
 
 

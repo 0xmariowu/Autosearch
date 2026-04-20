@@ -5,7 +5,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Self
 
-from autosearch.core.models import Evidence
+from pydantic import BaseModel
+
+from autosearch.core.models import Evidence, EvidenceDigest
 
 try:
     import aiosqlite
@@ -14,6 +16,10 @@ except ImportError:  # pragma: no cover - compatibility path for blocked install
     class _FallbackCursor:
         def __init__(self, cursor: sqlite3.Cursor) -> None:
             self._cursor = cursor
+
+        @property
+        def lastrowid(self) -> int | None:
+            return self._cursor.lastrowid
 
         async def fetchone(self) -> sqlite3.Row | None:
             return self._cursor.fetchone()
@@ -172,6 +178,75 @@ class SessionStore:
             )
             await self._connection_or_raise().commit()
 
+    async def store_artifact(
+        self,
+        *,
+        session_id: str,
+        kind: str,
+        payload: BaseModel,
+    ) -> int:
+        async with self._write_lock:
+            cursor = await self._connection_or_raise().execute(
+                """
+                INSERT INTO evidence_artifacts (session_id, kind, payload_json)
+                VALUES (?, ?, ?)
+                """,
+                (session_id, kind, payload.model_dump_json()),
+            )
+            try:
+                row_id = cursor.lastrowid
+            finally:
+                await cursor.close()
+
+            await self._connection_or_raise().commit()
+            if row_id is None:
+                raise RuntimeError("Failed to determine inserted artifact row id.")
+            return int(row_id)
+
+    async def load_artifacts(
+        self,
+        *,
+        session_id: str,
+        kind: str | None = None,
+    ) -> list[dict[str, Any]]:
+        connection = self._connection_or_raise()
+        if kind is None:
+            rows = await self._fetch_all(
+                connection,
+                """
+                SELECT id, kind, payload_json, created_at
+                FROM evidence_artifacts
+                WHERE session_id = ?
+                ORDER BY id ASC
+                """,
+                (session_id,),
+            )
+        else:
+            rows = await self._fetch_all(
+                connection,
+                """
+                SELECT id, kind, payload_json, created_at
+                FROM evidence_artifacts
+                WHERE session_id = ? AND kind = ?
+                ORDER BY id ASC
+                """,
+                (session_id, kind),
+            )
+        return [dict(row) for row in rows]
+
+    async def load_digests(
+        self,
+        *,
+        session_id: str,
+    ) -> list[EvidenceDigest]:
+        artifacts = await self.load_artifacts(
+            session_id=session_id,
+            kind="compacted_digest",
+        )
+        return [
+            EvidenceDigest.model_validate_json(artifact["payload_json"]) for artifact in artifacts
+        ]
+
     async def fetch_session(self, session_id: str) -> dict[str, Any] | None:
         connection = self._connection_or_raise()
         session = await self._fetch_one(
@@ -262,6 +337,21 @@ class SessionStore:
                     results INTEGER NOT NULL,
                     FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
                 );
+
+                CREATE TABLE IF NOT EXISTS evidence_artifacts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    kind TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_evidence_artifacts_session
+                ON evidence_artifacts(session_id);
+
+                CREATE INDEX IF NOT EXISTS idx_evidence_artifacts_kind
+                ON evidence_artifacts(session_id, kind);
                 """
             )
             await connection.commit()
