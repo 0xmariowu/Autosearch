@@ -194,6 +194,7 @@ def test_search_streams_needs_clarification_event(monkeypatch) -> None:
     } in events
     assert pipeline.calls == [("test query", SearchMode.DEEP)]
 
+
 def test_search_endpoint_returns_channel_empty_calls_in_json(monkeypatch) -> None:
     pipeline = _StubPipeline(result=_ok_result(channel_empty_calls={"arxiv": 3}))
     _install_pipeline_factory(monkeypatch, pipeline)
@@ -204,6 +205,7 @@ def test_search_endpoint_returns_channel_empty_calls_in_json(monkeypatch) -> Non
         json={
             "query": "test query",
             "scope": {
+                "domain_followups": [],
                 "channel_scope": "all",
                 "depth": "fast",
                 "output_format": "md",
@@ -228,6 +230,7 @@ def test_search_endpoint_includes_routing_trace(monkeypatch) -> None:
         json={
             "query": "test query",
             "scope": {
+                "domain_followups": [],
                 "channel_scope": "all",
                 "depth": "fast",
                 "output_format": "md",
