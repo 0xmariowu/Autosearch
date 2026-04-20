@@ -68,7 +68,11 @@ async def test_research_accepts_scope_params_with_defaults(
     research_tool = server._tool_manager.get_tool("research")
 
     assert research_tool is not None
-    assert await research_tool.run({"query": "test query"}) == "# Test\n\nBody"
+    result = await research_tool.run({"query": "test query"})
+    assert isinstance(result, mcp_server.ResearchResponse)
+    assert result.content == "# Test\n\nBody"
+    assert result.delivery_status == "ok"
+    assert result.scope == SearchScope().model_dump()
     assert pipeline.calls == [("test query", SearchMode.FAST, SearchScope())]
 
 
@@ -116,7 +120,7 @@ async def test_research_emits_scope_banner_for_nondefault_scope(
 
     assert research_tool is not None
     result = await research_tool.run({"query": "test query", "languages": "zh_only"})
-    assert result.startswith("[scope] languages=zh_only")
+    assert result.content.startswith("[scope] languages=zh_only")
 
 
 @pytest.mark.asyncio
@@ -130,7 +134,8 @@ async def test_research_no_banner_for_default_scope(
     research_tool = server._tool_manager.get_tool("research")
 
     assert research_tool is not None
-    assert await research_tool.run({"query": "test query"}) == "# Test\n\nBody"
+    result = await research_tool.run({"query": "test query"})
+    assert result.content == "# Test\n\nBody"
 
 
 @pytest.mark.asyncio
@@ -145,7 +150,7 @@ async def test_research_html_format_wraps_markdown(
 
     assert research_tool is not None
     result = await research_tool.run({"query": "test query", "output_format": "html"})
-    assert result.startswith("<!doctype html>")
+    assert result.content.startswith("<!doctype html>")
 
 
 @pytest.mark.asyncio

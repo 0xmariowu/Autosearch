@@ -87,10 +87,19 @@ async def test_create_server_registers_research_tool() -> None:
     tools = await server.list_tools()
 
     assert {tool.name for tool in tools} >= {"research", "health"}
+    research = next(tool for tool in tools if tool.name == "research")
+    assert research.outputSchema is not None
+    assert set(research.outputSchema["properties"]) >= {
+        "content",
+        "delivery_status",
+        "channel_empty_calls",
+        "routing_trace",
+        "scope",
+    }
 
 
 @pytest.mark.asyncio
-async def test_research_tool_returns_markdown_for_ok_result(
+async def test_research_tool_returns_structured_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pipeline = _StubPipeline(result=_ok_result())
@@ -100,12 +109,39 @@ async def test_research_tool_returns_markdown_for_ok_result(
     research_tool = server._tool_manager.get_tool("research")
 
     assert research_tool is not None
-    assert await research_tool.run({"query": "test query", "mode": "fast"}) == "# Test\n\nBody"
+    result = await research_tool.run({"query": "test query", "mode": "fast"})
+    assert isinstance(result, mcp_server.ResearchResponse)
+    assert result.content == "# Test\n\nBody"
+    assert result.delivery_status == "ok"
+    assert result.channel_empty_calls == {}
+    assert result.routing_trace == {}
+    assert result.scope == {
+        "domain_followups": [],
+        "channel_scope": "all",
+        "depth": "fast",
+        "output_format": "md",
+    }
     assert pipeline.calls == [("test query", SearchMode.FAST)]
 
 
 @pytest.mark.asyncio
-async def test_research_tool_returns_clarification_prompt(
+async def test_research_tool_success_path_content_is_markdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipeline = _StubPipeline(result=_ok_result())
+    _install_default_factory(monkeypatch, pipeline)
+    server = mcp_server.create_server()
+
+    research_tool = server._tool_manager.get_tool("research")
+
+    assert research_tool is not None
+    result = await research_tool.run({"query": "test query", "mode": "fast"})
+    assert result.content == "# Test\n\nBody"
+    assert result.delivery_status == "ok"
+
+
+@pytest.mark.asyncio
+async def test_research_tool_clarification_path_flagged(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pipeline = _StubPipeline(result=_clarification_result())
@@ -116,12 +152,14 @@ async def test_research_tool_returns_clarification_prompt(
 
     assert research_tool is not None
     result = await research_tool.run({"query": "test query", "mode": "deep"})
-    assert result.startswith("[clarification needed]")
+    assert isinstance(result, mcp_server.ResearchResponse)
+    assert result.content == "[clarification needed] Which deployment target matters most?"
+    assert result.delivery_status == "needs_clarification"
     assert pipeline.calls == [("test query", SearchMode.DEEP)]
 
 
 @pytest.mark.asyncio
-async def test_research_tool_returns_error_prefix_on_exception(
+async def test_research_tool_error_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pipeline = _StubPipeline(exc=RuntimeError("boom"))
@@ -131,8 +169,33 @@ async def test_research_tool_returns_error_prefix_on_exception(
     research_tool = server._tool_manager.get_tool("research")
 
     assert research_tool is not None
-    assert await research_tool.run({"query": "test query", "mode": "fast"}) == "[error] boom"
+    result = await research_tool.run({"query": "test query", "mode": "fast"})
+    assert isinstance(result, mcp_server.ResearchResponse)
+    assert result.content.startswith("[error]")
+    assert result.content == "[error] boom"
+    assert result.delivery_status == "error"
     assert pipeline.calls == [("test query", SearchMode.FAST)]
+
+
+@pytest.mark.asyncio
+async def test_research_response_serializable_json(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipeline = _StubPipeline(result=_ok_result())
+    _install_default_factory(monkeypatch, pipeline)
+    server = mcp_server.create_server()
+
+    research_tool = server._tool_manager.get_tool("research")
+
+    assert research_tool is not None
+    result = await research_tool.run({"query": "test query", "mode": "fast"})
+    payload = result.model_dump()
+    encoded = result.model_dump_json()
+    decoded = mcp_server.ResearchResponse.model_validate_json(encoded)
+
+    assert payload["content"] == "# Test\n\nBody"
+    assert payload["delivery_status"] == "ok"
+    assert decoded == result
 
 
 @pytest.mark.asyncio
