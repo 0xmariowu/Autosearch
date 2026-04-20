@@ -23,24 +23,8 @@ from autosearch.core.models import (
 FIXED_TIME = datetime(2026, 4, 17, 12, 0, tzinfo=UTC)
 
 
-def test_fetched_page_minimum_fields_roundtrip() -> None:
-    page = FetchedPage(url="https://example.com/article", status_code=200)
-
-    payload = page.model_dump_json()
-    restored = FetchedPage.model_validate_json(payload)
-
-    assert restored == page
-    assert restored.html == ""
-    assert restored.cleaned_html == ""
-    assert restored.markdown == ""
-    assert restored.links == []
-    assert restored.metadata == {}
-    assert restored.tables == []
-    assert restored.media == []
-
-
-def test_fetched_page_full_roundtrip() -> None:
-    page = FetchedPage(
+def _fetched_page_with_all_fields() -> FetchedPage:
+    return FetchedPage(
         url="https://example.com/article",
         status_code=200,
         fetched_at=FIXED_TIME,
@@ -84,10 +68,65 @@ def test_fetched_page_full_roundtrip() -> None:
         ],
     )
 
+
+def test_fetched_page_minimum_fields_roundtrip() -> None:
+    page = FetchedPage(url="https://example.com/article", status_code=200)
+
     payload = page.model_dump_json()
     restored = FetchedPage.model_validate_json(payload)
 
     assert restored == page
+    assert restored.html == ""
+    assert restored.cleaned_html == ""
+    assert restored.markdown == ""
+    assert restored.links == []
+    assert restored.metadata == {}
+    assert restored.tables == []
+    assert restored.media == []
+
+
+def test_fetched_page_full_roundtrip() -> None:
+    page = _fetched_page_with_all_fields()
+
+    payload = page.model_dump_json()
+    restored = FetchedPage.model_validate_json(payload)
+
+    assert restored == page
+
+
+def test_fetched_page_slim_removes_html_and_cleaned_html() -> None:
+    page = _fetched_page_with_all_fields()
+
+    slimmed = page.slim()
+
+    assert slimmed.html == ""
+    assert slimmed.cleaned_html == ""
+    assert slimmed.markdown == page.markdown
+    assert slimmed.links == page.links
+    assert slimmed.metadata == page.metadata
+    assert slimmed.tables == page.tables
+    assert slimmed.media == page.media
+
+
+def test_fetched_page_slim_preserves_other_fields() -> None:
+    page = _fetched_page_with_all_fields()
+
+    slimmed = page.slim()
+
+    assert slimmed.url == page.url
+    assert slimmed.status_code == page.status_code
+    assert slimmed.fetched_at == page.fetched_at
+    assert slimmed.markdown == page.markdown
+    assert slimmed.links == page.links
+    assert slimmed.metadata == page.metadata
+    assert slimmed.tables == page.tables
+    assert slimmed.media == page.media
+
+
+def test_fetched_page_slim_idempotent() -> None:
+    page = _fetched_page_with_all_fields()
+
+    assert page.slim().slim() == page.slim()
 
 
 def test_evidence_with_source_page() -> None:
@@ -133,6 +172,42 @@ def test_evidence_without_source_page_still_valid() -> None:
 
     assert restored == evidence
     assert restored.source_page is None
+
+
+def test_evidence_to_slim_dict_slims_source_page() -> None:
+    source_page = _fetched_page_with_all_fields()
+    evidence = Evidence(
+        url="https://example.com",
+        title="Example",
+        snippet="snippet",
+        content="content",
+        source_channel="web",
+        fetched_at=FIXED_TIME,
+        score=0.8,
+        source_page=source_page,
+    )
+
+    payload = evidence.to_slim_dict()
+
+    assert payload["source_page"]["html"] == ""
+    assert payload["source_page"]["cleaned_html"] == ""
+    assert payload["source_page"]["markdown"] == source_page.markdown
+
+
+def test_evidence_to_slim_dict_handles_none_source_page() -> None:
+    evidence = Evidence(
+        url="https://example.com",
+        title="Example",
+        snippet="snippet",
+        content="content",
+        source_channel="web",
+        fetched_at=FIXED_TIME,
+        score=0.8,
+    )
+
+    payload = evidence.to_slim_dict()
+
+    assert payload["source_page"] is None
 
 
 def test_link_ref_internal_flag() -> None:

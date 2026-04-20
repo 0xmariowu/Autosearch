@@ -185,13 +185,17 @@ class SessionStore:
         kind: str,
         payload: BaseModel,
     ) -> int:
+        payload_json = payload.model_dump_json()
+        if isinstance(payload, Evidence):
+            payload_json = Evidence.model_validate(payload.to_slim_dict()).model_dump_json()
+
         async with self._write_lock:
             cursor = await self._connection_or_raise().execute(
                 """
                 INSERT INTO evidence_artifacts (session_id, kind, payload_json)
                 VALUES (?, ?, ?)
                 """,
-                (session_id, kind, payload.model_dump_json()),
+                (session_id, kind, payload_json),
             )
             try:
                 row_id = cursor.lastrowid
