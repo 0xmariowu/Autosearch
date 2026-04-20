@@ -71,6 +71,18 @@ class Evidence(BaseModel):
     source_page: FetchedPage | None = None
 
 
+class EvidenceDigest(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    topic: str = ""
+    key_findings: list[str] = Field(default_factory=list)
+    source_urls: list[str] = Field(default_factory=list)
+    evidence_count: int = 0
+    compressed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    token_count_before: int = 0
+    token_count_after: int = 0
+
+
 class Gap(BaseModel):
     model_config = ConfigDict(frozen=True)
 
