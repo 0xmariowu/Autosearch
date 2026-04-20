@@ -4,9 +4,6 @@ name: Issue Greeter
 # Copilot reads the issue, assesses cloud-async feasibility, and either
 # (a) picks up the work itself, or (b) labels `status:needs-claude-session`
 # for Claude Code to handle when session is active.
-#
-# See blueprint:
-#   https://github.com/0xmariowu/AgentLint/blob/main/docs/plans/...  (optional)
 
 on:
   issues:
