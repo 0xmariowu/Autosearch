@@ -1,5 +1,6 @@
 # Source: open_deep_research/src/legacy/graph.py:L235-L354 (adapted)
 import asyncio
+import inspect
 from dataclasses import dataclass
 
 import structlog
@@ -135,6 +136,10 @@ class IterationController:
             else None,
         )
         batch_size = max(1, budget.subquery_batch_size)
+        search_supports_iteration_trace = _callable_accepts_keyword(
+            self._search,
+            "iteration_trace",
+        )
 
         for iteration in range(1, budget.max_iterations + 1):
             if not active_queries:
@@ -149,6 +154,10 @@ class IterationController:
 
             collected_batch_gaps: list[Gap] = []
             subquery_batches = _partition_subqueries(active_queries, batch_size)
+            iteration_routing_trace = _initial_iteration_routing_entry(
+                iteration,
+                batch_count=len(subquery_batches),
+            )
             round_evidence_count = 0
             self.logger.info(
                 "iteration_phase_started",
@@ -169,12 +178,17 @@ class IterationController:
                     subqueries=len(batch_subqueries),
                     channels=len(channels),
                 )
+                search_kwargs: dict[str, object] = {
+                    "priority_channels": effective_priority,
+                    "skip_channels": effective_skip,
+                }
+                if search_supports_iteration_trace:
+                    search_kwargs["iteration_trace"] = iteration_routing_trace
                 batch_evidence = await self._search(
                     batch_subqueries,
                     channels,
                     iteration,
-                    priority_channels=effective_priority,
-                    skip_channels=effective_skip,
+                    **search_kwargs,
                 )
                 round_evidence_count += len(batch_evidence)
                 accumulated_evidence = self._dedup_accumulated_evidence(
@@ -299,6 +313,7 @@ class IterationController:
 
             all_gaps = _dedup_gaps(gaps + collected_batch_gaps)
 
+            should_continue = False
             if iteration >= budget.max_iterations or not all_gaps:
                 self.logger.info(
                     "iteration_phase_completed",
@@ -311,39 +326,43 @@ class IterationController:
                         else "no_remaining_gaps"
                     ),
                 )
-                break
-
-            self.logger.info("iteration_phase_started", phase="followup", iteration=iteration)
-            active_queries = await self._follow_up(
-                query=query,
-                gaps=all_gaps,
-                evidences=accumulated_evidence,
-                client=client,
-            )
-            self.logger.info(
-                "iteration_phase_completed",
-                phase="followup",
-                iteration=iteration,
-                subqueries=len(active_queries),
-            )
-
-            if not active_queries:
+            else:
+                self.logger.info("iteration_phase_started", phase="followup", iteration=iteration)
+                active_queries = await self._follow_up(
+                    query=query,
+                    gaps=all_gaps,
+                    evidences=accumulated_evidence,
+                    client=client,
+                )
                 self.logger.info(
                     "iteration_phase_completed",
-                    phase="route",
+                    phase="followup",
                     iteration=iteration,
-                    decision="stop",
-                    reason="no_follow_up_queries",
+                    subqueries=len(active_queries),
                 )
-                break
 
-            self.logger.info(
-                "iteration_phase_completed",
-                phase="route",
-                iteration=iteration,
-                decision="continue",
-                next_iteration=iteration + 1,
-            )
+                if not active_queries:
+                    self.logger.info(
+                        "iteration_phase_completed",
+                        phase="route",
+                        iteration=iteration,
+                        decision="stop",
+                        reason="no_follow_up_queries",
+                    )
+                else:
+                    self.logger.info(
+                        "iteration_phase_completed",
+                        phase="route",
+                        iteration=iteration,
+                        decision="continue",
+                        next_iteration=iteration + 1,
+                    )
+                    should_continue = True
+
+            _append_iteration_routing_entry(self.routing_trace, iteration_routing_trace)
+
+            if not should_continue:
+                break
 
             if budget.per_channel_rate_limit > 0:
                 await asyncio.sleep(budget.per_channel_rate_limit)
@@ -360,6 +379,7 @@ class IterationController:
         iteration: int,
         priority_channels: set[str] | None = None,
         skip_channels: set[str] | None = None,
+        iteration_trace: dict[str, object] | None = None,
     ) -> list[Evidence]:
         effective_priority = set(priority_channels or [])
         effective_skip = set(skip_channels or [])
@@ -372,10 +392,14 @@ class IterationController:
         runnable_channels = [channel for channel in channels if channel.name not in effective_skip]
         skipped_names = [channel.name for channel in channels if channel.name in effective_skip]
         _extend_unique_names(self.routing_trace, "skipped_channels", skipped_names)
+        if iteration_trace is not None:
+            _extend_unique_names(iteration_trace, "skipped", skipped_names)
 
         if not effective_priority:
             rest_names = [channel.name for channel in runnable_channels]
             _extend_unique_names(self.routing_trace, "rest_ran", rest_names)
+            if iteration_trace is not None:
+                _extend_unique_names(iteration_trace, "rest_ran", rest_names)
             return await self._run_channel_batch(subqueries, runnable_channels, iteration)
 
         priority_batch = [
@@ -387,17 +411,28 @@ class IterationController:
 
         priority_names = [channel.name for channel in priority_batch]
         _extend_unique_names(self.routing_trace, "priority_ran", priority_names)
+        if iteration_trace is not None:
+            _extend_unique_names(iteration_trace, "priority_ran", priority_names)
         priority_evidence = await self._run_channel_batch(subqueries, priority_batch, iteration)
-        self.routing_trace["priority_evidence_count"] = int(
-            self.routing_trace.get("priority_evidence_count", 0)
-        ) + len(priority_evidence)
+        priority_evidence_count = len(priority_evidence)
+        self.routing_trace["priority_evidence_count"] = (
+            int(self.routing_trace.get("priority_evidence_count", 0)) + priority_evidence_count
+        )
+        if iteration_trace is not None:
+            iteration_trace["priority_evidence_count"] = (
+                int(iteration_trace.get("priority_evidence_count", 0)) + priority_evidence_count
+            )
 
         if len(priority_evidence) >= FALLBACK_THRESHOLD or not rest_batch:
             return priority_evidence
 
         self.routing_trace["fallback_triggered"] = True
+        if iteration_trace is not None:
+            iteration_trace["fallback_triggered"] = True
         rest_names = [channel.name for channel in rest_batch]
         _extend_unique_names(self.routing_trace, "rest_ran", rest_names)
+        if iteration_trace is not None:
+            _extend_unique_names(iteration_trace, "rest_ran", rest_names)
         rest_evidence = await self._run_channel_batch(subqueries, rest_batch, iteration)
         return priority_evidence + rest_evidence
 
@@ -746,6 +781,23 @@ def _initial_routing_trace(
         "priority_evidence_count": 0,
         "fallback_triggered": False,
         "skipped_channels": list(skipped),
+        "iterations": [],
+    }
+
+
+def _initial_iteration_routing_entry(
+    iteration: int,
+    *,
+    batch_count: int,
+) -> dict[str, object]:
+    return {
+        "iteration": iteration,
+        "priority_ran": [],
+        "rest_ran": [],
+        "skipped": [],
+        "priority_evidence_count": 0,
+        "fallback_triggered": False,
+        "batch_count": batch_count,
     }
 
 
@@ -775,3 +827,26 @@ def _extend_unique_names(trace: dict[str, object], key: str, names: list[str]) -
             continue
         existing.append(name)
         seen.add(name)
+
+
+def _append_iteration_routing_entry(
+    trace: dict[str, object],
+    iteration_trace: dict[str, object],
+) -> None:
+    iterations = trace.get("iterations")
+    if not isinstance(iterations, list):
+        iterations = []
+        trace["iterations"] = iterations
+    iterations.append(iteration_trace)
+
+
+def _callable_accepts_keyword(callable_obj: object, keyword: str) -> bool:
+    try:
+        parameters = inspect.signature(callable_obj).parameters.values()
+    except (TypeError, ValueError):
+        return False
+
+    return any(
+        parameter.name == keyword or parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters
+    )
