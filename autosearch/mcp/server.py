@@ -3,6 +3,7 @@ from collections.abc import Callable
 from typing import Literal
 
 from mcp.server.fastmcp import FastMCP
+from pydantic import BaseModel, ConfigDict, Field
 
 from autosearch.core.channel_bootstrap import _build_channels
 from autosearch.core.pipeline import Pipeline
@@ -10,22 +11,16 @@ from autosearch.core.search_scope import SearchScope, depth_to_mode
 from autosearch.llm.client import LLMClient
 
 
-class ResearchResponse(str):
-    def __new__(
-        cls,
-        content: str,
-        *,
-        channel_empty_calls: dict[str, int],
-        routing_trace: dict[str, object],
-        delivery_status: str,
-        scope: SearchScope,
-    ) -> "ResearchResponse":
-        instance = str.__new__(cls, content)
-        instance.channel_empty_calls = dict(channel_empty_calls)
-        instance.routing_trace = dict(routing_trace)
-        instance.delivery_status = delivery_status
-        instance.scope = scope.model_dump()
-        return instance
+class ResearchResponse(BaseModel):
+    """Structured MCP tool response for the research tool."""
+
+    content: str
+    delivery_status: str
+    channel_empty_calls: dict[str, int] = Field(default_factory=dict)
+    routing_trace: dict[str, object] = Field(default_factory=dict)
+    scope: dict[str, object]
+
+    model_config = ConfigDict(extra="forbid")
 
 
 def _default_pipeline_factory() -> Pipeline:
@@ -49,8 +44,8 @@ def create_server(pipeline_factory: Callable[[], Pipeline] | None = None) -> Fas
         languages: Literal["all", "en_only", "zh_only", "mixed"] | None = None,
         depth: Literal["fast", "deep", "comprehensive"] | None = None,
         output_format: Literal["md", "html"] | None = None,
-    ) -> str:
-        """Run an AutoSearch research query and return the report text."""
+    ) -> ResearchResponse:
+        """Run an AutoSearch research query and return a structured response envelope."""
         scope = SearchScope(
             channel_scope=languages or "all",
             depth=depth or mode,
@@ -63,21 +58,21 @@ def create_server(pipeline_factory: Callable[[], Pipeline] | None = None) -> Fas
             result = await factory().run(query, mode_hint=mode_hint, scope=scope)
         except Exception as exc:
             return ResearchResponse(
-                f"[error] {exc}",
+                content=f"[error] {exc}",
                 channel_empty_calls={},
                 routing_trace={},
                 delivery_status="error",
-                scope=scope,
+                scope=scope.model_dump(),
             )
 
         if result.delivery_status == "needs_clarification":
             question = result.clarification.question or "More detail is required."
             return ResearchResponse(
-                f"[clarification needed] {question}",
+                content=f"[clarification needed] {question}",
                 channel_empty_calls=result.channel_empty_calls,
                 routing_trace=result.routing_trace,
                 delivery_status=result.delivery_status,
-                scope=scope,
+                scope=scope.model_dump(),
             )
 
         banner = _scope_banner(scope)
@@ -86,7 +81,7 @@ def create_server(pipeline_factory: Callable[[], Pipeline] | None = None) -> Fas
             markdown_text = f"{banner}\n\n{markdown_text}" if markdown_text else banner
 
         return ResearchResponse(
-            _render_output(
+            content=_render_output(
                 markdown_text=markdown_text,
                 title=query,
                 output_format=scope.output_format,
@@ -94,7 +89,7 @@ def create_server(pipeline_factory: Callable[[], Pipeline] | None = None) -> Fas
             channel_empty_calls=result.channel_empty_calls,
             routing_trace=result.routing_trace,
             delivery_status=result.delivery_status,
-            scope=scope,
+            scope=scope.model_dump(),
         )
 
     @server.tool()
