@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import structlog
+from typing import TYPE_CHECKING
 
 from autosearch.core.models import Evidence, EvidenceDigest
 from autosearch.llm.client import LLMClient
 from autosearch.observability.cost import estimate_tokens
 from autosearch.skills.prompts import load_prompt
+
+if TYPE_CHECKING:
+    from autosearch.persistence.session_store import SessionStore
 
 EVIDENCE_COMPACTION_PROMPT = load_prompt("m3_evidence_compaction")
 _MAX_EVIDENCE_FIELD_CHARS = 1000
@@ -21,6 +25,8 @@ class ContextCompactor:
         hot_set_size: int = 10,
         compact_when_over_pct: float = 0.8,
         client: LLMClient | None = None,
+        store: SessionStore | None = None,
+        session_id: str | None = None,
     ) -> None:
         if token_budget <= 0:
             raise ValueError("token_budget must be greater than 0")
@@ -33,6 +39,8 @@ class ContextCompactor:
         self.hot_set_size = hot_set_size
         self.compact_when_over_pct = compact_when_over_pct
         self.client = client
+        self.store = store
+        self.session_id = session_id
         self.logger = structlog.get_logger(__name__).bind(component="context_compactor")
 
     async def compact(
@@ -68,6 +76,12 @@ class ContextCompactor:
             cold_count=len(cold),
         )
 
+        for item in cold:
+            await self._store_artifact_best_effort(
+                kind="evicted_evidence",
+                payload=item,
+            )
+
         prompt = self._build_prompt(query, cold)
         try:
             client = self.client or LLMClient()
@@ -77,6 +91,10 @@ class ContextCompactor:
             return evidence, None
 
         digest = self._finalize_digest(llm_digest, cold, cold_tokens)
+        await self._store_artifact_best_effort(
+            kind="compacted_digest",
+            payload=digest,
+        )
         self.logger.info(
             "compaction_completed",
             key_findings_count=len(digest.key_findings),
@@ -163,3 +181,25 @@ class ContextCompactor:
         if len(text) <= _MAX_EVIDENCE_FIELD_CHARS:
             return text
         return f"{text[:_MAX_EVIDENCE_FIELD_CHARS].rstrip()}..."
+
+    async def _store_artifact_best_effort(
+        self,
+        *,
+        kind: str,
+        payload: Evidence | EvidenceDigest,
+    ) -> None:
+        if self.store is None or self.session_id is None:
+            return
+
+        try:
+            await self.store.store_artifact(
+                session_id=self.session_id,
+                kind=kind,
+                payload=payload,
+            )
+        except Exception as exc:
+            self.logger.warning(
+                "compaction_artifact_store_failed",
+                kind=kind,
+                error=str(exc),
+            )

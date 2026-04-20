@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from autosearch.core import context_compaction as context_compaction_module
 from autosearch.core.context_compaction import ContextCompactor
 from autosearch.core.models import Evidence, EvidenceDigest, FetchedPage
+from autosearch.persistence.session_store import SessionStore
 
 NOW = datetime(2026, 4, 20, 12, 0, tzinfo=UTC)
 
@@ -36,6 +37,22 @@ class RecordingLogger:
 
     def warning(self, event: str, **kwargs: object) -> None:
         self.warning_calls.append((event, kwargs))
+
+
+class ExplodingStore:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str]] = []
+
+    async def store_artifact(
+        self,
+        *,
+        session_id: str,
+        kind: str,
+        payload: object,
+    ) -> int:
+        _ = payload
+        self.calls.append((session_id, kind))
+        raise RuntimeError("artifact write failed")
 
 
 def make_digest() -> EvidenceDigest:
@@ -245,3 +262,108 @@ async def test_hot_set_size_zero_compacts_everything(monkeypatch) -> None:
     assert hot == []
     assert digest is not None
     assert digest.evidence_count == len(evidence)
+
+
+async def test_compaction_persists_digest_when_store_and_session_id_set(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setattr(context_compaction_module, "estimate_tokens", fake_estimate_tokens)
+    evidence = [make_evidence(index, tokens=1000) for index in range(1, 13)]
+    client = FakeLLMClient(make_digest())
+    store = await SessionStore.open(tmp_path / "context-compaction.sqlite")
+
+    try:
+        await store.create_session("session-1", "persist digest", "deep")
+        compactor = ContextCompactor(
+            token_budget=10000,
+            hot_set_size=2,
+            client=client,
+            store=store,
+            session_id="session-1",
+        )
+
+        _, digest = await compactor.compact(evidence, "persist digest")
+        persisted = await store.load_digests(session_id="session-1")
+    finally:
+        await store.close()
+
+    assert digest is not None
+    assert persisted == [digest]
+
+
+async def test_compaction_persists_evicted_evidence(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(context_compaction_module, "estimate_tokens", fake_estimate_tokens)
+    evidence = [make_evidence(index, tokens=1000) for index in range(1, 13)]
+    client = FakeLLMClient(make_digest())
+    store = await SessionStore.open(tmp_path / "evicted-evidence.sqlite")
+
+    try:
+        await store.create_session("session-1", "persist evicted evidence", "deep")
+        compactor = ContextCompactor(
+            token_budget=10000,
+            hot_set_size=2,
+            client=client,
+            store=store,
+            session_id="session-1",
+        )
+
+        await compactor.compact(evidence, "persist evicted evidence")
+        artifacts = await store.load_artifacts(
+            session_id="session-1",
+            kind="evicted_evidence",
+        )
+    finally:
+        await store.close()
+
+    assert len(artifacts) == len(evidence[:-2])
+    restored = [Evidence.model_validate_json(artifact["payload_json"]) for artifact in artifacts]
+    assert restored == evidence[:-2]
+
+
+async def test_compaction_without_store_no_persistence(monkeypatch) -> None:
+    monkeypatch.setattr(context_compaction_module, "estimate_tokens", fake_estimate_tokens)
+    evidence = [make_evidence(index, tokens=1000) for index in range(1, 13)]
+    client = FakeLLMClient(make_digest())
+    compactor = ContextCompactor(token_budget=10000, hot_set_size=2, client=client)
+
+    hot, digest = await compactor.compact(evidence, "no store")
+
+    assert hot == evidence[-2:]
+    assert digest is not None
+    assert client.calls == 1
+
+
+async def test_compaction_store_error_is_best_effort(monkeypatch) -> None:
+    monkeypatch.setattr(context_compaction_module, "estimate_tokens", fake_estimate_tokens)
+    evidence = [make_evidence(index, tokens=1000) for index in range(1, 13)]
+    client = FakeLLMClient(make_digest())
+    store = ExplodingStore()
+    compactor = ContextCompactor(
+        token_budget=10000,
+        hot_set_size=2,
+        client=client,
+        store=store,
+        session_id="session-1",
+    )
+    logger = RecordingLogger()
+    monkeypatch.setattr(compactor, "logger", logger)
+
+    hot, digest = await compactor.compact(evidence, "store error")
+
+    assert hot == evidence[-2:]
+    assert digest is not None
+    assert store.calls == [("session-1", "evicted_evidence")] * 10 + [
+        ("session-1", "compacted_digest")
+    ]
+    assert logger.warning_calls == [
+        (
+            "compaction_artifact_store_failed",
+            {"kind": "evicted_evidence", "error": "artifact write failed"},
+        )
+    ] * 10 + [
+        (
+            "compaction_artifact_store_failed",
+            {"kind": "compacted_digest", "error": "artifact write failed"},
+        )
+    ]
