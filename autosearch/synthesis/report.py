@@ -244,7 +244,7 @@ def _evidence_lookup_key(evidence: Evidence) -> str:
         return evidence.url
     preview = (evidence.content or evidence.snippet or "")[:100]
     payload = f"{evidence.title}\n{preview}"
-    return hashlib.sha1(payload.encode("utf-8")).hexdigest()
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def _snippet_identity(snippet: EvidenceSnippet) -> tuple[str, int, str, str]:
