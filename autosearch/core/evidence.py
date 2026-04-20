@@ -30,7 +30,15 @@ class EvidenceProcessor:
         kept_hashes: list[Simhash] = []
         for evidence in evs:
             text = _simhash_text(evidence)
-            fingerprint = Simhash(text)
+            try:
+                fingerprint = Simhash(text)
+            except OverflowError:
+                # simhash 2.x has a numpy uint8 overflow when any feature weight
+                # exceeds 255 (triggered on long / repetitive text). Fall back to
+                # keeping the evidence without near-duplicate suppression rather
+                # than silently dropping channel output.
+                kept.append(evidence)
+                continue
             if any(fingerprint.distance(existing) <= threshold for existing in kept_hashes):
                 continue
             kept.append(evidence)
