@@ -59,6 +59,10 @@ class FetchedPage(BaseModel):
     tables: list[TableData] = Field(default_factory=list)
     media: list[MediaRef] = Field(default_factory=list)
 
+    def slim(self) -> "FetchedPage":
+        """Return a copy with bulky HTML fields removed for serialization."""
+        return self.model_copy(update={"html": "", "cleaned_html": ""})
+
 
 class Evidence(BaseModel):
     model_config = ConfigDict(frozen=True)
@@ -71,6 +75,13 @@ class Evidence(BaseModel):
     fetched_at: datetime
     score: float | None = None
     source_page: FetchedPage | None = None
+
+    def to_slim_dict(self) -> dict:
+        """Return a serialized form with a slimmed source_page when present."""
+        data = self.model_dump()
+        if self.source_page is not None:
+            data["source_page"] = self.source_page.slim().model_dump()
+        return data
 
 
 class EvidenceDigest(BaseModel):

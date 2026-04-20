@@ -1,7 +1,8 @@
 # Self-written, plan v2.3 § 13.5
+import json
 from datetime import UTC, datetime
 
-from autosearch.core.models import Evidence, EvidenceDigest
+from autosearch.core.models import Evidence, EvidenceDigest, FetchedPage, LinkRef
 from autosearch.persistence.session_store import SessionStore
 
 NOW = datetime(2026, 4, 20, 12, 0, tzinfo=UTC)
@@ -175,3 +176,53 @@ async def test_artifact_payload_roundtrip_for_evidence_digest() -> None:
     assert len(artifacts) == 1
     restored = EvidenceDigest.model_validate_json(artifacts[0]["payload_json"])
     assert restored == digest
+
+
+async def test_session_store_persists_slim_evidence() -> None:
+    store = await SessionStore.open(":memory:")
+    source_page = FetchedPage(
+        url="https://example.com/evidence/1",
+        status_code=200,
+        fetched_at=NOW,
+        html="<html><body>" + ("A" * 4000) + "</body></html>",
+        cleaned_html="<article>" + ("B" * 3000) + "</article>",
+        markdown="# Evidence 1\n\nUseful body",
+        links=[LinkRef(href="https://example.com/related", text="Related")],
+        metadata={"title": "Evidence 1"},
+    )
+    evidence = Evidence(
+        url="https://example.com/evidence/1",
+        title="Evidence 1",
+        snippet="Snippet 1",
+        content="Content 1",
+        source_channel="web",
+        fetched_at=NOW,
+        score=0.6,
+        source_page=source_page,
+    )
+
+    try:
+        await store.create_session("session-1", "query", "deep")
+        full_payload_size = len(evidence.model_dump_json())
+        await store.store_artifact(
+            session_id="session-1",
+            kind="evicted_evidence",
+            payload=evidence,
+        )
+
+        artifacts = await store.load_artifacts(
+            session_id="session-1",
+            kind="evicted_evidence",
+        )
+    finally:
+        await store.close()
+
+    assert len(artifacts) == 1
+    persisted_payload = artifacts[0]["payload_json"]
+    persisted = json.loads(persisted_payload)
+
+    assert persisted["source_page"]["html"] == ""
+    assert persisted["source_page"]["cleaned_html"] == ""
+    assert source_page.html not in persisted_payload
+    assert source_page.cleaned_html not in persisted_payload
+    assert len(persisted_payload) < full_payload_size
