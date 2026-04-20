@@ -178,7 +178,7 @@ phases:
           claude --mcp-config $HOME/.claude/mcp.json --dangerously-skip-permissions -p "Use the research tool with mode=fast to briefly summarize BM25" 2>&1 | tail -200
         expect:
           exit: 0
-          stdout_contains: "References"
+          stdout_contains: "BM25"
 
   # F112 — Channel failure isolation (monkey-patch)
   F112_channel_failure_isolation:

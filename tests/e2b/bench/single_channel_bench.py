@@ -102,13 +102,19 @@ def main() -> int:
     try:
         stats = asyncio.run(run_bench(channel_name, query))
     except Exception as exc:
+        import traceback
+
+        tb = traceback.format_exc()
         stats = {
             "channel": channel_name,
             "query": query,
             "status": "exception",
             "error": f"{type(exc).__name__}: {exc}",
+            "traceback_tail": tb.split("\n")[-20:] if tb else [],
         }
         print(json.dumps(stats))
+        print("---FULL TRACEBACK---", file=sys.stderr)
+        print(tb, file=sys.stderr)
         return 1
 
     print(json.dumps(stats))
