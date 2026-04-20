@@ -1,6 +1,6 @@
 # Self-written, plan v2.3 § 13.5
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Literal
 
@@ -20,6 +20,44 @@ class SubQuery(BaseModel):
     rationale: str
 
 
+class LinkRef(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    href: str
+    text: str
+    internal: bool = False
+
+
+class TableData(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    headers: list[str] = Field(default_factory=list)
+    rows: list[dict[str, str]] = Field(default_factory=list)
+
+
+class MediaRef(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    src: str
+    alt: str = ""
+    kind: Literal["image", "video"] = "image"
+
+
+class FetchedPage(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    url: str
+    status_code: int
+    fetched_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    html: str = ""
+    cleaned_html: str = ""
+    markdown: str = ""
+    links: list[LinkRef] = Field(default_factory=list)
+    metadata: dict[str, str] = Field(default_factory=dict)
+    tables: list[TableData] = Field(default_factory=list)
+    media: list[MediaRef] = Field(default_factory=list)
+
+
 class Evidence(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -30,6 +68,7 @@ class Evidence(BaseModel):
     source_channel: str
     fetched_at: datetime
     score: float | None = None
+    source_page: FetchedPage | None = None
 
 
 class Gap(BaseModel):
