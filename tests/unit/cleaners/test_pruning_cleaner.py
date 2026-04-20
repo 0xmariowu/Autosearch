@@ -93,6 +93,37 @@ def test_min_word_count_filter() -> None:
     assert "This is a full sentence with meaningful content." in cleaned
 
 
+def test_keeps_chinese_article_content() -> None:
+    cleaner = PruningCleaner()
+    html = """
+    <nav>菜单</nav>
+    <article>
+      <p>聚焦边缘推理与国产化部署，AI 芯片公司完成新一轮融资。</p>
+      <p>边缘推理、国产算力与交付能力正在同步提升。</p>
+    </article>
+    <footer>底部</footer>
+    """
+
+    cleaned = cleaner.clean(html)
+
+    assert "聚焦边缘推理与国产化部署，AI 芯片公司完成新一轮融资。" in cleaned
+    assert "边缘推理、国产算力与交付能力正在同步提升。" in cleaned
+    assert "菜单" not in cleaned
+    assert "底部" not in cleaned
+
+
+def test_word_count_counts_cjk_characters() -> None:
+    cleaner = PruningCleaner()
+
+    assert cleaner._word_count("聚焦边缘推理") == 6
+
+
+def test_word_count_mixed_cjk_and_ascii() -> None:
+    cleaner = PruningCleaner()
+
+    assert cleaner._word_count("AI 芯片公司") == 5
+
+
 def test_preserves_html_structure_not_plain_text() -> None:
     cleaner = PruningCleaner()
     html = "<article><p>Structured content remains in HTML form.</p></article>"

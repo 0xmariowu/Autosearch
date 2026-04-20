@@ -13,6 +13,7 @@ class PruningCleaner(Cleaner):
     LINK_DENSITY_WEIGHT = 0.30
     TAG_WEIGHT = 0.18
     CLASS_ID_HINT_WEIGHT = 0.20
+    CJK_CHAR_RE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]")
 
     POSITIVE_TAG_WEIGHTS = {
         "article": 1.5,
@@ -184,4 +185,7 @@ class PruningCleaner(Cleaner):
         return any(isinstance(child, Tag) for child in node.children)
 
     def _word_count(self, text: str) -> int:
-        return len(text.split())
+        cjk_chars = len(self.CJK_CHAR_RE.findall(text))
+        ascii_portion = self.CJK_CHAR_RE.sub(" ", text)
+        ascii_words = len(ascii_portion.split())
+        return cjk_chars + ascii_words

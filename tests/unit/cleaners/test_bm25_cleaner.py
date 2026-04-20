@@ -98,6 +98,41 @@ def test_empty_html_returns_empty() -> None:
     assert BM25Cleaner().clean("", query="python") == ""
 
 
+def test_top_k_is_hard_cap_when_min_score_set() -> None:
+    html = "".join(f"<p>Python async concurrency token{index}</p>" for index in range(20))
+
+    cleaned = BM25Cleaner(top_k=5, min_score=0.01).clean(
+        html,
+        query="python async concurrency",
+    )
+    soup = BeautifulSoup(cleaned, "html.parser")
+
+    assert len(soup.find_all("p")) == 5
+
+
+def test_min_score_filter_without_top_k() -> None:
+    html = """
+    <div>
+      <p>Python async concurrency event loop futures coroutines scheduler token0</p>
+      <p>Python async concurrency event loop token1</p>
+      <p>Python async token2</p>
+      <p>Gardening basil token3</p>
+      <p>Python token4</p>
+    </div>
+    """
+
+    cleaned = BM25Cleaner(top_k=0, min_score=2.0).clean(
+        html,
+        query="python async concurrency event loop futures coroutines scheduler",
+    )
+
+    assert "Python async concurrency event loop futures coroutines scheduler token0" in cleaned
+    assert "Python async concurrency event loop token1" not in cleaned
+    assert "Python async token2" not in cleaned
+    assert "Gardening basil token3" not in cleaned
+    assert "Python token4" not in cleaned
+
+
 def test_bm25_uses_rank_bm25_library() -> None:
     bm25 = BM25Okapi([["python"], ["async"]])
     cleaner = BM25Cleaner()

@@ -105,26 +105,19 @@ class BM25Cleaner(Cleaner):
         candidates: list[_Candidate],
         scores: list[float],
     ) -> set[int]:
-        scored_candidates = list(zip(candidates, scores, strict=True))
-        ranked_candidates = sorted(scored_candidates, key=lambda item: item[1], reverse=True)
-
+        ranked_candidates = sorted(
+            zip(candidates, scores, strict=True),
+            key=lambda item: item[1],
+            reverse=True,
+        )
+        score_floor = max(self.min_score, 0.0)
         selected_indexes: set[int] = set()
-        if self.top_k > 0:
-            selected_indexes.update(
-                candidate.index for candidate, score in ranked_candidates if score > self.min_score
-            )
-            if len(selected_indexes) > self.top_k:
-                top_indexes = {
-                    candidate.index
-                    for candidate, score in ranked_candidates[: self.top_k]
-                    if score > self.min_score
-                }
-                selected_indexes = top_indexes
-
-        if self.min_score > 0:
-            selected_indexes.update(
-                candidate.index for candidate, score in scored_candidates if score >= self.min_score
-            )
+        for candidate, score in ranked_candidates:
+            if score <= score_floor:
+                break
+            selected_indexes.add(candidate.index)
+            if self.top_k > 0 and len(selected_indexes) >= self.top_k:
+                break
 
         return selected_indexes
 
