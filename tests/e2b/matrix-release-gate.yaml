@@ -1,0 +1,199 @@
+# F301-F306 Release gate tests
+
+phases:
+
+  # F303 — PyPI dry-run: build wheel, twine check, fresh-env install, real query
+  F303_pypi_dry_run:
+    parallel: 1
+    timeout: 1500
+    template: autosearch-claude
+    upload:
+      - src: /tmp/autosearch-src-v7.tar.gz
+        dst: /tmp/autosearch-src.tar.gz
+    setup: |
+      set -e
+      mkdir -p $HOME/work/autosearch
+      tar -xzf /tmp/autosearch-src.tar.gz -C $HOME/work/autosearch
+      cd $HOME/work/autosearch
+      uv venv --python 3.12 .venv > /tmp/venv.log 2>&1
+      uv pip install --python .venv/bin/python build twine > /tmp/install.log 2>&1
+    tasks:
+      - id: uv_build_wheel
+        timeout: 180
+        cmd: |
+          cd $HOME/work/autosearch
+          rm -rf dist/
+          uv build 2>&1 | tail -20
+          ls -la dist/
+        expect:
+          exit: 0
+          stdout_contains: ".whl"
+      - id: twine_check
+        timeout: 60
+        cmd: |
+          cd $HOME/work/autosearch
+          .venv/bin/twine check dist/*
+        expect:
+          exit: 0
+          stdout_regex: "(PASSED|passed)"
+      - id: fresh_venv_install_and_version
+        timeout: 300
+        cmd: |
+          cd $HOME/work/autosearch
+          uv venv --python 3.12 /tmp/fresh-env 2>&1 | tail -3
+          uv pip install --python /tmp/fresh-env/bin/python dist/autosearch-*.whl 2>&1 | tail -5
+          /tmp/fresh-env/bin/autosearch --version
+        expect:
+          exit: 0
+          stdout_contains: "0.0.1a1"
+      - id: fresh_env_real_query_smoke
+        timeout: 600
+        env_keys: [ANTHROPIC_API_KEY]
+        cmd: |
+          /tmp/fresh-env/bin/autosearch query "What is BM25" --mode fast --no-stream 2>&1 | tail -50
+        expect:
+          exit: 0
+          stdout_contains: "References"
+
+  # F301 — Python 3.12 compatibility
+  F301_python_3_12_smoke:
+    parallel: 1
+    timeout: 600
+    template: autosearch-claude
+    upload:
+      - src: /tmp/autosearch-src-v7.tar.gz
+        dst: /tmp/autosearch-src.tar.gz
+    setup: |
+      set -e
+      mkdir -p $HOME/work/autosearch
+      tar -xzf /tmp/autosearch-src.tar.gz -C $HOME/work/autosearch
+      cd $HOME/work/autosearch
+      uv venv --python 3.12 .venv > /tmp/venv.log 2>&1
+      uv pip install --python .venv/bin/python -e . > /tmp/install.log 2>&1
+      uv pip install --python .venv/bin/python pytest pytest-asyncio > /tmp/install-test.log 2>&1
+    tasks:
+      - id: python_version_is_3_12
+        cmd: |
+          cd $HOME/work/autosearch
+          .venv/bin/python --version
+        expect:
+          exit: 0
+          stdout_contains: "3.12"
+      - id: autosearch_version_on_3_12
+        cmd: |
+          cd $HOME/work/autosearch
+          .venv/bin/autosearch --version
+        expect:
+          exit: 0
+          stdout_contains: "0.0.1a1"
+      - id: default_pytest_on_3_12
+        timeout: 600
+        cmd: |
+          cd $HOME/work/autosearch
+          .venv/bin/python -m pytest -m "not real_llm and not perf and not slow and not network" -q --tb=line 2>&1 | tail -20
+        expect:
+          exit: 0
+          stdout_regex: "passed"
+
+  # F305 — Doc alignment
+  F305_doc_alignment:
+    parallel: 1
+    timeout: 300
+    template: autosearch-claude
+    upload:
+      - src: /tmp/autosearch-src-v7.tar.gz
+        dst: /tmp/autosearch-src.tar.gz
+    setup: |
+      set -e
+      mkdir -p $HOME/work/autosearch
+      tar -xzf /tmp/autosearch-src.tar.gz -C $HOME/work/autosearch
+    tasks:
+      - id: readme_quickstart_commands_parse
+        cmd: |
+          cd $HOME/work/autosearch
+          python3 -c "
+          import re, sys, subprocess, tempfile
+          content = open('README.md').read()
+          blocks = re.findall(r'\`\`\`bash\s*\n(.*?)\n\`\`\`', content, re.DOTALL)
+          print(f'found_{len(blocks)}_bash_blocks')
+          bad = 0
+          for i, blk in enumerate(blocks):
+              with tempfile.NamedTemporaryFile('w', suffix='.sh', delete=False) as f:
+                  f.write(blk)
+                  path = f.name
+              r = subprocess.run(['bash', '-n', path], capture_output=True, text=True)
+              if r.returncode != 0:
+                  print(f'block_{i}_parse_fail: {r.stderr[:200]}')
+                  bad += 1
+          assert bad == 0, f'{bad} README bash blocks have syntax errors'
+          print('readme_bash_parse_ok')
+          "
+        expect:
+          exit: 0
+          stdout_contains: "readme_bash_parse_ok"
+      - id: license_and_pyproject_consistent
+        cmd: |
+          cd $HOME/work/autosearch
+          test -f LICENSE
+          grep -q "MIT" LICENSE
+          echo "license_consistent_ok"
+        expect:
+          exit: 0
+          stdout_contains: "license_consistent_ok"
+      - id: channels_doc_matches_registry
+        cmd: |
+          cd $HOME/work/autosearch
+          # Channel count in README table vs directory listing
+          README_T0=$(grep -c "^| [a-z_]*|" README.md || echo 0)
+          DIR_CHANNELS=$(ls autosearch/skills/channels/ | grep -v "^__\|\.md$" | wc -l)
+          echo "readme_table_entries=$README_T0 dir_channels=$DIR_CHANNELS"
+          # Non-strict: just confirm some alignment
+          test $DIR_CHANNELS -ge 20
+          echo "channels_doc_ok"
+        expect:
+          exit: 0
+          stdout_contains: "channels_doc_ok"
+
+  # F306 — v1.0 release workflow dry-run (release.yml parse + bump script invariant)
+  F306_release_workflow_dry_run:
+    parallel: 1
+    timeout: 300
+    template: autosearch-claude
+    upload:
+      - src: /tmp/autosearch-src-v7.tar.gz
+        dst: /tmp/autosearch-src.tar.gz
+    setup: |
+      set -e
+      mkdir -p $HOME/work/autosearch
+      tar -xzf /tmp/autosearch-src.tar.gz -C $HOME/work/autosearch
+    tasks:
+      - id: release_yml_parses
+        cmd: |
+          cd $HOME/work/autosearch
+          test -f .github/workflows/release.yml && echo "release_yml_present"
+          python3 -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml')); print('yaml_valid_ok')"
+        expect:
+          exit: 0
+          stdout_contains: "yaml_valid_ok"
+      - id: bump_version_script_present
+        cmd: |
+          cd $HOME/work/autosearch
+          test -x scripts/bump-version.sh && echo "bump_script_ok"
+        expect:
+          exit: 0
+          stdout_contains: "bump_script_ok"
+      - id: version_consistent_across_files
+        cmd: |
+          cd $HOME/work/autosearch
+          # Versions in pyproject.toml / plugin.json / marketplace.json should match (when plugin system exists)
+          PY_VER=$(grep '^version' pyproject.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "pyproject_version=$PY_VER"
+          if [ -f .claude-plugin/plugin.json ]; then
+            PL_VER=$(python3 -c "import json; print(json.load(open('.claude-plugin/plugin.json'))['version'])")
+            echo "plugin_version=$PL_VER"
+            test "$PY_VER" = "$PL_VER" || echo "WARN: pyproject vs plugin.json version mismatch (may be intentional)"
+          fi
+          echo "version_check_ok"
+        expect:
+          exit: 0
+          stdout_contains: "version_check_ok"

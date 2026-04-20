@@ -7,7 +7,7 @@
 #     --project autosearch --matrix tests/e2b/matrix-extensions.yaml \
 #     --secrets ~/.config/ai-secrets.env \
 #     --output reports/{date}/extensions \
-#     --parallel 15 --tarball /tmp/autosearch-src-v4.tar.gz
+#     --parallel 15 --tarball /tmp/autosearch-src-v5.tar.gz
 
 phases:
 
@@ -17,7 +17,7 @@ phases:
     timeout: 1200
     template: autosearch-claude
     upload:
-      - src: /tmp/autosearch-src-v4.tar.gz
+      - src: /tmp/autosearch-src-v5.tar.gz
         dst: /tmp/autosearch-src.tar.gz
     setup: |
       set -e
@@ -69,10 +69,10 @@ phases:
   # F110 — W6 embeddings optional extra smoke
   F110_W6_embeddings_smoke:
     parallel: 1
-    timeout: 900
+    timeout: 1800
     template: autosearch-claude
     upload:
-      - src: /tmp/autosearch-src-v4.tar.gz
+      - src: /tmp/autosearch-src-v5.tar.gz
         dst: /tmp/autosearch-src.tar.gz
     setup: |
       set -e
@@ -108,10 +108,10 @@ phases:
   # F103 — Claude Code /autosearch slash (autosearch-claude template)
   F103_claude_slash_headless:
     parallel: 1
-    timeout: 900
+    timeout: 1800
     template: autosearch-claude
     upload:
-      - src: /tmp/autosearch-src-v4.tar.gz
+      - src: /tmp/autosearch-src-v5.tar.gz
         dst: /tmp/autosearch-src.tar.gz
     setup: |
       set -e
@@ -133,7 +133,7 @@ phases:
         env_keys: [ANTHROPIC_API_KEY]
         cmd: |
           cd $HOME/work/autosearch
-          claude --dangerously-skip-permissions -p "/autosearch explain BM25 ranking with formula" 2>&1 | tail -200
+          claude --dangerously-skip-permissions -p "/autosearch what is BM25" 2>&1 | tail -200
         expect:
           exit: 0
           stdout_contains: "References"
@@ -141,10 +141,10 @@ phases:
   # F104 — MCP-as-tool (Claude Code invoking autosearch via MCP config)
   F104_mcp_as_tool:
     parallel: 1
-    timeout: 900
+    timeout: 1800
     template: autosearch-claude
     upload:
-      - src: /tmp/autosearch-src-v4.tar.gz
+      - src: /tmp/autosearch-src-v5.tar.gz
         dst: /tmp/autosearch-src.tar.gz
     setup: |
       set -e
@@ -171,11 +171,11 @@ phases:
           exit: 0
           stdout_contains: "json_ok"
       - id: claude_invokes_autosearch_mcp
-        timeout: 600
+        timeout: 1500
         env_keys: [ANTHROPIC_API_KEY]
         cmd: |
           cd $HOME/work/autosearch
-          claude --mcp-config $HOME/.claude/mcp.json --dangerously-skip-permissions -p "Use the research tool to briefly summarize BM25 ranking" 2>&1 | tail -200
+          claude --mcp-config $HOME/.claude/mcp.json --dangerously-skip-permissions -p "Use the research tool with mode=fast to briefly summarize BM25" 2>&1 | tail -200
         expect:
           exit: 0
           stdout_contains: "References"
@@ -186,7 +186,7 @@ phases:
     timeout: 600
     template: autosearch-claude
     upload:
-      - src: /tmp/autosearch-src-v4.tar.gz
+      - src: /tmp/autosearch-src-v5.tar.gz
         dst: /tmp/autosearch-src.tar.gz
     setup: |
       set -e

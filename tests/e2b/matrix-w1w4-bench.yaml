@@ -9,7 +9,7 @@ phases:
     timeout: 900
     template: autosearch-claude
     upload:
-      - src: /tmp/autosearch-src-v4.tar.gz
+      - src: /tmp/autosearch-src-v6.tar.gz
         dst: /tmp/autosearch-src.tar.gz
     setup: |
       set -e
@@ -42,11 +42,11 @@ phases:
               for url in URLS:
                   try:
                       page = await fetch_page(url)
-                      title_ok = bool(page.title)
+                      status_ok = page.status_code == 200
                       html_ok = len(page.cleaned_html or "") > 100
-                      if title_ok and html_ok:
+                      if status_ok and html_ok:
                           ok += 1
-                      print(f"{url} title_len={len(page.title or '')} cleaned_len={len(page.cleaned_html or '')}")
+                      print(f"{url} status={page.status_code} cleaned_len={len(page.cleaned_html or '')} links={len(page.links)}")
                   except Exception as exc:
                       print(f"{url} EXC: {type(exc).__name__}: {exc}")
               print(f"OK: {ok}/5")
@@ -90,13 +90,13 @@ phases:
           .venv/bin/python <<'PY'
           """Verify BM25Cleaner respects top_k cap."""
           from autosearch.cleaners.bm25_cleaner import BM25Cleaner
-          cleaner = BM25Cleaner()
+          cleaner = BM25Cleaner(top_k=5, min_score=0.0)
 
           html = "<html><body>" + "".join(
               f"<p>paragraph {i} about bm25 ranking retrieval evidence</p>" for i in range(50)
           ) + "</body></html>"
 
-          kept = cleaner.clean(html, query="bm25 ranking", top_k=5, min_score=0.0)
+          kept = cleaner.clean(html, query="bm25 ranking")
           block_count = kept.count("<p>") if "<p>" in kept else len(kept.split("\n\n"))
           assert block_count <= 6, f"top_k=5 not respected: got {block_count} blocks"
           print(f"blocks={block_count}")
@@ -112,7 +112,7 @@ phases:
     timeout: 900
     template: autosearch-claude
     upload:
-      - src: /tmp/autosearch-src-v4.tar.gz
+      - src: /tmp/autosearch-src-v6.tar.gz
         dst: /tmp/autosearch-src.tar.gz
     setup: |
       set -e
@@ -170,29 +170,31 @@ phases:
           def count_tokens(text):
               return len(enc.encode(text))
 
-          # Fabricate 10 evidence items
+          # Fabricate 10 evidence items with all required Evidence fields
+          from datetime import datetime, timezone
           evidences = []
           for i in range(10):
               content = ("BM25 is a ranking function used in search engines. " * 80).strip()
               ev = Evidence(
                   url=f"https://example.com/doc{i}",
                   title=f"Doc {i}",
-                  cleaned_html=content,
+                  snippet=content[:200],
                   content=content,
-                  channel="test",
+                  source_channel="test",
+                  fetched_at=datetime.now(timezone.utc),
                   score=1.0 - i * 0.01,
               )
               evidences.append(ev)
 
           llm = LLMClient(provider_chain=["anthropic"])
-          compactor = ContextCompactor(llm=llm, token_budget=2000)
+          compactor = ContextCompactor(token_budget=2000, client=llm)
 
           async def main():
               digests = await compactor.compact(
-                  evidences=evidences,
+                  evidence=evidences,
                   query="BM25 ranking algorithm",
               )
-              total_tokens = sum(count_tokens(d.summary) for d in digests)
+              total_tokens = sum(count_tokens(str(d)) for d in digests)
               print(f"digests={len(digests)} total_tokens={total_tokens}")
               assert total_tokens <= 2500, f"budget exceeded: {total_tokens}"
               assert len(digests) >= 1
@@ -210,7 +212,7 @@ phases:
     timeout: 900
     template: autosearch-claude
     upload:
-      - src: /tmp/autosearch-src-v4.tar.gz
+      - src: /tmp/autosearch-src-v6.tar.gz
         dst: /tmp/autosearch-src.tar.gz
     setup: |
       set -e
@@ -280,7 +282,7 @@ phases:
     timeout: 300
     template: autosearch-claude
     upload:
-      - src: /tmp/autosearch-src-v4.tar.gz
+      - src: /tmp/autosearch-src-v6.tar.gz
         dst: /tmp/autosearch-src.tar.gz
     setup: |
       set -e
