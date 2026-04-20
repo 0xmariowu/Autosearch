@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from autosearch.channels.base import Channel
 from autosearch.core.context_compaction import ContextCompactor
 from autosearch.core.evidence import EvidenceProcessor
-from autosearch.core.models import Evidence, EvidenceDigest, Gap, SubQuery
+from autosearch.core.models import Evidence, Gap, SubQuery
 from autosearch.llm.client import LLMClient
 from autosearch.persistence.session_store import SessionStore
 from autosearch.skills.prompts import load_prompt
@@ -147,7 +147,11 @@ class IterationController:
                 hot, digest = await compactor.compact(accumulated_evidence, query)
                 if digest is not None:
                     accumulated_evidence = hot
-                    digest_id = await self._resolve_digest_trace_id(digest)
+                    digest_id = (
+                        compactor.last_digest_artifact_id
+                        if compactor.last_digest_artifact_id is not None
+                        else digest.compressed_at.isoformat()
+                    )
 
                 research_trace.append(
                     {
@@ -445,28 +449,6 @@ class IterationController:
         )
         response = await client.complete(prompt, _FollowUpQueryResponse)
         return _dedup_subqueries(response.subqueries)
-
-    async def _resolve_digest_trace_id(
-        self,
-        digest: EvidenceDigest,
-    ) -> int | str:
-        fallback_id = digest.compressed_at.isoformat()
-        if self._store is None or self._session_id is None:
-            return fallback_id
-
-        try:
-            artifacts = await self._store.load_artifacts(
-                session_id=self._session_id,
-                kind="compacted_digest",
-            )
-        except Exception:
-            return fallback_id
-
-        latest_artifact = artifacts[-1] if artifacts else None
-        artifact_id = latest_artifact.get("id") if isinstance(latest_artifact, dict) else None
-        if isinstance(artifact_id, int):
-            return artifact_id
-        return fallback_id
 
 
 def _dedup_subqueries(subqueries: list[SubQuery]) -> list[SubQuery]:

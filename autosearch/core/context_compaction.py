@@ -4,11 +4,11 @@ import structlog
 from typing import TYPE_CHECKING
 
 from autosearch.core.models import Evidence, EvidenceDigest
-from autosearch.llm.client import LLMClient
 from autosearch.observability.cost import estimate_tokens
 from autosearch.skills.prompts import load_prompt
 
 if TYPE_CHECKING:
+    from autosearch.llm.client import LLMClient
     from autosearch.persistence.session_store import SessionStore
 
 EVIDENCE_COMPACTION_PROMPT = load_prompt("m3_evidence_compaction")
@@ -41,6 +41,7 @@ class ContextCompactor:
         self.client = client
         self.store = store
         self.session_id = session_id
+        self.last_digest_artifact_id: int | None = None
         self.logger = structlog.get_logger(__name__).bind(component="context_compactor")
 
     async def compact(
@@ -50,6 +51,7 @@ class ContextCompactor:
     ) -> tuple[list[Evidence], EvidenceDigest | None]:
         """Return a hot evidence tail and an optional digest for the evicted slice."""
 
+        self.last_digest_artifact_id = None
         if not evidence:
             return [], None
 
@@ -68,6 +70,12 @@ class ContextCompactor:
             )
             return evidence, None
 
+        if self.client is None:
+            raise RuntimeError(
+                "ContextCompactor.compact requires a client when compaction is triggered; "
+                "pass client= explicitly"
+            )
+
         cold_tokens = sum(self._count_tokens(item) for item in cold)
         self.logger.info(
             "compaction_triggered",
@@ -84,14 +92,14 @@ class ContextCompactor:
 
         prompt = self._build_prompt(query, cold)
         try:
-            client = self.client or LLMClient()
+            client = self.client
             llm_digest = await client.complete(prompt, EvidenceDigest)
         except Exception as exc:
             self.logger.warning("compaction_skipped_llm_error", error=str(exc))
             return evidence, None
 
         digest = self._finalize_digest(llm_digest, cold, cold_tokens)
-        await self._store_artifact_best_effort(
+        self.last_digest_artifact_id = await self._store_artifact_best_effort(
             kind="compacted_digest",
             payload=digest,
         )
@@ -187,12 +195,12 @@ class ContextCompactor:
         *,
         kind: str,
         payload: Evidence | EvidenceDigest,
-    ) -> None:
+    ) -> int | None:
         if self.store is None or self.session_id is None:
-            return
+            return None
 
         try:
-            await self.store.store_artifact(
+            return await self.store.store_artifact(
                 session_id=self.session_id,
                 kind=kind,
                 payload=payload,
@@ -203,3 +211,4 @@ class ContextCompactor:
                 kind=kind,
                 error=str(exc),
             )
+            return None

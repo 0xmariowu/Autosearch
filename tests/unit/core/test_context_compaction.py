@@ -2,6 +2,8 @@
 import re
 from datetime import UTC, datetime
 
+import pytest
+
 from autosearch.core import context_compaction as context_compaction_module
 from autosearch.core.context_compaction import ContextCompactor
 from autosearch.core.models import Evidence, EvidenceDigest, FetchedPage
@@ -210,6 +212,21 @@ async def test_llm_error_fallback_returns_original(monkeypatch) -> None:
             {"error": "llm unavailable"},
         )
     ]
+
+
+async def test_compaction_requires_explicit_client_when_triggered(monkeypatch) -> None:
+    monkeypatch.setattr(context_compaction_module, "estimate_tokens", fake_estimate_tokens)
+    evidence = [make_evidence(index, tokens=1500) for index in range(1, 12)]
+    compactor = ContextCompactor(token_budget=10000)
+
+    with pytest.raises(
+        RuntimeError,
+        match=(
+            "ContextCompactor\\.compact requires a client when compaction is triggered; "
+            "pass client= explicitly"
+        ),
+    ):
+        await compactor.compact(evidence, "missing client")
 
 
 async def test_digest_captures_source_urls(monkeypatch) -> None:

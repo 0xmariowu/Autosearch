@@ -39,6 +39,28 @@ class FakeChannel:
         return self.responses.pop(0)
 
 
+class ArtifactStoreWithoutLookup:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str]] = []
+
+    async def store_artifact(
+        self,
+        *,
+        session_id: str,
+        kind: str,
+        payload: BaseModel,
+    ) -> int:
+        _ = payload
+        self.calls.append((session_id, kind))
+        return len(self.calls)
+
+    async def load_artifacts(self, *, session_id: str, kind: str | None = None) -> list[dict]:
+        _ = (session_id, kind)
+        raise AssertionError(
+            "IterationController should not reload artifacts to resolve digest ids."
+        )
+
+
 def make_evidence(url: str, title: str, content: str) -> Evidence:
     return Evidence(
         url=url,
@@ -463,6 +485,55 @@ async def test_store_and_session_id_propagated_to_compactor(monkeypatch) -> None
 
     assert len(digests) == 1
     assert isinstance(research_trace[-1]["digest_id_if_any"], int)
+
+
+async def test_digest_trace_id_uses_insert_rowid_without_reload(monkeypatch) -> None:
+    monkeypatch.setattr(context_compaction_module, "estimate_tokens", fake_estimate_tokens)
+    store = ArtifactStoreWithoutLookup()
+    controller = IterationController(store=store, session_id="session-1")
+    channel = FakeChannel(
+        [
+            [
+                make_evidence(
+                    f"https://example.com/{index}",
+                    f"Result {index}",
+                    f"[TOKENS=3000] content {index}",
+                )
+            ]
+            for index in range(1, 5)
+        ]
+    )
+    client = DummyClient([make_digest_payload()])
+
+    async def no_batch_gaps(**_: object) -> list[Gap]:
+        return []
+
+    async def no_iteration_gaps(**_: object) -> list[Gap]:
+        return []
+
+    monkeypatch.setattr(controller, "_per_search_reflect", no_batch_gaps)
+    monkeypatch.setattr(controller, "_reflect", no_iteration_gaps)
+
+    _, research_trace = await controller.run(
+        query="compact using insert rowid",
+        initial_queries=make_subqueries(4),
+        channels=[channel],
+        budget=IterationBudget(
+            max_iterations=1,
+            per_channel_rate_limit=0.0,
+            subquery_batch_size=2,
+            context_token_budget=10000,
+            compact_hot_set_size=2,
+        ),
+        client=client,
+    )
+
+    assert store.calls == [
+        ("session-1", "evicted_evidence"),
+        ("session-1", "evicted_evidence"),
+        ("session-1", "compacted_digest"),
+    ]
+    assert research_trace[-1]["digest_id_if_any"] == 3
 
 
 async def test_backward_compat_when_store_none(monkeypatch) -> None:

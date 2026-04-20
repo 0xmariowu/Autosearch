@@ -1,8 +1,6 @@
 # Self-written, plan v2.3 § 13.5
 from datetime import UTC, datetime
 
-import pytest
-
 from autosearch.core.models import Evidence, EvidenceDigest
 from autosearch.persistence.session_store import SessionStore
 
@@ -125,9 +123,8 @@ async def test_store_artifact_foreign_key_cascade() -> None:
         finally:
             await cursor.close()
 
-        if row is None or row[0] != 1:
-            pytest.skip("TODO: enable SQLite foreign keys for artifact cascade coverage.")
-
+        assert row is not None
+        assert row[0] == 1
         await connection.execute("DELETE FROM sessions WHERE id = ?", ("session-1",))
         await connection.commit()
         artifacts = await store.load_artifacts(session_id="session-1")
