@@ -85,6 +85,7 @@ async def test_pipeline_continues_after_channel_error_and_emits_error_event() ->
             },
             {"gaps": []},
             {"headings": ["Overview"]},
+            {"headings": ["Overview"]},
             {"content": "Working evidence supports the answer [1].", "ref_ids": [1]},
             {"grade": "pass", "follow_up_gaps": []},
         ]

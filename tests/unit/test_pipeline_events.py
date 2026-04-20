@@ -91,6 +91,7 @@ def make_pipeline(on_event=None) -> Pipeline:
             },
             {"gaps": []},
             {"headings": ["Overview"]},
+            {"headings": ["Overview"]},
             {"content": "Streaming is available through the callback path [1].", "ref_ids": [1]},
             {"grade": "pass", "follow_up_gaps": []},
         ]
@@ -169,7 +170,7 @@ async def test_pipeline_result_includes_channel_empty_calls() -> None:
             },
             {"gaps": []},
             {"headings": ["Overview"]},
-            {"content": "The channel produced no evidence in this run.", "ref_ids": []},
+            {"headings": ["Overview"]},
             {"grade": "pass", "follow_up_gaps": []},
         ]
     )

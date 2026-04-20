@@ -123,6 +123,12 @@ async def test_pipeline_run_produces_report_and_quality_pass() -> None:
                 ),
             ),
             CompletionStep(
+                response_model=OutlineResponse,
+                payload=OutlineResponse(headings=["Overview", "Practical Takeaways"]).model_dump(
+                    mode="json"
+                ),
+            ),
+            CompletionStep(
                 response_model=_SectionWriteResponse,
                 payload=_SectionWriteResponse(
                     content=(

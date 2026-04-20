@@ -66,6 +66,7 @@ def _pipeline_payloads() -> list[dict[str, object]]:
         },
         {"gaps": []},
         {"headings": ["Overview"]},
+        {"headings": ["Overview"]},
         {"content": "Scoped channels returned evidence [1].", "ref_ids": [1]},
         {"grade": "pass", "follow_up_gaps": []},
     ]

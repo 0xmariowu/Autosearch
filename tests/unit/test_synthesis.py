@@ -49,12 +49,15 @@ async def test_report_synthesizer_outputs_sections_references_and_sources() -> N
         client,
     )
 
-    assert "## Overview" in report
-    assert "## References" in report
-    assert re.search(r"\[1\].*https://example.com/one", report)
-    assert "## Sources" in report
-    assert "| Platform | Count |" in report
-    assert "| web | 1 |" in report
+    assert report.title == "Compare search tooling"
+    assert report.content.startswith("## Overview")
+    assert "## Overview" in report.markdown
+    assert "## References" in report.markdown
+    assert re.search(r"\[1\].*https://example.com/one", report.markdown)
+    assert "## Sources" in report.markdown
+    assert "| Platform | Count |" in report.markdown
+    assert "| web | 1 |" in report.markdown
+    assert report.ref_table[1].url == "https://example.com/one"
 
 
 def test_remap_citations_collapses_duplicate_urls_and_renumbers_refs() -> None:
