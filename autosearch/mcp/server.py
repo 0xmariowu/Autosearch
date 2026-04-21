@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import yaml
 from mcp.server.fastmcp import FastMCP
@@ -13,7 +13,6 @@ from autosearch.channels.base import Channel
 from autosearch.core.channel_bootstrap import _build_channels
 from autosearch.core.clarify import Clarifier
 from autosearch.core.models import ClarifyRequest, SearchMode, SubQuery
-from autosearch.core.pipeline import Pipeline
 from autosearch.core.search_scope import SearchScope, depth_to_mode
 from autosearch.llm.client import LLMClient
 
@@ -152,8 +151,24 @@ class SkillCatalogResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-def _default_pipeline_factory() -> Pipeline:
-    return Pipeline(llm=LLMClient(), channels=_build_channels())
+def _default_pipeline_factory() -> Any:
+    """Default pipeline factory — raises to match post-W3.3-PR-D behavior.
+
+    The legacy ``research()`` MCP tool short-circuits to a deprecation response
+    BEFORE reaching this factory on the default path (no env var set). Only
+    the opt-in ``AUTOSEARCH_LEGACY_RESEARCH=1`` env would reach this factory;
+    when it does, raise immediately instead of constructing a dead Pipeline.
+
+    Tests that exercise the legacy path should pass their own
+    ``pipeline_factory`` into ``create_server`` rather than relying on this
+    default. Retained as a function (not removed) so callers that reference
+    it by name (e.g. monkeypatch in tests) still see a callable.
+    """
+    raise NotImplementedError(
+        "The default pipeline factory is removed in v2 wave 3 PR E. "
+        "Use list_skills + run_clarify + run_channel MCP tools, or "
+        "pass a custom pipeline_factory to create_server() for test harnesses."
+    )
 
 
 def _parse_skill_md(path: Path, *, group: str) -> SkillSummary | None:
@@ -263,7 +278,7 @@ def _scan_skill_catalog(
     return sorted(results, key=lambda s: (s.group, s.name))
 
 
-def create_server(pipeline_factory: Callable[[], Pipeline] | None = None) -> FastMCP:
+def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
     factory = pipeline_factory or _default_pipeline_factory
     server = FastMCP(
         name="autosearch",
