@@ -18,6 +18,11 @@ when_to_use:
 quality_hint:
   typical_yield: medium
   chinese_native: false
+layer: leaf
+domains: [code-package]
+scenarios: [npm-pypi-discovery, dependency-check]
+model_tier: Fast
+experience_digest: experience.md
 ---
 
 `package_search` helps discover software packages across two public registries: PyPI for Python packages and npm for JavaScript and Node.js packages. It combines exact-name PyPI lookups with npm full-text search so package-related queries can still return useful evidence even when one registry has limited recall.

@@ -19,6 +19,11 @@ when_to_use:
 quality_hint:
   typical_yield: high
   chinese_native: false
+layer: leaf
+domains: [academic]
+scenarios: [paper-collection, survey]
+model_tier: Fast
+experience_digest: experience.md
 ---
 
 ## Overview

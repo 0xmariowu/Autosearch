@@ -18,6 +18,11 @@ when_to_use:
 quality_hint:
   typical_yield: medium
   chinese_native: false
+layer: leaf
+domains: [video-audio]
+scenarios: [short-video, viral-demo]
+model_tier: Fast
+experience_digest: experience.md
 ---
 
 ## Overview

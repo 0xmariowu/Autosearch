@@ -16,6 +16,11 @@ when_to_use:
 quality_hint:
   typical_yield: medium
   chinese_native: true
+layer: leaf
+domains: [cn-tech]
+scenarios: [chinese-tech-media, enterprise-architecture]
+model_tier: Fast
+experience_digest: experience.md
 ---
 
 ## Overview

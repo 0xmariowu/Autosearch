@@ -31,6 +31,11 @@ when_to_use:
 quality_hint:
   typical_yield: high
   chinese_native: false
+layer: leaf
+domains: [code-package]
+scenarios: [repo-search, code-reference, issue-research]
+model_tier: Fast
+experience_digest: experience.md
 ---
 
 ## Overview

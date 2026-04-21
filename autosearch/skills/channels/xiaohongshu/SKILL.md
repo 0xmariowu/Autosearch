@@ -27,6 +27,11 @@ when_to_use:
 quality_hint:
   typical_yield: high
   chinese_native: true
+layer: leaf
+domains: [chinese-ugc]
+scenarios: [chinese-native, product-review, lifestyle]
+model_tier: Fast
+experience_digest: experience.md
 ---
 
 ## Overview

@@ -19,6 +19,11 @@ when_to_use:
 quality_hint:
   typical_yield: medium
   chinese_native: true
+layer: leaf
+domains: [chinese-ugc]
+scenarios: [chinese-native, social-trending, public-opinion]
+model_tier: Fast
+experience_digest: experience.md
 ---
 
 ## Overview
