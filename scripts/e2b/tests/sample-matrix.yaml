@@ -1,0 +1,16 @@
+phases:
+  smoke_help:
+    parallel: 2
+    timeout: 120
+    tasks:
+      - id: echo
+        cmd: echo hello && python3 --version
+        expect:
+          exit: 0
+          stdout_contains: "hello"
+      - id: env_check
+        env_keys: [E2B_API_KEY]
+        cmd: '[ -n "$E2B_API_KEY" ] && echo set || echo unset'
+        expect:
+          exit: 0
+          stdout_contains: "set"

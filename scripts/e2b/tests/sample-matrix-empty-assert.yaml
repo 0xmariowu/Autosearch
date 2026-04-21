@@ -1,0 +1,10 @@
+phases:
+  empty_assert:
+    parallel: 1
+    timeout: 120
+    tasks:
+      - id: empty_stdout_contains
+        cmd: echo hello
+        expect:
+          exit: 0
+          stdout_contains: ""
