@@ -2,6 +2,8 @@
 name: m7_outline
 phase: M7
 description: Create a concise report outline from the user query and collected evidence.
+deprecated: true
+deprecation_notice: "v2 tool supplier architecture: autosearch no longer owns outline generation. Runtime AI plans its own report structure. This prompt remains for the legacy pipeline. Target removal: v2 wave 3."
 ---
 Create a concise report outline for the research task below.
 

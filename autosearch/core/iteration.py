@@ -1,4 +1,15 @@
 # Source: open_deep_research/src/legacy/graph.py:L235-L354 (adapted)
+#
+# DEPRECATED (v2 wave 3 removal target):
+# This module runs the inner-loop iteration of the autosearch research pipeline
+# (gap reflection, follow-up queries, perspective labels, search reflection —
+# all M3-family prompts). Under v2 tool supplier architecture, the runtime AI
+# decides its own next query and reflection — autosearch exposes per-channel
+# skills and a router, not a closed iteration loop. This module stays alive
+# so the `autosearch research` CLI and MCP `research()` tool remain usable
+# for backward-compat users; new code paths should not call this iterator.
+# When the tool-supplier entry points are rewritten (wave 3), delete this
+# module along with all `m3_*.md` prompts.
 import asyncio
 import inspect
 from dataclasses import dataclass

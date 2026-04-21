@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+# DEPRECATED (v2 wave 3 removal target):
+# This module runs M3 evidence compaction inside the autosearch pipeline. Under
+# the v2 tool supplier architecture, runtime AI (Claude / Cursor) manages its
+# own context window and compaction — autosearch should return raw evidence
+# (and structured metadata) directly, not compress it here. This module stays
+# alive so existing `autosearch research` CLI and MCP `research()` tool calls
+# keep working; new code paths must NOT call `compact_evidence()`. When the
+# tool-supplier entry points are rewritten (wave 3), delete this module.
 import structlog
 from typing import TYPE_CHECKING
 

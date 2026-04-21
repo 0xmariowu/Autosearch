@@ -2,6 +2,8 @@
 name: m3_evidence_compaction
 phase: M3
 description: Compress older evidence into a structured digest when the context budget is too high.
+deprecated: true
+deprecation_notice: "v2 tool supplier architecture: autosearch no longer owns evidence compaction. Runtime AI (Claude / Cursor) manages its own context and compaction through its own mechanisms. This prompt remains so the legacy pipeline keeps running, but new code paths should return raw evidence to the runtime AI rather than running this compaction. Target removal: v2 wave 3."
 ---
 Clean up the older research evidence into one structured digest so the most
 recent evidence can stay in the hot working set. The goal is to remove
