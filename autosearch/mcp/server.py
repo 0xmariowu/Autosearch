@@ -9,7 +9,9 @@ import yaml
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, Field
 
+from autosearch.channels.base import Channel
 from autosearch.core.channel_bootstrap import _build_channels
+from autosearch.core.models import SubQuery
 from autosearch.core.pipeline import Pipeline
 from autosearch.core.search_scope import SearchScope, depth_to_mode
 from autosearch.llm.client import LLMClient
@@ -29,6 +31,33 @@ class ResearchResponse(BaseModel):
     scope: dict[str, object]
 
     model_config = ConfigDict(extra="forbid")
+
+
+class RunChannelResponse(BaseModel):
+    """Structured MCP tool response for the run_channel tool."""
+
+    channel: str
+    ok: bool
+    evidence: list[dict[str, object]] = Field(default_factory=list)
+    reason: str | None = None
+    count_total: int = 0
+    count_returned: int = 0
+
+    model_config = ConfigDict(extra="forbid")
+
+
+async def _search_single_channel(
+    channel: Channel,
+    query: str,
+    rationale: str,
+) -> list[dict[str, object]]:
+    """Run a single channel's search and return slim-dict results.
+
+    Raises on channel exception — callers should wrap.
+    """
+    subquery = SubQuery(text=query, rationale=rationale or query)
+    results = await channel.search(subquery)
+    return [evidence.to_slim_dict() for evidence in results]
 
 
 class SkillSummary(BaseModel):
@@ -239,6 +268,64 @@ def create_server(pipeline_factory: Callable[[], Pipeline] | None = None) -> Fas
     def health() -> str:
         """Return a cheap liveness indicator for MCP clients."""
         return "ok"
+
+    @server.tool()
+    async def run_channel(
+        channel_name: str,
+        query: str,
+        rationale: str = "",
+        k: int = 10,
+    ) -> RunChannelResponse:
+        """Run a single autosearch channel and return raw evidence.
+
+        Part of the v2 tool-supplier architecture: autosearch does NOT
+        synthesize, compact, or summarize — the runtime AI reads the
+        evidence list and decides what to do (quote, cite, follow up,
+        ignore). Use `list_skills(group="channels")` to discover valid
+        `channel_name` values.
+
+        Args:
+            channel_name: One of the autosearch channel skill names, e.g.
+                "bilibili", "arxiv", "github", "xiaohongshu".
+            query: The search text.
+            rationale: Optional short rationale (defaults to `query` if empty).
+                Used by some channels to tune ranking.
+            k: Max number of Evidence items to return (latest first). Default 10.
+
+        Returns:
+            RunChannelResponse with `ok: bool`, `evidence: list[dict]`
+            (up to k items; each evidence is already source_page-slimmed),
+            `reason` populated on failure, and `count_total / count_returned`.
+        """
+        channels = _build_channels()
+        matched = next((c for c in channels if c.name == channel_name), None)
+        if matched is None:
+            available = ", ".join(sorted(c.name for c in channels))[:500]
+            return RunChannelResponse(
+                channel=channel_name,
+                ok=False,
+                reason=f"unknown_channel. available: {available}",
+            )
+
+        try:
+            slim = await _search_single_channel(matched, query, rationale)
+        except Exception as exc:  # noqa: BLE001 — boundary; report reason, don't leak
+            return RunChannelResponse(
+                channel=channel_name,
+                ok=False,
+                reason=f"channel_error: {type(exc).__name__}: {exc}",
+            )
+
+        total = len(slim)
+        k = max(1, int(k)) if k else 10
+        returned = slim[:k]
+        return RunChannelResponse(
+            channel=channel_name,
+            ok=True,
+            evidence=returned,
+            count_total=total,
+            count_returned=len(returned),
+        )
 
     @server.tool()
     def list_skills(
