@@ -11,7 +11,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from autosearch.channels.base import Channel
 from autosearch.core.channel_bootstrap import _build_channels
-from autosearch.core.models import SubQuery
+from autosearch.core.clarify import Clarifier
+from autosearch.core.models import ClarifyRequest, SearchMode, SubQuery
 from autosearch.core.pipeline import Pipeline
 from autosearch.core.search_scope import SearchScope, depth_to_mode
 from autosearch.llm.client import LLMClient
@@ -44,6 +45,69 @@ class RunChannelResponse(BaseModel):
     count_returned: int = 0
 
     model_config = ConfigDict(extra="forbid")
+
+
+class ClarifyToolResponse(BaseModel):
+    """Structured MCP tool response for the run_clarify tool."""
+
+    query: str
+    ok: bool
+    need_clarification: bool = False
+    question: str | None = None
+    verification: str | None = None
+    mode: str | None = None
+    query_type: str | None = None
+    rubrics: list[str] = Field(default_factory=list)
+    channel_priority: list[str] = Field(default_factory=list)
+    channel_skip: list[str] = Field(default_factory=list)
+    reason: str | None = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+async def _invoke_clarifier(
+    query: str,
+    mode_hint: SearchMode | None,
+    *,
+    clarifier: Clarifier | None = None,
+    llm: LLMClient | None = None,
+    channels: list[Channel] | None = None,
+) -> ClarifyToolResponse:
+    """Invoke the Clarifier and return a MCP-shaped response.
+
+    Injectable dependencies for testing:
+        clarifier, llm, channels
+    """
+    request = ClarifyRequest(query=query, mode_hint=mode_hint)
+    used_clarifier = clarifier or Clarifier()
+    used_llm = llm or LLMClient()
+    used_channels = channels if channels is not None else _build_channels()
+
+    try:
+        result = await used_clarifier.clarify(
+            request,
+            used_llm,
+            channels=used_channels,
+        )
+    except Exception as exc:  # noqa: BLE001 — boundary; return structured error
+        return ClarifyToolResponse(
+            query=query,
+            ok=False,
+            reason=f"clarify_error: {type(exc).__name__}: {exc}",
+        )
+
+    return ClarifyToolResponse(
+        query=query,
+        ok=True,
+        need_clarification=result.need_clarification,
+        question=result.question,
+        verification=result.verification,
+        mode=result.mode.value if result.mode is not None else None,
+        query_type=result.query_type,
+        rubrics=[r.text for r in result.rubrics],
+        channel_priority=list(result.channel_priority),
+        channel_skip=list(result.channel_skip),
+    )
 
 
 async def _search_single_channel(
@@ -268,6 +332,35 @@ def create_server(pipeline_factory: Callable[[], Pipeline] | None = None) -> Fas
     def health() -> str:
         """Return a cheap liveness indicator for MCP clients."""
         return "ok"
+
+    @server.tool()
+    async def run_clarify(
+        query: str,
+        mode_hint: Literal["fast", "deep", "comprehensive"] | None = None,
+    ) -> ClarifyToolResponse:
+        """Run the autosearch clarifier on a user query, returning structured output.
+
+        Part of the v2 tool-supplier architecture: the runtime AI uses this
+        to decide whether to ask the user a clarifying question, and which
+        channels / mode / rubrics to target if it proceeds. Autosearch does
+        NOT run the full research pipeline here — it only produces the
+        clarification envelope.
+
+        Args:
+            query: The user's research question, as-is.
+            mode_hint: Optional preference for "fast" / "deep" /
+                "comprehensive". If omitted, the clarifier picks.
+
+        Returns:
+            ClarifyToolResponse with:
+              - need_clarification: True if runtime should ask the user first.
+              - question: the clarifying question (if needed).
+              - verification: acknowledgement text (if no clarification needed).
+              - mode / query_type / rubrics / channel_priority / channel_skip
+                as structured guidance for the runtime's next step.
+        """
+        parsed_mode = SearchMode(mode_hint) if mode_hint else None
+        return await _invoke_clarifier(query=query, mode_hint=parsed_mode)
 
     @server.tool()
     async def run_channel(
