@@ -5,7 +5,7 @@ description: "Install AutoSearch as an MCP server in Claude Code, Cursor, and ot
 
 # AutoSearch as an MCP Server
 
-AutoSearch ships a standard [Model Context Protocol](https://modelcontextprotocol.io) stdio server that exposes a single tool — `research` — to any MCP client. Because the protocol is client-agnostic, the same server binary plugs into Claude Code, Cursor, Zed, Continue, and any other MCP-speaking surface without recompilation.
+AutoSearch ships a standard [Model Context Protocol](https://modelcontextprotocol.io) stdio server that exposes two tools — `research` (the main deep-research entry point) and `health` (a liveness probe) — to any MCP client. Because the protocol is client-agnostic, the same server binary plugs into Claude Code, Cursor, Zed, Continue, and any other MCP-speaking surface without recompilation.
 
 This page shows the config format for each supported client plus a one-minute verification routine.
 
@@ -134,32 +134,46 @@ Input schema:
 |---|---|---|---|
 | `query` | string | required | Your research question. Natural language, English or Chinese. |
 | `mode` | `"fast"` \| `"deep"` | `"fast"` | `fast` = 1 iteration, ~20–40s. `deep` = multi-iteration reflect-on-gaps loop, ~1–3 min and higher cost. |
+| `languages` | `"all"` \| `"en_only"` \| `"zh_only"` \| `"mixed"` | `"all"` | Constrain channel selection by language scope. |
+| `depth` | `"fast"` \| `"deep"` \| `"comprehensive"` | inherits `mode` | Finer-grained depth override; `comprehensive` extends `deep` with extra iteration budget. |
+| `output_format` | `"md"` \| `"html"` | `"md"` | Markdown is the canonical report format; HTML wraps the markdown for client rendering. |
 
-Output: a single content block with a Markdown research report that includes a `## References` section at the bottom. Citations are `[N]`-style and map to entries in References.
+Output: a `ResearchResponse`-shaped result — most clients present it as a single text content block. On a successful research run the text is a Markdown report that typically ends with a `## References` section and `[N]`-style citations; on failure modes (rate limit, soft refusal, clarification needed) the content may instead be a short banner describing what happened. Don't assume `## References` always appears.
 
 ## Verifying the integration
 
 Any MCP client supports a `tools/list` handshake before `tools/call`. If your client shows a GUI, the `research` tool appearing in the panel is proof enough. If you want a scripted check without a GUI client, run the following against any locally installed `autosearch-mcp`:
+
+Run this with the same Python interpreter that has AutoSearch installed (for a `pipx install autosearch` setup, that's `pipx run --spec autosearch python` or inside the pipx venv — the snippet imports `mcp` which lives alongside `autosearch-mcp`, not in your system Python).
 
 ```python
 import asyncio, os
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
+# Forward whichever provider key is set. The MCP server picks the first one it finds.
+PROVIDER_ENV = {
+    k: os.environ[k]
+    for k in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY")
+    if os.environ.get(k)
+}
+assert PROVIDER_ENV, "set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY"
+
 async def main():
     params = StdioServerParameters(
         command="autosearch-mcp",
-        env={"ANTHROPIC_API_KEY": os.environ["ANTHROPIC_API_KEY"], "PATH": os.environ["PATH"]},
+        env={**PROVIDER_ENV, "PATH": os.environ["PATH"]},
     )
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
             tools = await session.list_tools()
-            assert "research" in [t.name for t in tools.tools]
+            tool_names = {t.name for t in tools.tools}
+            assert "research" in tool_names, f"research tool missing: {tool_names}"
             result = await session.call_tool("research", {"query": "Explain BM25 ranking", "mode": "fast"})
             report = "".join(c.text for c in result.content if hasattr(c, "text"))
-            assert "Reference" in report or "reference" in report.lower()
-            print("OK — autosearch-mcp responded with a cited report")
+            assert report.strip(), "research returned empty content"
+            print("OK — autosearch-mcp responded with content length", len(report))
 
 asyncio.run(main())
 ```
