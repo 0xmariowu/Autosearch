@@ -30,16 +30,21 @@ class EvidenceProcessor:
         kept_hashes: list[Simhash] = []
         for evidence in evs:
             text = _simhash_text(evidence)
+            # simhash 2.x overflows numpy uint8 when any feature weight >255.
+            # Overflow can originate from Simhash() construction OR the
+            # subsequent distance() call (both touch the uint8 state). Wrap
+            # the full compute path so a pathological evidence is kept
+            # without near-duplicate suppression rather than crashing the
+            # whole dedup pass.
             try:
                 fingerprint = Simhash(text)
+                is_duplicate = any(
+                    fingerprint.distance(existing) <= threshold for existing in kept_hashes
+                )
             except OverflowError:
-                # simhash 2.x has a numpy uint8 overflow when any feature weight
-                # exceeds 255 (triggered on long / repetitive text). Fall back to
-                # keeping the evidence without near-duplicate suppression rather
-                # than silently dropping channel output.
                 kept.append(evidence)
                 continue
-            if any(fingerprint.distance(existing) <= threshold for existing in kept_hashes):
+            if is_duplicate:
                 continue
             kept.append(evidence)
             kept_hashes.append(fingerprint)
