@@ -32,6 +32,10 @@ jobs:
             e2b e2b-code-interpreter rich pyyaml
           uv pip install --python .orchestrator/bin/python -e .
 
+      - name: Capture run date
+        id: date
+        run: echo "today=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
       - name: Pack source tarball
         run: |
           tar --exclude='.git' --exclude='node_modules' --exclude='.venv' \
@@ -42,6 +46,7 @@ jobs:
 
       - name: Run E2B nightly matrix (Track A core)
         env:
+          REPORT_DIR: reports/nightly-${{ steps.date.outputs.today }}
           E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -62,14 +67,29 @@ jobs:
             echo "::warning::nightly orchestrator not yet ported to repo; skipping"
             exit 0
           fi
-          report_dir="reports/nightly-$(date -u +%Y-%m-%d)"
+          mkdir -p "${REPORT_DIR}"
           .orchestrator/bin/python scripts/e2b/run_validation.py \
             --project autosearch \
             --matrix tests/e2b/matrix.yaml \
             --secrets /tmp/nightly-secrets.env \
-            --output "${report_dir}" \
+            --output "${REPORT_DIR}" \
             --parallel 15 \
             --tarball /tmp/autosearch-src.tar.gz
+
+      - name: Ensure failure summary exists
+        if: failure()
+        env:
+          REPORT_DIR: reports/nightly-${{ steps.date.outputs.today }}
+        run: |
+          mkdir -p "${REPORT_DIR}"
+          if [ ! -s "${REPORT_DIR}/summary.md" ]; then
+            cat > "${REPORT_DIR}/summary.md" <<EOF
+          # Nightly E2B validation failed early
+
+          Run: ${{ github.run_number }}
+          The orchestrator did not produce a full summary. See the Actions run logs linked from the issue body for root-cause analysis.
+          EOF
+          fi
 
       - name: Upload report artifacts
         if: always()
@@ -84,5 +104,5 @@ jobs:
         uses: peter-evans/create-issue-from-file@v5
         with:
           title: "E2B nightly validation failed ${{ github.run_number }}"
-          content-filepath: reports/nightly-*/summary.md
+          content-filepath: reports/nightly-${{ steps.date.outputs.today }}/summary.md
           labels: ci,nightly-fail

@@ -32,6 +32,10 @@ jobs:
             e2b e2b-code-interpreter rich pyyaml
           uv pip install --python .orchestrator/bin/python -e .
 
+      - name: Capture run date
+        id: date
+        run: echo "today=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
       - name: Pack source tarball
         run: |
           tar --exclude='.git' --exclude='node_modules' --exclude='.venv' \
@@ -42,6 +46,7 @@ jobs:
 
       - name: Run channel smoke matrix (F111)
         env:
+          REPORT_ROOT: reports/weekly-${{ steps.date.outputs.today }}
           E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TIKHUB_API_KEY: ${{ secrets.TIKHUB_API_KEY }}
@@ -51,15 +56,15 @@ jobs:
             echo "::warning::bench_channels.py not ported to repo yet; skipping"
             exit 0
           fi
-          report_root="reports/weekly-$(date -u +%Y-%m-%d)"
-          mkdir -p "${report_root}"
+          mkdir -p "${REPORT_ROOT}"
           .orchestrator/bin/python scripts/e2b/bench_channels.py \
             --tarball /tmp/autosearch-src.tar.gz \
-            --output "${report_root}/channels" \
+            --output "${REPORT_ROOT}/channels" \
             --parallel 15 --mode fast
 
       - name: Run variance benchmark subset (F203, K=3, 5 topics)
         env:
+          REPORT_ROOT: reports/weekly-${{ steps.date.outputs.today }}
           E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
@@ -67,12 +72,26 @@ jobs:
             echo "::warning::bench_variance.py not ported to repo yet; skipping"
             exit 0
           fi
-          report_root="reports/weekly-$(date -u +%Y-%m-%d)"
-          mkdir -p "${report_root}/variance"
+          mkdir -p "${REPORT_ROOT}/variance"
           .orchestrator/bin/python scripts/e2b/bench_variance.py \
             --tarball /tmp/autosearch-src.tar.gz \
-            --output "${report_root}/variance" \
+            --output "${REPORT_ROOT}/variance" \
             --parallel 15 --runs-per-topic 3 --mode fast
+
+      - name: Ensure failure summary exists
+        if: failure()
+        env:
+          REPORT_ROOT: reports/weekly-${{ steps.date.outputs.today }}
+        run: |
+          mkdir -p "${REPORT_ROOT}/variance"
+          if [ ! -s "${REPORT_ROOT}/variance/variance-summary.md" ]; then
+            cat > "${REPORT_ROOT}/variance/variance-summary.md" <<EOF
+          # Weekly E2B validation failed early
+
+          Run: ${{ github.run_number }}
+          The bench suite did not produce a variance summary. See the Actions run logs linked from the issue body for root-cause analysis.
+          EOF
+          fi
 
       - name: Upload report artifacts
         if: always()
@@ -87,5 +106,5 @@ jobs:
         uses: peter-evans/create-issue-from-file@v5
         with:
           title: "E2B weekly validation failed ${{ github.run_number }}"
-          content-filepath: reports/weekly-*/variance/variance-summary.md
+          content-filepath: reports/weekly-${{ steps.date.outputs.today }}/variance/variance-summary.md
           labels: ci,weekly-fail
