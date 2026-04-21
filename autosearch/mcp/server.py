@@ -1,7 +1,11 @@
 # Self-written, plan v2.3 § 13.5 MCP Server (~1 day per plan)
+from __future__ import annotations
+
 from collections.abc import Callable
+from pathlib import Path
 from typing import Literal
 
+import yaml
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -9,6 +13,10 @@ from autosearch.core.channel_bootstrap import _build_channels
 from autosearch.core.pipeline import Pipeline
 from autosearch.core.search_scope import SearchScope, depth_to_mode
 from autosearch.llm.client import LLMClient
+
+_SKILLS_ROOT = Path(__file__).resolve().parents[1] / "skills"
+# Subdirectories of autosearch/skills that host SKILL.md files at depth 1.
+_SKILL_GROUPS = ("channels", "tools", "meta", "router")
 
 
 class ResearchResponse(BaseModel):
@@ -23,8 +31,143 @@ class ResearchResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class SkillSummary(BaseModel):
+    """One skill entry returned by the list_skills tool."""
+
+    name: str
+    description: str
+    path: str
+    group: str
+    layer: str | None = None
+    domains: list[str] = Field(default_factory=list)
+    scenarios: list[str] = Field(default_factory=list)
+    model_tier: str | None = None
+    auth_required: bool | None = None
+    cost: str | None = None
+    deprecated: bool = False
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class SkillCatalogResponse(BaseModel):
+    """Structured MCP tool response for the list_skills tool."""
+
+    total: int
+    skills: list[SkillSummary] = Field(default_factory=list)
+    filtered_by: dict[str, str] = Field(default_factory=dict)
+
+    model_config = ConfigDict(extra="forbid")
+
+
 def _default_pipeline_factory() -> Pipeline:
     return Pipeline(llm=LLMClient(), channels=_build_channels())
+
+
+def _parse_skill_md(path: Path, *, group: str) -> SkillSummary | None:
+    """Parse a single SKILL.md file's YAML frontmatter into a SkillSummary.
+
+    Returns None if the file cannot be parsed. Callers should skip rather
+    than raise so a single malformed skill does not break the whole catalog.
+    """
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+    lines = raw.splitlines()
+    start = next((i for i, line in enumerate(lines) if line.strip() == "---"), None)
+    if start is None:
+        return None
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].strip() == "---"), None)
+    if end is None:
+        return None
+
+    frontmatter_text = "\n".join(lines[start + 1 : end]).strip()
+    if not frontmatter_text:
+        return None
+    try:
+        data = yaml.safe_load(frontmatter_text)
+    except yaml.YAMLError:
+        return None
+    if not isinstance(data, dict):
+        return None
+
+    try:
+        rel_path: str
+        try:
+            rel_path = str(path.parent.relative_to(_SKILLS_ROOT.parent))
+        except ValueError:
+            rel_path = str(path.parent)
+        return SkillSummary(
+            name=str(data.get("name") or path.parent.name),
+            description=str(data.get("description") or ""),
+            path=rel_path,
+            group=group,
+            layer=data.get("layer") if isinstance(data.get("layer"), str) else None,
+            domains=list(data.get("domains") or []),
+            scenarios=list(data.get("scenarios") or []),
+            model_tier=data.get("model_tier") if isinstance(data.get("model_tier"), str) else None,
+            auth_required=data.get("auth_required")
+            if isinstance(data.get("auth_required"), bool)
+            else None,
+            cost=data.get("cost") if isinstance(data.get("cost"), str) else None,
+            deprecated=bool(data.get("deprecated"))
+            if data.get("deprecated") is not None
+            else False,
+        )
+    except Exception:
+        return None
+
+
+def _scan_skill_catalog(
+    *,
+    skills_root: Path | None = None,
+    group_filter: str = "",
+    domain_filter: str = "",
+    include_deprecated: bool = False,
+) -> list[SkillSummary]:
+    """Walk autosearch/skills/ and return SkillSummaries for every SKILL.md found.
+
+    Scans the groups defined by `_SKILL_GROUPS`. For each group directory, scans
+    direct child directories (leaf skills). `router/` is special-cased — its
+    SKILL.md sits at the group root, not under a child leaf.
+    """
+    root = skills_root or _SKILLS_ROOT
+    results: list[SkillSummary] = []
+    if not root.is_dir():
+        return results
+
+    for group in _SKILL_GROUPS:
+        group_dir = root / group
+        if not group_dir.is_dir():
+            continue
+        if group_filter and group_filter != group:
+            continue
+
+        # router/ has SKILL.md at the group root
+        if group == "router":
+            skill_path = group_dir / "SKILL.md"
+            if skill_path.is_file():
+                summary = _parse_skill_md(skill_path, group=group)
+                if summary is not None:
+                    results.append(summary)
+            continue
+
+        # channels/ / tools/ / meta/ have SKILL.md under leaf child dirs
+        for leaf_dir in sorted(p for p in group_dir.iterdir() if p.is_dir()):
+            skill_path = leaf_dir / "SKILL.md"
+            if not skill_path.is_file():
+                continue
+            summary = _parse_skill_md(skill_path, group=group)
+            if summary is not None:
+                results.append(summary)
+
+    if domain_filter:
+        results = [s for s in results if domain_filter in s.domains]
+    if not include_deprecated:
+        results = [s for s in results if not s.deprecated]
+
+    return sorted(results, key=lambda s: (s.group, s.name))
 
 
 def create_server(pipeline_factory: Callable[[], Pipeline] | None = None) -> FastMCP:
@@ -96,6 +239,47 @@ def create_server(pipeline_factory: Callable[[], Pipeline] | None = None) -> Fas
     def health() -> str:
         """Return a cheap liveness indicator for MCP clients."""
         return "ok"
+
+    @server.tool()
+    def list_skills(
+        group: str = "",
+        domain: str = "",
+        include_deprecated: bool = False,
+    ) -> SkillCatalogResponse:
+        """List autosearch skills with their frontmatter metadata.
+
+        Part of the v2 tool-supplier architecture: the runtime AI calls this
+        to discover what autosearch can do, then picks and invokes the leaf
+        skills it needs. Returns static metadata only — this does not run
+        any skill. See also: `autosearch:router` SKILL.md for how to pick
+        groups before reading leaf skills.
+
+        Args:
+            group: Filter by group ("channels", "tools", "meta", "router").
+                   Empty string = all groups.
+            domain: Filter by domain tag (e.g. "chinese-ugc", "web-fetch",
+                    "academic"). Empty string = no domain filter.
+            include_deprecated: If True, include skills marked
+                `deprecated: true` in their frontmatter. Defaults to False
+                so callers don't accidentally discover wave-3 removal targets.
+        """
+        summaries = _scan_skill_catalog(
+            group_filter=group or "",
+            domain_filter=domain or "",
+            include_deprecated=include_deprecated,
+        )
+        filtered: dict[str, str] = {}
+        if group:
+            filtered["group"] = group
+        if domain:
+            filtered["domain"] = domain
+        if include_deprecated:
+            filtered["include_deprecated"] = "true"
+        return SkillCatalogResponse(
+            total=len(summaries),
+            skills=summaries,
+            filtered_by=filtered,
+        )
 
     return server
 
