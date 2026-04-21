@@ -1,4 +1,15 @@
 # Source: storm/knowledge_storm/storm_wiki/modules/article_generation.py:L136-L177 (adapted)
+#
+# DEPRECATED (v2 wave 3 removal target):
+# This module drives M7 final-section writing inside the autosearch synthesis
+# pipeline. Under v2 tool supplier architecture, runtime AI (Claude / Cursor)
+# writes the final report directly from the evidence + outline autosearch
+# returns — autosearch itself does not compose sections anymore. This module
+# stays so the existing `autosearch research` CLI and MCP `research()` tool
+# keep producing reports for backward-compat users; new code paths must NOT
+# call the section writer here. When the tool-supplier entry points are
+# rewritten (wave 3), delete this module along with `m7_section_write*.md`
+# and `m7_outline.md` prompts.
 import re
 
 import structlog

@@ -2,6 +2,8 @@
 name: m7_section_write_v2
 phase: M7
 description: Write a report section using only the provided per-section snippets and inline citations.
+deprecated: true
+deprecation_notice: "v2 tool supplier architecture: autosearch no longer owns final synthesis. Runtime AI writes directly from evidence autosearch returns. This v2 section-write prompt remains so the legacy pipeline keeps running, but new code paths should not invoke it. Target removal: v2 wave 3."
 ---
 Write the body content for this report section using only the provided snippets.
 
