@@ -295,6 +295,7 @@ def create_server(pipeline_factory: Callable[[], Pipeline] | None = None) -> Fas
 
         Migration guide: docs/migration/legacy-research-to-tool-supplier.md.
         """
+        import os as _os
         import warnings as _warnings
 
         _warnings.warn(
@@ -304,11 +305,32 @@ def create_server(pipeline_factory: Callable[[], Pipeline] | None = None) -> Fas
             DeprecationWarning,
             stacklevel=2,
         )
+
         scope = SearchScope(
             channel_scope=languages or "all",
             depth=depth or mode,
             output_format=output_format or "md",
         )
+
+        # W3.3 PR A: by default, do NOT invoke the legacy pipeline. Return a
+        # structured deprecation response pointing callers at the tool-supplier
+        # trio. Legacy pipeline behaviour is preserved only when the opt-in
+        # env var AUTOSEARCH_LEGACY_RESEARCH=1 is set (used by existing tests).
+        legacy_opt_in = _os.environ.get("AUTOSEARCH_LEGACY_RESEARCH", "").strip() == "1"
+        if not legacy_opt_in:
+            return ResearchResponse(
+                content=(
+                    "[deprecated] The `research` MCP tool is deprecated under v2 "
+                    "tool-supplier architecture. Use `list_skills` + `run_clarify` "
+                    "+ `run_channel` and let the runtime AI synthesize the report. "
+                    "Migration guide: docs/migration/legacy-research-to-tool-supplier.md"
+                ),
+                channel_empty_calls={},
+                routing_trace={"deprecated": True},
+                delivery_status="deprecated",
+                scope=scope.model_dump(),
+            )
+
         mode_hint = depth_to_mode(scope.depth)
         assert mode_hint is not None
 

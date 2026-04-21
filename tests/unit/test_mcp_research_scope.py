@@ -7,6 +7,17 @@ from autosearch.core.pipeline import PipelineResult
 from autosearch.core.search_scope import SearchScope
 
 
+@pytest.fixture(autouse=True)
+def _enable_legacy_research(monkeypatch: pytest.MonkeyPatch) -> None:
+    """W3.3 PR A: these tests still exercise the legacy pipeline behavior.
+
+    By default the research() MCP tool short-circuits to a deprecation response;
+    setting AUTOSEARCH_LEGACY_RESEARCH=1 opts back into the legacy path so these
+    scope tests remain meaningful until PR B (orphan-test deletion) removes them.
+    """
+    monkeypatch.setenv("AUTOSEARCH_LEGACY_RESEARCH", "1")
+
+
 def _ok_result() -> PipelineResult:
     return PipelineResult(
         delivery_status="ok",
