@@ -1,0 +1,52 @@
+# Gate 12 augment-vs-bare bench topic set.
+#
+# 15 topics chosen per docs/bench/gate-12-augment-vs-bare.md: a mix where
+# autosearch's Chinese UGC + academic + code channels are expected to help
+# (A should win) and where native Claude WebSearch is strong (A should tie).
+# If A loses on any of these, the skill catalog injection isn't landing
+# useful signal — diagnose router / SKILL.md trigger keywords.
+
+topics:
+  # Chinese UGC / product research — autosearch strong
+  - name: "zh_product_xhs_xgp"
+    query: "XGP 香港服和国服的区别，订阅之前需要注意什么（覆盖价格、可玩游戏、账号兼容、付款方式）"
+  - name: "zh_podcast_ai_trend"
+    query: "最近几个月中文播客在讨论 AI agent 的商业模式上有哪些分歧点？重点看小宇宙的访谈节目"
+  - name: "zh_bili_tutorial_mlx"
+    query: "B站上有哪些评价高的 MLX / Apple Silicon 机器学习入门视频？列具体 up 主 + 视频标题"
+
+  # Academic / benchmarks — autosearch strong (arxiv + papers-with-code + openreview)
+  - name: "en_academic_rag_survey"
+    query: "2026 最新的 retrieval-augmented generation 综述论文有哪些？列 arxiv ID + 关键 benchmark 数字"
+  - name: "en_academic_moe_openreview"
+    query: "ICLR 2026 接收的 MoE 训练稳定性相关论文有哪些？列 OpenReview forum id + 评审分数"
+  - name: "en_academic_eval_vs_rl"
+    query: "当前 LLM eval 领域 benchmark contamination 的最新测量方法和论文"
+
+  # Code / package — autosearch strong (github-repos + github-issues)
+  - name: "en_code_duckdb_vector"
+    query: "DuckDB 最近支持的 vector search / HNSW 相关 PR 和已知限制。列 issue/PR #"
+  - name: "en_code_uv_rollout"
+    query: "Astral uv 项目在 Python monorepo 场景有哪些真实的 migration issue？github issues 数字 + 常见 workaround"
+
+  # Market / product — autosearch moderate (crunchbase + producthunt)
+  - name: "en_market_agent_launches"
+    query: "最近 90 天内在 Product Hunt 上线的 AI agent / coding assistant，列产品名 + 当日 upvote + 定价"
+
+  # English community — autosearch = native tie
+  - name: "en_stackoverflow_asyncio_timeout"
+    query: "Python asyncio.timeout vs asyncio.wait_for 在 3.11+ 的正确用法 + 常见 pitfall"
+  - name: "en_hn_vibe_coding"
+    query: "Hacker News 讨论 vibe coding 时的主要论点和反对意见"
+
+  # Hard-specific-identifier — autosearch should win because Claude's training data is stale
+  - name: "en_tech_e2b_429"
+    query: "E2B sandbox 在调用时遇到的 sandbox is running but port is not open — 49999 错误，最新的 fix 策略和相关 GitHub issues"
+  - name: "en_tech_claude_code_settings_migration"
+    query: "Claude Code 2025-2026 settings.json 架构变化和 hooks API 最新 breaking changes"
+
+  # Time-sensitive — autosearch should win (recent-signal-fusion territory)
+  - name: "zh_tech_qwen3_coder_release"
+    query: "Qwen3 Coder 版本最近几次发布的主要变化和社区评测总结"
+  - name: "en_devto_mcp_servers_2026"
+    query: "dev.to 上 2026 年关于写 MCP server 的教程和常见坑总结"
