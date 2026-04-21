@@ -27,7 +27,14 @@ CLARIFY_PROMPT = dedent(
     history that you have already asked a clarifying question, you almost always do not need to
     ask another one. Only ask another question if ABSOLUTELY NECESSARY.
 
-    If there are acronyms, abbreviations, or unknown terms, ask the user to clarify.
+    Only ask for clarification when the query is GENUINELY ambiguous — unknown
+    acronym with conflicting expansions, missing critical parameter, or two
+    mutually exclusive interpretations. For queries that are broad but
+    interpretable ("best practices guide for X", "survey of Y", "comparison of
+    Z", "怎么选 Q", "XX 指南") proceed without asking: pick a reasonable scope,
+    document it in the rubrics, and let the report reflect that interpretation.
+    Only block with need_clarification=true when research cannot meaningfully
+    start at all.
     If you need to ask a question, follow these guidelines:
     - Be concise while gathering all necessary information
     - Make sure to gather all the information needed to carry out the research task in a concise,
