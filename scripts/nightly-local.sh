@@ -13,8 +13,9 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "${REPO_ROOT}"
 
-# Orchestrator location — prefer the shared venv; repo-local fallback for when
-# scripts/e2b/ has its own venv installed.
+# Orchestrator Python: prefer a repo-local venv (post PR #196 layout) so the
+# runner stays self-contained; fall back to the shared venv when the repo
+# doesn't yet carry one.
 if [ -x "${REPO_ROOT}/scripts/e2b/.venv/bin/python" ]; then
   PY="${REPO_ROOT}/scripts/e2b/.venv/bin/python"
 elif [ -x "${HOME}/.claude/scripts/e2b/.venv/bin/python" ]; then
@@ -47,7 +48,9 @@ DATE="$(date -u +%Y-%m-%d)"
 REPORT_DIR="reports/nightly-${DATE}"
 mkdir -p "${REPORT_DIR}"
 
-TARBALL="/tmp/autosearch-src-nightly.tar.gz"
+# Matrix upload steps in tests/e2b/matrix.yaml hardcode /tmp/autosearch-src.tar.gz
+# as the source path, so the file on disk has to match that exact name.
+TARBALL="/tmp/autosearch-src.tar.gz"
 tar --exclude='.git' --exclude='node_modules' --exclude='.venv' \
     --exclude='__pycache__' --exclude='.pytest_cache' \
     --exclude='*.egg-info' --exclude='reports' --exclude='build' \

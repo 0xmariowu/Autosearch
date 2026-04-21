@@ -1,6 +1,6 @@
 ---
 title: "Local Nightly Runner"
-description: "Schedule the F101 baseline regression on your own machine via macOS launchd, cron, or manual invocation"
+description: "Schedule the F101 baseline regression on your own machine via macOS launchd, Linux systemd, or manual invocation"
 ---
 
 # Local Nightly Runner
@@ -133,7 +133,7 @@ They're not mutually exclusive — you can run both.
 |---|---|---|
 | `error: no orchestrator venv found` | `scripts/e2b/` venv never created and shared `~/.claude/scripts/e2b/.venv` is missing | `uv venv scripts/e2b/.venv --python 3.12 && uv pip install --python scripts/e2b/.venv/bin/python e2b e2b-code-interpreter rich pyyaml` |
 | `error: secrets file not readable` | `~/.config/ai-secrets.env` missing or wrong perms | Create the file with `chmod 600`; populate with `E2B_API_KEY=...`, `ANTHROPIC_API_KEY=...` lines |
-| launchd starts but exits 78 / 126 | `PATH` inside launchd is minimal by default | Keep the `EnvironmentVariables.PATH` stanza above; adjust for your own `uv` install location if needed |
+| Script exits 2 with `error: no orchestrator venv found` when launchd fires | `PATH` inside launchd is minimal, so `uv` / `python` from `~/.local/bin` or `/opt/homebrew/bin` is out of reach | Keep the `EnvironmentVariables.PATH` stanza above; adjust for your own `uv` install location if needed |
 | No reports produced, no error | Scheduler fired while machine asleep | launchd uses `StartCalendarInterval`; wake-on-LAN or `caffeinate` around the hour if you suspend the machine at night |
 
 ## Where to go next
