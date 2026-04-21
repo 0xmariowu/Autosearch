@@ -19,6 +19,11 @@ when_to_use:
 quality_hint:
   typical_yield: medium
   chinese_native: false
+layer: leaf
+domains: [academic]
+scenarios: [doi-lookup, publication-metadata]
+model_tier: Fast
+experience_digest: experience.md
 ---
 
 ## Overview

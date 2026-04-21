@@ -16,6 +16,11 @@ when_to_use:
 quality_hint:
   typical_yield: high
   chinese_native: false
+layer: leaf
+domains: [generic-web]
+scenarios: [recent-news, time-sensitive]
+model_tier: Fast
+experience_digest: experience.md
 ---
 
 ## Overview

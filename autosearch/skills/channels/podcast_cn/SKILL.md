@@ -16,6 +16,11 @@ when_to_use:
 quality_hint:
   typical_yield: low
   chinese_native: true
+layer: leaf
+domains: [chinese-ugc]
+scenarios: [chinese-native, podcast, long-form-audio]
+model_tier: Fast
+experience_digest: experience.md
 ---
 
 ## Overview
