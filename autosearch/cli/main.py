@@ -1,10 +1,12 @@
 # Source: gpt-researcher/cli.py:L28-L216 (adapted)
 import asyncio
+import contextlib
 import json
 import sys
 from typing import Annotated
 
 import click
+import httpx
 import typer
 import uvicorn
 from pydantic import ValidationError
@@ -31,7 +33,13 @@ from autosearch.init.channel_status import (
     default_channels_root,
 )
 from autosearch.init_runner import InitError, InitRunner
-from autosearch.llm.client import LLMClient
+from autosearch.llm.client import AllProvidersFailedError, LLMClient
+
+_NO_PROVIDER_MESSAGE = (
+    "No LLM provider available; set ANTHROPIC_API_KEY, OPENAI_API_KEY, "
+    "GOOGLE_API_KEY, or install the `claude` CLI."
+)
+_AUTH_FAILURE_MESSAGE = "LLM authentication failed"
 
 
 class _DefaultQueryGroup(typer.core.TyperGroup):
@@ -141,6 +149,10 @@ def query(
     if mode is not None and depth is not None:
         typer.echo("--mode ignored because --depth was also provided", err=True)
 
+    normalized_query = query.strip()
+    if not normalized_query:
+        _exit_query_failure("Query must not be empty.", exit_code=2, json_output=json_output)
+
     provided: dict[str, object] = {}
     if channel_scope is not None:
         provided["channel_scope"] = channel_scope
@@ -160,17 +172,23 @@ def query(
     resolved_mode = depth_to_mode(scope.depth)
     stream_callback = _stderr_event_writer if stream and not json_output else None
     try:
-        result = asyncio.run(
-            Pipeline(
-                llm=LLMClient(),
-                channels=_build_channels(),
-                top_k_evidence=top_k,
-                on_event=stream_callback,
-            ).run(query, mode_hint=resolved_mode, scope=scope)
-        )
+        with contextlib.ExitStack() as exit_stack:
+            if json_output:
+                exit_stack.enter_context(contextlib.redirect_stdout(sys.stderr))
+            result = asyncio.run(
+                Pipeline(
+                    llm=LLMClient(),
+                    channels=_build_channels(),
+                    top_k_evidence=top_k,
+                    on_event=stream_callback,
+                ).run(normalized_query, mode_hint=resolved_mode, scope=scope)
+            )
     except Exception as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(code=1) from exc
+        _exit_query_failure(
+            _friendly_query_error_message(exc),
+            exit_code=1,
+            json_output=json_output,
+        )
 
     if result.delivery_status == "needs_clarification":
         typer.echo(result.clarification.question or "More detail is required.", err=True)
@@ -179,12 +197,15 @@ def query(
     try:
         rendered_output = _render_output(
             markdown_text=result.markdown or "",
-            title=query,
+            title=normalized_query,
             output_format=scope.output_format,
         )
     except Exception as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(code=1) from exc
+        _exit_query_failure(
+            _friendly_query_error_message(exc),
+            exit_code=1,
+            json_output=json_output,
+        )
 
     if json_output:
         typer.echo(
@@ -340,6 +361,59 @@ def serve(
 def _stderr_event_writer(event: dict[str, object]) -> None:
     sys.stderr.write(json.dumps(event, ensure_ascii=False) + "\n")
     sys.stderr.flush()
+
+
+def _friendly_query_error_message(error: Exception) -> str:
+    if _is_authentication_error(error):
+        return _AUTH_FAILURE_MESSAGE
+    if _is_no_provider_configured_error(error):
+        return _NO_PROVIDER_MESSAGE
+    if isinstance(error, AllProvidersFailedError):
+        return "No LLM provider available; all configured providers failed."
+    return str(error)
+
+
+def _is_no_provider_configured_error(error: Exception) -> bool:
+    return isinstance(error, RuntimeError) and "No LLM provider configured" in str(error)
+
+
+def _is_authentication_error(error: Exception) -> bool:
+    if isinstance(error, AllProvidersFailedError):
+        provider_errors = list(error.provider_errors.values())
+        return bool(provider_errors) and all(
+            _is_authentication_error(provider_error) for provider_error in provider_errors
+        )
+    if isinstance(error, httpx.HTTPStatusError):
+        return error.response.status_code in {401, 403}
+
+    message = str(error).lower()
+    return any(
+        marker in message
+        for marker in (
+            "authentication failed",
+            "invalid api key",
+            "api key is invalid",
+            "unauthorized",
+            "forbidden",
+            "invalid x-api-key",
+        )
+    )
+
+
+def _exit_query_failure(message: str, *, exit_code: int, json_output: bool) -> None:
+    if json_output:
+        typer.echo(
+            json.dumps(
+                {
+                    "delivery_status": "error",
+                    "error": message,
+                    "exit_code": exit_code,
+                }
+            )
+        )
+    else:
+        typer.echo(message, err=True)
+    raise typer.Exit(code=exit_code)
 
 
 def _resolve_scope(

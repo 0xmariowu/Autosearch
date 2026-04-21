@@ -5,6 +5,7 @@ import re
 import uuid
 from typing import Any
 
+import httpx
 import structlog
 
 from autosearch.channels.base import Channel
@@ -25,7 +26,7 @@ from autosearch.core.models import (
 )
 from autosearch.core.search_scope import SearchScope, filter_channels_by_scope
 from autosearch.core.strategy import QueryStrategist
-from autosearch.llm.client import LLMClient
+from autosearch.llm.client import AllProvidersFailedError, LLMClient
 from autosearch.observability.cost import CostTracker
 from autosearch.persistence.session_store import SessionStore
 from autosearch.quality.gate import QualityGate
@@ -371,11 +372,18 @@ class Pipeline:
                 completion_tokens=completion_tokens,
             )
         except Exception as exc:
-            self.logger.exception(
-                "pipeline_run_failed",
-                phase=current_phase,
-                error=str(exc),
-            )
+            if _should_log_pipeline_traceback(exc):
+                self.logger.exception(
+                    "pipeline_run_failed",
+                    phase=current_phase,
+                    error=str(exc),
+                )
+            else:
+                self.logger.warning(
+                    "pipeline_run_failed",
+                    phase=current_phase,
+                    error=str(exc),
+                )
             await self._emit_event(
                 {
                     "type": "error",
@@ -652,6 +660,14 @@ def _subqueries_from_gaps(gaps: list[Gap]) -> list[SubQuery]:
         seen.add(key)
         subqueries.append(SubQuery(text=text, rationale=gap.reason.strip() or text))
     return subqueries
+
+
+def _should_log_pipeline_traceback(error: Exception) -> bool:
+    if isinstance(error, AllProvidersFailedError):
+        return False
+    if isinstance(error, httpx.HTTPStatusError):
+        return error.response.status_code not in {400, 401, 403}
+    return not (isinstance(error, RuntimeError) and "No LLM provider configured" in str(error))
 
 
 def _extract_first_section(markdown: str) -> Section:
