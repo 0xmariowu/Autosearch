@@ -23,13 +23,17 @@ from autosearch.core.evidence import EvidenceProcessor
 from autosearch.core.models import Evidence, Gap, SubQuery
 from autosearch.llm.client import LLMClient
 from autosearch.persistence.session_store import SessionStore
-from autosearch.skills.prompts import load_prompt
 
-GAP_REFLECTION_PROMPT = load_prompt("m3_gap_reflection")
-GAP_REFLECTION_PERSPECTIVE_PROMPT = load_prompt("m3_gap_reflection_perspective")
-PERSPECTIVE_LABELS_PROMPT = load_prompt("m3_perspective_labels")
-SEARCH_REFLECTION_PROMPT = load_prompt("m3_search_reflection")
-FOLLOW_UP_QUERY_PROMPT = load_prompt("m3_follow_up_query")
+# W3.3 PR C: m3_* prompts removed from disk. Module-level prompt constants
+# are kept as empty strings so legacy imports don't crash. Any code path that
+# would actually use them is env-gated (AUTOSEARCH_LEGACY_RESEARCH=1) and the
+# runtime AI should not invoke it; callers will see a dead-path garbage LLM
+# response if invoked. Full removal of this module happens in W3.3 PR D.
+GAP_REFLECTION_PROMPT = ""
+GAP_REFLECTION_PERSPECTIVE_PROMPT = ""
+PERSPECTIVE_LABELS_PROMPT = ""
+SEARCH_REFLECTION_PROMPT = ""
+FOLLOW_UP_QUERY_PROMPT = ""
 FALLBACK_THRESHOLD = 5
 SUBQUERY_BATCH_SIZE = 3
 logger = structlog.get_logger(__name__)

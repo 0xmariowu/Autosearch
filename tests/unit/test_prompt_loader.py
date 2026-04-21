@@ -6,12 +6,13 @@ import pytest
 import autosearch.skills.prompts as prompt_loader_module
 from autosearch.skills.prompts import PromptNotFoundError, load_prompt
 
+# W3.3 PR C: m3_* and m7_* prompts (m3_gap_reflection, m3_follow_up_query,
+# m7_outline, m7_section_write) removed from disk; the pipeline they served is
+# env-gated behind AUTOSEARCH_LEGACY_RESEARCH and will be deleted in PR D/E.
 PROMPT_NAMES = [
     "m2_search_query",
-    "m3_gap_reflection",
-    "m3_follow_up_query",
-    "m7_outline",
-    "m7_section_write",
+    "m4_draft_outline",
+    "m4_refine_outline",
     "m8_section_grader",
 ]
 PLACEHOLDER_RE = re.compile(r"(?<!\{)\{[a-zA-Z0-9_]+\}(?!\})")

@@ -17,10 +17,11 @@ from pydantic import BaseModel, Field
 
 from autosearch.core.models import Evidence, EvidenceSnippet, OutlineNode, Section
 from autosearch.llm.client import LLMClient
-from autosearch.skills.prompts import load_prompt
 
-SECTION_WRITE_PROMPT = load_prompt("m7_section_write")
-SECTION_WRITE_FROM_SNIPPETS_PROMPT = load_prompt("m7_section_write_v2")
+# W3.3 PR C: m7_* prompts removed from disk. Constants kept as empty strings
+# so legacy imports don't crash — env-gated code paths never invoke them.
+SECTION_WRITE_PROMPT = ""
+SECTION_WRITE_FROM_SNIPPETS_PROMPT = ""
 
 _MAX_SNIPPETS_PER_PROMPT = 12
 _MAX_SNIPPET_EXCERPT_CHARS = 600
