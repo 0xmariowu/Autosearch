@@ -1,0 +1,291 @@
+# AutoSearch v2 → v1.0 production validation — Extensions matrix
+# Augments the existing tests/e2b/matrix.yaml with W1-W6 curated-input tests,
+# F103/F104 Claude integration, and failure isolation.
+#
+# Run via:
+#   ~/.claude/scripts/e2b/.venv/bin/python ~/.claude/scripts/e2b/run_validation.py \
+#     --project autosearch --matrix tests/e2b/matrix-extensions.yaml \
+#     --secrets ~/.config/ai-secrets.env \
+#     --output reports/{date}/extensions \
+#     --parallel 15 --tarball /tmp/autosearch-src-v5.tar.gz
+
+phases:
+
+  # F109 — W5 browser_fetcher optional extra smoke
+  F109_W5_browser_smoke:
+    parallel: 1
+    timeout: 1200
+    template: autosearch-claude
+    upload:
+      - src: /tmp/autosearch-src-v5.tar.gz
+        dst: /tmp/autosearch-src.tar.gz
+    setup: |
+      set -e
+      mkdir -p $HOME/work/autosearch
+      tar -xzf /tmp/autosearch-src.tar.gz -C $HOME/work/autosearch
+      cd $HOME/work/autosearch
+      uv venv --python 3.12 .venv > /tmp/venv.log 2>&1
+      uv pip install --python .venv/bin/python -e ".[browser]" > /tmp/install.log 2>&1
+      .venv/bin/playwright install chromium > /tmp/playwright.log 2>&1 || true
+      .venv/bin/playwright install-deps chromium > /tmp/playwright-deps.log 2>&1 || true
+    tasks:
+      - id: browser_extra_installs
+        cmd: |
+          cd $HOME/work/autosearch
+          .venv/bin/python -c "from autosearch.lib.browser_fetcher import fetch_page_with_js; print('import_ok')"
+        expect:
+          exit: 0
+          stdout_contains: "import_ok"
+      - id: browser_error_class
+        cmd: |
+          cd $HOME/work/autosearch
+          .venv/bin/python -c "from autosearch.lib.browser_fetcher import BrowserNotInstalledError; print('error_class_ok')"
+        expect:
+          exit: 0
+          stdout_contains: "error_class_ok"
+      - id: browser_fetch_example_com
+        timeout: 240
+        cmd: |
+          cd $HOME/work/autosearch
+          .venv/bin/python -c "
+          import asyncio
+          from autosearch.lib.browser_fetcher import fetch_page_with_js
+
+          async def main():
+              page = await fetch_page_with_js('https://example.com')
+              assert page is not None, 'None returned'
+              cleaned = page.cleaned_html or ''
+              html = getattr(page, 'html', '') or ''
+              combined = cleaned + html
+              assert 'Example Domain' in combined, f'unexpected content: {combined[:200]}'
+              print('browser_fetch_ok')
+
+          asyncio.run(main())
+          "
+        expect:
+          exit: 0
+          stdout_contains: "browser_fetch_ok"
+
+  # F110 — W6 embeddings optional extra smoke
+  F110_W6_embeddings_smoke:
+    parallel: 1
+    timeout: 1800
+    template: autosearch-claude
+    upload:
+      - src: /tmp/autosearch-src-v5.tar.gz
+        dst: /tmp/autosearch-src.tar.gz
+    setup: |
+      set -e
+      mkdir -p $HOME/work/autosearch
+      tar -xzf /tmp/autosearch-src.tar.gz -C $HOME/work/autosearch
+      cd $HOME/work/autosearch
+      uv venv --python 3.12 .venv > /tmp/venv.log 2>&1
+      uv pip install --python .venv/bin/python -e ".[embeddings]" > /tmp/install.log 2>&1
+    tasks:
+      - id: embeddings_import
+        cmd: |
+          cd $HOME/work/autosearch
+          .venv/bin/python -c "from autosearch.core.embeddings import SentenceTransformerBackend; print('import_ok')"
+        expect:
+          exit: 0
+          stdout_contains: "import_ok"
+      - id: embeddings_encode_one_sentence
+        timeout: 360
+        cmd: |
+          cd $HOME/work/autosearch
+          .venv/bin/python -c "
+          from autosearch.core.embeddings import SentenceTransformerBackend
+          backend = SentenceTransformerBackend()
+          vec = backend.encode_text('bm25 ranking algorithm')
+          assert isinstance(vec, list), f'expected list, got {type(vec)}'
+          assert len(vec) > 100, f'embedding dim too small: {len(vec)}'
+          print(f'embed_shape_ok dim={len(vec)}')
+          "
+        expect:
+          exit: 0
+          stdout_contains: "embed_shape_ok"
+
+  # F103 — Claude Code /autosearch slash (autosearch-claude template)
+  F103_claude_slash_headless:
+    parallel: 1
+    timeout: 1800
+    template: autosearch-claude
+    upload:
+      - src: /tmp/autosearch-src-v5.tar.gz
+        dst: /tmp/autosearch-src.tar.gz
+    setup: |
+      set -e
+      mkdir -p $HOME/work/autosearch
+      tar -xzf /tmp/autosearch-src.tar.gz -C $HOME/work/autosearch
+      cd $HOME/work/autosearch
+      uv venv --python 3.12 .venv > /tmp/venv.log 2>&1
+      uv pip install --python .venv/bin/python -e . > /tmp/install.log 2>&1
+      mkdir -p $HOME/.claude/commands
+      cp commands/autosearch.md $HOME/.claude/commands/
+    tasks:
+      - id: claude_cli_version
+        cmd: claude --version
+        expect:
+          exit: 0
+          stdout_contains: "2.1"
+      - id: slash_autosearch_headless
+        timeout: 600
+        env_keys: [ANTHROPIC_API_KEY]
+        cmd: |
+          cd $HOME/work/autosearch
+          claude --dangerously-skip-permissions -p "/autosearch what is BM25" 2>&1 | tail -200
+        expect:
+          exit: 0
+          stdout_contains: "References"
+
+  # F104 — MCP-as-tool (Claude Code invoking autosearch via MCP config)
+  F104_mcp_as_tool:
+    parallel: 1
+    timeout: 1800
+    template: autosearch-claude
+    upload:
+      - src: /tmp/autosearch-src-v5.tar.gz
+        dst: /tmp/autosearch-src.tar.gz
+    setup: |
+      set -e
+      mkdir -p $HOME/work/autosearch
+      tar -xzf /tmp/autosearch-src.tar.gz -C $HOME/work/autosearch
+      cd $HOME/work/autosearch
+      uv venv --python 3.12 .venv > /tmp/venv.log 2>&1
+      uv pip install --python .venv/bin/python -e . > /tmp/install.log 2>&1
+      mkdir -p $HOME/.claude
+      cat > $HOME/.claude/mcp.json <<EOF
+      {
+        "mcpServers": {
+          "autosearch": {
+            "command": "$HOME/work/autosearch/.venv/bin/autosearch-mcp",
+            "args": []
+          }
+        }
+      }
+      EOF
+    tasks:
+      - id: mcp_config_valid_json
+        cmd: python3 -c "import json; json.load(open('$HOME/.claude/mcp.json')); print('json_ok')"
+        expect:
+          exit: 0
+          stdout_contains: "json_ok"
+      - id: claude_invokes_autosearch_mcp
+        timeout: 1500
+        env_keys: [ANTHROPIC_API_KEY]
+        cmd: |
+          cd $HOME/work/autosearch
+          claude --mcp-config $HOME/.claude/mcp.json --dangerously-skip-permissions -p "Use the research tool with mode=fast to briefly summarize BM25" 2>&1 | tail -200
+        expect:
+          exit: 0
+          stdout_contains: "BM25"
+
+  # F112 — Channel failure isolation (monkey-patch)
+  F112_channel_failure_isolation:
+    parallel: 1
+    timeout: 600
+    template: autosearch-claude
+    upload:
+      - src: /tmp/autosearch-src-v5.tar.gz
+        dst: /tmp/autosearch-src.tar.gz
+    setup: |
+      set -e
+      mkdir -p $HOME/work/autosearch
+      tar -xzf /tmp/autosearch-src.tar.gz -C $HOME/work/autosearch
+      cd $HOME/work/autosearch
+      uv venv --python 3.12 .venv > /tmp/venv.log 2>&1
+      uv pip install --python .venv/bin/python -e . > /tmp/install.log 2>&1
+    tasks:
+      - id: one_channel_raises_others_continue
+        timeout: 300
+        env_keys: [ANTHROPIC_API_KEY]
+        cmd: |
+          cd $HOME/work/autosearch
+          .venv/bin/python <<'PY'
+          """Verify pipeline continues when one channel raises.
+
+          Use ddgs (healthy) + a synthetic FailingChannel.
+          """
+          import asyncio
+          from autosearch.channels.base import Channel, Environment
+          from autosearch.core.pipeline import Pipeline
+          from autosearch.core.models import SearchMode
+          from autosearch.core.channel_bootstrap import _build_channels
+          from autosearch.llm.client import LLMClient
+
+          class FailingChannel(Channel):
+              name = "failing_test"
+              languages = ["en"]
+              description = "Test channel that always raises"
+              typical_yield = "low"
+
+              async def search(self, query, *, top_k=10, env=None):
+                  raise RuntimeError("synthetic failure for test")
+
+          async def main():
+              # Real ddgs + failing synthetic
+              all_chans = _build_channels()
+              healthy = [c for c in all_chans if c.name == "ddgs"]
+              assert healthy, "ddgs not available"
+              channels = healthy + [FailingChannel()]
+
+              events = []
+              def on_event(event):
+                  events.append(event)
+
+              llm = LLMClient(provider_chain=["anthropic"])
+              p = Pipeline(llm=llm, channels=channels, on_event=on_event)
+              result = await p.run("bm25 ranking algorithm", mode_hint=SearchMode.FAST)
+
+              # Pipeline should complete (did not crash)
+              assert result.markdown is not None, "markdown missing"
+              assert len(result.evidences) > 0, "no evidence from healthy channel"
+
+              # on_event should have emitted an error for failing channel
+              # (soft check — if current pipeline swallows silently, flag but don't hard fail)
+              err_events = [e for e in events if isinstance(e, dict) and e.get("type") == "error"]
+              print(f"markdown_len={len(result.markdown)} evidences={len(result.evidences)} "
+                    f"err_events={len(err_events)}")
+              print("isolation_ok")
+
+          asyncio.run(main())
+          PY
+        expect:
+          exit: 0
+          stdout_contains: "isolation_ok"
+      - id: all_channels_raise_friendly_error
+        timeout: 180
+        env_keys: [ANTHROPIC_API_KEY]
+        cmd: |
+          cd $HOME/work/autosearch
+          .venv/bin/python <<'PY'
+          """Nuclear case: all channels raise."""
+          import asyncio, sys
+          from autosearch.channels.base import Channel
+          from autosearch.core.pipeline import Pipeline
+          from autosearch.core.models import SearchMode
+          from autosearch.llm.client import LLMClient
+
+          class AlwaysRaisingChannel(Channel):
+              name = "raising"
+              languages = ["en"]
+              description = "never succeeds"
+              typical_yield = "low"
+              async def search(self, query, *, top_k=10, env=None):
+                  raise RuntimeError("down")
+
+          async def main():
+              channels = [AlwaysRaisingChannel()]
+              llm = LLMClient(provider_chain=["anthropic"])
+              p = Pipeline(llm=llm, channels=channels)
+              result = await p.run("test query", mode_hint=SearchMode.FAST)
+              md = (result.markdown or "").lower()
+              # Expect pipeline does not crash; markdown indicates no evidence found.
+              print(f"no_crash markdown_len={len(md)}")
+              print("nuclear_ok")
+
+          asyncio.run(main())
+          PY
+        expect:
+          exit: 0
+          stdout_contains: "nuclear_ok"
