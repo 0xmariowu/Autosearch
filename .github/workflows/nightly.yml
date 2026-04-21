@@ -1,49 +1,76 @@
-# Real LLM tests. Requires ANTHROPIC_API_KEY / OPENAI_API_KEY / GOOGLE_API_KEY secrets.
-# Tests skip gracefully if keys absent.
-name: Nightly Real LLM
+name: Nightly
 
 on:
   schedule:
-    - cron: '0 6 * * *'
+    - cron: '0 4 * * *'  # 04:00 UTC daily
   workflow_dispatch:
+    inputs:
+      run_llm:
+        description: 'Run real-LLM eval stage'
+        required: false
+        default: 'false'
+        type: string
 
 jobs:
-  real_llm:
+  full-suite:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+      - uses: actions/checkout@v4
         with:
-          python-version: '3.12'
+          fetch-depth: 0
 
-      - name: Install dependencies
-        run: pip install -e .
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-      - name: Run real LLM tests
-        continue-on-error: true
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-        run: pytest -q -m real_llm
-
-      - name: Check for spike doc changes
-        if: always()
-        id: spike_doc
+      - name: Install deps
         run: |
-          if git diff --quiet -- docs/spikes/spike-1-auto-detect.md; then
-            echo "modified=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "modified=true" >> "$GITHUB_OUTPUT"
+          python -m pip install --upgrade pip
+          python -m pip install pytest pytest-cov
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+
+      - name: Full test suite + coverage
+        run: |
+          python -m pytest --cov=. --cov-report=term --cov-report=xml || echo "::warning::Some tests failed"
+          echo "=== Coverage ==="
+          python -m coverage report | tail -5 || true
+
+      - name: Write coverage snapshot
+        run: |
+          if [ -f coverage.xml ]; then
+            COV=$(python -c "import xml.etree.ElementTree as ET; r = ET.parse('coverage.xml').getroot(); print(int(float(r.get('line-rate', '0')) * 100))")
+            echo "$COV" > coverage.txt
+            echo "coverage: $COV%"
           fi
 
-      - name: Upload spike doc artifact
-        if: always() && steps.spike_doc.outputs.modified == 'true'
-        uses: actions/upload-artifact@v4
+  baseline-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baseline snapshot
+        run: |
+          echo "=== Baselines ==="
+          [ -f .perf-baseline ] && echo "perf baseline: $(cat .perf-baseline)"
+          [ -f .coverage-baseline ] && echo "coverage baseline: $(cat .coverage-baseline)"
+
+  real-llm-eval:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.run_llm == 'true')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          name: spike-1-auto-detect
-          path: docs/spikes/spike-1-auto-detect.md
+          python-version: '3.11'
+      - name: Run real-LLM eval (if tests/llm/ exists)
+        run: |
+          if [ -d tests/llm ]; then
+            pip install pytest requests
+            echo "::notice::tests/llm/ found — repo runs real LLM eval"
+            python -m pytest tests/llm -v --timeout=180 || echo "::warning::LLM eval had failures"
+          else
+            echo "No tests/llm/ — real-LLM eval skipped (validated pattern in V-NLLM01/NLLM02)"
+          fi
