@@ -98,9 +98,13 @@ def main() -> int:
         return 1
 
     channel_name, query = sys.argv[1], sys.argv[2]
+    import os
+
+    mode_env = os.environ.get("AUTOSEARCH_BENCH_MODE", "fast").lower()
+    mode = SearchMode.DEEP if mode_env == "deep" else SearchMode.FAST
 
     try:
-        stats = asyncio.run(run_bench(channel_name, query))
+        stats = asyncio.run(run_bench(channel_name, query, mode=mode))
     except Exception as exc:
         import traceback
 
