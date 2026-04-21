@@ -31,8 +31,8 @@ keywords = [".ts.net", ".local"]
   regexes = ['''\$HOME/\.local/bin/uv''']
 
   [[rules.allowlists]]
-  description = "SKILL.md prose references .local paths (Linux XDG, not a Tailscale domain)"
-  paths = ['''skills/.*/SKILL\.md$''']
+  description = "SKILL.md + ops docs reference .local paths (Linux XDG, not a Tailscale domain)"
+  paths = ['''skills/.*/SKILL\.md$''', '''docs/.*\.md$''']
   regexes = ['''\.local/''']
 
 # ── Public-repo-only rules ───────────────────────────────────────────────────
