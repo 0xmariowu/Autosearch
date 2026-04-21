@@ -32,11 +32,19 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run validation matrices inside E2B sandboxes.")
     parser.add_argument("--project", required=True, help="Project label written into reports")
     parser.add_argument("--matrix", required=True, help="Path to the matrix YAML file")
-    parser.add_argument("--secrets", default=str(DEFAULT_SECRETS_PATH), help="Path to KEY=VALUE secrets env file")
+    parser.add_argument(
+        "--secrets", default=str(DEFAULT_SECRETS_PATH), help="Path to KEY=VALUE secrets env file"
+    )
     parser.add_argument("--output", required=True, help="Directory where reports will be written")
-    parser.add_argument("--parallel", type=int, default=DEFAULT_PARALLEL, help="Default sandboxes per phase")
-    parser.add_argument("--tarball", help="Optional tarball uploaded to every sandbox at /tmp/<filename>")
-    parser.add_argument("--source-dir", help="Pack this directory to a temp tarball and use it as --tarball")
+    parser.add_argument(
+        "--parallel", type=int, default=DEFAULT_PARALLEL, help="Default sandboxes per phase"
+    )
+    parser.add_argument(
+        "--tarball", help="Optional tarball uploaded to every sandbox at /tmp/<filename>"
+    )
+    parser.add_argument(
+        "--source-dir", help="Pack this directory to a temp tarball and use it as --tarball"
+    )
     parser.add_argument("--phase", help="Optional CSV filter for phases to run")
     return parser.parse_args()
 
@@ -51,7 +59,9 @@ def expectation_to_dict(expectation: Expectation) -> dict[str, Any]:
     }
 
 
-def evaluate_expectation(expectation: Expectation, result: CommandRunResult) -> tuple[bool, str | None]:
+def evaluate_expectation(
+    expectation: Expectation, result: CommandRunResult
+) -> tuple[bool, str | None]:
     if result.error and result.exit_code is None:
         return False, f"command error: {result.error}"
 
@@ -65,7 +75,10 @@ def evaluate_expectation(expectation: Expectation, result: CommandRunResult) -> 
         return False, f"stdout missing substring: {expectation.stdout_contains!r}"
     if expectation.stderr_contains is not None and expectation.stderr_contains not in result.stderr:
         return False, f"stderr missing substring: {expectation.stderr_contains!r}"
-    if expectation.stdout_regex and re.search(expectation.stdout_regex, result.stdout, re.MULTILINE) is None:
+    if (
+        expectation.stdout_regex
+        and re.search(expectation.stdout_regex, result.stdout, re.MULTILINE) is None
+    ):
         return False, f"stdout missing regex: {expectation.stdout_regex!r}"
 
     return True, None
@@ -85,7 +98,14 @@ def warn_missing_secrets(
         )
 
 
-def log_task_status(console: Console, phase_id: str, sandbox_idx: int, task_id: str, passed: bool, reason: str | None) -> None:
+def log_task_status(
+    console: Console,
+    phase_id: str,
+    sandbox_idx: int,
+    task_id: str,
+    passed: bool,
+    reason: str | None,
+) -> None:
     status = "[green]PASS[/]" if passed else "[red]FAIL[/]"
     suffix = "" if reason is None else f" reason={reason}"
     console.log(f"{status} phase={phase_id} sandbox={sandbox_idx} task={task_id}{suffix}")
@@ -167,7 +187,9 @@ def run_sandbox_group(
                 sandbox_idx=sandbox_idx,
                 sandbox_id=None,
                 reason=f"sandbox create failed: {exc}",
-                run_result=CommandRunResult(exit_code=None, stdout="", stderr="", wall_seconds=0.0, error=str(exc)),
+                run_result=CommandRunResult(
+                    exit_code=None, stdout="", stderr="", wall_seconds=0.0, error=str(exc)
+                ),
                 setup_resolved_keys=setup_resolved_keys,
                 setup_resolved_sources=setup_resolved_sources,
                 started=started,
@@ -184,7 +206,9 @@ def run_sandbox_group(
                 sandbox_idx=sandbox_idx,
                 sandbox_id=runner.sandbox_id,
                 reason=f"upload failed: {exc}",
-                run_result=CommandRunResult(exit_code=None, stdout="", stderr="", wall_seconds=0.0, error=str(exc)),
+                run_result=CommandRunResult(
+                    exit_code=None, stdout="", stderr="", wall_seconds=0.0, error=str(exc)
+                ),
                 setup_resolved_keys=setup_resolved_keys,
                 setup_resolved_sources=setup_resolved_sources,
                 started=started,

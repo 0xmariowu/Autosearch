@@ -49,7 +49,15 @@ def render_summary_markdown(summary: Mapping[str, Any]) -> str:
     total_passed = sum(int(phase["passed"]) for phase in phases)
     total_failed = sum(int(phase["failed"]) for phase in phases)
     total_wall = sum(float(phase["wall_seconds"]) for phase in phases)
-    lines.extend(["", f"Total passed: {total_passed}", f"Total failed: {total_failed}", f"Total wall_seconds: {total_wall:.3f}", ""])
+    lines.extend(
+        [
+            "",
+            f"Total passed: {total_passed}",
+            f"Total failed: {total_failed}",
+            f"Total wall_seconds: {total_wall:.3f}",
+            "",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -101,7 +109,9 @@ def _truncate(text: str) -> str:
 
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
-    path.write_text(json.dumps(json_ready(payload), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(json_ready(payload), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 def _write_text(path: Path, content: Any) -> None:

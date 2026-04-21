@@ -6,6 +6,7 @@ parallel E2B sandboxes to capture quality/cost/time variance.
 Usage:
     bench_variance.py --tarball TAR --output DIR [--parallel 15] [--config variance|fast-vs-deep|cross-provider]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -59,12 +60,15 @@ def run_one(
     t_overall = time.monotonic()
 
     try:
-        sbx = Sandbox.create(
-            "autosearch-claude", timeout=1800, envs=secrets
-        )
+        sbx = Sandbox.create("autosearch-claude", timeout=1800, envs=secrets)
     except Exception as exc:
-        return {"cell_id": cell_id, "topic_id": topic_id, "run_idx": run_idx,
-                "status": "sandbox_create_failed", "error": str(exc)}
+        return {
+            "cell_id": cell_id,
+            "topic_id": topic_id,
+            "run_idx": run_idx,
+            "status": "sandbox_create_failed",
+            "error": str(exc),
+        }
 
     try:
         with open(tarball_path, "rb") as fh:
@@ -81,15 +85,20 @@ echo install_done
 """
         res = sbx.commands.run(setup, timeout=300)
         if res.exit_code != 0:
-            return {"cell_id": cell_id, "topic_id": topic_id, "run_idx": run_idx,
-                    "status": "install_failed", "stderr_tail": res.stderr[-500:]}
+            return {
+                "cell_id": cell_id,
+                "topic_id": topic_id,
+                "run_idx": run_idx,
+                "status": "install_failed",
+                "stderr_tail": res.stderr[-500:],
+            }
 
         t0 = time.monotonic()
         # --json envelope lands on stdout; keep stderr (log noise) separate.
         cmd = (
-            f'cd $HOME/work/autosearch && AUTOSEARCH_PROVIDER_CHAIN=anthropic '
+            f"cd $HOME/work/autosearch && AUTOSEARCH_PROVIDER_CHAIN=anthropic "
             f'.venv/bin/autosearch query "{query}" --mode {mode} --no-stream --json '
-            f'2>/tmp/autosearch.stderr'
+            f"2>/tmp/autosearch.stderr"
         )
         q_res = sbx.commands.run(cmd, timeout=1200, envs=secrets)
         wall = time.monotonic() - t0
@@ -125,8 +134,13 @@ echo install_done
             "sources": parsed.get("sources") if parsed else None,
         }
     except Exception as exc:
-        result = {"cell_id": cell_id, "topic_id": topic_id, "run_idx": run_idx,
-                  "status": "exception", "error": f"{type(exc).__name__}: {exc}"}
+        result = {
+            "cell_id": cell_id,
+            "topic_id": topic_id,
+            "run_idx": run_idx,
+            "status": "exception",
+            "error": f"{type(exc).__name__}: {exc}",
+        }
     finally:
         try:
             sbx.kill()
@@ -144,11 +158,15 @@ def summarize(results: list[dict], output_dir: Path) -> None:
     for r in results:
         by_topic.setdefault(r["topic_id"], []).append(r)
 
-    lines = ["# Variance summary", "",
-             f"Generated: {datetime.now(timezone.utc).isoformat()}",
-             f"Topics: {len(by_topic)} | Cells: {len(results)}", "",
-             "| Topic | Runs | OK | Wall p50 (s) | Wall stdev | Markdown p50 chars | Md stdev | Cost p50 |",
-             "|---|---|---|---|---|---|---|---|"]
+    lines = [
+        "# Variance summary",
+        "",
+        f"Generated: {datetime.now(timezone.utc).isoformat()}",
+        f"Topics: {len(by_topic)} | Cells: {len(results)}",
+        "",
+        "| Topic | Runs | OK | Wall p50 (s) | Wall stdev | Markdown p50 chars | Md stdev | Cost p50 |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
     for tid, rs in by_topic.items():
         ok_rs = [r for r in rs if r.get("status") == "ok"]
         walls = [r["wall_time"] for r in ok_rs if r.get("wall_time") is not None]
@@ -165,18 +183,24 @@ def summarize(results: list[dict], output_dir: Path) -> None:
         wp50, wsd = stat(walls)
         mdp50, mdsd = stat(mds)
         costs_p50 = f"${statistics.median(costs):.3f}" if costs else "NA"
-        lines.append(f"| {tid} | {len(rs)} | {len(ok_rs)} | {wp50} | {wsd} | {mdp50} | {mdsd} | {costs_p50} |")
+        lines.append(
+            f"| {tid} | {len(rs)} | {len(ok_rs)} | {wp50} | {wsd} | {mdp50} | {mdsd} | {costs_p50} |"
+        )
 
     (output_dir / "variance-summary.md").write_text("\n".join(lines))
 
     (output_dir / "variance-raw.json").write_text(
-        json.dumps({
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-            "total_cells": len(results),
-            "by_topic": {tid: rs for tid, rs in by_topic.items()},
-        }, indent=2, default=str)
+        json.dumps(
+            {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "total_cells": len(results),
+                "by_topic": {tid: rs for tid, rs in by_topic.items()},
+            },
+            indent=2,
+            default=str,
+        )
     )
-    print(f"\n=== Summary ===")
+    print("\n=== Summary ===")
     print(f"{output_dir}/variance-summary.md")
     print(f"{output_dir}/variance-raw.json")
 
@@ -196,17 +220,17 @@ def main() -> int:
     print(f"Variance bench: {len(topics)} topics × K={args.runs_per_topic} = {total} cells")
     print(f"Pool: {args.parallel} | Mode: {args.mode} | Output: {output_dir}")
 
-    tasks = [
-        (tid, q, r)
-        for tid, q in topics
-        for r in range(args.runs_per_topic)
-    ]
+    tasks = [(tid, q, r) for tid, q in topics for r in range(args.runs_per_topic)]
 
     t0 = time.monotonic()
     results: list[dict] = []
     with ThreadPoolExecutor(max_workers=args.parallel) as pool:
         futures = {
-            pool.submit(run_one, tid, q, r, args.tarball, secrets, args.mode, output_dir): (tid, q, r)
+            pool.submit(run_one, tid, q, r, args.tarball, secrets, args.mode, output_dir): (
+                tid,
+                q,
+                r,
+            )
             for tid, q, r in tasks
         }
         for i, fut in enumerate(as_completed(futures), 1):
@@ -221,7 +245,7 @@ def main() -> int:
             print(f"[{i}/{total}] {tid}#{ridx} -> {status}")
 
     wall = time.monotonic() - t0
-    print(f"\nDone. Wall: {wall:.1f}s ({wall/60:.1f}m)")
+    print(f"\nDone. Wall: {wall:.1f}s ({wall / 60:.1f}m)")
     summarize(results, output_dir)
     return 0
 
