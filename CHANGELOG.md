@@ -6,6 +6,7 @@
 
 - `fetch-jina` skill: Jina Reader URL-to-Markdown fetcher. Free, no auth, best for articles/docs. First fast-path of v2 fetch layer.
 - `yt-dlp` dependency (>=2026.3.17): audio/video extraction for v2 video-to-text skills (bilibili / youtube / douyin / xiaoyuzhou) and media download utilities.
+- `video-to-text-groq` skill: yt-dlp + Groq Whisper API transcription (free tier). First of the v2 transcription trio; returns raw text + SRT + metadata. Summary is caller's responsibility (tool supplier principle).
 
 ### Changed
 
