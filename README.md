@@ -85,7 +85,7 @@ AutoSearch runs as:
 
 - **CLI**: `autosearch query "..."`
 - **HTTP + SSE**: `autosearch serve` — `POST /search` streams typed events (`phase` / `iteration` / `gap` / `quality` / `finished`)
-- **MCP server**: `autosearch mcp` (or `autosearch-mcp` console script) — exposes a `research` tool to Claude Code, Cursor, and other MCP clients
+- **MCP server**: `autosearch mcp` (or `autosearch-mcp` console script) — exposes a `research` tool to Claude Code, Cursor, and other MCP clients. See [`docs/mcp-clients.md`](docs/mcp-clients.md) for per-client config samples.
 - **Claude Code slash command**: `/autosearch` (ships in `commands/autosearch.md`)
 
 ## Supported Channels
