@@ -8,6 +8,7 @@
 - `yt-dlp` dependency (>=2026.3.17): audio/video extraction for v2 video-to-text skills (bilibili / youtube / douyin / xiaoyuzhou) and media download utilities.
 - `video-to-text-groq` skill: yt-dlp + Groq Whisper API transcription (free tier). First of the v2 transcription trio; returns raw text + SRT + metadata. Summary is caller's responsibility (tool supplier principle).
 - `video-to-text-openai` skill: yt-dlp + OpenAI Whisper API transcription (paid, ~$0.006/min). Second of the v2 transcription trio; paid fallback when Groq is rate-limited. Same output shape as `video-to-text-groq`.
+- `video-to-text-local` skill: yt-dlp + local `mlx-whisper` transcription (Apple Silicon, offline, free). Third of the v2 transcription trio; opt-in advanced path for M-series Macs with mlx-whisper installed. Default model `mlx-community/whisper-large-v3-turbo`, overridable via `AUTOSEARCH_MLX_WHISPER_MODEL`.
 
 ### Changed
 
