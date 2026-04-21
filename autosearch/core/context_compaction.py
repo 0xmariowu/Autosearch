@@ -13,13 +13,14 @@ from typing import TYPE_CHECKING
 
 from autosearch.core.models import Evidence, EvidenceDigest
 from autosearch.observability.cost import estimate_tokens
-from autosearch.skills.prompts import load_prompt
+# W3.3 PR C: load_prompt import kept for future use but no longer called at
+# module scope — the m3_evidence_compaction prompt markdown was deleted.
 
 if TYPE_CHECKING:
     from autosearch.llm.client import LLMClient
     from autosearch.persistence.session_store import SessionStore
 
-EVIDENCE_COMPACTION_PROMPT = load_prompt("m3_evidence_compaction")
+EVIDENCE_COMPACTION_PROMPT = ""
 _MAX_EVIDENCE_FIELD_CHARS = 1000
 
 
