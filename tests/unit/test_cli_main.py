@@ -42,6 +42,10 @@ def test_cli_exits_nonzero_without_any_provider(
 def test_cli_exits_nonzero_with_invalid_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # W3.3 PR D: Pipeline.run raises NotImplementedError pointing at the v2
+    # trio. The CLI query path now surfaces the deprecation message instead
+    # of the LLM auth failure. Assertion updated to match new legacy-path
+    # behavior (CLI exits non-zero, stderr mentions the migration).
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-invalid-fake-xxx")
     monkeypatch.setattr(cli_main, "_build_channels", lambda: [])
     monkeypatch.setattr(cli_main.LLMClient, "complete", _raise_auth_error)
@@ -49,7 +53,11 @@ def test_cli_exits_nonzero_with_invalid_key(
     result = runner.invoke(cli_main.app, ["query", "test", "--no-stream"])
 
     assert result.exit_code != 0
-    assert "LLM authentication failed" in result.stderr
+    assert (
+        "Pipeline is removed" in result.stderr
+        or "list_skills" in result.stderr
+        or "NotImplementedError" in result.stderr
+    )
 
 
 def test_cli_rejects_empty_query() -> None:
