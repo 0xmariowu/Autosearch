@@ -38,7 +38,7 @@ jobs:
               --exclude='__pycache__' --exclude='.pytest_cache' \
               --exclude='*.egg-info' --exclude='reports' --exclude='build' \
               --exclude='.ruff_cache' --exclude='.orchestrator' \
-              -czf /tmp/autosearch-src.tar.gz -C $GITHUB_WORKSPACE .
+              -czf /tmp/autosearch-src.tar.gz -C "$GITHUB_WORKSPACE" .
 
       - name: Run channel smoke matrix (F111)
         env:
@@ -51,10 +51,11 @@ jobs:
             echo "::warning::bench_channels.py not ported to repo yet; skipping"
             exit 0
           fi
-          mkdir -p reports/weekly-$(date -u +%Y-%m-%d)
+          report_root="reports/weekly-$(date -u +%Y-%m-%d)"
+          mkdir -p "${report_root}"
           .orchestrator/bin/python scripts/e2b/bench_channels.py \
             --tarball /tmp/autosearch-src.tar.gz \
-            --output reports/weekly-$(date -u +%Y-%m-%d)/channels \
+            --output "${report_root}/channels" \
             --parallel 15 --mode fast
 
       - name: Run variance benchmark subset (F203, K=3, 5 topics)
@@ -66,10 +67,11 @@ jobs:
             echo "::warning::bench_variance.py not ported to repo yet; skipping"
             exit 0
           fi
-          mkdir -p reports/weekly-$(date -u +%Y-%m-%d)/variance
+          report_root="reports/weekly-$(date -u +%Y-%m-%d)"
+          mkdir -p "${report_root}/variance"
           .orchestrator/bin/python scripts/e2b/bench_variance.py \
             --tarball /tmp/autosearch-src.tar.gz \
-            --output reports/weekly-$(date -u +%Y-%m-%d)/variance \
+            --output "${report_root}/variance" \
             --parallel 15 --runs-per-topic 3 --mode fast
 
       - name: Upload report artifacts
