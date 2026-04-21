@@ -332,7 +332,9 @@ def main() -> int:
     if not secrets.get("ANTHROPIC_API_KEY"):
         print("ERROR: ANTHROPIC_API_KEY not in env", file=sys.stderr)
         return 1
-    if not secrets.get("E2B_API_KEY"):
+    # E2B_API_KEY is host-side only (used by Sandbox.create), never forwarded
+    # into the sandbox env; read it straight from the process environment.
+    if not os.environ.get("E2B_API_KEY"):
         print("WARN: E2B_API_KEY not in env; sandbox may fail", file=sys.stderr)
 
     tarball_path = args.tarball

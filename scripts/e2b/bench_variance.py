@@ -4,7 +4,7 @@ Runs autosearch end-to-end multiple times per (topic, config) combo in
 parallel E2B sandboxes to capture quality/cost/time variance.
 
 Usage:
-    bench_variance.py --tarball TAR --output DIR [--parallel 15] [--config variance|fast-vs-deep|cross-provider]
+    bench_variance.py --tarball TAR --output DIR [--parallel 15] [--runs-per-topic 3] [--mode {fast,deep}]
 """
 
 from __future__ import annotations
@@ -42,7 +42,9 @@ def parse_args() -> argparse.Namespace:
 
 
 def collect_secrets() -> dict[str, str]:
-    keys = ["ANTHROPIC_API_KEY", "E2B_API_KEY"]
+    # Only forward secrets the sandbox actually needs. E2B_API_KEY is consumed
+    # host-side by Sandbox.create and must stay out of sandbox env.
+    keys = ["ANTHROPIC_API_KEY"]
     return {k: os.environ[k] for k in keys if os.environ.get(k)}
 
 
@@ -156,7 +158,10 @@ echo install_done
 def summarize(results: list[dict], output_dir: Path) -> None:
     by_topic: dict[str, list[dict]] = {}
     for r in results:
-        by_topic.setdefault(r["topic_id"], []).append(r)
+        # Future-failed fallbacks emitted by main() have no topic_id; bucket them
+        # separately so a worker crash doesn't take down the whole summary pass.
+        topic_id = r.get("topic_id", "_orphaned")
+        by_topic.setdefault(topic_id, []).append(r)
 
     lines = [
         "# Variance summary",
