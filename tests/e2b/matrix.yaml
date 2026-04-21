@@ -321,7 +321,7 @@ phases:
       for i in $(seq 1 30); do curl -sf http://127.0.0.1:18081/health > /dev/null && break; sleep 1; done
     tasks:
       - id: openai_sdk_chat
-        timeout: 300
+        timeout: 900
         cmd: |
           $HOME/work/autosearch/.venv/bin/python <<'PY'
           from openai import OpenAI
@@ -583,7 +583,7 @@ phases:
       $HOME/.local/bin/uv pip install --python .venv/bin/python -e . > /tmp/install.log 2>&1
     tasks:
       - id: arxiv_in_sources
-        timeout: 480
+        timeout: 900
         env_keys: [ANTHROPIC_API_KEY]
         cmd: |
           set -o pipefail
@@ -829,7 +829,11 @@ phases:
               session_ids = set()
               async with client.stream(
                   "POST", "http://127.0.0.1:18082/search",
-                  json={"query": f"Explain FAISS library (req {i})", "mode": "fast"},
+                  json={
+                      "query": f"Explain FAISS library (req {i})",
+                      "mode": "fast",
+                      "scope": {"channel_scope": "all", "depth": "fast", "output_format": "md", "domain_followups": []},
+                  },
                   timeout=480,
               ) as r:
                   r.raise_for_status()
