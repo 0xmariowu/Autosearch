@@ -26,8 +26,8 @@ keywords = [".ts.net", ".local"]
   paths = ['''autosearch/channels/demo\.py$''']
 
   [[rules.allowlists]]
-  description = "E2B matrix references $HOME/.local/bin/uv (Linux XDG path, not a Tailscale domain)"
-  paths = ['''tests/e2b/matrix\.yaml$''']
+  description = "E2B matrix + bench scripts reference $HOME/.local/bin/uv (Linux XDG path, not a Tailscale domain)"
+  paths = ['''tests/e2b/matrix\.yaml$''', '''scripts/e2b/.*\.py$''']
   regexes = ['''\$HOME/\.local/bin/uv''']
 
   [[rules.allowlists]]
