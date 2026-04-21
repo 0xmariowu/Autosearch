@@ -1,0 +1,11 @@
+phases:
+  host_env_fallback:
+    parallel: 1
+    timeout: 120
+    tasks:
+      - id: host_env_check
+        env_keys: [E2B_API_KEY]
+        cmd: '[ -n "$E2B_API_KEY" ] && echo host-env-set || echo host-env-missing'
+        expect:
+          exit: 0
+          stdout_contains: "host-env-set"
