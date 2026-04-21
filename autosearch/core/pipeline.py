@@ -1,6 +1,7 @@
 # Self-written, plan v2.3 § 2
 from collections.abc import Awaitable, Callable
 import asyncio
+import os
 import re
 import uuid
 from typing import Any
@@ -151,7 +152,8 @@ class Pipeline:
             session_created = True
             routing_trace = _build_routing_trace(clarification)
 
-            if clarification.need_clarification:
+            bypass_clarify = _bypass_clarify_enabled()
+            if clarification.need_clarification and not bypass_clarify:
                 final_status = "needs_clarification"
                 prompt_tokens, completion_tokens = self._current_token_usage()
                 self.logger.info("pipeline_run_completed", status=final_status)
@@ -166,6 +168,12 @@ class Pipeline:
                     cost=self._current_cost(),
                     prompt_tokens=prompt_tokens,
                     completion_tokens=completion_tokens,
+                )
+            if clarification.need_clarification and bypass_clarify:
+                self.logger.info(
+                    "clarify_bypassed",
+                    reason="AUTOSEARCH_BYPASS_CLARIFY set; proceeding with best-guess rubrics",
+                    question=clarification.question[:200] if clarification.question else "",
                 )
 
             current_phase = "M2"
@@ -624,6 +632,22 @@ class _TrackingIterationController(IterationController):
         self._latest_iteration_for_search = None
         self._latest_new_evidence_count = 0
         return gaps
+
+
+def _bypass_clarify_enabled() -> bool:
+    """Return True when AUTOSEARCH_BYPASS_CLARIFY tells the pipeline to proceed
+    past `need_clarification=true` instead of halting with `needs_clarification`.
+
+    Batch benches (F202/F203 variance runs, nightly matrix) use this because
+    they cannot answer interactive clarifier prompts; the pipeline then
+    continues on the Clarifier's best-guess rubrics/mode.
+    """
+    return os.environ.get("AUTOSEARCH_BYPASS_CLARIFY", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
 
 
 def _initial_subquery_count(mode: SearchMode) -> int:
