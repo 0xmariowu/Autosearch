@@ -7,6 +7,12 @@ from autosearch.core.models import ClarifyResult, SearchMode
 from autosearch.core.pipeline import PipelineResult
 
 
+@pytest.fixture(autouse=True)
+def _enable_legacy_research(monkeypatch: pytest.MonkeyPatch) -> None:
+    """W3.3 PR A: enable the legacy research() path for these tests."""
+    monkeypatch.setenv("AUTOSEARCH_LEGACY_RESEARCH", "1")
+
+
 def _ok_result() -> PipelineResult:
     return PipelineResult(
         delivery_status="ok",
