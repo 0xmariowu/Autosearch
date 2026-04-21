@@ -268,8 +268,11 @@ def create_server(pipeline_factory: Callable[[], Pipeline] | None = None) -> Fas
     server = FastMCP(
         name="autosearch",
         instructions=(
-            "Deep research tool that runs the AutoSearch pipeline and returns "
-            "markdown reports or clarification prompts."
+            "AutoSearch v2 tool supplier. Prefer the tool-supplier trio "
+            "(list_skills, run_clarify, run_channel) for new integrations — "
+            "the runtime AI drives channel selection and synthesis itself. "
+            "The legacy research() tool runs the old pipeline and is "
+            "deprecated (see docs/migration/legacy-research-to-tool-supplier.md)."
         ),
     )
 
@@ -281,7 +284,26 @@ def create_server(pipeline_factory: Callable[[], Pipeline] | None = None) -> Fas
         depth: Literal["fast", "deep", "comprehensive"] | None = None,
         output_format: Literal["md", "html"] | None = None,
     ) -> ResearchResponse:
-        """Run an AutoSearch research query and return a structured response envelope."""
+        """Run the legacy AutoSearch pipeline and return a structured response envelope.
+
+        DEPRECATED under v2 tool-supplier architecture: prefer the trio
+        (list_skills, run_clarify, run_channel) and let the runtime AI
+        synthesize. This tool still works for backward compatibility but
+        loses to bare `claude -p` on Gate 12 quality benchmarks because it
+        wraps the runtime's strong synthesis with an older pipeline
+        synthesizer.
+
+        Migration guide: docs/migration/legacy-research-to-tool-supplier.md.
+        """
+        import warnings as _warnings
+
+        _warnings.warn(
+            "autosearch.research() is deprecated. Use list_skills + run_clarify + "
+            "run_channel and let the runtime AI synthesize. See "
+            "docs/migration/legacy-research-to-tool-supplier.md.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         scope = SearchScope(
             channel_scope=languages or "all",
             depth=depth or mode,
