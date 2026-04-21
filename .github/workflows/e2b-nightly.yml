@@ -38,7 +38,7 @@ jobs:
               --exclude='__pycache__' --exclude='.pytest_cache' \
               --exclude='*.egg-info' --exclude='reports' --exclude='build' \
               --exclude='.ruff_cache' --exclude='.orchestrator' \
-              -czf /tmp/autosearch-src.tar.gz -C $GITHUB_WORKSPACE .
+              -czf /tmp/autosearch-src.tar.gz -C "$GITHUB_WORKSPACE" .
 
       - name: Run E2B nightly matrix (Track A core)
         env:
@@ -51,25 +51,23 @@ jobs:
         run: |
           # Write secrets file for orchestrator
           cat > /tmp/nightly-secrets.env <<EOF
-          E2B_API_KEY=$E2B_API_KEY
-          ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY
-          OPENAI_API_KEY=$OPENAI_API_KEY
-          GOOGLE_API_KEY=$GOOGLE_API_KEY
-          YOUTUBE_API_KEY=$YOUTUBE_API_KEY
-          TIKHUB_API_KEY=$TIKHUB_API_KEY
+          E2B_API_KEY=${E2B_API_KEY}
+          ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+          OPENAI_API_KEY=${OPENAI_API_KEY}
+          GOOGLE_API_KEY=${GOOGLE_API_KEY}
+          YOUTUBE_API_KEY=${YOUTUBE_API_KEY}
+          TIKHUB_API_KEY=${TIKHUB_API_KEY}
           EOF
-          # Install orchestrator from a remote source — placeholder until
-          # ~/.claude/scripts/e2b/run_validation.py is ported into this repo or a
-          # shared Python package. For now we skip if orchestrator missing.
           if [ ! -f scripts/e2b/run_validation.py ]; then
             echo "::warning::nightly orchestrator not yet ported to repo; skipping"
             exit 0
           fi
+          report_dir="reports/nightly-$(date -u +%Y-%m-%d)"
           .orchestrator/bin/python scripts/e2b/run_validation.py \
             --project autosearch \
             --matrix tests/e2b/matrix.yaml \
             --secrets /tmp/nightly-secrets.env \
-            --output reports/nightly-$(date -u +%Y-%m-%d) \
+            --output "${report_dir}" \
             --parallel 15 \
             --tarball /tmp/autosearch-src.tar.gz
 
