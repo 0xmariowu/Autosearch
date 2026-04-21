@@ -35,3 +35,14 @@ Rules:
 - Target length: 2-4 paragraphs unless the available content is sparse
 - Do not include the section heading line itself in the content
 - Do not add a references section
+- Include concrete specifics when the snippets carry them: numbers,
+  statistics, benchmark scores, error codes, version strings, GitHub issue
+  numbers, model names, pricing, commands, code patterns, or named entities.
+  Prefer specific identifiers over abstract summary sentences.
+- Do NOT defer to general or meaningless conclusions. If the snippets show
+  a concrete finding, state it plainly. If a facet of the section outline
+  is not covered by any snippet, say what's missing rather than filling
+  with boilerplate.
+- Do NOT repeat information already delivered by an earlier paragraph of
+  this section or (where visible) an earlier section of the report. Each
+  paragraph must add at least one new fact, number, example, or argument.
