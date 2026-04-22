@@ -35,3 +35,10 @@ model_tier: Fast
 ## How To Search
 
 Uses `tieba.baidu.com/f/search/res` search endpoint with HTML parsing via trafilatura.
+
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed HTML response.
+- Source channel field matches "tieba".
