@@ -28,41 +28,41 @@ import httpx
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from scripts.e2b.evaluate import compute_summary
-from scripts.e2b.report import render
-from scripts.e2b.sandbox_runner import (
+from scripts.e2b.evaluate import compute_summary  # noqa: E402
+from scripts.e2b.report import render  # noqa: E402
+from scripts.e2b.sandbox_runner import (  # noqa: E402
     ScenarioResult,
     _collect_keys,
     create_sandbox,
     install_autosearch,
     kill_sandbox,
 )
-from scripts.e2b.scenarios.a_infrastructure import (
+from scripts.e2b.scenarios.a_infrastructure import (  # noqa: E402
     a1_clean_install,
     a2_channel_health,
     a3_experience_layer,
 )
-from scripts.e2b.scenarios.b_english_tech import (
+from scripts.e2b.scenarios.b_english_tech import (  # noqa: E402
     b1_uv_monorepo,
     b2_cockroachdb_dev,
     b3_nextjs_migration,
     b4_docker_inference,
 )
-from scripts.e2b.scenarios.c_chinese_ugc import c1_xhs_cursor, c2_zhihu_deepseek, c3_bili_mlx
-from scripts.e2b.scenarios.d_academic import (
+from scripts.e2b.scenarios.c_chinese_ugc import c1_xhs_cursor, c2_zhihu_deepseek, c3_bili_mlx  # noqa: E402
+from scripts.e2b.scenarios.d_academic import (  # noqa: E402
     d1_pubmed_crispr,
     d2_llm_benchmark_contamination,
     d3_citation_dedup,
 )
-from scripts.e2b.scenarios.e_clarify_flow import (
+from scripts.e2b.scenarios.e_clarify_flow import (  # noqa: E402
     e1_ambiguous_triggers_clarify,
     e2_clear_query_skips_clarify,
 )
-from scripts.e2b.scenarios.f_parallel import (
+from scripts.e2b.scenarios.f_parallel import (  # noqa: E402
     f1_delegate_subtask_parallel,
     f2_select_channels_cross_group,
 )
-from scripts.e2b.scenarios.g_full_report import (
+from scripts.e2b.scenarios.g_full_report import (  # noqa: E402
     g1_loop_gap_detection,
     g2_golden_path_with_report,
     g3_complex_report_with_workflows,
@@ -222,7 +222,7 @@ async def main(argv: list[str] | None = None) -> int:
         ),
         encoding="utf-8",
     )
-    report_text = render(list(results), summary, output_dir)
+    render(list(results), summary, output_dir)
 
     # Print final summary
     emoji = {"READY": "🟢", "BETA": "🟡", "NOT_READY": "🔴"}.get(summary["readiness"], "⚪")
