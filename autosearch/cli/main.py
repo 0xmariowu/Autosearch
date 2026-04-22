@@ -278,7 +278,7 @@ def serve(
     host: Annotated[
         str,
         typer.Option("--host", help="Host interface for the FastAPI server."),
-    ] = "0.0.0.0",
+    ] = "127.0.0.1",
     port: Annotated[
         int,
         typer.Option("--port", min=0, max=65535, help="TCP port for the FastAPI server."),

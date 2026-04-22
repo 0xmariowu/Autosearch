@@ -19,17 +19,13 @@ jobs:
       security-events: write
       contents: read
 
-    strategy:
-      matrix:
-        language: [python]
-
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@95e58e9a2cdfd71adc6e0353d5c52f41a045d225  # v4.35.2
         with:
-          languages: ${{ matrix.language }}
+          languages: python
           queries: +security-and-quality
 
       - name: Autobuild
@@ -38,4 +34,4 @@ jobs:
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@95e58e9a2cdfd71adc6e0353d5c52f41a045d225  # v4.35.2
         with:
-          category: "/language:${{ matrix.language }}"
+          category: "/language:python"
