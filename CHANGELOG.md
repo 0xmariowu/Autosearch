@@ -5,6 +5,8 @@
 - You can now run `autosearch doctor` (via MCP) to scan all channel health — shows which channels are ready, missing API keys, or unavailable.
 - You can now run `autosearch configure KEY value` CLI to safely append API keys to `~/.config/ai-secrets.env` with TTY confirmation.
 - New MCP workflow tools: `trace_harvest` (extract winning query patterns), `perspective_questioning` (multi-viewpoint sub-questions), `graph_search_plan` (parallel DAG batching), `recent_signal_fusion` (recency filter), `context_retention_policy` (token-budget trim).
+- New channels: `pubmed` (PubMed E-utilities, free), `dockerhub` (Docker Hub public search, free), `searxng` (local SearXNG meta-search, requires `SEARXNG_URL`).
+- New tool skill: `fetch-firecrawl` (URL → Markdown via Firecrawl API, requires `FIRECRAWL_API_KEY`, degrades to warn when key missing).
 
 
 ## 2026.04.22.2 — 2026-04-22
