@@ -101,7 +101,7 @@ def test_pattern_written_to_state_after_search(tmp_path, monkeypatch):
 
     patterns_path = tmp_path / "channels" / "arxiv" / "experience" / "patterns.jsonl"
     assert patterns_path.exists()
-    events = [json.loads(l) for l in patterns_path.read_text().splitlines()]
+    events = [json.loads(line) for line in patterns_path.read_text().splitlines()]
     assert len(events) == 1
     assert events[0]["winning_pattern"] == pattern_text
     assert events[0]["outcome"] == "success"
@@ -129,7 +129,7 @@ def test_multiple_patterns_accumulate_in_order(tmp_path, monkeypatch):
     lines = (
         (tmp_path / "channels" / "arxiv" / "experience" / "patterns.jsonl").read_text().splitlines()
     )
-    written = [json.loads(l)["winning_pattern"] for l in lines]
+    written = [json.loads(line)["winning_pattern"] for line in lines]
     assert written == patterns, "Patterns must be in insertion order"
 
 
