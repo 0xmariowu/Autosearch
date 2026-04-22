@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026.04.22.1 — 2026-04-22
+
+- You can now use `/autosearch` with the v2 tool-supplier flow: run_clarify → channel selection → run_channel → runtime AI synthesizes. Legacy pipeline no longer invoked.
+- Per-skill experience layer: each channel now records search outcomes in `experience/patterns.jsonl` and surfaces a compacted `experience.md` digest before the next call — skills grow smarter over time.
+- New MCP tools: `select_channels_tool` (group-first channel routing), `delegate_subtask` (parallel multi-channel search), `loop_init/update/get_gaps/add_gap` (reflective loop state), `citation_create/add/export/merge` (cross-channel citation deduplication).
+
+
 ## Unreleased
 
 ### Added
