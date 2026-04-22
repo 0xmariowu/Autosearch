@@ -13,6 +13,6 @@ jobs:
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
-      - run: gh pr merge --auto --squash "${{ github.event.pull_request.number }}"
+      - run: gh pr merge --auto --squash --repo "${{ github.repository }}" "${{ github.event.pull_request.number }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
