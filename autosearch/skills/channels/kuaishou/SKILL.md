@@ -47,3 +47,9 @@ Kuaishou is a Chinese short-video platform with strong coverage of everyday life
 - TikHub access is billed per request, so this channel should not be used for wide exploratory fan-out.
 - Search responses mix headers, ads, and other non-post cards, so extraction intentionally drops a lot of items.
 - Captions can be terse, slang-heavy, or empty, which limits snippet quality.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

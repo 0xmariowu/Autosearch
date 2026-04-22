@@ -1,0 +1,48 @@
+name: Nightly — Live Integration Tests
+
+on:
+  schedule:
+    - cron: "0 2 * * *"   # UTC 02:00 daily
+  workflow_dispatch:       # manual trigger
+
+permissions:
+  contents: read
+
+jobs:
+  live-channels:
+    name: Free Channel Live Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]" --quiet
+
+      - name: Run live channel integration tests
+        run: |
+          pytest tests/integration/test_free_channels_live.py \
+            -m live \
+            -v \
+            --timeout=60 \
+            --ignore=tests/perf \
+            -x
+        env:
+          # No API keys needed for free channel tests.
+          # Paid channels (TIKHUB_API_KEY, YOUTUBE_API_KEY, etc.) are skipped
+          # automatically when keys are absent.
+          AUTOSEARCH_LLM_MODE: dummy
+
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-live-test-results
+          path: .pytest_cache/
+          retention-days: 7

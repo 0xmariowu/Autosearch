@@ -39,3 +39,9 @@ Twitter is a real-time public discussion channel for launches, breaking updates,
 - TikHub access is billed per request, so broad exploratory use still needs budgeting discipline.
 - `search_type=Top` surfaces the most relevant tweets; `Latest` is available later if we need chronological coverage.
 - Twitter's nested timeline payload is fragile, so extraction is defensive and silently drops entries that do not match the expected shape.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

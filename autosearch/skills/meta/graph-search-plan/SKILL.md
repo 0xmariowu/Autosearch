@@ -114,3 +114,9 @@ Best-tier LLM for planning + re-planning. Execution cost is the sum of `delegate
 - Feeds into → `citation-index` (merge citations from all node answers).
 - Feeds into → `synthesize-knowledge` (final assembly from graph result).
 - Complements → `reflective-search-loop` (which is linear; graph is DAG).
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

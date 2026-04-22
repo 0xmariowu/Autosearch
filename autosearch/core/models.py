@@ -215,6 +215,7 @@ class ClarifyResult(BaseModel):
 
     need_clarification: bool
     question: str | None = None
+    question_options: list[str] = Field(default_factory=list)
     verification: str | None = None
     rubrics: list[Rubric] = Field(default_factory=list)
     mode: SearchMode

@@ -32,3 +32,9 @@ experience_digest: experience.md
 - The search page is a SPA with server-rendered snippets only, so this channel returns SERP metadata rather than full article bodies.
 - The visible HTML layout is scraped directly and may be volatile.
 - If the search endpoint or SSR markup changes, the channel logs a warning and returns an empty result set.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

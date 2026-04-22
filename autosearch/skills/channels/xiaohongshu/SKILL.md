@@ -43,3 +43,9 @@ Xiaohongshu is a Chinese lifestyle and consumer discovery platform centered on s
 - TikHub access is billed per request at roughly `$0.0036/request`, so `via_tikhub` should stay first in fallback only where the direct API win justifies spend.
 - TikHub search does not require local cookies or login state.
 - Evidence currently reflects note-body content only; comments are not included in this route.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

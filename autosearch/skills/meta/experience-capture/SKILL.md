@@ -118,3 +118,9 @@ This rotation is the `experience-compact` skill's job, not this capture skill's.
 - Writes to → `<leaf>/experience/patterns.jsonl`.
 - Read by → `experience-compact` skill (promote rules into `experience.md`).
 - Does NOT feed → runtime AI directly. Only `experience.md` is runtime-visible.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

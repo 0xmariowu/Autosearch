@@ -52,3 +52,9 @@ For autosearch coverage, this channel adds community judgment that is often miss
 - HN is English-first and culturally specific, so it should not be treated as representative public sentiment.
 - Comment quality varies sharply by thread age and topic.
 - Some external links disappear or change after posting, leaving the HN thread as the durable evidence source.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

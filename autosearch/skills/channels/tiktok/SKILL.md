@@ -47,3 +47,9 @@ TikTok is a global short-video platform centered on creator-led clips, topical r
 - TikHub access is billed per request, so this route should stay deliberate.
 - Search results are clip-oriented and do not include transcript extraction.
 - Captions can be sparse or mostly emoji, which limits snippet quality.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

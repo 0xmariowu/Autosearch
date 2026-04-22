@@ -84,3 +84,9 @@ Apply per query, not per session:
 - `autosearch:model-routing` — picks model tier (orthogonal to cost).
 - `mcporter` — the free-MCP fallback path (Weibo / Douyin alternatives without TikHub).
 - Individual channel SKILL.md frontmatters already list `via_tikhub` in their `fallback_chain`.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

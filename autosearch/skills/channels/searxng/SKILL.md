@@ -35,3 +35,9 @@ SearXNG is a self-hosted meta-search engine aggregating results from 70+ sources
 ## How To Search
 
 POST/GET to `$SEARXNG_URL/search?q=<query>&format=json`.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

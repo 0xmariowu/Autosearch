@@ -118,3 +118,9 @@ Standard-tier LLM for clustering + canonical-title extraction. Typical run: 5-10
 - Uses → `extract-dates` (normalize posted_at fields).
 - Uses → `rerank-evidence` (as fallback when semantic clustering is inconclusive).
 - Feeds → `synthesize-knowledge` (the bundle is the input context).
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

@@ -37,3 +37,9 @@ Firecrawl turns any URL into clean Markdown via a managed browser cluster. Handl
 
 Call via `run_channel("fetch-firecrawl", url)` where the query IS the URL to scrape.
 Returns one Evidence item with `body` = full Markdown content.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

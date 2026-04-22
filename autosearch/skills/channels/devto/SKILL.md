@@ -35,3 +35,9 @@ dev.to adds developer-written tutorials, how-to guides, experience reports, and 
 - The public API is tag-based, not keyword-based, so `query.text` must be passed as `tag=` and broad free-text recall is limited.
 - List responses only include `description`, not full article bodies, so evidence content is snippet-grade rather than complete post text.
 - Public read access is comparatively generous, but this channel still uses a conservative fixed rate limit.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

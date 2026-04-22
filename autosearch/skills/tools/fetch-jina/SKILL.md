@@ -51,3 +51,9 @@ Successful calls return:
 - Public Jina Reader availability and rate limits are upstream dependencies.
 - Some sites block reader-style fetches or return degraded content.
 - This skill does not execute JavaScript, click through consent flows, or authenticate.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

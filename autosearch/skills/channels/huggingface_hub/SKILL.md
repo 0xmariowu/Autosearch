@@ -44,3 +44,9 @@ Hugging Face Hub provides broad coverage of open machine learning models through
 - Private or gated models are filtered client-side by skipping items where `private=True`.
 - The list endpoint returns no prose description, so snippets are synthesized from tags, task type, library, and popularity metadata.
 - Download and like counts can exceed 1M for popular models, so both are formatted with thousand separators for readability.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

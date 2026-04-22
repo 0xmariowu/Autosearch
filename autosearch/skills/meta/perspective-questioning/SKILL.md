@@ -85,3 +85,9 @@ Single Best-tier LLM call for persona selection + question generation. Expected 
 
 - `systematic-recall` first — don't ask "what would a security researcher ask about X" if autosearch already knows the canonical security angles for X.
 - Best tier only when query complexity justifies it; `research-mode: fast` tasks skip perspective generation.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

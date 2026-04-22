@@ -123,3 +123,9 @@ It is a **safe, bounded, reversible digest writer** that turns append-only event
 - Writes → `<leaf>/experience.md`.
 - Feeds → runtime AI (which reads `experience.md` before calling the skill).
 - Feeds → `auto-evolve` (which uses the rule history as input when proposing SKILL.md edits).
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

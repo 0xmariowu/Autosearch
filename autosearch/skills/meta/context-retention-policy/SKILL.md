@@ -106,3 +106,9 @@ Fast-tier LLM per compaction batch (low per-call). Triggered only when token bud
 
 - Digest entries must preserve specifics verbatim (numbers, error codes, issue numbers, URLs, version strings, benchmark scores) — same rule that drove the m3 deprecation. A digest that loses specifics is worse than dropping the batch entirely.
 - Context retention is a **policy**, not a pipeline — runtime AI enforces it when useful, skips it when not.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

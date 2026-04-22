@@ -136,3 +136,9 @@ Use `[1]`, `[2]` inline citations in your report body, then append `refs` at the
 - Fed by → all channel skills + `delegate-subtask` output.
 - Feeds → `synthesize-knowledge` (which produces the `[1] [2]` report).
 - Feeds → `evaluate-delivery` (which can spot "[5] is referenced but not in the index" bugs).
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

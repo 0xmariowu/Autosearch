@@ -89,3 +89,9 @@ For generic web search:
 - Above: TikHub paid fallback via the channel skills (reliable, broader API).
 
 This tool does **not** produce a summary. The runtime AI reads the MCP results directly; autosearch only provides the routing catalog in this SKILL.md.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

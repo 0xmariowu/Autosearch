@@ -62,3 +62,9 @@ Successful calls return:
 - Requires a Chromium browser installed for Playwright: `playwright install chromium`.
 - This tool is slower and heavier than `fetch-jina`; use it only when a simple fetch cannot retrieve the useful content.
 - It does not solve sites that require authentication, strong bot mitigation, paid proxies, or long interactive flows.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

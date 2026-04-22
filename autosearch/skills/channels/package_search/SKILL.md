@@ -32,3 +32,9 @@ experience_digest: experience.md
 - PyPI has no official JSON search API, so this channel only does exact-name lookups against `/pypi/<name>/json`; multi-word queries are split into tokens and only the first 5 tokens are tried.
 - npm supports real full-text search through the public registry search endpoint and is the broader-recall half of this channel.
 - Descriptions are truncated to 300 characters for snippets, and PyPI README-sized `description` content is intentionally excluded in favor of the shorter `summary`.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

@@ -62,3 +62,9 @@ For autosearch coverage, this channel brings native Chinese discourse that is no
 - Zhihu content quality varies from expert long-form posts to shallow SEO-style reposts.
 - Answer pages can change structure, so detail extraction is more brittle than simple search discovery.
 - Technical queries in Chinese often benefit from strong entity normalization because product names mix English and Chinese tokens.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

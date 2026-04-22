@@ -101,3 +101,9 @@ Feed `evidence_by_channel` values directly into `citation_add` or your synthesis
 - Budget exhausted before any evidence collected → `status: failure`, `failure_reason: "budget_exhausted_before_first_result"`.
 - Subagent crashed mid-execution → `status: failure`, `failure_reason: "subagent_crash: <exception>"`. Parent planner decides retry vs. give up.
 - Partial success → `status: partial`, `follow_ups` populated. Parent planner decides whether to escalate budget or accept partial.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

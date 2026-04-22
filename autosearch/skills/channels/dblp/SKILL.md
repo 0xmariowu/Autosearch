@@ -46,3 +46,9 @@ experience_digest: experience.md
 - Titles may end with a trailing period in the raw API payload and should be normalized.
 - Some hits only expose a DBLP record page while others provide an external DOI landing page.
 - Coverage is strongest for computer science and adjacent technical literature, not general scholarly search.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

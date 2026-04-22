@@ -65,3 +65,9 @@ For autosearch coverage, this channel fills a gap between global video search an
 - Many results are entertainment-adjacent, so ranking must distinguish tech and tutorial intent carefully.
 - Some high-signal tutorials use slang or fandom terminology that generic keyword matching may miss.
 - Video popularity can dominate search ordering even when a smaller creator has the better explanation.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

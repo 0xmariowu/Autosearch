@@ -32,3 +32,9 @@ experience_digest: experience.md
 - The iTunes search endpoint returns podcast-show metadata rather than episode-level content, so downstream reranking should expect thin evidence bodies.
 - `country=cn` restricts results to the China store catalog and can differ from other Apple storefronts.
 - iTunes search responses are often cached server-side for a minute or two, so very recent changes may not appear immediately.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

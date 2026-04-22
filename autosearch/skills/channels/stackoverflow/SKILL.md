@@ -32,3 +32,9 @@ Stack Overflow provides high-signal programming Q&A, code-level troubleshooting,
 - Unauthenticated requests are limited to roughly 300 requests per day per IP, so this channel uses a conservative rate limit.
 - The request must include `filter=withbody` or the API omits `body_markdown`, which makes evidence snippets much less useful.
 - Because unauthenticated quota is IP-scoped, parallel E2B or shared-runner executions can collide even when one local run is well behaved.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

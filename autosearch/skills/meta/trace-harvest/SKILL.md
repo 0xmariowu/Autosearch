@@ -96,3 +96,9 @@ Each emitted pattern is appended via `experience-capture` to the relevant skill'
 - Feeds → `experience-capture` (append pattern events).
 - Complements ← `outcome-tracker` (downstream acceptance) and `experience-compact` (promotion).
 - Does NOT replace them — trace-harvest is trace-structure analysis; outcome-tracker is result-use analysis.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.
