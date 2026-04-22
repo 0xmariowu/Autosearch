@@ -14,12 +14,19 @@ def _make_status(name: str, status: str) -> ChannelStatus:
 
 def _call_list_channels(status_filter: str = "") -> dict:
     """Call list_channels via the MCP server tool function directly."""
+    prev = os.environ.get("AUTOSEARCH_LLM_MODE")
     os.environ["AUTOSEARCH_LLM_MODE"] = "dummy"
-    from autosearch.mcp.server import create_server  # noqa: PLC0415
+    try:
+        from autosearch.mcp.server import create_server  # noqa: PLC0415
 
-    server = create_server()
-    fn = server._tool_manager._tools["list_channels"].fn
-    return fn(status_filter=status_filter)
+        server = create_server()
+        fn = server._tool_manager._tools["list_channels"].fn
+        return fn(status_filter=status_filter)
+    finally:
+        if prev is None:
+            os.environ.pop("AUTOSEARCH_LLM_MODE", None)
+        else:
+            os.environ["AUTOSEARCH_LLM_MODE"] = prev
 
 
 def test_list_channels_returns_all():
