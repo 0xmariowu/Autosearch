@@ -116,3 +116,9 @@ Loop state is in-memory per server process. State is lost on server restart (use
 - **WebThinker**: in-band `<|begin_search_query|>` / `<|begin_click_link|>` protocol — we do not reproduce the tokens, but preserve the explicit state tracking of executed queries / clicked URLs.
 - **node-deepresearch**: `gaps / allQuestions / allKnowledge / visitedURLs / badURLs / weightedURLs / evaluationMetrics` state — adopted verbatim.
 - **Scira extreme-search**: forced `thinking -> tool` alternation and mandatory date injection for time-sensitive queries — adopt the date-anchor rule.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

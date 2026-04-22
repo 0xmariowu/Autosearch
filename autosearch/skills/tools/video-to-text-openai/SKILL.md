@@ -69,3 +69,9 @@ Downgrade chain: use `video-to-text-local` on Apple Silicon with LM Studio when 
 - URL extraction depends on `yt-dlp` support for the target platform and current site behavior.
 
 This tool does **not** produce a summary. It returns `raw_txt` and subtitles so the runtime AI can decide how to process, summarize, quote, or cite the transcript.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

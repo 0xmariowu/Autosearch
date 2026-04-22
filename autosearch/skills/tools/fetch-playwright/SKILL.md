@@ -80,3 +80,9 @@ Tool names below come from `@playwright/mcp`. Exact schemas are served by the MC
 - Above: `fetch-firecrawl` (paid, stronger anti-bot and managed infra).
 
 This tool does **not** produce a summary. The runtime AI processes the tool outputs directly; autosearch provides only the routing guidance in this SKILL.md.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

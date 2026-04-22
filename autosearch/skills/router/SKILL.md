@@ -79,3 +79,9 @@ See `autosearch:model-routing` (if available in the runtime) for the full adviso
 - Does not call any leaf skill itself — it only points.
 - Does not guess: if no group matches, ask the user or degrade to `channels-generic-web`.
 - Does not cache across sessions — skill state lives in each skill's `experience.md` (read lazily).
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

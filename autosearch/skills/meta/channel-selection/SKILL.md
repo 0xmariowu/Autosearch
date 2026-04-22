@@ -177,3 +177,9 @@ Pass `channels` directly to `run_channel` or `delegate_subtask`.
 - Fed by → `run_clarify` output.
 - Feeds → `run_channel` fan-out.
 - Does NOT replace `run_clarify` — they're sequential, not alternatives.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

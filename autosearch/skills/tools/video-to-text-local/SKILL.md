@@ -67,3 +67,9 @@ Downgrade chain: use `video-to-text-groq` as the free cloud fallback (requires `
 - Default model: `mlx-community/whisper-large-v3-turbo`. Override via `AUTOSEARCH_MLX_WHISPER_MODEL` env var to any HuggingFace repo or local model path.
 
 This tool does **not** produce a summary. It returns `raw_txt` and subtitles so the runtime AI can decide how to process, summarize, quote, or cite the transcript.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.
