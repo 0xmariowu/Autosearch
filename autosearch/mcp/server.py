@@ -660,6 +660,109 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
             "budget_used": result.budget_used,
         }
 
+    # F009: channel health scanner
+    @server.tool()
+    def doctor() -> list[dict]:
+        """Scan all configured channels and return their health status.
+
+        Returns a list of {channel, status, message, unmet_requires} dicts.
+        status: "ok" (all methods available), "warn" (partial), "off" (none available).
+        Use this to diagnose which channels are missing API keys or credentials.
+        """
+        from autosearch.core.doctor import scan_channels  # noqa: PLC0415
+
+        return [
+            {
+                "channel": s.channel,
+                "status": s.status,
+                "message": s.message,
+                "unmet_requires": s.unmet_requires,
+            }
+            for s in scan_channels()
+        ]
+
+    # F010: workflow skills
+    @server.tool()
+    def trace_harvest(
+        channel: str,
+        query: str,
+        count_returned: int = 0,
+        count_total: int = 0,
+        outcome: str = "success",
+    ) -> list[dict]:
+        """Extract winning query patterns from a run_channel trace.
+
+        Pass the channel name, query, and result counts from a run_channel call.
+        Returns a list of {query, channel, score} pattern dicts (empty if score < 0.5).
+        Write results to the channel's patterns.jsonl to accumulate learning.
+        """
+        from autosearch.core.trace_harvest import extract_winning_patterns  # noqa: PLC0415
+
+        trace = {
+            "channel": channel,
+            "query": query,
+            "count_returned": count_returned,
+            "count_total": count_total,
+            "outcome": outcome,
+        }
+        patterns = extract_winning_patterns(trace)
+        return [{"query": p.query, "channel": p.channel, "score": p.score} for p in patterns]
+
+    @server.tool()
+    def perspective_questioning(topic: str, n: int = 4) -> list[dict]:
+        """Generate n sub-questions covering different viewpoints on a topic.
+
+        Viewpoints: user (practitioner), expert (domain), critic (skeptic),
+        competitor (alternatives). n is clamped to [1, 4].
+        Returns list of {viewpoint, question} dicts.
+        """
+        from autosearch.core.perspective_questioning import generate_perspectives  # noqa: PLC0415
+
+        subs = generate_perspectives(topic, n)
+        return [{"viewpoint": s.viewpoint, "question": s.question} for s in subs]
+
+    @server.tool()
+    def graph_search_plan(subtasks: list[dict]) -> list[list[str]]:
+        """Build a DAG from subtasks and return topologically sorted parallel batches.
+
+        Each subtask dict: {id, description, depends_on?: [id, ...]}.
+        Returns list of batches; subtasks in the same batch can run in parallel.
+        Raises on unknown dependency references or cycles.
+        """
+        from autosearch.core.graph_search_plan import SearchGraph, SubTask, get_parallel_batches  # noqa: PLC0415
+
+        nodes = [
+            SubTask(
+                id=str(t["id"]),
+                description=str(t.get("description") or ""),
+                depends_on=[str(d) for d in (t.get("depends_on") or [])],
+            )
+            for t in subtasks
+        ]
+        return get_parallel_batches(SearchGraph(nodes=nodes))
+
+    @server.tool()
+    def recent_signal_fusion(evidence: list[dict], days: int = 30) -> list[dict]:
+        """Filter evidence to items published within the last `days` days, newest first.
+
+        Looks for date in keys: date, published_at, created_at, ts, timestamp.
+        Items with no parseable date are excluded.
+        """
+        from autosearch.core.recent_signal_fusion import filter_recent  # noqa: PLC0415
+
+        return filter_recent(evidence, days)
+
+    @server.tool()
+    def context_retention_policy(evidence: list[dict], token_budget: int) -> list[dict]:
+        """Trim evidence list to fit within token_budget, keeping highest-scored items.
+
+        Token estimate: len(str(item)) // 4 per item.
+        Items sorted by 'score' field descending before trimming.
+        """
+        from autosearch.core.context_retention_policy import trim_to_budget  # noqa: PLC0415
+
+        return trim_to_budget(evidence, token_budget)
+
     return server
 
 
