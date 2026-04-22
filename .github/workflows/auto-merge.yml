@@ -4,6 +4,8 @@ on:
   pull_request:
     types: [opened, reopened, ready_for_review]
 
+permissions: {}
+
 jobs:
   enable:
     if: github.event.pull_request.draft == false
