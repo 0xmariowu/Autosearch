@@ -10,7 +10,6 @@ import pytest
 from autosearch.core.models import ClarifyResult, Evidence, SearchMode, SubQuery
 
 
-
 def _ev(url: str, title: str, ch: str) -> Evidence:
     return Evidence(
         url=url,

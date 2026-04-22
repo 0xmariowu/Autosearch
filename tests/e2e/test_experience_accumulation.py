@@ -11,7 +11,6 @@ from autosearch.core.models import Evidence, SubQuery
 from autosearch.skills import experience as exp_mod
 
 
-
 def _ev(i: int) -> Evidence:
     return Evidence(
         url=f"https://arxiv.org/abs/240{i}.12345",
