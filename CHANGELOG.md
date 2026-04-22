@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026.04.22.5 — 2026-04-23  ← v1.0.0
+
+This is the first production release of AutoSearch v2 tool-supplier architecture.
+
+**Quality gates passed:**
+- Gate 12 bench: augmented vs bare win rate **51.67%** (30 topics × 2 runs, OpenRouter)
+- E2B comprehensive test: **91.5/100** 🟢 READY (18/20 scenarios, 7 categories)
+  - Real channel searches: pubmed (10 results), dockerhub (10 results), hackernews, arxiv, ddgs ✅
+  - Full golden path: clarify → delegate_subtask → citation_index → OpenRouter report ✅
+  - AVO evolution cycle (Rule 22): all 12 tests pass ✅
+- pytest suite: 750+ tests passing
+
+**What's new in v2 (vs legacy pipeline):**
+- `/autosearch` now uses v2 tool-supplier flow: `run_clarify → select_channels → run_channel → synthesize`
+- 21 MCP tools: run_clarify / run_channel / list_skills / list_channels / doctor / select_channels_tool / delegate_subtask / loop state / citation index / 5 workflow skills
+- Experience layer: each channel accumulates `patterns.jsonl` → auto-compacts to `experience.md` → injected into next search
+- 35 channels including new: pubmed (free), dockerhub (free), searxng (local), tieba (Chinese UGC)
+- Clarify wizard: 4-step `AskUserQuestion` flow with `question_options` for structured choices
+- `autosearch doctor` / `autosearch configure` CLI tools
+
+
+
 ## 2026.04.22.4 — 2026-04-22
 
 - Release quality test suite: G1 static checks (version consistency, SKILL.md format, experience dirs), G2 mock tests (arxiv/ddgs/hackernews/youtube/tieba + clarify wizard + experience injection), G3 smoke tests (doctor/list_channels/configure), G4 live integration (9 channels, nightly CI), G5 E2E flow (fast/clarify/deep/experience, all mock), G6 AVO evolution (12 tests covering full 6-step Rule 22 cycle), G7 pre-release checklist script.
