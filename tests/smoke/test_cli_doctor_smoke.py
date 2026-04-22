@@ -14,7 +14,7 @@ from tests.smoke.conftest import console_script_command, smoke_env
 @pytest.mark.smoke
 def test_cli_doctor_exits_zero() -> None:
     """autosearch doctor should run without crashing and exit 0."""
-    result = subprocess.run(
+    subprocess.run(
         [*console_script_command("autosearch", "autosearch.cli.main")],
         input="",
         capture_output=True,

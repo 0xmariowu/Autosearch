@@ -191,7 +191,7 @@ def test_compact_promotes_patterns_to_active_rules(tmp_path, monkeypatch):
 @pytest.mark.avo
 def test_experience_digest_injected_into_rationale_after_compact(tmp_path, monkeypatch):
     """(c) Re-score: after compact, rationale now contains Active Rule text."""
-    skill_dir = _setup_skill_dir(tmp_path, "arxiv", monkeypatch)
+    _setup_skill_dir(tmp_path, "arxiv", monkeypatch)
     unique_rule = "ARXIV_EVOLUTION_TEST_RULE_XYZ"
 
     # Write 5 events so compact promotes the pattern
