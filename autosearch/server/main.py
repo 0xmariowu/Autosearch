@@ -14,7 +14,7 @@ from pydantic import BaseModel, ValidationError, field_validator
 from autosearch import __version__
 from autosearch.core.channel_bootstrap import _build_channels
 from autosearch.core.models import SearchMode
-from autosearch.core.pipeline import Pipeline, PipelineResult
+from autosearch.core.models import PipelineResult
 from autosearch.core.scope_clarifier import ScopeClarifier
 from autosearch.core.search_scope import ScopeQuestion, SearchScope, depth_to_mode
 from autosearch.llm.client import LLMClient
@@ -37,6 +37,20 @@ except ImportError:
     EventSourceResponse = None
 
 type EventCallback = Callable[[dict[str, Any]], Awaitable[None] | None]
+
+
+class Pipeline:
+    """Stub — legacy pipeline removed in v2. Tests monkeypatch this class."""
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        pass
+
+    async def run(self, *args: object, **kwargs: object) -> PipelineResult:
+        raise NotImplementedError(
+            "Pipeline.run() removed in v2. Use list_skills / run_clarify / run_channel."
+        )
+
+
 type PipelineFactory = Callable[[EventCallback | None], Pipeline]
 
 
