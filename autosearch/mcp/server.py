@@ -681,6 +681,50 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
             for s in scan_channels()
         ]
 
+    # G1: channel capability directory (status + availability in one call)
+    @server.tool()
+    def list_channels(status_filter: str = "") -> dict:
+        """List all channels with their runtime availability status.
+
+        Unlike list_skills (which returns SKILL.md metadata), list_channels
+        returns the live status of each channel: whether it's usable right
+        now based on the current environment's API keys and credentials.
+
+        Args:
+            status_filter: Optional filter — "ok", "warn", or "off".
+                           Empty string returns all channels.
+
+        Returns:
+            {total, ok_count, warn_count, off_count, channels: [{name, status, message, unmet_requires}]}
+        """
+        from autosearch.core.doctor import scan_channels  # noqa: PLC0415
+
+        all_channels = scan_channels()
+        if status_filter:
+            filtered = [s for s in all_channels if s.status == status_filter]
+        else:
+            filtered = all_channels
+
+        # Sort: ok first, then warn, then off
+        order = {"ok": 0, "warn": 1, "off": 2}
+        filtered.sort(key=lambda s: (order.get(s.status, 3), s.channel))
+
+        return {
+            "total": len(filtered),
+            "ok_count": sum(1 for s in all_channels if s.status == "ok"),
+            "warn_count": sum(1 for s in all_channels if s.status == "warn"),
+            "off_count": sum(1 for s in all_channels if s.status == "off"),
+            "channels": [
+                {
+                    "name": s.channel,
+                    "status": s.status,
+                    "message": s.message,
+                    "unmet_requires": s.unmet_requires,
+                }
+                for s in filtered
+            ],
+        }
+
     # F010: workflow skills
     @server.tool()
     def trace_harvest(

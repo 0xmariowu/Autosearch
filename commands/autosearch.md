@@ -1,6 +1,28 @@
 ---
 description: "Deep research via AutoSearch v2 tool-supplier — clarify → select channels → search → synthesize"
-allowed-tools: ["mcp__autosearch__run_clarify", "mcp__autosearch__run_channel", "mcp__autosearch__list_skills", "mcp__autosearch__health"]
+allowed-tools: [
+  "mcp__autosearch__run_clarify",
+  "mcp__autosearch__run_channel",
+  "mcp__autosearch__list_skills",
+  "mcp__autosearch__list_channels",
+  "mcp__autosearch__health",
+  "mcp__autosearch__doctor",
+  "mcp__autosearch__select_channels_tool",
+  "mcp__autosearch__delegate_subtask",
+  "mcp__autosearch__loop_init",
+  "mcp__autosearch__loop_update",
+  "mcp__autosearch__loop_get_gaps",
+  "mcp__autosearch__loop_add_gap",
+  "mcp__autosearch__citation_create",
+  "mcp__autosearch__citation_add",
+  "mcp__autosearch__citation_export",
+  "mcp__autosearch__citation_merge",
+  "mcp__autosearch__trace_harvest",
+  "mcp__autosearch__perspective_questioning",
+  "mcp__autosearch__graph_search_plan",
+  "mcp__autosearch__recent_signal_fusion",
+  "mcp__autosearch__context_retention_policy"
+]
 ---
 
 Run deep research with AutoSearch v2. You are the research conductor: AutoSearch supplies channels and evidence; you synthesize the final report.
@@ -25,36 +47,54 @@ Use the returned fields:
 
 ## Step 2 — Select channels
 
-Use `channel_priority` from Step 1 as your starting list. If it is empty or you need more coverage, call `list_skills(group="channels")` and pick 3–5 channels for "fast" mode, 5–8 for "deep" mode.
+Call `select_channels_tool(query=..., channel_priority=..., mode=...)` to get a ranked channel list.
 
-Prefer channels that match the query language and domain:
-- Chinese UGC queries → bilibili, xiaohongshu, zhihu, weibo
-- Academic / papers → arxiv, google_scholar, papers (papers-with-code)
-- Code / repos → github, package_search
-- English community → hackernews, reddit, stackoverflow
-- General web → ddgs, exa
+```
+select_channels_tool(query="$QUERY", channel_priority=["xiaohongshu","bilibili"], mode="fast")
+```
+
+Returns `{groups, channels, rationale}`. Use `channels` as your run list (3–5 for fast, 5–8 for deep).
+
+Alternatively call `list_skills(group="channels")` and pick manually. For channel health, call `doctor()`.
 
 ## Step 3 — Run channels
 
-Call `run_channel` for each selected channel, in parallel where possible:
+For parallel multi-channel search, use `delegate_subtask`:
 
 ```
-run_channel(channel_name="bilibili", query="$QUERY", rationale="$WHY_THIS_CHANNEL")
+delegate_subtask(task_description="...", channels=["bilibili","arxiv","github"], query="$QUERY")
 ```
 
-Collect all `evidence` lists. If a channel returns `ok: false`, note the reason and continue.
+Returns `{evidence_by_channel, summary, failed_channels}`. Or call `run_channel` per channel individually.
 
-For "deep" mode: after first-pass results, identify gaps in coverage and run 1–2 additional channels to fill them.
+For deep mode with gap tracking, use the loop tools:
+
+```
+state = loop_init()
+# after each run_channel batch:
+loop_update(state_id=state.state_id, evidence=[...], query="$QUERY")
+gaps = loop_get_gaps(state_id=state.state_id)
+# run additional channels for gaps, then repeat
+```
 
 ## Step 4 — Synthesize
+
+Create a citation index and build a cited report:
+
+```
+idx = citation_create()
+citation_add(index_id=idx.index_id, url="https://...", title="...", source="channel_name")
+# ... add all sources ...
+refs = citation_export(index_id=idx.index_id)
+```
 
 Synthesize a cited markdown report from the collected evidence:
 
 - Open with a 1-paragraph executive summary
 - Use `## Section` headers for major themes
-- Cite evidence inline: `[source title](url)` or `[N]` footnotes
-- End with a `## Sources` section listing all URLs
-- Check each rubric from Step 1 — if any are unmet, note it in a `## Coverage gaps` section
+- Cite inline as `[1]`, `[2]` etc. matching the citation index
+- End with the `refs` markdown as the `## References` section
+- Check each rubric from Step 1 — if any are unmet, note it in `## Coverage gaps`
 
 Do not add preamble like "Here is the report". Return the report directly.
 
