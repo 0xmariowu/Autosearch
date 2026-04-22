@@ -16,7 +16,7 @@ def _load_specs():
 def test_all_channels_loadable() -> None:
     specs = _load_specs()
 
-    assert len(specs) == 31
+    assert len(specs) == 34
     assert [spec.name for spec in specs] == [
         "arxiv",
         "bilibili",
@@ -24,6 +24,7 @@ def test_all_channels_loadable() -> None:
         "dblp",
         "ddgs",
         "devto",
+        "dockerhub",
         "douyin",
         "github",
         "google_news",
@@ -36,7 +37,9 @@ def test_all_channels_loadable() -> None:
         "package_search",
         "papers",
         "podcast_cn",
+        "pubmed",
         "reddit",
+        "searxng",
         "sec_edgar",
         "sogou_weixin",
         "stackoverflow",
@@ -103,6 +106,7 @@ def test_shipped_method_impls_exist_for_registry_channels() -> None:
         "dblp": ["methods/api_search.py"],
         "ddgs": ["methods/api.py"],
         "devto": ["methods/api_search.py"],
+        "dockerhub": ["methods/api_search.py"],
         "douyin": ["methods/via_tikhub.py"],
         "github": ["methods/search_public_repos.py"],
         "google_news": ["methods/api_search.py"],
@@ -115,7 +119,9 @@ def test_shipped_method_impls_exist_for_registry_channels() -> None:
         "package_search": ["methods/api_search.py"],
         "podcast_cn": ["methods/api_search.py"],
         "papers": ["methods/via_paper_search.py"],
+        "pubmed": ["methods/api_search.py"],
         "reddit": ["methods/api_search.py"],
+        "searxng": ["methods/api_search.py"],
         "sec_edgar": ["methods/api_search.py"],
         "sogou_weixin": ["methods/api_search.py"],
         "stackoverflow": ["methods/api_search.py"],
@@ -146,6 +152,7 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
         "dblp",
         "ddgs",
         "devto",
+        "dockerhub",
         "github",
         "google_news",
         "hackernews",
@@ -156,6 +163,7 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
         "package_search",
         "papers",
         "podcast_cn",
+        "pubmed",
         "reddit",
         "sec_edgar",
         "sogou_weixin",
@@ -172,6 +180,7 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
             "dblp": "methods/api_search.py",
             "ddgs": "methods/api.py",
             "devto": "methods/api_search.py",
+            "dockerhub": "methods/api_search.py",
             "google_news": "methods/api_search.py",
             "hackernews": "methods/algolia.py",
             "huggingface_hub": "methods/api_search.py",
@@ -181,6 +190,7 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
             "package_search": "methods/api_search.py",
             "podcast_cn": "methods/api_search.py",
             "papers": "methods/via_paper_search.py",
+            "pubmed": "methods/api_search.py",
             "reddit": "methods/api_search.py",
             "sec_edgar": "methods/api_search.py",
             "sogou_weixin": "methods/api_search.py",
@@ -216,6 +226,11 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
             assert len(metadata.methods) == 1
             assert metadata.methods[0].available is False
             assert metadata.methods[0].unmet_requires == ["env:YOUTUBE_API_KEY"]
+            continue
+        if spec.name == "searxng":
+            assert len(metadata.methods) == 1
+            assert metadata.methods[0].available is False
+            assert metadata.methods[0].unmet_requires == ["env:SEARXNG_URL"]
             continue
         if spec.name == "zhihu":
             methods = {method.id: method for method in metadata.methods}
