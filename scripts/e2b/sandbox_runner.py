@@ -179,7 +179,8 @@ async def run_python(
         timeout=timeout,
     )
     if code != 0:
-        return {"ok": False, "error": (err or out)[:500], "exit_code": code}, err
+        full_error = err or out
+        return {"ok": False, "error": full_error[:1500], "exit_code": code}, err
 
     # Find the last line that looks like JSON (handles structlog noise on stdout)
     for line in reversed(out.strip().splitlines()):

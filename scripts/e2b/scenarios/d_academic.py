@@ -120,15 +120,21 @@ async def d3_citation_dedup(sandbox_id: str, env: dict) -> ScenarioResult:
         sandbox_id,
         """
 import os, json, asyncio
-os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
-from autosearch.mcp.server import create_server
 from autosearch.core.channel_bootstrap import _build_channels
 from autosearch.core.models import SubQuery
 
+# Build real channels BEFORE setting dummy mode
+_real_channels = _build_channels()
+
+os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
+from autosearch.mcp.server import create_server
+from unittest.mock import patch
+
 async def main():
-    channels = {c.name: c for c in _build_channels()}
-    server = create_server()
-    tm = server._tool_manager
+    channels = {c.name: c for c in _real_channels}
+    with patch('autosearch.mcp.server._build_channels', return_value=_real_channels):
+        server = create_server()
+        tm = server._tool_manager
 
     idx = await tm.call_tool('citation_create', {})
     index_id = idx['index_id']

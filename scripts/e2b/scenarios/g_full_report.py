@@ -16,19 +16,21 @@ async def g1_loop_gap_detection(sandbox_id: str, env: dict) -> ScenarioResult:
         sandbox_id,
         """
 import os, json, asyncio
-os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
-from autosearch.mcp.server import create_server
 from autosearch.core.channel_bootstrap import _build_channels
 
+channels_list = _build_channels()
+available = {c.name for c in channels_list}
+
+os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
+from autosearch.mcp.server import create_server
+from unittest.mock import patch
+
 async def main():
-    channels_list = _build_channels()
-    available = {c.name for c in channels_list}
     chs = [c for c in ['arxiv', 'hackernews', 'stackoverflow'] if c in available][:2]
     if len(chs) < 1:
         print(json.dumps({'ok': False, 'error': 'no channels available'}))
         return
 
-    from unittest.mock import patch
     with patch('autosearch.mcp.server._build_channels', return_value=channels_list):
         server = create_server()
         tm = server._tool_manager
@@ -66,7 +68,7 @@ async def main():
 
 asyncio.run(main())
 """,
-        env={**env, **_ENV_DUMMY},
+        env=env,  # dummy mode set inside script after channels built
         timeout=90,
     )
     dur = time.monotonic() - t0
@@ -85,10 +87,15 @@ asyncio.run(main())
 
 _G2_SCRIPT = """
 import os, json, asyncio, httpx
-os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
 OPENROUTER_KEY = os.environ.get('OPENROUTER_API_KEY', '')
-from autosearch.mcp.server import create_server
 from autosearch.core.channel_bootstrap import _build_channels
+
+# Build real channels BEFORE setting dummy mode
+_channels_list = _build_channels()
+_available = {c.name for c in _channels_list}
+
+os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
+from autosearch.mcp.server import create_server
 
 async def synthesize(ev_summary, query):
     if not OPENROUTER_KEY:
@@ -110,13 +117,11 @@ async def synthesize(ev_summary, query):
         return r.json()['choices'][0]['message']['content']
 
 async def main():
-    channels_list = _build_channels()
-    available = {c.name for c in channels_list}
-    test_chs = [c for c in ['arxiv', 'hackernews', 'stackoverflow', 'devto'] if c in available][:3]
+    test_chs = [c for c in ['arxiv', 'hackernews', 'stackoverflow', 'devto'] if c in _available][:3]
 
     from unittest.mock import patch
-    with patch('autosearch.mcp.server._build_channels', return_value=channels_list), \\
-         patch('autosearch.core.channel_bootstrap._build_channels', return_value=channels_list):
+    with patch('autosearch.mcp.server._build_channels', return_value=_channels_list), \\
+         patch('autosearch.core.channel_bootstrap._build_channels', return_value=_channels_list):
         server = create_server()
         tm = server._tool_manager
 
@@ -162,7 +167,7 @@ async def g2_golden_path_with_report(sandbox_id: str, env: dict) -> ScenarioResu
     result, _ = await run_python(
         sandbox_id,
         _G2_SCRIPT,
-        env={**env, **_ENV_DUMMY},
+        env=env,  # dummy mode set inside script after channels built
         timeout=120,
     )
     dur = time.monotonic() - t0
@@ -191,10 +196,14 @@ async def g2_golden_path_with_report(sandbox_id: str, env: dict) -> ScenarioResu
 
 _G3_SCRIPT = """
 import os, json, asyncio, httpx
-os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
 OPENROUTER_KEY = os.environ.get('OPENROUTER_API_KEY', '')
-from autosearch.mcp.server import create_server
 from autosearch.core.channel_bootstrap import _build_channels
+
+_channels_list = _build_channels()
+_available = {c.name for c in _channels_list}
+
+os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
+from autosearch.mcp.server import create_server
 
 async def synthesize(ev_list, query, refs_md):
     if not OPENROUTER_KEY:
@@ -217,13 +226,11 @@ async def synthesize(ev_list, query, refs_md):
         return r.json()['choices'][0]['message']['content']
 
 async def main():
-    channels_list = _build_channels()
-    available = {c.name for c in channels_list}
     query = 'grafana/k6 load testing REST API best practices 2024'
 
     from unittest.mock import patch
-    with patch('autosearch.mcp.server._build_channels', return_value=channels_list), \\
-         patch('autosearch.core.channel_bootstrap._build_channels', return_value=channels_list):
+    with patch('autosearch.mcp.server._build_channels', return_value=_channels_list), \\
+         patch('autosearch.core.channel_bootstrap._build_channels', return_value=_channels_list):
         server = create_server()
         tm = server._tool_manager
 
@@ -237,7 +244,7 @@ async def main():
             {'id': 'C', 'description': 'Synthesize', 'depends_on': ['A', 'B']},
         ]})
 
-        test_chs = [c for c in ['devto', 'hackernews', 'stackoverflow'] if c in available][:3]
+        test_chs = [c for c in ['devto', 'hackernews', 'stackoverflow'] if c in _available][:3]
         idx = (await tm.call_tool('citation_create', {}))['index_id']
 
         delegation = await tm.call_tool('delegate_subtask', {
@@ -279,7 +286,7 @@ async def g3_complex_report_with_workflows(sandbox_id: str, env: dict) -> Scenar
     result, _ = await run_python(
         sandbox_id,
         _G3_SCRIPT,
-        env={**env, **_ENV_DUMMY},
+        env=env,  # dummy mode set inside script after channels built
         timeout=150,
     )
     dur = time.monotonic() - t0

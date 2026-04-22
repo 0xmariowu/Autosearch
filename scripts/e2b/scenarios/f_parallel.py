@@ -16,13 +16,17 @@ async def f1_delegate_subtask_parallel(sandbox_id: str, env: dict) -> ScenarioRe
         sandbox_id,
         """
 import os, json, asyncio
-os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
-from autosearch.mcp.server import create_server
 from autosearch.core.channel_bootstrap import _build_channels
 
+# Build real channels BEFORE setting dummy mode
+channels_list = _build_channels()
+available = {c.name for c in channels_list}
+
+os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
+from autosearch.mcp.server import create_server
+from unittest.mock import patch
+
 async def main():
-    channels_list = _build_channels()
-    available = {c.name for c in channels_list}
     # Pick 3 channels that are available
     candidates = ['arxiv', 'stackoverflow', 'hackernews', 'devto', 'ddgs']
     test_channels = [c for c in candidates if c in available][:3]
@@ -31,7 +35,6 @@ async def main():
         print(json.dumps({'ok': False, 'error': 'fewer than 2 channels available', 'available_sample': list(available)[:10]}))
         return
 
-    from unittest.mock import patch
     with patch('autosearch.mcp.server._build_channels', return_value=channels_list), \
          patch('autosearch.core.channel_bootstrap._build_channels', return_value=channels_list):
         server = create_server()
