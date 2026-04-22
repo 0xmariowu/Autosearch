@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026.04.22.2 — 2026-04-22
+
+- `autosearch query` CLI now exits immediately with a v2 deprecation notice directing you to `list_skills / run_clarify / run_channel` MCP tools.
+- `pipeline.py` and `synthesis/report.py` physically deleted — v2 tool-supplier is now the only research path.
+
+
 ## 2026.04.22.1 — 2026-04-22
 
 - You can now use `/autosearch` with the v2 tool-supplier flow: run_clarify → channel selection → run_channel → runtime AI synthesizes. Legacy pipeline no longer invoked.
