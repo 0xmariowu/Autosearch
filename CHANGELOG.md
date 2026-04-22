@@ -2,11 +2,11 @@
 
 ## 2026.04.22.4 — 2026-04-22
 
-- New MCP tool: `list_channels()` — shows all channels with live availability status (ok/warn/off), requires no API key for free channels.
-- `/autosearch` command now exposes all 21 MCP tools in `allowed-tools` (was 4). New tools include `select_channels_tool`, `delegate_subtask`, loop state, citation index, and all 5 workflow skills.
-- 4 workflow skill SKILL.md files updated with concrete MCP tool call examples (channel-selection, delegate-subtask, reflective-search-loop, citation-index).
-- New channel: `tieba` (百度贴吧 community forum, free, Chinese native).
-- New script: `scripts/dev/start-searxng.sh` for launching local SearXNG Docker instance.
+- Release quality test suite: G1 static checks (version consistency, SKILL.md format, experience dirs), G2 mock tests (arxiv/ddgs/hackernews/youtube/tieba + clarify wizard + experience injection), G3 smoke tests (doctor/list_channels/configure), G4 live integration (9 channels, nightly CI), G5 E2E flow (fast/clarify/deep/experience, all mock), G6 AVO evolution (12 tests covering full 6-step Rule 22 cycle), G7 pre-release checklist script.
+- `ClarifyToolResponse` + `ClarifyResult` + `Clarifier` now carry `question_options: list[str]` for structured `AskUserQuestion` UI.
+- 56 SKILL.md files: added `# Quality Bar` section (CLAUDE.md rule 18).
+- All 34 channel experience dirs initialized with empty `patterns.jsonl`.
+- New pytest marks: `live`, `e2e`, `avo`.
 
 
 ## 2026.04.22.3 — 2026-04-22
