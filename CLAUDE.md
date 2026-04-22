@@ -55,7 +55,7 @@ A self-improving search system. The human provides intent. The AI does everythin
 2. Save any durable findings or analysis in repo-local artifacts, not external personal directories.
 3. Sync patterns to platform channel SKILL.md files: win_rate ≥ 0.6 across 3+ sessions → add; win_rate = 0 across 3+ sessions → Known Failures.
 4. If this repo maintains an active `experience/` log, write `experience/{YYYY-MM-DD}-{topic}.md` and update its index.
-5. If code/config/CLAUDE.md changed (not just search data): prepend to `CHANGELOG.md`.
+5. CHANGELOG.md is release-only — update it during release (`bump-version.sh`), not on every PR. GitHub release notes auto-generate from PR titles using `.github/release-notes-instructions.md`.
 
 ## AVO rules (self-evolution)
 
