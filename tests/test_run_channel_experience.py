@@ -114,3 +114,34 @@ async def test_run_channel_appends_to_patterns_jsonl_after_execution(
     assert payload["count_total"] == 2
     assert payload["count_returned"] == 1
     assert datetime.fromisoformat(payload["ts"]).tzinfo is not None
+
+
+@pytest.mark.asyncio
+async def test_experience_digest_text_appears_in_subquery_rationale(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """G2-T13: Specific text from experience.md must appear in SubQuery.rationale."""
+    skill_dir = _make_skill_dir(tmp_path, monkeypatch, skill_name="arxiv")
+    unique_marker = "USE_EXACT_ARXIV_IDS_FOR_BETTER_RESULTS"
+    skill_dir.joinpath("experience.md").write_text(
+        f"## Active Rules\n- {unique_marker}\n",
+        encoding="utf-8",
+    )
+    channel = _CapturingChannel(
+        "arxiv",
+        [_make_evidence("https://arxiv.org/abs/1234", "Test Paper", "arxiv")],
+    )
+    monkeypatch.setattr("autosearch.mcp.server._build_channels", lambda: [channel])
+
+    server = create_server(pipeline_factory=lambda: None)  # type: ignore[arg-type]
+    await server._tool_manager.call_tool(
+        "run_channel",
+        {"channel_name": "arxiv", "query": "LLM survey", "rationale": "research"},
+    )
+
+    assert channel.last_query is not None
+    assert unique_marker in channel.last_query.rationale, (
+        f"Expected '{unique_marker}' from experience.md to appear in rationale, "
+        f"got: {channel.last_query.rationale!r}"
+    )
