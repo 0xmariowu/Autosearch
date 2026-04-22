@@ -1,6 +1,6 @@
 """G4: Live integration tests for free channels (no API key required).
 
-These tests make real network calls. They are marked @pytest.mark.live
+These tests make real network calls. They are marked @pytest.mark.live @pytest.mark.slow
 and run in the nightly CI workflow, not on every PR.
 
 Run manually: pytest tests/integration/test_free_channels_live.py -m live -v
@@ -35,13 +35,17 @@ def _assert_valid_evidence(results, channel_name: str, min_count: int = 1) -> No
     for ev in results:
         assert ev.url, f"{channel_name}: evidence missing url"
         assert ev.title, f"{channel_name}: evidence missing title"
-        assert ev.source_channel == channel_name
+        # source_channel may include item IDs (e.g. "wikidata:Q123"); check prefix
+        assert ev.source_channel.startswith(channel_name), (
+            f"{channel_name}: expected source_channel to start with '{channel_name}', got '{ev.source_channel}'"
+        )
 
 
 # ── Free channels (no API key) ───────────────────────────────────────────────
 
 
 @pytest.mark.live
+@pytest.mark.slow
 @pytest.mark.asyncio
 async def test_arxiv_live():
     ch = _get_channel("arxiv")
@@ -51,6 +55,7 @@ async def test_arxiv_live():
 
 
 @pytest.mark.live
+@pytest.mark.slow
 @pytest.mark.asyncio
 async def test_pubmed_live():
     ch = _get_channel("pubmed")
@@ -60,6 +65,7 @@ async def test_pubmed_live():
 
 
 @pytest.mark.live
+@pytest.mark.slow
 @pytest.mark.asyncio
 async def test_dockerhub_live():
     ch = _get_channel("dockerhub")
@@ -69,6 +75,7 @@ async def test_dockerhub_live():
 
 
 @pytest.mark.live
+@pytest.mark.slow
 @pytest.mark.asyncio
 async def test_hackernews_live():
     ch = _get_channel("hackernews")
@@ -77,6 +84,7 @@ async def test_hackernews_live():
 
 
 @pytest.mark.live
+@pytest.mark.slow
 @pytest.mark.asyncio
 async def test_wikipedia_live():
     ch = _get_channel("wikidata")
@@ -87,6 +95,7 @@ async def test_wikipedia_live():
 
 
 @pytest.mark.live
+@pytest.mark.slow
 @pytest.mark.asyncio
 async def test_ddgs_live():
     ch = _get_channel("ddgs")
@@ -95,6 +104,7 @@ async def test_ddgs_live():
 
 
 @pytest.mark.live
+@pytest.mark.slow
 @pytest.mark.asyncio
 async def test_tieba_live():
     """百度贴吧 live test — may be slow or rate-limited from non-CN IPs."""
@@ -108,6 +118,7 @@ async def test_tieba_live():
 
 
 @pytest.mark.live
+@pytest.mark.slow
 @pytest.mark.asyncio
 async def test_searxng_raises_unavailable_when_no_url():
     """searxng must raise MethodUnavailable (not crash) when SEARXNG_URL unset."""
@@ -122,6 +133,7 @@ async def test_searxng_raises_unavailable_when_no_url():
 
 
 @pytest.mark.live
+@pytest.mark.slow
 @pytest.mark.asyncio
 async def test_firecrawl_raises_unavailable_when_no_key():
     """fetch-firecrawl must raise MethodUnavailable when FIRECRAWL_API_KEY unset."""
