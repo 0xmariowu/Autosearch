@@ -520,6 +520,52 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
             filtered_by=filtered,
         )
 
+    # F006: reflective search loop state
+    @server.tool()
+    def loop_init() -> dict:
+        """Initialize a reflective search loop. Returns {state_id}."""
+        return {"state_id": _ls_init()}
+
+    @server.tool()
+    def loop_update(state_id: str, evidence: list[dict], query: str) -> dict:
+        """Update loop state with evidence from run_channel. Returns state summary."""
+        return _ls_update(state_id, evidence, query)
+
+    @server.tool()
+    def loop_get_gaps(state_id: str) -> dict:
+        """Get coverage gaps for this loop. Returns {state_id, gaps}."""
+        return {"state_id": state_id, "gaps": _ls_get_gaps(state_id)}
+
+    @server.tool()
+    def loop_add_gap(state_id: str, gap: str) -> dict:
+        """Mark a topic as a coverage gap. Returns {state_id, gaps}."""
+        _ls_add_gap(state_id, gap)
+        return {"state_id": state_id, "gaps": _ls_get_gaps(state_id)}
+
+    # F007: citation index
+    @server.tool()
+    def citation_create() -> dict:
+        """Create a citation index for a research session. Returns {index_id}."""
+        return {"index_id": _ci_create()}
+
+    @server.tool()
+    def citation_add(index_id: str, url: str, title: str = "", source: str = "") -> dict:
+        """Add URL to citation index (idempotent). Returns {index_id, citation_number, url}."""
+        num = _ci_add(index_id, url, title=title, source=source)
+        return {"index_id": index_id, "citation_number": num, "url": url}
+
+    @server.tool()
+    def citation_export(index_id: str) -> dict:
+        """Export citations as Markdown. Returns {index_id, markdown, count}."""
+        markdown = _ci_export(index_id)
+        count = len(_CI_STORE[index_id]._entries)
+        return {"index_id": index_id, "markdown": markdown, "count": count}
+
+    @server.tool()
+    def citation_merge(target_id: str, source_id: str) -> dict:
+        """Merge source citation index into target. Returns {merged_count, skipped_duplicates}."""
+        return _ci_merge(target_id, source_id)
+
     return server
 
 
