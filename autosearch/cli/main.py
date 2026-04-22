@@ -1,6 +1,4 @@
 # Source: gpt-researcher/cli.py:L28-L216 (adapted)
-import asyncio
-import contextlib
 import json
 import sys
 from typing import Annotated
@@ -12,10 +10,9 @@ import uvicorn
 from pydantic import ValidationError
 
 from autosearch import __version__
-from autosearch.core.channel_bootstrap import _build_channels
 from autosearch.core.environment_probe import probe_environment
 from autosearch.core.models import SearchMode
-from autosearch.core.pipeline import Pipeline, PipelineResult
+from autosearch.core.models import PipelineResult
 from autosearch.core.scope_clarifier import ScopeClarifier
 from autosearch.core.search_scope import (
     ChannelScope,
@@ -23,7 +20,6 @@ from autosearch.core.search_scope import (
     OutputFormat,
     ScopeQuestion,
     SearchScope,
-    depth_to_mode,
 )
 from autosearch.init.channel_status import (
     TIER_LABELS,
@@ -33,7 +29,7 @@ from autosearch.init.channel_status import (
     default_channels_root,
 )
 from autosearch.init_runner import InitError, InitRunner
-from autosearch.llm.client import AllProvidersFailedError, LLMClient
+from autosearch.llm.client import AllProvidersFailedError
 
 _NO_PROVIDER_MESSAGE = (
     "No LLM provider available; set ANTHROPIC_API_KEY, OPENAI_API_KEY, "
@@ -153,85 +149,18 @@ def query(
     if not normalized_query:
         _exit_query_failure("Query must not be empty.", exit_code=2, json_output=json_output)
 
-    provided: dict[str, object] = {}
-    if channel_scope is not None:
-        provided["channel_scope"] = channel_scope
-    if depth is not None:
-        provided["depth"] = depth
-    elif mode is not None:
-        provided["depth"] = mode.value
-    if output_format is not None:
-        provided["output_format"] = output_format
-    if domain_followup is not None:
-        provided["domain_followups"] = domain_followup
-    scope = _resolve_scope(
-        provided=provided,
-        interactive=interactive,
+    # v2: legacy pipeline removed. Direct CLI query is deprecated.
+    _exit_query_failure(
+        "autosearch query is deprecated in v2.\n"
+        "Use the MCP tools instead: list_skills / run_clarify / run_channel.\n"
+        "See docs/migration/legacy-research-to-tool-supplier.md",
+        exit_code=1,
         json_output=json_output,
     )
-    resolved_mode = depth_to_mode(scope.depth)
-    stream_callback = _stderr_event_writer if stream and not json_output else None
-    try:
-        with contextlib.ExitStack() as exit_stack:
-            if json_output:
-                exit_stack.enter_context(contextlib.redirect_stdout(sys.stderr))
-            result = asyncio.run(
-                Pipeline(
-                    llm=LLMClient(),
-                    channels=_build_channels(),
-                    top_k_evidence=top_k,
-                    on_event=stream_callback,
-                ).run(normalized_query, mode_hint=resolved_mode, scope=scope)
-            )
-    except Exception as exc:
-        _exit_query_failure(
-            _friendly_query_error_message(exc),
-            exit_code=1,
-            json_output=json_output,
-        )
 
-    if result.delivery_status == "needs_clarification":
-        typer.echo(result.clarification.question or "More detail is required.", err=True)
-        raise typer.Exit(code=2)
-
-    try:
-        rendered_output = _render_output(
-            markdown_text=result.markdown or "",
-            title=normalized_query,
-            output_format=scope.output_format,
-        )
-    except Exception as exc:
-        _exit_query_failure(
-            _friendly_query_error_message(exc),
-            exit_code=1,
-            json_output=json_output,
-        )
-
-    if json_output:
-        typer.echo(
-            json.dumps(
-                {
-                    "delivery_status": result.delivery_status,
-                    "markdown": rendered_output,
-                    "iterations": result.iterations,
-                    "channel_empty_calls": result.channel_empty_calls,
-                    "routing_trace": result.routing_trace,
-                    "quality_grade": (
-                        result.quality.grade.value if result.quality is not None else None
-                    ),
-                    "sources": _json_sources(result),
-                    "scope": {
-                        "domain_followups": scope.domain_followups,
-                        "channel_scope": scope.channel_scope,
-                        "depth": scope.depth,
-                        "output_format": scope.output_format,
-                    },
-                }
-            )
-        )
-        return
-
-    typer.echo(rendered_output)
+    # Dead code below — kept as reference until full pipeline removal is complete.
+    # The deprecation exit above prevents any of this from running.
+    _ = normalized_query  # suppress unused variable warning
 
 
 @app.command()
