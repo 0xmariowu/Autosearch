@@ -11,7 +11,16 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from autosearch.channels.base import Channel
 from autosearch.core.channel_bootstrap import _build_channels
+from autosearch.core.citation_index import _CITATION_INDEXES as _CI_STORE
+from autosearch.core.citation_index import add_citation as _ci_add
+from autosearch.core.citation_index import create_index as _ci_create
+from autosearch.core.citation_index import export_citations as _ci_export
+from autosearch.core.citation_index import merge_index as _ci_merge
 from autosearch.core.clarify import Clarifier
+from autosearch.core.loop_state import add_gap as _ls_add_gap
+from autosearch.core.loop_state import get_gaps as _ls_get_gaps
+from autosearch.core.loop_state import init_loop as _ls_init
+from autosearch.core.loop_state import update_loop as _ls_update
 from autosearch.core.models import ClarifyRequest, SearchMode, SubQuery
 from autosearch.core.search_scope import SearchScope, depth_to_mode
 from autosearch.llm.client import LLMClient
@@ -559,6 +568,97 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
             skills=summaries,
             filtered_by=filtered,
         )
+
+    # F006: reflective search loop state
+    @server.tool()
+    def loop_init() -> dict:
+        """Initialize a reflective search loop. Returns {state_id}."""
+        return {"state_id": _ls_init()}
+
+    @server.tool()
+    def loop_update(state_id: str, evidence: list[dict], query: str) -> dict:
+        """Update loop state with evidence from run_channel. Returns state summary."""
+        return _ls_update(state_id, evidence, query)
+
+    @server.tool()
+    def loop_get_gaps(state_id: str) -> dict:
+        """Get coverage gaps for this loop. Returns {state_id, gaps}."""
+        return {"state_id": state_id, "gaps": _ls_get_gaps(state_id)}
+
+    @server.tool()
+    def loop_add_gap(state_id: str, gap: str) -> dict:
+        """Mark a topic as a coverage gap. Returns {state_id, gaps}."""
+        _ls_add_gap(state_id, gap)
+        return {"state_id": state_id, "gaps": _ls_get_gaps(state_id)}
+
+    # F007: citation index
+    @server.tool()
+    def citation_create() -> dict:
+        """Create a citation index for a research session. Returns {index_id}."""
+        return {"index_id": _ci_create()}
+
+    @server.tool()
+    def citation_add(index_id: str, url: str, title: str = "", source: str = "") -> dict:
+        """Add URL to citation index (idempotent). Returns {index_id, citation_number, url}."""
+        num = _ci_add(index_id, url, title=title, source=source)
+        return {"index_id": index_id, "citation_number": num, "url": url}
+
+    @server.tool()
+    def citation_export(index_id: str) -> dict:
+        """Export citations as Markdown. Returns {index_id, markdown, count}."""
+        markdown = _ci_export(index_id)
+        count = len(_CI_STORE[index_id]._entries)
+        return {"index_id": index_id, "markdown": markdown, "count": count}
+
+    @server.tool()
+    def citation_merge(target_id: str, source_id: str) -> dict:
+        """Merge source citation index into target. Returns {merged_count, skipped_duplicates}."""
+        return _ci_merge(target_id, source_id)
+
+    # F004: group-first channel selection
+    @server.tool()
+    def select_channels_tool(
+        query: str,
+        channel_priority: list[str] | None = None,
+        channel_skip: list[str] | None = None,
+        mode: str = "fast",
+    ) -> dict:
+        """Select 3-8 channels using group-first two-stage algorithm.
+
+        Call after run_clarify to get a ranked channel list before run_channel.
+        Returns {groups, channels, rationale}.
+        """
+        from autosearch.core.channel_select import select_channels  # noqa: PLC0415
+
+        return select_channels(
+            query,
+            channel_priority=channel_priority,
+            channel_skip=channel_skip,
+            mode=mode,
+        )
+
+    # F005: parallel multi-channel subtask delegation
+    @server.tool()
+    async def delegate_subtask(
+        task_description: str,
+        channels: list[str],
+        query: str,
+        max_per_channel: int = 5,
+    ) -> dict:
+        """Run a query across multiple channels concurrently.
+
+        Use when you want to search several channels in parallel for the same query.
+        Returns {evidence_by_channel, summary, failed_channels, budget_used}.
+        """
+        from autosearch.core.delegate import run_subtask  # noqa: PLC0415
+
+        result = await run_subtask(task_description, channels, query, max_per_channel)
+        return {
+            "evidence_by_channel": result.evidence_by_channel,
+            "summary": result.summary,
+            "failed_channels": result.failed_channels,
+            "budget_used": result.budget_used,
+        }
 
     return server
 
