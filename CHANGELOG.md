@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026.04.22.4 — 2026-04-22
+
+- New MCP tool: `list_channels()` — shows all channels with live availability status (ok/warn/off), requires no API key for free channels.
+- `/autosearch` command now exposes all 21 MCP tools in `allowed-tools` (was 4). New tools include `select_channels_tool`, `delegate_subtask`, loop state, citation index, and all 5 workflow skills.
+- 4 workflow skill SKILL.md files updated with concrete MCP tool call examples (channel-selection, delegate-subtask, reflective-search-loop, citation-index).
+- New channel: `tieba` (百度贴吧 community forum, free, Chinese native).
+- New script: `scripts/dev/start-searxng.sh` for launching local SearXNG Docker instance.
+
+
 ## 2026.04.22.3 — 2026-04-22
 
 - You can now run `autosearch doctor` (via MCP) to scan all channel health — shows which channels are ready, missing API keys, or unavailable.
