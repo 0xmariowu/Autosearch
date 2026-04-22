@@ -39,7 +39,6 @@ def main() -> int:
         patterns_file = channel_dir / "patterns.jsonl"
 
         # Patch _SKILLS_ROOT so _find_skill_dir resolves to our temp dir
-        orig_root = exp_mod._SKILLS_ROOT
         exp_mod._SKILLS_ROOT = tmp_path
 
         # Append 10 events with winning_pattern so compact() can promote
@@ -68,7 +67,7 @@ def main() -> int:
         print(f"patterns.jsonl: {len(lines)} entries — OK")
 
         # Trigger compact
-        compact_triggered = should_compact(CHANNEL)
+        should_compact(CHANNEL)
         compact(CHANNEL)
 
         # compact() writes to skill_dir/experience.md (not skill_dir/experience/experience.md)
