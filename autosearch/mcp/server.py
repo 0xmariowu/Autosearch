@@ -459,9 +459,36 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
                 reason=f"unknown_channel. available: {available}",
             )
 
+        from datetime import UTC, datetime
+
+        from autosearch.core.experience_compact import compact
+        from autosearch.skills.experience import (
+            append_event,
+            load_experience_digest,
+            should_compact,
+        )
+
+        digest = load_experience_digest(channel_name)
+        search_rationale = rationale
+        if digest is not None:
+            search_rationale = f"{rationale}\n\n[Experience Digest]\n{digest}"
+
         try:
-            slim = await _search_single_channel(matched, query, rationale)
+            slim = await _search_single_channel(matched, query, search_rationale)
         except Exception as exc:  # noqa: BLE001 — boundary; report reason, don't leak
+            append_event(
+                channel_name,
+                {
+                    "skill": channel_name,
+                    "query": query,
+                    "outcome": "error",
+                    "count_returned": 0,
+                    "count_total": 0,
+                    "ts": datetime.now(UTC).isoformat(),
+                },
+            )
+            if should_compact(channel_name):
+                compact(channel_name)
             return RunChannelResponse(
                 channel=channel_name,
                 ok=False,
@@ -471,6 +498,19 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
         total = len(slim)
         k = max(1, int(k)) if k else 10
         returned = slim[:k]
+        append_event(
+            channel_name,
+            {
+                "skill": channel_name,
+                "query": query,
+                "outcome": "success",
+                "count_returned": len(returned),
+                "count_total": total,
+                "ts": datetime.now(UTC).isoformat(),
+            },
+        )
+        if should_compact(channel_name):
+            compact(channel_name)
         return RunChannelResponse(
             channel=channel_name,
             ok=True,
