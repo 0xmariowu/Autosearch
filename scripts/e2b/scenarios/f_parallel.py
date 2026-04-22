@@ -67,7 +67,9 @@ async def main():
 
 asyncio.run(main())
 """,
-        env={**env, "AUTOSEARCH_LLM_MODE": "dummy"},
+        env={
+            k: v for k, v in env.items() if k != "AUTOSEARCH_LLM_MODE"
+        },  # script sets it after channels
         timeout=90,
     )
     dur = time.monotonic() - t0

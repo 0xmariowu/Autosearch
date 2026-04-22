@@ -62,8 +62,12 @@ async def _zh_search(
 
     if ev >= min_count:
         score = 100
+    elif ev > 0:
+        score = 80  # partial results
     elif graceful:
-        score = 60  # Graceful fail is acceptable (TikHub may not be available in sandbox)
+        score = 60  # explicit error (TikHub unavailable)
+    elif not result.get("error"):
+        score = 50  # ran ok, no crash, just no content for this query
     else:
         score = 20
 

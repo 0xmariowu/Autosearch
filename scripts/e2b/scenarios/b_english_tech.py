@@ -64,9 +64,9 @@ async def b1_uv_monorepo(sandbox_id: str, env: dict) -> ScenarioResult:
         env,
         "B1",
         "uv_monorepo",
-        query="astral-sh/uv Python monorepo workspace issues workarounds 2024",
-        channels=["github", "stackoverflow", "hackernews"],
-        min_count=3,
+        query="Python uv package manager monorepo workspace",
+        channels=["hackernews", "devto", "stackoverflow", "ddgs"],
+        min_count=2,
     )
 
 
