@@ -83,6 +83,34 @@ Reflective loops are expensive (Best tier × N rounds). Runtime AI should:
 - Escalate to 5 rounds only when `rubrics_failed > 30%` after round 3.
 - Never exceed 8 rounds without user confirmation (escalate_budget).
 
+## MCP Tool Usage
+
+Full reflective loop using MCP tools:
+
+```
+# Initialize loop
+result = loop_init()
+state_id = result["state_id"]
+
+# Round 1
+evidence = run_channel(channel_name="arxiv", query="RAG survey 2026")["evidence"]
+loop_update(state_id=state_id, evidence=evidence, query="RAG survey 2026")
+
+# Check gaps after round 1
+gaps = loop_get_gaps(state_id=state_id)["gaps"]
+# gaps might be: ["no benchmarks found", "missing 2026 papers"]
+
+# Manually add a gap if you spot one
+loop_add_gap(state_id=state_id, gap="no industry deployment case studies")
+
+# Round 2: search specifically for gaps
+for gap in gaps:
+    evidence2 = run_channel(channel_name="semantic-scholar", query=gap)["evidence"]
+    loop_update(state_id=state_id, evidence=evidence2, query=gap)
+```
+
+Loop state is in-memory per server process. State is lost on server restart (use within one session).
+
 ## Prior Art Anchors
 
 - **WebThinker**: in-band `<|begin_search_query|>` / `<|begin_click_link|>` protocol — we do not reproduce the tokens, but preserve the explicit state tracking of executed queries / clicked URLs.

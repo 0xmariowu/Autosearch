@@ -80,6 +80,22 @@ Delegate subtasks are cheap in parallel but expensive in total cost. Runtime AI 
 - Feeds output to → `assemble-context` / `synthesize-knowledge` / `citation-index`.
 - Cost controlled by → `autosearch:model-routing` (Standard tier default for the subtask body; Best for the final consolidation).
 
+## MCP Tool Usage
+
+Use the `delegate_subtask` MCP tool to run a query across multiple channels in parallel:
+
+```
+delegate_subtask(
+  task_description="Find Chinese UGC discussions about Cursor AI editor",
+  channels=["xiaohongshu", "zhihu", "bilibili"],
+  query="Cursor AI 编程助手 用户体验",
+  max_per_channel=5
+)
+```
+
+Returns `{evidence_by_channel: {"xiaohongshu": [...], "zhihu": [...]}, summary: "15 results from 3 channels", failed_channels: [], budget_used: {...}}`.
+Feed `evidence_by_channel` values directly into `citation_add` or your synthesis.
+
 ## Failure Modes
 
 - Budget exhausted before any evidence collected → `status: failure`, `failure_reason: "budget_exhausted_before_first_result"`.

@@ -16,7 +16,7 @@ def _load_specs():
 def test_all_channels_loadable() -> None:
     specs = _load_specs()
 
-    assert len(specs) == 34
+    assert len(specs) == 35
     assert [spec.name for spec in specs] == [
         "arxiv",
         "bilibili",
@@ -43,6 +43,7 @@ def test_all_channels_loadable() -> None:
         "sec_edgar",
         "sogou_weixin",
         "stackoverflow",
+        "tieba",
         "tiktok",
         "twitter",
         "v2ex",
@@ -90,12 +91,13 @@ def test_chinese_native_channels_cover_11() -> None:
         "kr36",
         "podcast_cn",
         "sogou_weixin",
+        "tieba",
         "v2ex",
         "weibo",
         "xiaohongshu",
         "zhihu",
     }
-    assert len(chinese_native) == 11
+    assert len(chinese_native) == 12
 
 
 def test_shipped_method_impls_exist_for_registry_channels() -> None:
@@ -125,6 +127,7 @@ def test_shipped_method_impls_exist_for_registry_channels() -> None:
         "sec_edgar": ["methods/api_search.py"],
         "sogou_weixin": ["methods/api_search.py"],
         "stackoverflow": ["methods/api_search.py"],
+        "tieba": ["methods/api_search.py"],
         "tiktok": ["methods/via_tikhub.py"],
         "twitter": ["methods/via_tikhub.py"],
         "v2ex": ["methods/api_search.py"],
@@ -168,6 +171,7 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
         "sec_edgar",
         "sogou_weixin",
         "stackoverflow",
+        "tieba",
         "v2ex",
         "wikidata",
         "wikipedia",
@@ -195,6 +199,7 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
             "sec_edgar": "methods/api_search.py",
             "sogou_weixin": "methods/api_search.py",
             "stackoverflow": "methods/api_search.py",
+            "tieba": "methods/api_search.py",
             "v2ex": "methods/api_search.py",
             "wikidata": "methods/api_search.py",
             "wikipedia": "methods/api_search.py",

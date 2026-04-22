@@ -154,6 +154,22 @@ for leaf in selection.channels[:6]:
 
 Standard-tier LLM call (one pass, ~5s, ~1K tokens in + ~500 out) or can be degraded to Fast-tier with 90% accuracy on simple queries.
 
+## MCP Tool Usage
+
+Use the `select_channels_tool` MCP tool directly instead of executing this algorithm manually:
+
+```
+select_channels_tool(
+  query="小红书有没有人用 Cursor 做编程",
+  channel_priority=["xiaohongshu", "zhihu"],   # from run_clarify output
+  channel_skip=[],
+  mode="fast"
+)
+```
+
+Returns `{groups: ["channels-chinese-ugc"], channels: ["xiaohongshu", "zhihu", "bilibili"], rationale: "..."}`.
+Pass `channels` directly to `run_channel` or `delegate_subtask`.
+
 ## Relationship to Other Skills
 
 - Reads → `autosearch:router` + 14 group index SKILL.md files (L1 progressive disclosure).

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "autosearch"
-version = "2026.04.22.3"
+version = "2026.04.22.4"
 description = "AutoSearch v2 M1 skeleton"
 readme = "README.md"
 requires-python = ">=3.12"

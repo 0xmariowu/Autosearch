@@ -105,6 +105,32 @@ When merging N subagent outputs:
 
 Cheap — mostly bookkeeping. No LLM calls unless resolving ambiguous cases (e.g. "are these two URLs the same resource?"). Runtime AI typically never needs to consult an LLM for citation indexing.
 
+## MCP Tool Usage
+
+Full citation workflow using MCP tools:
+
+```
+# Create an index for this research session
+idx = citation_create()
+index_id = idx["index_id"]
+
+# Add URLs as you collect evidence (idempotent — same URL always gets same number)
+num1 = citation_add(index_id=index_id, url="https://arxiv.org/abs/2501.12345",
+                    title="RAG Survey 2026", source="arxiv")["citation_number"]
+num2 = citation_add(index_id=index_id, url="https://github.com/user/repo",
+                    title="rag-toolkit", source="github")["citation_number"]
+
+# Merge citations from a parallel delegate_subtask result
+# (if you ran delegate_subtask with a separate citation_create per subtask)
+citation_merge(target_id=index_id, source_id=other_index_id)
+
+# Export as Markdown reference list
+refs = citation_export(index_id=index_id)["markdown"]
+# refs = "[1] RAG Survey 2026 — arxiv (https://arxiv.org/abs/2501.12345)\n[2] rag-toolkit ..."
+```
+
+Use `[1]`, `[2]` inline citations in your report body, then append `refs` at the end.
+
 ## Interactions
 
 - Fed by → all channel skills + `delegate-subtask` output.
