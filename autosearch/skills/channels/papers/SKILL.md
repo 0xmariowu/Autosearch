@@ -35,3 +35,9 @@ experience_digest: experience.md
 - Google Scholar can rate-limit or degrade if queried too aggressively, so this channel uses conservative limits.
 - bioRxiv can be flaky on some requests and may intermittently return no results even when related sources succeed.
 - Overlap with the standalone `arxiv` channel is intentional; duplicate arXiv fetches are acceptable because reranking dedupes by URL later.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

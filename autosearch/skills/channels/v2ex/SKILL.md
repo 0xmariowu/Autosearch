@@ -42,3 +42,9 @@ V2EX (www.v2ex.com) is a long-standing Chinese developer community centered on p
 - sov2ex.com is a third-party index, not V2EX's official search. Index freshness depends on that operator; thread titles/bodies are usually current but index lag can be hours.
 - V2EX itself has no public search API — the site relies on external indexes or Google site-search. This channel picks sov2ex as the most stable JSON option.
 - Developer community, so Chinese + English code snippets mix naturally in content. Language tag is `[zh, mixed]`.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

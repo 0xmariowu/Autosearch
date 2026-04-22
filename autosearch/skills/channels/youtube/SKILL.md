@@ -52,3 +52,9 @@ For autosearch coverage, this channel adds strong visual learning and long-form 
 - Search quality varies by language and by how creators title multilingual content.
 - Video metadata is useful, but true instructional quality still depends on transcript and channel context.
 - Recency alone can be misleading because older talks may remain the authoritative explanation.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

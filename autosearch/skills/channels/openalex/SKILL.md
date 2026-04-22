@@ -44,3 +44,9 @@ OpenAlex provides broad scholarly metadata coverage across papers, preprints, ch
 - Abstracts are returned as an inverted index rather than plain prose, so the channel reconstructs them into normal text before truncation.
 - Use OpenAlex's `search` query parameter for keyword search, not `filter`, which is for metadata filtering syntax.
 - OpenAlex is rate-limited to roughly 10 requests per second without auth, and the single-call-per-subquery pattern here stays well under that ceiling.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

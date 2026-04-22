@@ -32,3 +32,9 @@ Google News adds current editorial coverage aggregated across many publishers th
 - RSS only provides headlines and short summaries, not full article bodies.
 - The `link` field is a Google News redirect URL rather than the direct publisher URL, and v1 keeps it intentionally to avoid lossy or failure-prone decoding.
 - The feed is hardcoded to `hl=en-US&gl=US&ceid=US:en` for v1; non-English and non-US market variants are a follow-up.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

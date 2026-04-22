@@ -35,3 +35,9 @@ PubMed is NCBI's free search engine for biomedical and life sciences literature.
 ## How To Search
 
 Uses E-utilities API: `esearch.fcgi` to get IDs, `esummary.fcgi` to fetch metadata.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

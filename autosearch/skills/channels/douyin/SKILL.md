@@ -61,3 +61,9 @@ For autosearch coverage, this channel adds a format and audience segment that ne
 - Short-form content is high-noise and can be weak on factual detail without corroboration.
 - Trend vocabulary changes quickly, so rigid keyword matching will miss some relevant clips.
 - Platform defenses and session expiry can make access more brittle than standard web APIs.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

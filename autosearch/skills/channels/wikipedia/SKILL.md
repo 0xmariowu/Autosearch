@@ -32,3 +32,9 @@ Wikipedia provides authoritative encyclopedia-style background, definitions, fac
 - English Wikipedia only in v1; Chinese Wikipedia support is a future follow-up.
 - Search results only expose list-API snippets, not full article bodies.
 - Requests must include a policy-compliant User-Agent with contact information per Wikimedia requirements.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

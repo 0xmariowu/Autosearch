@@ -41,3 +41,9 @@ General-purpose web search via DuckDuckGo. No API key required, no cookie. Serve
 
 - DDGS occasionally returns empty results during rate limit; channel returns `[]` and logs warn without crashing pipeline.
 - Result URLs may redirect; we keep the original href (no unwrap).
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

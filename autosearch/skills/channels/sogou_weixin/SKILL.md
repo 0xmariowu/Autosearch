@@ -32,3 +32,9 @@ Sogou Weixin adds Chinese-language WeChat Official Account discovery through the
 - The HTML structure is scraped directly and may change without notice.
 - Result links can be Sogou redirect URLs such as `weixin.sogou.com/link?url=...` instead of direct article URLs.
 - Rate limits stay intentionally strict because aggressive scraping can trigger a `302` captcha flow.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

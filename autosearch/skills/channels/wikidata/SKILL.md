@@ -32,3 +32,9 @@ Wikidata provides authoritative structured entity descriptions for people, place
 - Results expose short entity descriptions, not long-form article content.
 - `language=en` is hardcoded in v1.
 - `type=item` intentionally filters out lexemes and properties.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

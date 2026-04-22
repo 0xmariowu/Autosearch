@@ -35,3 +35,9 @@ Docker Hub public registry search. Free, no auth. Returns image name, descriptio
 ## How To Search
 
 Uses `hub.docker.com/v2/search/repositories/` REST endpoint.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

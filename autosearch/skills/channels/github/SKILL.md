@@ -66,3 +66,9 @@ For autosearch, this channel anchors developer intent to concrete artifacts inst
 - Code search is usually the tightest rate-limited method, so it belongs later in the fallback chain.
 - Repository popularity can overwhelm niche but relevant results if ranking is not intent-aware.
 - Issue search returns mixed issue and PR style records, so later impls should normalize thread type carefully.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

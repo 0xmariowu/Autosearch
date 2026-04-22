@@ -32,3 +32,9 @@ InfoQ 中文 adds Chinese-language engineering and enterprise technology coverag
 - The feed is unfiltered and only returns the latest articles, so this channel applies client-side query token matching after fetch.
 - RSS only exposes headline and summary fields, not the full article body.
 - `pubDate` can be stale or less reliable than on-page timestamps for feed-only sources.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

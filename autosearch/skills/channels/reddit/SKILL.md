@@ -32,3 +32,9 @@ Reddit adds public community discussion, user experience reports, troubleshootin
 - Reddit blocks default client signatures, so requests must set a non-empty custom User-Agent.
 - The public endpoint is relatively open, but this channel keeps a conservative rate limit to stay polite.
 - The unauthenticated search API supports broad search well enough for this use case, but it does not provide reliable time-range filtering.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

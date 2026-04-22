@@ -42,3 +42,9 @@ SEC EDGAR is the US Securities and Exchange Commission's full-text search across
 - SEC enforces a User-Agent policy. Every request must carry a contact string or the endpoint may effectively block access.
 - The search endpoint returns filing metadata only, not filing-body excerpts. Snippets are synthesized from form type and filing dates.
 - Coverage is limited to SEC-registered filers, so pure non-US companies are out of scope unless they file with the SEC.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

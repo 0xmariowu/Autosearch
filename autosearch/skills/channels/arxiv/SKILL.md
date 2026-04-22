@@ -51,3 +51,9 @@ For autosearch coverage, this channel gives the planner a clean paper-oriented s
 - arXiv indexes preprints, not peer-review status, so downstream ranking should not imply formal publication.
 - Query syntax can be sensitive to exact author names and category terms.
 - Some papers are highly relevant but have terse abstracts, so recall can be uneven on broad queries.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

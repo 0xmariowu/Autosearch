@@ -46,3 +46,9 @@ experience_digest: experience.md
 - Abstracts may arrive as JATS-like tagged strings and need lightweight tag stripping.
 - Metadata quality varies by publisher, so author and date completeness can differ between records.
 - Crossref is broad rather than domain-specific, so relevance can be noisier than a focused academic index.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.

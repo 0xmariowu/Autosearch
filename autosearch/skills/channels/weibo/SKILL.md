@@ -53,3 +53,9 @@ For autosearch coverage, this channel gives strong Chinese social recency that b
 - The search payload is a heterogeneous card list, and evidence extraction keeps only direct post cards plus nested post cards inside layout groups.
 - Trending content is noisy and can include spam, repost farms, or thin commentary.
 - Entity ambiguity is common because nicknames, hashtags, and shorthand terms dominate conversation.
+
+# Quality Bar
+
+- Evidence items have non-empty title and url.
+- No crash on empty or malformed API response.
+- Source channel field matches the channel name.
