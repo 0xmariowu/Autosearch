@@ -67,7 +67,6 @@ def _to_evidence(summary: dict) -> Evidence | None:
     authors = summary.get("authors") or []
     author_str = ", ".join(a.get("name", "") for a in authors[:3])
     source = summary.get("source") or ""
-    pub_date = summary.get("pubdate") or ""
     doi = next(
         (
             art.get("value", "")
