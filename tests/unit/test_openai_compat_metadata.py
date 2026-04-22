@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 import autosearch.server.main as server_main
 from autosearch.core.models import ClarifyResult, Evidence, SearchMode
-from autosearch.core.pipeline import PipelineResult
+from autosearch.core.models import PipelineResult
 from autosearch.server.openai_compat import ChatCompletionResponse
 
 NOW = datetime(2026, 4, 17, 12, 0, 0)

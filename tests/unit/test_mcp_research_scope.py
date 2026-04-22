@@ -3,7 +3,7 @@ import pytest
 
 import autosearch.mcp.server as mcp_server
 from autosearch.core.models import ClarifyResult, SearchMode
-from autosearch.core.pipeline import PipelineResult
+from autosearch.core.models import PipelineResult
 from autosearch.core.search_scope import SearchScope
 
 

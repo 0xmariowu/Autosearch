@@ -11,7 +11,7 @@ from autosearch.core.models import (
     GradeOutcome,
     SearchMode,
 )
-from autosearch.core.pipeline import PipelineResult
+from autosearch.core.models import PipelineResult
 from autosearch.core.search_scope import SearchScope
 
 runner = CliRunner()
