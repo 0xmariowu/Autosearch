@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026.04.22.3 — 2026-04-22
+
+- You can now run `autosearch doctor` (via MCP) to scan all channel health — shows which channels are ready, missing API keys, or unavailable.
+- You can now run `autosearch configure KEY value` CLI to safely append API keys to `~/.config/ai-secrets.env` with TTY confirmation.
+- New MCP workflow tools: `trace_harvest` (extract winning query patterns), `perspective_questioning` (multi-viewpoint sub-questions), `graph_search_plan` (parallel DAG batching), `recent_signal_fusion` (recency filter), `context_retention_policy` (token-budget trim).
+
+
 ## 2026.04.22.2 — 2026-04-22
 
 - `autosearch query` CLI now exits immediately with a v2 deprecation notice directing you to `list_skills / run_clarify / run_channel` MCP tools.

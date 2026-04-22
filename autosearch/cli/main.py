@@ -274,6 +274,46 @@ def _channel_status_symbol(row: ChannelStatus) -> str:
 
 
 @app.command()
+def configure(
+    key: Annotated[str, typer.Argument(help="Environment variable name, e.g. OPENAI_API_KEY.")],
+    value: Annotated[str, typer.Argument(help="Value to store.")],
+) -> None:
+    """Write a key=value pair to ~/.config/ai-secrets.env (append-only, TTY required)."""
+    import shlex
+    from pathlib import Path
+
+    if not _is_tty():
+        typer.echo("error: configure requires an interactive TTY", err=True)
+        raise typer.Exit(code=1)
+
+    secrets_path = Path.home() / ".config" / "ai-secrets.env"
+
+    existing_keys: set[str] = set()
+    if secrets_path.exists():
+        for line in secrets_path.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#") and "=" in stripped:
+                existing_keys.add(stripped.split("=", 1)[0].strip())
+
+    if key in existing_keys:
+        typer.echo(f"{key} already exists in {secrets_path}. Edit the file manually to change it.")
+        raise typer.Exit(code=0)
+
+    typer.echo(f"Will append to {secrets_path}:")
+    typer.echo(f"  {key}=***")
+    confirmed = typer.confirm("Confirm?", default=False)
+    if not confirmed:
+        typer.echo("Aborted.")
+        raise typer.Exit(code=0)
+
+    secrets_path.parent.mkdir(parents=True, exist_ok=True)
+    with secrets_path.open("a", encoding="utf-8") as fh:
+        fh.write(f"\n{key}={shlex.quote(value)}\n")
+
+    typer.echo(f"Written: {key} -> {secrets_path}")
+
+
+@app.command()
 def serve(
     host: Annotated[
         str,
@@ -327,6 +367,10 @@ def _is_authentication_error(error: Exception) -> bool:
             "invalid x-api-key",
         )
     )
+
+
+def _is_tty() -> bool:
+    return sys.stdin.isatty()
 
 
 def _exit_query_failure(message: str, *, exit_code: int, json_output: bool) -> None:
