@@ -49,6 +49,10 @@ delivery/*.html
 docs/exec-plans/
 HANDOFF.md
 experience/
+!autosearch/skills/channels/xiaohongshu/experience/
+!autosearch/skills/channels/xiaohongshu/experience/patterns.jsonl
+!autosearch/skills/meta/channel-selection/experience/
+!autosearch/skills/meta/channel-selection/experience/patterns.jsonl
 
 # Test artifacts
 .pytest_cache/
