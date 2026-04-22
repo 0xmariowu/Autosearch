@@ -58,12 +58,6 @@ def _parse_results(html: str) -> list[Evidence]:
         r'<a[^>]+href="(/p/\d+)"[^>]*>([^<]{3,100})</a>',
         re.IGNORECASE,
     )
-    # Extract snippets from search result items
-    snippet_pattern = re.compile(
-        r'class="[^"]*content[^"]*"[^>]*>(.*?)</[^>]+>',
-        re.IGNORECASE | re.DOTALL,
-    )
-
     seen_urls: set[str] = set()
     posts = post_pattern.findall(html)
 
