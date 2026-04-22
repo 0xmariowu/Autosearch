@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 
 import autosearch.server.main as server_main
 from autosearch.core.models import ClarifyResult, SearchMode
-from autosearch.core.pipeline import PipelineResult
+from autosearch.core.models import PipelineResult
 
 
 def _ok_result() -> PipelineResult:

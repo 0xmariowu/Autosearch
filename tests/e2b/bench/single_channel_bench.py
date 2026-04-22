@@ -40,7 +40,7 @@ import time
 
 from autosearch.core.channel_bootstrap import _build_channels
 from autosearch.core.models import SearchMode
-from autosearch.core.pipeline import Pipeline
+from autosearch.server.main import Pipeline
 from autosearch.llm.client import LLMClient
 from autosearch.observability.cost import CostTracker
 

@@ -4,7 +4,7 @@ from mcp.server.fastmcp import FastMCP
 
 import autosearch.mcp.server as mcp_server
 from autosearch.core.models import ClarifyResult, SearchMode
-from autosearch.core.pipeline import PipelineResult
+from autosearch.core.models import PipelineResult
 
 
 @pytest.fixture(autouse=True)
