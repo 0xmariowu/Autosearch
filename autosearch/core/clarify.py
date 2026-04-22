@@ -85,6 +85,7 @@ CLARIFY_PROMPT = dedent(
 class _ClarifyCompletion(BaseModel):
     need_clarification: bool
     question: str = ""
+    question_options: list[str] = Field(default_factory=list)
     verification: str = ""
     rubrics: list[str] = Field(default_factory=list)
     mode: SearchMode
@@ -124,6 +125,7 @@ class Clarifier:
         result = ClarifyResult(
             need_clarification=completion.need_clarification,
             question=_normalize_optional_text(completion.question),
+            question_options=list(completion.question_options),
             verification=_normalize_optional_text(completion.verification),
             rubrics=[Rubric(text=text.strip()) for text in completion.rubrics if text.strip()],
             mode=completion.mode,

@@ -62,6 +62,9 @@ class ClarifyToolResponse(BaseModel):
     ok: bool
     need_clarification: bool = False
     question: str | None = None
+    # Structured answer options for AskUserQuestion when need_clarification=true.
+    # Empty list = free-text question; non-empty = show as option buttons.
+    question_options: list[str] = Field(default_factory=list)
     verification: str | None = None
     mode: str | None = None
     query_type: str | None = None
@@ -109,6 +112,7 @@ async def _invoke_clarifier(
         ok=True,
         need_clarification=result.need_clarification,
         question=result.question,
+        question_options=list(result.question_options),
         verification=result.verification,
         mode=result.mode.value if result.mode is not None else None,
         query_type=result.query_type,
