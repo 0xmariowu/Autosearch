@@ -160,17 +160,37 @@ async def run_python(
     env: dict[str, str] | None = None,
     timeout: int = 120,
 ) -> tuple[Any, str]:
-    """Run a Python script; parse stdout as JSON. Returns (result_dict, stderr)."""
-    # Escape the script for bash -c 'python3 -c "..."'
-    safe = script.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
-    cmd = f'python3 -c "{safe}"'
-    out, err, code = await run_cmd(sandbox_id, cmd, env=env, timeout=timeout)
+    """Run a Python script; parse stdout as JSON. Returns (result_dict, stderr).
+
+    Uses a temp file to avoid shell-escaping issues with complex scripts.
+    Extracts the last JSON line from stdout (skipping structlog lines).
+    """
+    import base64 as _b64
+
+    # Write script to sandbox via echo+base64 to avoid any escaping issues
+    b64 = _b64.b64encode(script.encode()).decode()
+    write_cmd = f"echo '{b64}' | base64 -d > /tmp/_autosearch_test.py"
+    await run_cmd(sandbox_id, write_cmd, timeout=15)
+
+    out, err, code = await run_cmd(
+        sandbox_id,
+        "python3 /tmp/_autosearch_test.py",
+        env=env,
+        timeout=timeout,
+    )
     if code != 0:
-        return {"ok": False, "error": err or out, "exit_code": code}, err
-    try:
-        return json.loads(out), err
-    except json.JSONDecodeError:
-        return {"ok": False, "raw_output": out, "parse_error": "not JSON"}, err
+        return {"ok": False, "error": (err or out)[:500], "exit_code": code}, err
+
+    # Find the last line that looks like JSON (handles structlog noise on stdout)
+    for line in reversed(out.strip().splitlines()):
+        line = line.strip()
+        if line.startswith("{") or line.startswith("["):
+            try:
+                return json.loads(line), err
+            except json.JSONDecodeError:
+                continue
+
+    return {"ok": False, "raw_output": out[:500], "parse_error": "no JSON line found"}, err
 
 
 # ── Install autosearch ────────────────────────────────────────────────────────
