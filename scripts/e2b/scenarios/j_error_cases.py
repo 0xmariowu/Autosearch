@@ -11,7 +11,9 @@ def _clean_env(env: dict) -> dict:
     return {k: v for k, v in env.items() if k != "AUTOSEARCH_LLM_MODE"}
 
 
-async def _install_or_fail(sandbox_id: str, scenario_id: str, name: str, t0: float) -> ScenarioResult | None:
+async def _install_or_fail(
+    sandbox_id: str, scenario_id: str, name: str, t0: float
+) -> ScenarioResult | None:
     ok = await install_autosearch(sandbox_id)
     if ok:
         return None
