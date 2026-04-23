@@ -26,7 +26,7 @@ LOGGER = structlog.get_logger(__name__).bind(component="channel", channel="xiaoh
 
 _SIGNSRV_URL = os.environ.get("AUTOSEARCH_SIGNSRV_URL", "").rstrip("/")
 _SERVICE_TOKEN = os.environ.get("AUTOSEARCH_SERVICE_TOKEN", "")
-_XHS_A1_COOKIE = os.environ.get("XHS_A1_COOKIE", "")
+_XHS_A1_COOKIE = os.environ.get("XHS_A1_COOKIE") or os.environ.get("XIAOHONGSHU_COOKIES", "")
 
 _XHS_SEARCH_URL = "https://edith.xiaohongshu.com/api/sns/web/v1/search/notes"
 _XHS_SEARCH_PATH = "/api/sns/web/v1/search/notes"

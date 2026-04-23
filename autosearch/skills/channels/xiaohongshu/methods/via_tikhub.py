@@ -11,10 +11,6 @@ from autosearch.lib.tikhub_client import TikhubClient, TikhubError
 
 LOGGER = structlog.get_logger(__name__).bind(component="channel", channel="xiaohongshu")
 
-# Two-step flow: sign first, then search.
-# Step 1: POST to get X-s/X-t/X-s-common signing tokens.
-SIGN_PATH = "/api/v1/xiaohongshu/web/sign"
-# Step 2: GET search results with those tokens as headers.
 SEARCH_PATH = "/api/v1/xiaohongshu/web_v3/fetch_search_notes"
 
 MAX_SNIPPET_LENGTH = 300
@@ -81,44 +77,11 @@ def _to_evidence(item: Mapping[str, object], *, fetched_at: datetime) -> Evidenc
 async def search(query: SubQuery, client: TikhubClient | None = None) -> list[Evidence]:
     tikhub_client = client or TikhubClient()
 
-    # Step 1: get signing tokens for this search request
-    sign_body = {
-        "path": "/api/sns/web/v1/search/notes",
-        "data": {
-            "keyword": query.text,
-            "page": 1,
-            "page_size": 20,
-            "search_id": "",
-            "sort": "general",
-            "note_type": 0,
-        },
-    }
-    try:
-        sign_payload = await tikhub_client.post(SIGN_PATH, sign_body)
-    except (TikhubError, ValueError) as exc:
-        LOGGER.warning("xiaohongshu_tikhub_sign_failed", reason=str(exc))
-        return []
-
-    sign_data = sign_payload.get("data", {})
-    if not isinstance(sign_data, Mapping):
-        LOGGER.warning("xiaohongshu_tikhub_sign_failed", reason="missing_sign_data")
-        return []
-
-    xs = str(sign_data.get("X-s") or "").strip()
-    xt = str(sign_data.get("X-t") or "").strip()
-    xs_common = str(sign_data.get("X-s-common") or "").strip()
-
-    if not xs:
-        LOGGER.warning("xiaohongshu_tikhub_sign_failed", reason="empty_xs_token")
-        return []
-
-    # Step 2: search with signing tokens as headers
-    extra_headers: dict[str, str] = {"X-s": xs, "X-t": xt, "X-s-common": xs_common}
+    # TikHub web_v3 handles XHS signing internally — direct GET, no sign step needed.
     try:
         payload = await tikhub_client.get(
             SEARCH_PATH,
-            {"keyword": query.text, "page": 1},
-            extra_headers=extra_headers,
+            {"keyword": query.text, "page": 1, "page_size": 20, "sort": "general", "note_type": 0},
         )
     except (TikhubError, ValueError) as exc:
         LOGGER.warning("xiaohongshu_tikhub_search_failed", reason=str(exc))
