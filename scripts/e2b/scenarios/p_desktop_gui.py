@@ -20,7 +20,12 @@ except ImportError:  # pragma: no cover - optional phase-2 dependency
     DesktopSandbox = None  # type: ignore[assignment]
 
 
-_INSTALL_CMD = "pip3 install git+https://github.com/0xmariowu/Autosearch.git -q 2>&1 | tail -3"
+# Use python3 -m pip so pip and python3 are guaranteed to share the same interpreter.
+_INSTALL_CMD = (
+    "python3 -m pip install git+https://github.com/0xmariowu/Autosearch.git -q 2>&1 | tail -3"
+)
+# After install, autosearch CLI entry-point may not be in PATH; use module invocation instead.
+_AUTOSEARCH_CLI = "python3 -m autosearch.cli.main"
 _CATEGORY = "P"
 
 
@@ -166,7 +171,9 @@ async def p1_cli_install_in_terminal(sandbox_id: str, env: dict) -> ScenarioResu
 
     async def _body(sbx: DesktopSandbox) -> dict[str, Any]:
         install_out, install_err, install_code = await _install(sbx)
-        help_out, help_err, help_code = await _desktop_cmd(sbx, "autosearch --help 2>&1 | head -5")
+        help_out, help_err, help_code = await _desktop_cmd(
+            sbx, f"{_AUTOSEARCH_CLI} --help 2>&1 | head -5"
+        )
         help_text = _combined(help_out, help_err)
         install_ok = install_code == 0
         help_ok = help_code == 0 and ("autosearch" in help_text.lower() or "Usage" in help_text)
@@ -199,7 +206,7 @@ async def p2_doctor_cli_output(sandbox_id: str, env: dict) -> ScenarioResult:
                 "error": "pip install failed",
             }
 
-        stdout, stderr, code = await _desktop_cmd(sbx, "autosearch doctor 2>&1", timeout=60)
+        stdout, stderr, code = await _desktop_cmd(sbx, f"{_AUTOSEARCH_CLI} doctor 2>&1", timeout=60)
         text = _combined(stdout, stderr)
         expected = any(token in text.lower() for token in ("arxiv", "ok", "warn", "off"))
         ok = code == 0 and expected
@@ -228,7 +235,7 @@ async def p3_configure_cli(sandbox_id: str, env: dict) -> ScenarioResult:
 
         cmd = (
             'echo "OPENROUTER_API_KEY=test_key_12345" >> /tmp/test_secrets.env '
-            "&& autosearch configure OPENROUTER_API_KEY test_key_12345 2>&1"
+            f"&& {_AUTOSEARCH_CLI} configure OPENROUTER_API_KEY test_key_12345 2>&1"
         )
         stdout, stderr, code = await _desktop_cmd(sbx, cmd, timeout=60)
         text = _combined(stdout, stderr)
@@ -263,7 +270,7 @@ async def p4_mcp_server_starts(sandbox_id: str, env: dict) -> ScenarioResult:
             }
 
         stdout, stderr, code = await _desktop_cmd(
-            sbx, "timeout 10 autosearch-mcp 2>&1 || true", timeout=15
+            sbx, "timeout 10 python3 -m autosearch.mcp.cli 2>&1 || true", timeout=15
         )
         text = _combined(stdout, stderr)
         lower = text.lower()
@@ -460,7 +467,9 @@ async def p8_reinstall_no_state_corruption(sandbox_id: str, env: dict) -> Scenar
             sbx,
             f"""
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone as _tz
+
+UTC = _tz.utc
 from pathlib import Path
 from autosearch.skills.experience import _find_skill_dir, append_event
 
@@ -485,7 +494,7 @@ print(json.dumps({{'ok': exists and contains, 'patterns_path': str(patterns_path
         )
         reinstall_out, reinstall_err, reinstall_code = await _desktop_cmd(
             sbx,
-            "pip3 install --force-reinstall git+https://github.com/0xmariowu/Autosearch.git -q 2>&1 | tail -3",
+            "python3 -m pip install --force-reinstall git+https://github.com/0xmariowu/Autosearch.git -q 2>&1 | tail -3",
             timeout=180,
         )
         after, _, _, _ = await _desktop_python_json(
@@ -661,10 +670,10 @@ async def p12_help_text_complete(sandbox_id: str, env: dict) -> ScenarioResult:
             }
 
         main_out, main_err, main_code = await _desktop_cmd(
-            sbx, "autosearch --help 2>&1", timeout=60
+            sbx, f"{_AUTOSEARCH_CLI} --help 2>&1", timeout=60
         )
         doctor_out, doctor_err, doctor_code = await _desktop_cmd(
-            sbx, "autosearch doctor --help 2>&1", timeout=60
+            sbx, f"{_AUTOSEARCH_CLI} doctor --help 2>&1", timeout=60
         )
         ok_count = int(main_code == 0) + int(doctor_code == 0)
         ok = ok_count == 2
