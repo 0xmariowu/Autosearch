@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026.04.23.4 — 2026-04-23
+
+- You can now install AutoSearch with `npm install -g autosearch-ai` — no Python setup required
+- Docs site (docs.autosearch.dev) overhauled: new Quickstart, Channels, and Install pages
+- README rewritten to reflect current feature set
+
+
+
 ## 2026.04.23.3 — 2026-04-23
 
 - `autosearch init` now shows ASCII banner, auto-configures MCP for Claude Code / Cursor, and displays Integration Status + "You are all set!" — vibeusage-style install UX
