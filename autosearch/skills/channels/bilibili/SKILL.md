@@ -19,7 +19,7 @@ methods:
     impl: methods/api_video_detail.py
     requires: [cookie:bilibili]
     rate_limit: {per_min: 20, per_hour: 300}
-fallback_chain: [via_tikhub, api_search, api_video_detail]
+fallback_chain: [api_search, via_tikhub, api_video_detail]
 when_to_use:
   query_languages: [zh, mixed]
   query_types: [tutorial-video, comparison, breakdown, tech-opinion]
