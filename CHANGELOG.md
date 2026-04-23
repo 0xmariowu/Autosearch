@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026.04.23.8 — 2026-04-23
+
+- New one-command installer: `curl -fsSL https://raw.githubusercontent.com/0xmariowu/Autosearch/main/scripts/install.sh | bash` — handles uv/pipx/pip automatically and shows the init screen
+
+
 ## 2026.04.23.7 — 2026-04-23
 
 - Fixed `npm install -g autosearch-ai` failing on Macs where pip3 points to Xcode's Python 3.9 — now detects Python 3.12+ explicitly
