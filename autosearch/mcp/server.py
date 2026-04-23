@@ -418,6 +418,39 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
         return "ok"
 
     @server.tool()
+    def list_modes() -> dict:
+        """List available search modes with their channel guidance.
+
+        Returns the built-in research modes (academic, news, chinese_ugc,
+        developer, product) plus any user-defined custom modes from
+        ~/.config/autosearch/custom_modes.json.
+
+        Each mode includes:
+          - key: mode identifier to pass to run_clarify as mode_hint
+          - label_zh / label_en: display name
+          - keywords: phrases that trigger auto-detection
+          - channel_priority: recommended channels for this mode
+          - channel_skip: channels to avoid for this mode
+        """
+        from autosearch.core.search_modes import list_modes as _list_modes
+
+        return {
+            "modes": [
+                {
+                    "key": m.key,
+                    "label_zh": m.label_zh,
+                    "label_en": m.label_en,
+                    "keywords": m.keywords[:6],
+                    "channel_priority": m.channel_priority,
+                    "channel_skip": m.channel_skip,
+                    "is_system": m.is_system,
+                }
+                for m in _list_modes()
+            ],
+            "total": len(_list_modes()),
+        }
+
+    @server.tool()
     async def run_clarify(
         query: str,
         mode_hint: Literal["fast", "deep", "comprehensive"] | None = None,
@@ -443,8 +476,27 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
               - mode / query_type / rubrics / channel_priority / channel_skip
                 as structured guidance for the runtime's next step.
         """
+        from autosearch.core.search_modes import detect_mode
+
         parsed_mode = SearchMode(mode_hint) if mode_hint else None
-        return await _invoke_clarifier(query=query, mode_hint=parsed_mode)
+        result = await _invoke_clarifier(query=query, mode_hint=parsed_mode)
+
+        # Augment with search mode guidance (channel priority + system prompt hint)
+        detected = detect_mode(query)
+        if detected is not None:
+            # Merge detected mode's channel guidance (clarifier result takes precedence)
+            if not result.channel_priority and detected.channel_priority:
+                result = result.model_copy(
+                    update={
+                        "channel_priority": detected.channel_priority,
+                        "channel_skip": list(set(result.channel_skip) | set(detected.channel_skip)),
+                    }
+                )
+            # Inject mode key so runtime AI knows which mode was detected
+            if result.mode is None:
+                result = result.model_copy(update={"mode": detected.key})
+
+        return result
 
     @server.tool()
     async def run_channel(
