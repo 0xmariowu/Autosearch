@@ -42,7 +42,7 @@ Help me install AutoSearch: https://raw.githubusercontent.com/0xmariowu/Autosear
 Or install directly:
 
 ```bash
-npm install -g autosearch-ai && autosearch-ai init
+npm install -g autosearch-ai
 ```
 
 After install, your Agent searches 39 channels simultaneously — academic papers, developer communities, Chinese social media — results deduplicated and ranked, every result includes a source URL.
