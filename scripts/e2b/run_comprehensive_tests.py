@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """AutoSearch E2B Comprehensive Test Orchestrator.
 
-Runs 59 scenarios in parallel across E2B sandboxes.
+Runs 126 scenarios in parallel across E2B sandboxes.
 Each sandbox: create → install autosearch → run scenario → collect result → kill.
 
 Usage:
@@ -118,6 +118,87 @@ from scripts.e2b.scenarios.w_windows_emulation import (  # noqa: E402
     w2_windows_home_dir_mock,
     w3_windows_path_separator,
 )
+from scripts.e2b.scenarios.p_desktop_gui import (  # noqa: E402
+    p1_cli_install_in_terminal,
+    p2_doctor_cli_output,
+    p3_configure_cli,
+    p4_mcp_server_starts,
+    p5_list_skills_cli,
+    p6_doctor_json_output,
+    p7_multiple_tool_calls,
+    p8_reinstall_no_state_corruption,
+    p9_wine_cli_path_test,
+    p10_error_message_quality,
+    p11_long_running_no_hang,
+    p12_help_text_complete,
+)
+from scripts.e2b.scenarios.q_search_quality import (  # noqa: E402
+    q1_arxiv_cot_prompting,
+    q2_pubmed_rna_biomarker,
+    q3_hackernews_rust_tokio,
+    q4_stackoverflow_asyncio,
+    q5_github_opentelemetry,
+    q6_devto_typescript_generics,
+    q7_ddgs_claude_code_hooks,
+    q8_wikipedia_transformer_attention,
+    q9_pubmed_crispr_trials,
+    q10_arxiv_diffusion_survey,
+    q11_hackernews_uv_python,
+    q12_stackoverflow_kubernetes_autoscaling,
+    q13_ddgs_chinese_rag,
+    q14_ddgs_chinese_macos_homebrew,
+    q15_devto_ai_coding_workflow,
+)
+from scripts.e2b.scenarios.r_channel_reliability import (  # noqa: E402
+    r1_channel_timeout_graceful,
+    r2_channel_429_graceful,
+    r3_channel_malformed_response,
+    r4_empty_channel_loop_continues,
+    r5_concurrent_5_arxiv,
+    r6_delegate_1_channel_fails,
+    r7_long_query_all_free_channels,
+    r8_unicode_query_stability,
+    r9_large_k_parameter,
+    r10_10_different_channels_simultaneous,
+)
+from scripts.e2b.scenarios.s_stress_testing import (  # noqa: E402
+    s1_concurrent_10_channels,
+    s2_citation_100_unique_adds,
+    s3_experience_100_events_compact,
+    s4_loop_5_rounds,
+    s5_delegate_10_channels_parallel,
+    s6_context_retention_500_items,
+    s7_citation_50_duplicate_stress,
+    s8_rapid_loop_20_updates,
+)
+from scripts.e2b.scenarios.t_experience_effect import (  # noqa: E402
+    t1_experience_injected_in_rationale,
+    t2_pattern_quality_threshold,
+    t3_failure_not_promoted,
+    t4_experience_size_compliance,
+    t5_multi_channel_independence,
+    t6_experience_append_atomic,
+    t7_failure_only_in_known_failures,
+    t8_experience_compact_integration,
+)
+from scripts.e2b.scenarios.x_tikhub_pathfinding import (  # noqa: E402
+    x1_bilibili_mlx_tutorial,
+    x2_bilibili_llm_tutorial,
+    x3_xiaohongshu_cursor_ide,
+    x4_xiaohongshu_python_learning,
+    x5_weibo_ai_tech,
+    x6_douyin_programming,
+    x7_tiktok_english_tech,
+    x8_tikhub_cross_platform,
+)
+from scripts.e2b.scenarios.v_cross_platform import (  # noqa: E402
+    v1_musl_libc_mock,
+    v2_python310_version_check,
+    v3_windows_full_env_mock,
+    v4_windows_no_ansi_cli,
+    v5_stub_gh_actions_windows,
+    v6_locale_utf8_handling,
+)
 
 # ── Scenario registry ─────────────────────────────────────────────────────────
 
@@ -187,6 +268,82 @@ ALL_SCENARIOS = [
     ("W1", "W", w1_windows_platform_mock),
     ("W2", "W", w2_windows_home_dir_mock),
     ("W3", "W", w3_windows_path_separator),
+    # NOTE: P scenarios create their own e2b_desktop sandbox internally.
+    # The headless sandbox_id passed to them is unused.
+    # ── Phase 2: Desktop GUI ─────────────────────────────────────────────────
+    ("P1", "P", p1_cli_install_in_terminal),
+    ("P2", "P", p2_doctor_cli_output),
+    ("P3", "P", p3_configure_cli),
+    ("P4", "P", p4_mcp_server_starts),
+    ("P5", "P", p5_list_skills_cli),
+    ("P6", "P", p6_doctor_json_output),
+    ("P7", "P", p7_multiple_tool_calls),
+    ("P8", "P", p8_reinstall_no_state_corruption),
+    ("P9", "P", p9_wine_cli_path_test),
+    ("P10", "P", p10_error_message_quality),
+    ("P11", "P", p11_long_running_no_hang),
+    ("P12", "P", p12_help_text_complete),
+    # ── Phase 2: Search Quality Judge ────────────────────────────────────────
+    ("Q1", "Q", q1_arxiv_cot_prompting),
+    ("Q2", "Q", q2_pubmed_rna_biomarker),
+    ("Q3", "Q", q3_hackernews_rust_tokio),
+    ("Q4", "Q", q4_stackoverflow_asyncio),
+    ("Q5", "Q", q5_github_opentelemetry),
+    ("Q6", "Q", q6_devto_typescript_generics),
+    ("Q7", "Q", q7_ddgs_claude_code_hooks),
+    ("Q8", "Q", q8_wikipedia_transformer_attention),
+    ("Q9", "Q", q9_pubmed_crispr_trials),
+    ("Q10", "Q", q10_arxiv_diffusion_survey),
+    ("Q11", "Q", q11_hackernews_uv_python),
+    ("Q12", "Q", q12_stackoverflow_kubernetes_autoscaling),
+    ("Q13", "Q", q13_ddgs_chinese_rag),
+    ("Q14", "Q", q14_ddgs_chinese_macos_homebrew),
+    ("Q15", "Q", q15_devto_ai_coding_workflow),
+    # ── Phase 2: Channel Reliability ─────────────────────────────────────────
+    ("R1", "R", r1_channel_timeout_graceful),
+    ("R2", "R", r2_channel_429_graceful),
+    ("R3", "R", r3_channel_malformed_response),
+    ("R4", "R", r4_empty_channel_loop_continues),
+    ("R5", "R", r5_concurrent_5_arxiv),
+    ("R6", "R", r6_delegate_1_channel_fails),
+    ("R7", "R", r7_long_query_all_free_channels),
+    ("R8", "R", r8_unicode_query_stability),
+    ("R9", "R", r9_large_k_parameter),
+    ("R10", "R", r10_10_different_channels_simultaneous),
+    # ── Phase 2: Stress Testing ───────────────────────────────────────────────
+    ("S1", "S", s1_concurrent_10_channels),
+    ("S2", "S", s2_citation_100_unique_adds),
+    ("S3", "S", s3_experience_100_events_compact),
+    ("S4", "S", s4_loop_5_rounds),
+    ("S5", "S", s5_delegate_10_channels_parallel),
+    ("S6", "S", s6_context_retention_500_items),
+    ("S7", "S", s7_citation_50_duplicate_stress),
+    ("S8", "S", s8_rapid_loop_20_updates),
+    # ── Phase 2: Experience Effectiveness ────────────────────────────────────
+    ("T1", "T", t1_experience_injected_in_rationale),
+    ("T2", "T", t2_pattern_quality_threshold),
+    ("T3", "T", t3_failure_not_promoted),
+    ("T4", "T", t4_experience_size_compliance),
+    ("T5", "T", t5_multi_channel_independence),
+    ("T6", "T", t6_experience_append_atomic),
+    ("T7", "T", t7_failure_only_in_known_failures),
+    ("T8", "T", t8_experience_compact_integration),
+    # ── Phase 2: TikHub Pathfinding ───────────────────────────────────────────
+    ("X1", "X", x1_bilibili_mlx_tutorial),
+    ("X2", "X", x2_bilibili_llm_tutorial),
+    ("X3", "X", x3_xiaohongshu_cursor_ide),
+    ("X4", "X", x4_xiaohongshu_python_learning),
+    ("X5", "X", x5_weibo_ai_tech),
+    ("X6", "X", x6_douyin_programming),
+    ("X7", "X", x7_tiktok_english_tech),
+    ("X8", "X", x8_tikhub_cross_platform),
+    # ── Phase 2: Cross-Platform (bonus) ──────────────────────────────────────
+    ("V1", "V", v1_musl_libc_mock),
+    ("V2", "V", v2_python310_version_check),
+    ("V3", "V", v3_windows_full_env_mock),
+    ("V4", "V", v4_windows_no_ansi_cli),
+    ("V5", "V", v5_stub_gh_actions_windows),
+    ("V6", "V", v6_locale_utf8_handling),
 ]
 
 

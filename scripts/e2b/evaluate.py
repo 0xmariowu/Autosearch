@@ -6,21 +6,28 @@ from collections import defaultdict
 
 from scripts.e2b.sandbox_runner import ScenarioResult
 
-# Category weights in the final score
 _CATEGORY_WEIGHTS = {
-    "A": 0.15,
-    "B": 0.10,
-    "C": 0.10,
-    "D": 0.10,
-    "E": 0.05,
-    "F": 0.05,
-    "G": 0.10,
-    "H": 0.10,
-    "I": 0.10,
-    "J": 0.05,
-    "K": 0.05,
-    "L": 0.05,
-    # W: bonus only — not scored
+    # Phase 1 (A-L)
+    "A": 0.06,
+    "B": 0.04,
+    "C": 0.04,
+    "D": 0.04,
+    "E": 0.02,
+    "F": 0.02,
+    "G": 0.04,
+    "H": 0.04,
+    "I": 0.04,
+    "J": 0.03,
+    "K": 0.03,
+    "L": 0.03,
+    # Phase 2 (P-X)
+    "P": 0.08,
+    "Q": 0.14,
+    "R": 0.07,
+    "S": 0.06,
+    "T": 0.06,
+    "X": 0.07,
+    # V and W: bonus only — not scored
 }
 
 _READINESS_THRESHOLD = 80
@@ -34,7 +41,7 @@ def compute_summary(results: list[ScenarioResult]) -> dict:
 
     category_scores: dict[str, float] = {}
     for cat, cat_results in by_category.items():
-        if cat == "W":
+        if cat in ("W", "V"):
             continue
         if cat_results:
             category_scores[cat] = sum(r.score for r in cat_results) / len(cat_results)
@@ -49,8 +56,8 @@ def compute_summary(results: list[ScenarioResult]) -> dict:
     else:
         overall = 0.0
 
-    passed = sum(1 for r in results if r.passed and r.category != "W")
-    total_scored = len([r for r in results if r.category != "W"])
+    passed = sum(1 for r in results if r.passed and r.category not in ("W", "V"))
+    total_scored = len([r for r in results if r.category not in ("W", "V")])
     total_ev = sum(r.evidence_count for r in results)
     total_report = sum(r.report_length for r in results)
 
@@ -73,11 +80,11 @@ def compute_summary(results: list[ScenarioResult]) -> dict:
         "failures": [
             {"id": r.scenario_id, "name": r.name, "score": r.score, "error": r.error[:100]}
             for r in results
-            if not r.passed and r.category != "W"
+            if not r.passed and r.category not in ("W", "V")
         ],
     }
 
-    bonus = [r for r in results if r.category == "W"]
+    bonus = [r for r in results if r.category in ("W", "V")]
     summary["bonus_results"] = [r.to_dict() for r in bonus]
     summary["bonus_passed"] = sum(1 for r in bonus if r.passed)
     summary["bonus_total"] = len(bonus)
