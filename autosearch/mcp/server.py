@@ -579,7 +579,7 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
         slim = proc.dedup_simhash(slim)
         total = len(slim)  # count after dedup, before k cutoff
         slim = proc.rerank_bm25(slim, query, top_k=k)
-        returned = [ev.to_slim_dict() for ev in slim]
+        returned = [ev.to_context_dict() for ev in slim]
         append_event(
             channel_name,
             {
