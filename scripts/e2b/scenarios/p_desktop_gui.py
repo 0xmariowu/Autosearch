@@ -20,14 +20,22 @@ except ImportError:  # pragma: no cover - optional phase-2 dependency
     DesktopSandbox = None  # type: ignore[assignment]
 
 
-# pip 22 (Ubuntu 22.04 desktop template) misnames git-URL installs as "UNKNOWN-0.0.0".
-# Clone first, then pip install from local dir. No pipes — pipes mask exit codes.
-_INSTALL_CMD = (
-    "git clone https://github.com/0xmariowu/Autosearch.git /tmp/autosearch_d -q "
-    "&& python3 -m pip install /tmp/autosearch_d -q"
+# Ubuntu 22.04 desktop template has Python 3.10; autosearch requires >=3.12.
+# Install Python 3.12 via deadsnakes PPA + venv (venv ships its own pip, no distutils issues).
+# Total setup ~47s: PPA 19s + venv 3s + pip install 25s.
+_PYTHON312_SETUP = (
+    "sudo add-apt-repository -y ppa:deadsnakes/ppa 2>&1 | tail -1 "
+    "&& sudo apt-get update -q 2>&1 | tail -1 "
+    "&& sudo apt-get install -y python3.12 python3.12-venv -q 2>&1 | tail -1 "
+    "&& python3.12 -m venv /tmp/venv312"
 )
-# After install, autosearch CLI entry-point may not be in PATH; use module invocation instead.
-_AUTOSEARCH_CLI = "python3 -m autosearch.cli.main"
+_INSTALL_CMD = (
+    f"{_PYTHON312_SETUP} "
+    "&& git clone https://github.com/0xmariowu/Autosearch.git /tmp/autosearch_d -q "
+    "&& /tmp/venv312/bin/pip install /tmp/autosearch_d -q"
+)
+_VENV_PYTHON = "/tmp/venv312/bin/python"
+_AUTOSEARCH_CLI = f"{_VENV_PYTHON} -m autosearch.cli.main"
 _CATEGORY = "P"
 
 
@@ -68,7 +76,13 @@ async def _desktop_python(
     # Write script via pipe+redirect (requires shell, handled by _desktop_cmd)
     write_cmd = f"printf '%s' {shlex.quote(b64)} | base64 -d > /tmp/_p_test.py"
     await _desktop_cmd(sbx, write_cmd, timeout=15)
-    return await _desktop_cmd(sbx, "python3 /tmp/_p_test.py", timeout=timeout)
+    # Use venv Python (3.12) so autosearch imports work
+    py = (
+        _VENV_PYTHON
+        if (await _desktop_cmd(sbx, f"test -x {_VENV_PYTHON}", timeout=5))[2] == 0
+        else "python3"
+    )
+    return await _desktop_cmd(sbx, f"{py} /tmp/_p_test.py", timeout=timeout)
 
 
 async def _create_desktop(env: dict) -> DesktopSandbox:
@@ -83,7 +97,7 @@ async def _create_desktop(env: dict) -> DesktopSandbox:
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(
         None,
-        lambda: DesktopSandbox.create(resolution=(1280, 720), envs=desktop_env, timeout=300),
+        lambda: DesktopSandbox.create(resolution=(1280, 720), envs=desktop_env, timeout=600),
     )
 
 
@@ -134,7 +148,8 @@ async def _with_desktop(
 
 
 async def _install(sbx: DesktopSandbox) -> tuple[str, str, int]:
-    return await _desktop_cmd(sbx, _INSTALL_CMD, timeout=180)
+    # deadsnakes PPA + venv + pip install takes ~50-90s total
+    return await _desktop_cmd(sbx, _INSTALL_CMD, timeout=300)
 
 
 def _combined(stdout: str, stderr: str) -> str:
@@ -154,7 +169,7 @@ async def _desktop_python_json(
     b64 = base64.b64encode(script.encode()).decode()
     cmd = (
         f"printf %s {shlex.quote(b64)} | base64 -d > /tmp/_autosearch_desktop_test.py "
-        "&& python3 /tmp/_autosearch_desktop_test.py"
+        f"&& {_VENV_PYTHON} /tmp/_autosearch_desktop_test.py"
     )
     stdout, stderr, code = await _desktop_cmd(sbx, cmd, timeout=timeout)
     if code != 0:
@@ -285,7 +300,7 @@ async def p4_mcp_server_starts(sandbox_id: str, env: dict) -> ScenarioResult:
             }
 
         stdout, stderr, code = await _desktop_cmd(
-            sbx, "timeout 10 python3 -m autosearch.mcp.cli 2>&1 || true", timeout=15
+            sbx, f"timeout 10 {_VENV_PYTHON} -m autosearch.mcp.cli 2>&1 || true", timeout=15
         )
         text = _combined(stdout, stderr)
         lower = text.lower()
@@ -509,7 +524,7 @@ print(json.dumps({{'ok': exists and contains, 'patterns_path': str(patterns_path
         )
         reinstall_out, reinstall_err, reinstall_code = await _desktop_cmd(
             sbx,
-            "python3 -m pip install --force-reinstall /tmp/autosearch_d -q 2>&1 | tail -2",
+            "/tmp/venv312/bin/pip install --force-reinstall /tmp/autosearch_d -q",
             timeout=180,
         )
         after, _, _, _ = await _desktop_python_json(
