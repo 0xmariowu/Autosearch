@@ -1,0 +1,66 @@
+---
+title: "Quickstart"
+description: "First search in 5 minutes"
+---
+
+## 1. Install
+
+```bash
+npm install -g autosearch-ai
+autosearch-ai init
+```
+
+`init` auto-configures the MCP server. You should see:
+
+```
+✅ Python 3.12+              [OK]
+✅ claude_code               [Detected]
+✅ MCP server                [Config written]
+✅ Search channels           [32/39 ready]
+
++--------------------------------------------+
+|  You are all set!                           |
+|  Run: autosearch doctor — channel status    |
+|  Run: autosearch login xhs — Chinese media  |
++--------------------------------------------+
+```
+
+## 2. Open Claude Code
+
+Restart Claude Code (or run `/mcp` to reload). AutoSearch tools will appear automatically.
+
+## 3. Run your first search
+
+Ask Claude:
+
+```
+Search arxiv for "transformer long-context 2026" and summarize the top findings.
+```
+
+Claude will call `run_clarify` → `delegate_subtask` → `consolidate_research` automatically.
+
+## 4. Deep research
+
+For longer research sessions:
+
+```
+Research the current state of open-source LLM inference optimization.
+Use AutoSearch to search academic and developer sources, then give me a structured report.
+```
+
+AutoSearch handles multi-round searching, gap detection, and result deduplication.
+
+## 5. Check channel status
+
+```bash
+autosearch doctor
+```
+
+To unlock Chinese social media channels (Xiaohongshu, Weibo, Douyin, etc.):
+
+```bash
+autosearch login xhs
+autosearch configure TIKHUB_API_KEY <your-key>
+```
+
+See the [full install guide](/install) for all options.

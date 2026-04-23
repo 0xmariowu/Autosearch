@@ -1,0 +1,80 @@
+---
+title: "Channels"
+description: "All 39 search channels — tiers, languages, and requirements"
+---
+
+AutoSearch organizes channels into three tiers. Run `autosearch doctor` to see live status.
+
+## Tier 0 — Always-on (21 channels)
+
+No configuration needed. Available immediately after install.
+
+| Channel | Languages | Description | Yield |
+|---|---|---|---|
+| arxiv | en | Academic preprints in CS/ML/physics | medium-high |
+| crossref | en | Cross-publisher scholarly search via DOI registry | medium |
+| dblp | en | Computer science bibliography — papers, proceedings | medium |
+| ddgs | en, mixed | DuckDuckGo web search, no auth required | medium |
+| devto | en, mixed | Developer blog articles tagged by technology | medium |
+| github | en | Code, issues, and repository discovery | high |
+| google_news | en, mixed | Current news headlines via Google News RSS | high |
+| hackernews | en | Developer discussion, tooling opinions, early product signals | medium-high |
+| huggingface_hub | en, mixed | Open ML models on Hugging Face Hub | high |
+| infoq_cn | zh, mixed | Chinese engineering articles from InfoQ 中文 | medium |
+| kr36 | zh, mixed | Chinese tech business news and startup funding from 36kr | medium |
+| openalex | en, mixed | Scholarly works via OpenAlex open-access API | high |
+| package_search | en, mixed | PyPI and npm package discovery | medium |
+| papers | en, mixed | Multi-source academic search (arxiv + pubmed + biorxiv + more) | high |
+| podcast_cn | zh, mixed | Chinese podcasts via Apple iTunes API | low |
+| reddit | en, mixed | Community discussions and user experience reports | medium |
+| sec_edgar | en | US public company filings (10-K, 10-Q, 8-K) | medium |
+| sogou_weixin | zh, mixed | WeChat Official Account articles via Sogou | high |
+| stackoverflow | en, mixed | Programming Q&A with community-voted answers | high |
+| wikidata | en, mixed | Structured entity data from Wikidata knowledge graph | medium |
+| wikipedia | en, mixed | Encyclopedia articles via Wikipedia Action API | high |
+
+## Tier 1 — Env-gated (1 channel)
+
+Requires a free API key.
+
+| Channel | Languages | Setup | Yield |
+|---|---|---|---|
+| youtube | en, zh, mixed | `autosearch configure YOUTUBE_API_KEY <key>` ([get free key](https://console.cloud.google.com)) | medium |
+
+## Tier 2 — BYOK paid (8 channels)
+
+Requires a [TikHub](https://tikhub.io) API key for Chinese social platforms.
+
+```bash
+autosearch configure TIKHUB_API_KEY <your-key>
+```
+
+| Channel | Languages | Description | Yield |
+|---|---|---|---|
+| bilibili | zh, mixed | Chinese tech videos and tutorials | medium |
+| douyin | zh | Chinese short-video with product demos and tech reviews | medium |
+| kuaishou | zh, mixed | Chinese short-video platform | medium |
+| tiktok | en, mixed | Global short-video platform | medium |
+| twitter | en, mixed | Real-time public discourse and tech announcements | medium |
+| weibo | zh, mixed | Chinese microblog — trending topics, real-time opinion | medium |
+| xiaohongshu | zh, mixed | Chinese lifestyle notes with product/travel/food coverage | high |
+| zhihu | zh, mixed | Chinese Q&A with deep technical discussions | medium-high |
+
+## Login-based channels
+
+Some channels support direct login without TikHub (using your own cookies):
+
+```bash
+autosearch login xhs        # Xiaohongshu
+autosearch login twitter    # Twitter/X
+autosearch login bilibili   # Bilibili
+autosearch login weibo      # Weibo
+autosearch login douyin     # Douyin
+autosearch login instagram  # Instagram
+autosearch login linkedin   # LinkedIn
+```
+
+If Chrome auto-extraction fails:
+```bash
+autosearch login xhs --from-string "<cookie-string>"
+```
