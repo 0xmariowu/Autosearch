@@ -43,6 +43,8 @@ Help me install AutoSearch: https://raw.githubusercontent.com/0xmariowu/Autosear
 
 ```bash
 npx autosearch-ai
+# 或者
+curl -fsSL https://raw.githubusercontent.com/0xmariowu/Autosearch/main/scripts/install.sh | bash
 ```
 
 安装后你的 Agent 能同时搜 39 个渠道——学术论文、开发者社区、中文社媒，结果去重排序，每条结果都有来源链接。

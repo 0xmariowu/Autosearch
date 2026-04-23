@@ -43,6 +43,8 @@ Or install directly:
 
 ```bash
 npx autosearch-ai
+# or
+curl -fsSL https://raw.githubusercontent.com/0xmariowu/Autosearch/main/scripts/install.sh | bash
 ```
 
 After install, your Agent searches 39 channels simultaneously — academic papers, developer communities, Chinese social media — results deduplicated and ranked, every result includes a source URL.
