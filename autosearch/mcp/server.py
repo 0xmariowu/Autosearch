@@ -126,14 +126,26 @@ async def _search_single_channel(
     channel: Channel,
     query: str,
     rationale: str,
-) -> list[dict[str, object]]:
-    """Run a single channel's search and return slim-dict results.
+) -> list[Any]:
+    """Run a single channel's search and return Evidence objects.
 
     Raises on channel exception — callers should wrap.
     """
+
     subquery = SubQuery(text=query, rationale=rationale or query)
-    results = await channel.search(subquery)
-    return [evidence.to_slim_dict() for evidence in results]
+    return await channel.search(subquery)
+
+
+_evidence_processor: Any = None
+
+
+def _get_evidence_processor() -> Any:
+    global _evidence_processor
+    if _evidence_processor is None:
+        from autosearch.core.evidence import EvidenceProcessor
+
+        _evidence_processor = EvidenceProcessor()
+    return _evidence_processor
 
 
 class SkillSummary(BaseModel):
@@ -508,9 +520,14 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
                 reason=f"channel_error: {type(exc).__name__}: {exc}",
             )
 
-        total = len(slim)
+        # Quality pipeline: URL dedup → SimHash near-dedup → BM25 relevance rerank
         k = max(1, int(k)) if k else 10
-        returned = slim[:k]
+        proc = _get_evidence_processor()
+        slim = proc.dedup_urls(slim)
+        slim = proc.dedup_simhash(slim)
+        total = len(slim)  # count after dedup, before k cutoff
+        slim = proc.rerank_bm25(slim, query, top_k=k)
+        returned = [ev.to_slim_dict() for ev in slim]
         append_event(
             channel_name,
             {
