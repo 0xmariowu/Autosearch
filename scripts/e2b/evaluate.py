@@ -8,13 +8,19 @@ from scripts.e2b.sandbox_runner import ScenarioResult
 
 # Category weights in the final score
 _CATEGORY_WEIGHTS = {
-    "A": 0.20,  # Infrastructure — must-pass
-    "B": 0.15,  # English tech
-    "C": 0.15,  # Chinese UGC
-    "D": 0.15,  # Academic
-    "E": 0.10,  # Clarify flow
-    "F": 0.10,  # Parallel
-    "G": 0.15,  # Full report
+    "A": 0.15,
+    "B": 0.10,
+    "C": 0.10,
+    "D": 0.10,
+    "E": 0.05,
+    "F": 0.05,
+    "G": 0.10,
+    "H": 0.10,
+    "I": 0.10,
+    "J": 0.05,
+    "K": 0.05,
+    "L": 0.05,
+    # W: bonus only — not scored
 }
 
 _READINESS_THRESHOLD = 80
@@ -28,6 +34,8 @@ def compute_summary(results: list[ScenarioResult]) -> dict:
 
     category_scores: dict[str, float] = {}
     for cat, cat_results in by_category.items():
+        if cat == "W":
+            continue
         if cat_results:
             category_scores[cat] = sum(r.score for r in cat_results) / len(cat_results)
 
@@ -41,7 +49,8 @@ def compute_summary(results: list[ScenarioResult]) -> dict:
     else:
         overall = 0.0
 
-    passed = sum(1 for r in results if r.passed)
+    passed = sum(1 for r in results if r.passed and r.category != "W")
+    total_scored = len([r for r in results if r.category != "W"])
     total_ev = sum(r.evidence_count for r in results)
     total_report = sum(r.report_length for r in results)
 
@@ -52,18 +61,24 @@ def compute_summary(results: list[ScenarioResult]) -> dict:
     else:
         readiness = "NOT_READY"
 
-    return {
+    summary = {
         "overall_score": round(overall, 1),
         "readiness": readiness,
         "passed": passed,
-        "total": len(results),
-        "pass_rate": round(passed / len(results) * 100, 1) if results else 0,
+        "total": total_scored,
+        "pass_rate": round(passed / total_scored * 100, 1) if total_scored else 0,
         "total_evidence": total_ev,
         "total_report_chars": total_report,
         "category_scores": {k: round(v, 1) for k, v in sorted(category_scores.items())},
         "failures": [
             {"id": r.scenario_id, "name": r.name, "score": r.score, "error": r.error[:100]}
             for r in results
-            if not r.passed
+            if not r.passed and r.category != "W"
         ],
     }
+
+    bonus = [r for r in results if r.category == "W"]
+    summary["bonus_results"] = [r.to_dict() for r in bonus]
+    summary["bonus_passed"] = sum(1 for r in bonus if r.passed)
+    summary["bonus_total"] = len(bonus)
+    return summary

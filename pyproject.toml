@@ -70,6 +70,9 @@ include-package-data = true
 
 [tool.setuptools.package-data]
 "autosearch.skills.channels" = ["**/*.md", "**/*.py"]
+"autosearch.skills.meta" = ["**/*.md", "**/*.py"]
+"autosearch.skills.router" = ["**/*.md", "**/*.py"]
+"autosearch.skills.tools" = ["**/*.md", "**/*.py"]
 "autosearch.skills.prompts" = ["*.md"]
 
 [tool.setuptools.packages.find]

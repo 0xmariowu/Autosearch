@@ -16,6 +16,11 @@ _CATEGORY_NAMES = {
     "E": "Clarify Flow",
     "F": "Parallel Search",
     "G": "Full Report",
+    "H": "Install Diversity",
+    "I": "Per-Channel Quality",
+    "J": "Error & Edge Cases",
+    "K": "AVO Evolution",
+    "L": "Report Quality",
 }
 
 _READINESS_EMOJI = {"READY": "🟢", "BETA": "🟡", "NOT_READY": "🔴"}
@@ -58,6 +63,8 @@ def render(results: list[ScenarioResult], summary: dict, output_dir: Path) -> st
 
     by_cat: dict[str, list[ScenarioResult]] = {}
     for r in results:
+        if r.category == "W":
+            continue
         by_cat.setdefault(r.category, []).append(r)
 
     for cat in sorted(by_cat):
@@ -93,6 +100,22 @@ def render(results: list[ScenarioResult], summary: dict, output_dir: Path) -> st
         lines += ["## 失败场景", ""]
         for f in summary["failures"]:
             lines.append(f"- **{f['id']} {f['name']}** (score={f['score']}): {f['error']}")
+        lines.append("")
+
+    if summary.get("bonus_total", 0) > 0:
+        lines += [
+            "",
+            "## Windows Emulation Bonus",
+            "",
+            f"*Crash-safety only — not counted in score. {summary['bonus_passed']}/{summary['bonus_total']} passed.*",
+            "",
+            "| ID | Name | Passed |",
+            "|---|---|---|",
+        ]
+        for br in summary.get("bonus_results", []):
+            lines.append(
+                f"| {br['scenario_id']} | {br['name']} | {'✅' if br['passed'] else '❌'} |"
+            )
         lines.append("")
 
     lines += [
