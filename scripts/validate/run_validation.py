@@ -95,11 +95,11 @@ def _run_bench() -> bool:
     stats = judge_dir / "stats.json"
     if summary.exists():
         print("\n--- Gate 12 Summary ---")
-        print(summary.read_text())
+        print(summary.read_text(encoding="utf-8"))
     if stats.exists():
         import json
 
-        data = json.loads(stats.read_text())
+        data = json.loads(stats.read_text(encoding="utf-8"))
         win_rate = data.get("augmented_win_rate", data.get("a_win_rate", "N/A"))
         print(f"\nAugmented win rate: {win_rate}")
         if isinstance(win_rate, float):

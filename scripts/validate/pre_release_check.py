@@ -74,7 +74,7 @@ def _check_gate12_bench() -> tuple[bool, str]:
         )
     latest = reports[-1]
     try:
-        stats = json.loads(latest.read_text())
+        stats = json.loads(latest.read_text(encoding="utf-8"))
         win_rate = stats.get("a_win_rate", stats.get("augmented_win_rate", 0.0))
         ok = float(win_rate) >= 0.50
         return ok, f"win_rate={float(win_rate):.1%} from {latest.parent.parent.name}"
