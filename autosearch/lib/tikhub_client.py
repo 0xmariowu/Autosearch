@@ -163,9 +163,16 @@ class TikhubClient:
 
         self._auth_header_value = f"Bearer {resolved_api_key}"
 
-    async def get(self, path: str, params: dict[str, object]) -> dict[str, object]:
+    async def get(
+        self,
+        path: str,
+        params: dict[str, object],
+        extra_headers: dict[str, str] | None = None,
+    ) -> dict[str, object]:
         url = self._build_url(path)
         headers = {"Authorization": self._auth_header_value}
+        if extra_headers:
+            headers.update(extra_headers)
 
         for attempt in range(len(RETRY_DELAYS_SECONDS) + 1):
             try:

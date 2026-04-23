@@ -208,6 +208,7 @@ async def search(query: SubQuery, client: TikhubClient | None = None) -> list[Ev
             SEARCH_PATH,
             {
                 "keyword": query.text,
+                "search_type": "video",
                 "order": "totalrank",
                 "page": 1,
                 "page_size": 10,
