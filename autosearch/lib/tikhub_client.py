@@ -210,6 +210,53 @@ class TikhubClient:
 
         raise AssertionError("unreachable")
 
+    async def post(self, path: str, body: dict[str, object]) -> dict[str, object]:
+        url = self._build_url(path)
+        headers = {"Authorization": self._auth_header_value}
+
+        for attempt in range(len(RETRY_DELAYS_SECONDS) + 1):
+            try:
+                response = await self._post_request(url, headers=headers, body=body)
+            except httpx.HTTPError as exc:
+                raise TikhubError("TikHub request failed before receiving a response") from exc
+
+            if response.status_code == 200:
+                try:
+                    payload = response.json()
+                except ValueError as exc:
+                    raise TikhubError(
+                        "TikHub returned invalid JSON",
+                        status_code=response.status_code,
+                    ) from exc
+
+                if not isinstance(payload, dict):
+                    raise TikhubError(
+                        "TikHub returned a non-object JSON payload",
+                        status_code=response.status_code,
+                        detail={"payload": _sanitize_json(payload)},
+                    )
+
+                return payload
+
+            if response.status_code in RETRYABLE_STATUS_CODES and attempt < len(
+                RETRY_DELAYS_SECONDS
+            ):
+                delay_seconds = RETRY_DELAYS_SECONDS[attempt]
+                LOGGER.warning(
+                    "tikhub_request_retry",
+                    path=path,
+                    status_code=response.status_code,
+                    attempt=attempt + 1,
+                    delay_seconds=delay_seconds,
+                )
+                await asyncio.sleep(delay_seconds)
+                continue
+
+            detail = _sanitize_response_json(response)
+            raise self._error_for_status(path=path, status_code=response.status_code, detail=detail)
+
+        raise AssertionError("unreachable")
+
     async def check_balance(self) -> dict[str, object]:
         payload = await self.get("/api/v1/tikhub/user/get_user_daily_usage", {})
         sanitized = _sanitize_json(
@@ -244,6 +291,20 @@ class TikhubClient:
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS) as client:
             return await client.get(url, headers=headers, params=params)
 
+    async def _post_request(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str],
+        body: dict[str, object],
+    ) -> httpx.Response:
+        post_headers = {**headers, "Content-Type": "application/json"}
+        if self.http_client is not None:
+            return await self.http_client.post(url, headers=post_headers, json=body)
+
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS) as client:
+            return await client.post(url, headers=post_headers, json=body)
+
     @staticmethod
     def _error_for_status(
         *,
@@ -251,7 +312,7 @@ class TikhubClient:
         status_code: int,
         detail: dict[str, object],
     ) -> TikhubError:
-        message = f"TikHub GET {path} failed"
+        message = f"TikHub request to {path} failed"
 
         if status_code == 402:
             return TikhubBudgetExhausted(message, status_code=status_code, detail=detail)
