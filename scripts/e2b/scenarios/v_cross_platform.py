@@ -13,7 +13,11 @@ def _clean_env(env: dict) -> dict:
 
 
 def _as_dict(result: Any) -> dict[str, Any]:
-    return result if isinstance(result, dict) else {"ok": False, "error": "non-dict result", "raw_result": repr(result)}
+    return (
+        result
+        if isinstance(result, dict)
+        else {"ok": False, "error": "non-dict result", "raw_result": repr(result)}
+    )
 
 
 async def _install_or_fail(
@@ -271,7 +275,7 @@ async def v6_locale_utf8_handling(sandbox_id: str, env: dict) -> ScenarioResult:
         return install_error
 
     cmd = (
-        "LANG=C.UTF-8 python3 -c \"import os; "
+        'LANG=C.UTF-8 python3 -c "import os; '
         "from autosearch.core.channel_bootstrap import _build_channels; "
         "chs = _build_channels(); "
         "os.environ['AUTOSEARCH_LLM_MODE']='dummy'; "

@@ -133,7 +133,11 @@ def _clean_env(env: dict) -> dict:
 
 
 def _as_dict(result: Any) -> dict[str, Any]:
-    return result if isinstance(result, dict) else {"ok": False, "error": "non-dict result", "raw_result": repr(result)}
+    return (
+        result
+        if isinstance(result, dict)
+        else {"ok": False, "error": "non-dict result", "raw_result": repr(result)}
+    )
 
 
 def _skip_no_tikhub(scenario_id: str, name: str, t0: float) -> ScenarioResult:
