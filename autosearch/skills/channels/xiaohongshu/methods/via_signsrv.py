@@ -3,11 +3,12 @@
 Requires:
   AUTOSEARCH_SIGNSRV_URL   → e.g. https://autosearch-signsrv.xxx.workers.dev
   AUTOSEARCH_SERVICE_TOKEN → as_xxx service token
-  XHS_A1_COOKIE            → user's XHS a1 cookie value
+  XHS_COOKIES              → full XHS cookie string: "a1=xxx; web_session=yyy; ..."
+                             (also accepts XHS_A1_COOKIE for bare a1 — legacy)
 
 Flow:
-  1. POST Worker /sign/xhs with uri + data + a1 → X-s/X-t/X-s-common
-  2. POST XHS native API with signed headers → search results
+  1. POST Worker /sign/xhs with cookies + uri + data → X-s/X-t/X-s-common (local signing, no TikHub)
+  2. POST XHS native API with signed headers + full cookies → search results
 """
 
 from __future__ import annotations
@@ -26,7 +27,12 @@ LOGGER = structlog.get_logger(__name__).bind(component="channel", channel="xiaoh
 
 _SIGNSRV_URL = os.environ.get("AUTOSEARCH_SIGNSRV_URL", "").rstrip("/")
 _SERVICE_TOKEN = os.environ.get("AUTOSEARCH_SERVICE_TOKEN", "")
-_XHS_A1_COOKIE = os.environ.get("XHS_A1_COOKIE") or os.environ.get("XIAOHONGSHU_COOKIES", "")
+# Prefer full cookie string; fall back to bare a1 for legacy compatibility
+_XHS_COOKIES = (
+    os.environ.get("XHS_COOKIES")
+    or os.environ.get("XIAOHONGSHU_COOKIES")
+    or os.environ.get("XHS_A1_COOKIE", "")
+)
 
 _XHS_SEARCH_URL = "https://edith.xiaohongshu.com/api/sns/web/v1/search/notes"
 _XHS_SEARCH_PATH = "/api/sns/web/v1/search/notes"
@@ -35,7 +41,7 @@ MAX_SNIPPET_LENGTH = 300
 
 
 def _is_configured() -> bool:
-    return bool(_SIGNSRV_URL and _SERVICE_TOKEN and _XHS_A1_COOKIE)
+    return bool(_SIGNSRV_URL and _SERVICE_TOKEN and _XHS_COOKIES)
 
 
 def _clean_text(value: object) -> str:
@@ -119,7 +125,7 @@ async def search(query: SubQuery, client: httpx.AsyncClient | None = None) -> li
                     "Authorization": f"Bearer {_SERVICE_TOKEN}",
                     "Content-Type": "application/json",
                 },
-                json={"uri": _XHS_SEARCH_PATH, "data": search_data, "a1": _XHS_A1_COOKIE},
+                json={"uri": _XHS_SEARCH_PATH, "data": search_data, "cookies": _XHS_COOKIES},
                 timeout=8,
             )
             sign_resp.raise_for_status()
@@ -138,7 +144,7 @@ async def search(query: SubQuery, client: httpx.AsyncClient | None = None) -> li
             "X-t": str(sign_data["X-t"]),
             "X-s-common": sign_data["X-s-common"],
             "X-b3-traceid": sign_data["X-b3-traceid"],
-            "Cookie": f"a1={_XHS_A1_COOKIE}",
+            "Cookie": _XHS_COOKIES,
             "Content-Type": "application/json;charset=UTF-8",
             "User-Agent": (
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -162,12 +168,40 @@ async def search(query: SubQuery, client: httpx.AsyncClient | None = None) -> li
             return []
 
         payload = xhs_resp.json()
+        xhs_code = payload.get("code", 0)
+
+        # code=300011: account flagged by XHS — silently returns empty instead of error
+        if xhs_code == 300011:
+            LOGGER.warning(
+                "xhs_account_restricted",
+                reason="XHS account flagged (code=300011). Run 'autosearch login xhs' with a normal account.",
+            )
+            return []
+
         outer = payload.get("data", {})
         inner = outer.get("data", {}) if isinstance(outer, Mapping) else {}
         items = inner.get("items", []) if isinstance(inner, Mapping) else []
 
         if not isinstance(items, list):
             return []
+
+        # Empty results on a seemingly successful response → check if account is restricted
+        if not items and xhs_code == 0:
+            try:
+                me_resp = await _client.get(
+                    "https://edith.xiaohongshu.com/api/sns/web/v2/user/me",
+                    headers={k: v for k, v in xhs_headers.items() if k not in ("Content-Type",)},
+                    timeout=8,
+                )
+                me = me_resp.json()
+                if me.get("code") == 300011:
+                    LOGGER.warning(
+                        "xhs_account_restricted",
+                        reason="XHS account flagged — search silently returns empty. Run 'autosearch login xhs' with a normal account.",
+                    )
+                    return []
+            except Exception:
+                pass  # health check failure is non-fatal; return empty results
 
         fetched_at = datetime.now(UTC)
         results: list[Evidence] = []
