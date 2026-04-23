@@ -11,7 +11,7 @@ from typing import Any
 
 import httpx
 
-E2B_API_KEY = os.environ["E2B_API_KEY"]
+E2B_API_KEY = os.environ.get("E2B_API_KEY", "")
 TEMPLATE_ID = "y6nmb7m9h84kswgrddd6"  # autosearch-claude
 MANAGEMENT_URL = "https://api.e2b.app"
 SANDBOX_TIMEOUT = 900  # 15 min
@@ -70,9 +70,10 @@ def _decode_stream(raw: bytes) -> list[dict]:
 
 
 async def create_sandbox(client: httpx.AsyncClient) -> str:
+    api_key = os.environ.get("E2B_API_KEY", E2B_API_KEY)
     resp = await client.post(
         f"{MANAGEMENT_URL}/sandboxes",
-        headers={"X-API-Key": E2B_API_KEY, "Content-Type": "application/json"},
+        headers={"X-API-Key": api_key, "Content-Type": "application/json"},
         json={"templateID": TEMPLATE_ID, "timeout": SANDBOX_TIMEOUT},
         timeout=30,
     )
@@ -82,9 +83,10 @@ async def create_sandbox(client: httpx.AsyncClient) -> str:
 
 async def kill_sandbox(client: httpx.AsyncClient, sandbox_id: str) -> None:
     try:
+        api_key = os.environ.get("E2B_API_KEY", E2B_API_KEY)
         await client.delete(
             f"{MANAGEMENT_URL}/sandboxes/{sandbox_id}",
-            headers={"X-API-Key": E2B_API_KEY},
+            headers={"X-API-Key": api_key},
             timeout=10,
         )
     except Exception:
@@ -204,6 +206,25 @@ AUTOSEARCH_INSTALL_CMD = (
 async def install_autosearch(sandbox_id: str, timeout: int = 180) -> bool:
     _, _, code = await run_cmd(sandbox_id, AUTOSEARCH_INSTALL_CMD, timeout=timeout)
     return code == 0
+
+
+async def clone_autosearch(
+    sandbox_id: str, clone_path: str = "/tmp/autosearch_k", timeout: int = 300
+) -> bool:
+    """Clone autosearch repo and pip install -e so judge reads cloned skills/."""
+    _, _, c1 = await run_cmd(
+        sandbox_id,
+        f"git clone https://github.com/0xmariowu/Autosearch.git {clone_path} -q 2>&1 | tail -2",
+        timeout=120,
+    )
+    if c1 != 0:
+        return False
+    _, _, c2 = await run_cmd(
+        sandbox_id,
+        f"pip install -e {clone_path} -q 2>&1 | tail -2",
+        timeout=180,
+    )
+    return c2 == 0
 
 
 # ── ScenarioResult ────────────────────────────────────────────────────────────

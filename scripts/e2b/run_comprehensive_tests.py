@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """AutoSearch E2B Comprehensive Test Orchestrator.
 
-Runs 20 scenarios in parallel across E2B sandboxes.
+Runs 59 scenarios in parallel across E2B sandboxes.
 Each sandbox: create → install autosearch → run scenario → collect result → kill.
 
 Usage:
@@ -67,6 +67,57 @@ from scripts.e2b.scenarios.g_full_report import (  # noqa: E402
     g2_golden_path_with_report,
     g3_complex_report_with_workflows,
 )
+from scripts.e2b.scenarios.h_install_diversity import (  # noqa: E402
+    h1_uv_venv_install,
+    h2_pipx_install,
+    h3_editable_install,
+    h4_no_api_keys,
+    h5_partial_keys_openrouter_only,
+    h6_wrong_python_version,
+    h7_pinned_version_install,
+    h8_reinstall_idempotency,
+)
+from scripts.e2b.scenarios.i_channel_quality import (  # noqa: E402
+    i1_arxiv_transformer_attention,
+    i2_pubmed_crispr_off_target,
+    i3_hackernews_rust_systems,
+    i4_devto_typescript_performance,
+    i5_dockerhub_redis_alpine,
+    i6_reddit_python_async,
+    i7_stackoverflow_postgres_index,
+    i8_ddgs_vector_database,
+    i9_github_vector_embeddings,
+    i10_papers_diffusion_survey,
+    i11_wikipedia_quantum,
+    i12_wikidata_python_language,
+)
+from scripts.e2b.scenarios.j_error_cases import (  # noqa: E402
+    j1_unknown_channel_error,
+    j2_channel_exception_degradation,
+    j3_empty_query,
+    j4_special_chars_query,
+    j5_citation_dedup,
+    j6_zero_result_gap_detection,
+    j7_experience_compaction_trigger,
+    j8_long_query_handling,
+)
+from scripts.e2b.scenarios.k_avo_evolution import (  # noqa: E402
+    k1_avo_baseline_score,
+    k2_meta_skill_protection,
+    k3_pattern_append_compact,
+    k4_git_commit_revert_cycle,
+)
+from scripts.e2b.scenarios.l_report_quality import (  # noqa: E402
+    l1_fast_mode_report,
+    l2_deep_mode_loop_report,
+    l3_chinese_topic_report,
+    l4_mini_gate12_llm_judge,
+)
+from scripts.e2b.scenarios.w_windows_emulation import (  # noqa: E402
+    w1_windows_platform_mock,
+    w2_windows_home_dir_mock,
+    w3_windows_path_separator,
+)
 
 # ── Scenario registry ─────────────────────────────────────────────────────────
 
@@ -91,6 +142,51 @@ ALL_SCENARIOS = [
     ("G1", "G", g1_loop_gap_detection),
     ("G2", "G", g2_golden_path_with_report),
     ("G3", "G", g3_complex_report_with_workflows),
+    # ── Install Diversity ────────────────────────────────────────────────────
+    ("H1", "H", h1_uv_venv_install),
+    ("H2", "H", h2_pipx_install),
+    ("H3", "H", h3_editable_install),
+    ("H4", "H", h4_no_api_keys),
+    ("H5", "H", h5_partial_keys_openrouter_only),
+    ("H6", "H", h6_wrong_python_version),
+    ("H7", "H", h7_pinned_version_install),
+    ("H8", "H", h8_reinstall_idempotency),
+    # ── Per-Channel Quality ──────────────────────────────────────────────────
+    ("I1", "I", i1_arxiv_transformer_attention),
+    ("I2", "I", i2_pubmed_crispr_off_target),
+    ("I3", "I", i3_hackernews_rust_systems),
+    ("I4", "I", i4_devto_typescript_performance),
+    ("I5", "I", i5_dockerhub_redis_alpine),
+    ("I6", "I", i6_reddit_python_async),
+    ("I7", "I", i7_stackoverflow_postgres_index),
+    ("I8", "I", i8_ddgs_vector_database),
+    ("I9", "I", i9_github_vector_embeddings),
+    ("I10", "I", i10_papers_diffusion_survey),
+    ("I11", "I", i11_wikipedia_quantum),
+    ("I12", "I", i12_wikidata_python_language),
+    # ── Error & Edge Cases ───────────────────────────────────────────────────
+    ("J1", "J", j1_unknown_channel_error),
+    ("J2", "J", j2_channel_exception_degradation),
+    ("J3", "J", j3_empty_query),
+    ("J4", "J", j4_special_chars_query),
+    ("J5", "J", j5_citation_dedup),
+    ("J6", "J", j6_zero_result_gap_detection),
+    ("J7", "J", j7_experience_compaction_trigger),
+    ("J8", "J", j8_long_query_handling),
+    # ── AVO Evolution ────────────────────────────────────────────────────────
+    ("K1", "K", k1_avo_baseline_score),
+    ("K2", "K", k2_meta_skill_protection),
+    ("K3", "K", k3_pattern_append_compact),
+    ("K4", "K", k4_git_commit_revert_cycle),
+    # ── Report Quality ───────────────────────────────────────────────────────
+    ("L1", "L", l1_fast_mode_report),
+    ("L2", "L", l2_deep_mode_loop_report),
+    ("L3", "L", l3_chinese_topic_report),
+    ("L4", "L", l4_mini_gate12_llm_judge),
+    # ── Windows Emulation (bonus) ─────────────────────────────────────────────
+    ("W1", "W", w1_windows_platform_mock),
+    ("W2", "W", w2_windows_home_dir_mock),
+    ("W3", "W", w3_windows_path_separator),
 ]
 
 
@@ -167,7 +263,15 @@ async def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--smoke-only", action="store_true", help="Run only A1-A3")
     parser.add_argument("--no-llm", action="store_true", help="Skip G2/G3 (require OpenRouter)")
     parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument(
+        "--list-scenarios", action="store_true", help="List all scenario IDs and exit without running"
+    )
     args = parser.parse_args(argv)
+
+    if args.list_scenarios:
+        for sid, cat, fn in ALL_SCENARIOS:
+            print(f"{sid:4s} ({cat})  {fn.__name__}")
+        return 0
 
     if not os.environ.get("E2B_API_KEY"):
         print("error: E2B_API_KEY not set", file=sys.stderr)
