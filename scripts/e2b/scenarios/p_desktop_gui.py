@@ -42,12 +42,19 @@ async def _desktop_cmd(sbx: DesktopSandbox, cmd: str, timeout: int = 60) -> tupl
         try:
             return sbx.commands.run(shell_cmd, timeout=timeout)
         except TypeError:
-            return sbx.commands.run(shell_cmd)
+            try:
+                return sbx.commands.run(shell_cmd)
+            except Exception as exc:
+                return exc  # CommandExitException has stdout/stderr/exit_code
+        except Exception as exc:
+            return exc  # CommandExitException has stdout/stderr/exit_code
 
     result = await loop.run_in_executor(None, _run)
     stdout = getattr(result, "stdout", "") or ""
     stderr = getattr(result, "stderr", "") or ""
-    exit_code = getattr(result, "exit_code", 0) or 0
+    # CommandExitException.exit_code is non-zero; normal result.exit_code == 0
+    raw_code = getattr(result, "exit_code", 0)
+    exit_code = raw_code if raw_code is not None else (1 if isinstance(result, Exception) else 0)
     return stdout, stderr, exit_code
 
 
