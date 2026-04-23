@@ -42,6 +42,12 @@ def _metadata(name: str, *methods: CompiledMethod) -> ChannelMetadata:
         languages=["en"],
         when_to_use=None,
         quality_hint=None,
+        layer="leaf",
+        domains=[],
+        scenarios=[],
+        model_tier="Fast",
+        tier=None,
+        fix_hint=None,
         methods=list(methods),
         fallback_chain=[method.id for method in methods],
     )
@@ -75,7 +81,7 @@ def test_infer_tier_t0_when_shipped_no_requires() -> None:
     assert infer_tier(metadata) == "t0"
 
 
-def test_infer_tier_t2_when_tikhub_required() -> None:
+def test_infer_tier_t1_when_tikhub_required() -> None:
     metadata = _metadata(
         "zhihu",
         _method(
@@ -92,7 +98,7 @@ def test_infer_tier_t2_when_tikhub_required() -> None:
         ),
     )
 
-    assert infer_tier(metadata) == "t2"
+    assert infer_tier(metadata) == "t1"
 
 
 def test_infer_tier_t1_when_env_required_not_tikhub() -> None:
@@ -107,6 +113,35 @@ def test_infer_tier_t1_when_env_required_not_tikhub() -> None:
     )
 
     assert infer_tier(metadata) == "t1"
+
+
+def test_infer_tier_t2_when_cookie_env_required() -> None:
+    metadata = _metadata(
+        "xueqiu",
+        _method(
+            method_id="api_search",
+            requires=["env:XUEQIU_COOKIES"],
+            available=False,
+            unmet_requires=["env:XUEQIU_COOKIES"],
+        ),
+    )
+
+    assert infer_tier(metadata) == "t2"
+
+
+def test_infer_tier_prefers_declared_skill_tier() -> None:
+    metadata = _metadata(
+        "declared_login",
+        _method(
+            method_id="api_search",
+            requires=["env:SERVICE_KEY"],
+            available=False,
+            unmet_requires=["env:SERVICE_KEY"],
+        ),
+    )
+    metadata.tier = 2
+
+    assert infer_tier(metadata) == "t2"
 
 
 def test_infer_tier_scaffold_when_all_methods_impl_missing() -> None:
@@ -139,8 +174,8 @@ def test_check_channels_command_groups_by_tier(monkeypatch: pytest.MonkeyPatch) 
                     unmet_requires=["env:YOUTUBE_API_KEY"],
                 ),
             ),
-            "paid": _metadata(
-                "paid",
+            "api_key_only": _metadata(
+                "api_key_only",
                 _method(
                     method_id="via_tikhub",
                     requires=["env:TIKHUB_API_KEY"],
@@ -172,8 +207,7 @@ def test_check_channels_command_groups_by_tier(monkeypatch: pytest.MonkeyPatch) 
 
     assert result.exit_code == 0
     assert "Tier 0 - always-on (1)" in result.stdout
-    assert "Tier 1 - env-gated (1)" in result.stdout
-    assert "Tier 2 - BYOK paid (1)" in result.stdout
+    assert "Tier 1 - env/API gated (2)" in result.stdout
     assert "Scaffold-only (channel templates not shipped) (1)" in result.stdout
     assert "Total: 4 channels | 1 available | 2 blocked | 1 scaffold-only" in result.stdout
 

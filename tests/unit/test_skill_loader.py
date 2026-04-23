@@ -31,8 +31,15 @@ def test_load_valid_channel_skill() -> None:
     assert spec.fallback_chain == ["api_search", "api_detail"]
     assert spec.when_to_use is not None
     assert spec.when_to_use.query_types == ["academic-papers", "literature-review"]
+    assert spec.when_to_use.domain_hints == ["citations", "scholarly-search"]
     assert spec.quality_hint is not None
     assert spec.quality_hint.typical_yield == "medium-high"
+    assert spec.layer == "leaf"
+    assert spec.domains == ["academic"]
+    assert spec.scenarios == ["paper-search", "detail-hydration"]
+    assert spec.model_tier == "Standard"
+    assert spec.tier == 1
+    assert spec.fix_hint == "autosearch configure ARXIV_TOKEN <value>"
     assert spec.skill_dir.name == "valid_channel"
 
 

@@ -87,6 +87,7 @@ def load_channel_rows(channels_root: Path) -> list[ChannelDocRow]:
             typical_yield = str(quality_hint.get("typical_yield", "unknown"))
 
         requires_by_method = shipped_method_requires(payload, skill_path.parent)
+        declared_tier = payload.get("tier")
         rows.append(
             ChannelDocRow(
                 name=name,
@@ -94,7 +95,7 @@ def load_channel_rows(channels_root: Path) -> list[ChannelDocRow]:
                 languages=[str(language) for language in payload.get("languages", [])],
                 required_env=required_env_tokens_from_requires(requires_by_method),
                 typical_yield=typical_yield,
-                tier=infer_tier_from_requires(requires_by_method),
+                tier=_resolve_doc_tier(declared_tier, requires_by_method),
             )
         )
 
@@ -223,6 +224,14 @@ def shipped_method_requires(payload: dict[str, Any], skill_dir: Path) -> list[li
         requires_by_method.append([str(token) for token in requires])
 
     return requires_by_method
+
+
+def _resolve_doc_tier(declared_tier: object, requires_by_method: list[list[str]]) -> str:
+    if isinstance(declared_tier, int):
+        return {0: "t0", 1: "t1", 2: "t2"}.get(
+            declared_tier, infer_tier_from_requires(requires_by_method)
+        )
+    return infer_tier_from_requires(requires_by_method)
 
 
 if __name__ == "__main__":
