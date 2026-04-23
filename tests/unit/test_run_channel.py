@@ -51,12 +51,11 @@ async def test_search_single_channel_returns_slim_dicts() -> None:
         ],
     )
 
-    slim = await _search_single_channel(channel, query="test", rationale="why")
+    results = await _search_single_channel(channel, query="test", rationale="why")
 
-    assert len(slim) == 2
-    assert slim[0]["url"] == "https://example.com/1"
-    assert slim[0]["title"] == "Title one"
-    assert "source_page" in slim[0]  # Evidence.to_slim_dict includes the field (None when absent)
+    assert len(results) == 2
+    assert results[0].url == "https://example.com/1"
+    assert results[0].title == "Title one"
 
 
 @pytest.mark.asyncio

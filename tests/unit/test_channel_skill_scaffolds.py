@@ -138,7 +138,7 @@ def test_shipped_method_impls_exist_for_registry_channels() -> None:
         "weibo": ["methods/via_tikhub.py"],
         "wikidata": ["methods/api_search.py"],
         "wikipedia": ["methods/api_search.py"],
-        "xiaohongshu": ["methods/via_tikhub.py"],
+        "xiaohongshu": ["methods/via_tikhub.py", "methods/via_signsrv.py"],
         "zhihu": ["methods/via_tikhub.py"],
         "youtube": ["methods/data_api_v3.py"],
     }
@@ -257,6 +257,8 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
             methods = {method.id: method for method in metadata.methods}
 
             assert metadata.available_methods() == []
+            # via_signsrv requires 3 env vars — none set in test env
+            assert methods["via_signsrv"].available is False
             assert methods["via_tikhub"].available is False
             assert methods["via_tikhub"].unmet_requires == ["env:TIKHUB_API_KEY"]
             assert methods["via_mcporter"].available is False
