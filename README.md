@@ -3,7 +3,7 @@
 </h1>
 
 <p align="center">
-  <strong>给你的 AI Agent 装上 39 个搜索渠道</strong>
+  <strong>39 search channels for your AI Agent</strong>
 </p>
 
 <p align="center">
@@ -17,70 +17,71 @@
 <p align="center">
   <a href="https://docs.autosearch.dev">Docs</a> &bull;
   <a href="https://docs.autosearch.dev/install">Install</a> &bull;
-  <a href="https://docs.autosearch.dev/channels">Channels</a>
+  <a href="https://docs.autosearch.dev/channels">Channels</a> &bull;
+  <a href="README.zh.md">中文</a>
 </p>
 
 ---
 
-你让 AI 去研究一个问题，它给你的是截止训练数据的知识——
+You ask your AI to research something. It answers from training data cutoff —
 
-- "帮我看看 arxiv 上这周的 LLM 论文" → **搜不了**，没有学术数据库访问
-- "小红书上大家怎么评价这个产品" → **打不开**，必须登录才能搜
-- "GitHub 上有没有类似的开源项目" → **结果很水**，只能用通用搜索
-- "帮我整理一下推特上对这个技术的讨论" → **看不到**，Twitter 没有公开 API
-- "这个话题在知乎和 Reddit 上分别是什么观点" → 要跑两个平台，结果还得手动汇总
+- "Show me this week's LLM papers on arxiv" → **can't**, no academic database access
+- "What are people saying about this product on Reddit" → **shallow**, only surface-level web results
+- "Find similar open-source projects on GitHub" → **weak**, general search misses most repos
+- "Summarize the Twitter discussion on this topic" → **blocked**, no public API
+- "Compare opinions on Hacker News vs Chinese tech forums" → two platforms, manual aggregation
 
-**AutoSearch 把这件事变成一句话：**
+**AutoSearch fixes this in one line.**
 
-复制给你的 AI Agent（Claude Code、Cursor 等）：
+Paste into your AI Agent (Claude Code, Cursor, etc.):
 
 ```
 Help me install AutoSearch: https://raw.githubusercontent.com/0xmariowu/Autosearch/main/docs/install.md
 ```
 
-或者直接安装：
+Or install directly:
 
 ```bash
 npm install -g autosearch-ai && autosearch-ai init
 ```
 
-安装后你的 Agent 能同时搜 39 个渠道——学术论文、开发者社区、中文社媒，结果去重排序，每条结果都有来源链接。
+After install, your Agent searches 39 channels simultaneously — academic papers, developer communities, Chinese social media — results deduplicated and ranked, every result includes a source URL.
 
 ---
 
-## 支持的渠道
+## Channels
 
-| 渠道 | 装好即用 | 配置后解锁 | 怎么配 |
-|------|---------|-----------|-------|
-| 📄 **arxiv** | 学术预印本 CS/ML/物理 | — | 无需配置 |
-| 🔬 **PubMed / OpenAlex / DBLP** | 生物医学 + 跨学科论文 | — | 无需配置 |
-| 🐙 **GitHub** | 代码、Issue、仓库搜索 | — | 无需配置 |
-| 🔍 **DuckDuckGo** | 通用网页搜索 | — | 无需配置 |
-| 🟠 **Hacker News** | 开发者讨论 + 早期产品信号 | — | 无需配置 |
-| 📖 **Reddit** | 社区讨论 + 用户真实体验 | — | 无需配置 |
-| 🤗 **Hugging Face** | 开源 ML 模型搜索 | — | 无需配置 |
-| 📦 **Stack Overflow** | 编程 Q&A | — | 无需配置 |
-| 📰 **Google News** | 实时新闻聚合 | — | 无需配置 |
-| 💻 **dev.to** | 开发者博客 | — | 无需配置 |
-| 📊 **SEC EDGAR** | 美股公司财报 | — | 无需配置 |
-| 🌐 **Wikipedia / Wikidata** | 百科 + 结构化知识 | — | 无需配置 |
-| 💬 **微信公众号** | 公众号文章全文搜索 | — | 无需配置 |
-| 📱 **36kr / InfoQ** | 中文科技商业资讯 | — | 无需配置 |
-| 🎬 **YouTube** | 视频搜索 + 字幕 | — | 设置 `YOUTUBE_API_KEY` |
-| 📺 **Bilibili** | 中文技术视频 | — | 设置 `TIKHUB_API_KEY` |
-| 🌸 **小红书** | 生活方式 + 产品口碑 | 更稳定 | `autosearch login xhs` 或 `TIKHUB_API_KEY` |
-| 🐦 **Twitter / X** | 实时讨论 + 技术动态 | — | `TIKHUB_API_KEY` |
-| 📣 **微博 / 抖音 / 知乎** | 中文舆论 + 深度讨论 | — | `TIKHUB_API_KEY` |
-| 📈 **雪球** | A股/港股讨论 | — | `autosearch login xueqiu` |
-| 💼 **LinkedIn** | 公开页面 via Jina Reader | — | 无需配置 |
+| Channel | Ready out of box | Unlocked after config | How to configure |
+|---------|-----------------|----------------------|-----------------|
+| 📄 **arxiv** | Academic preprints CS/ML/Physics | — | No config needed |
+| 🔬 **PubMed / OpenAlex / DBLP** | Biomedical + cross-discipline papers | — | No config needed |
+| 🐙 **GitHub** | Code, Issues, repository search | — | No config needed |
+| 🔍 **DuckDuckGo** | General web search | — | No config needed |
+| 🟠 **Hacker News** | Developer discussions + early product signals | — | No config needed |
+| 📖 **Reddit** | Community discussion + real user experiences | — | No config needed |
+| 🤗 **Hugging Face** | Open-source ML model search | — | No config needed |
+| 📦 **Stack Overflow** | Programming Q&A | — | No config needed |
+| 📰 **Google News** | Real-time news aggregation | — | No config needed |
+| 💻 **dev.to** | Developer blogs | — | No config needed |
+| 📊 **SEC EDGAR** | US company filings | — | No config needed |
+| 🌐 **Wikipedia / Wikidata** | Encyclopedia + structured knowledge | — | No config needed |
+| 💬 **WeChat Official Accounts** | Full-text article search | — | No config needed |
+| 📱 **36kr / InfoQ** | Chinese tech & business news | — | No config needed |
+| 🎬 **YouTube** | Video search + transcripts | — | Set `YOUTUBE_API_KEY` |
+| 📺 **Bilibili** | Chinese tech videos | — | Set `TIKHUB_API_KEY` |
+| 🌸 **Xiaohongshu** | Lifestyle + product reviews | More stable | `autosearch login xhs` or `TIKHUB_API_KEY` |
+| 🐦 **Twitter / X** | Real-time discussion + tech news | — | `TIKHUB_API_KEY` |
+| 📣 **Weibo / Douyin / Zhihu** | Chinese social + in-depth discussion | — | `TIKHUB_API_KEY` |
+| 📈 **Xueqiu** | A-share / HK stock discussion | — | `autosearch login xueqiu` |
+| 💼 **LinkedIn** | Public pages via Jina Reader | — | No config needed |
 
-> 不知道怎么配？直接告诉 Agent「帮我配 XXX」，它会引导你一步步完成。
+> Not sure how to configure? Just tell your Agent "help me configure XXX" — it will guide you step by step.
 
 ---
 
-## 安装完之后
+## After install
 
-运行 `autosearch doctor` 查看每个渠道的状态：
+Run `autosearch doctor` to check the status of every channel:
 
 ```
 AutoSearch Channel Status
