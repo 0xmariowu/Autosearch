@@ -39,10 +39,10 @@ pipx install autosearch
 
 ### Step 2: Initialize
 
+> **npm users**: init runs automatically — skip this step.
+
 ```bash
-autosearch-ai init   # if installed via npm
-# or
-autosearch init      # if installed via pip/pipx
+autosearch init      # pip/pipx only
 ```
 
 This will:
