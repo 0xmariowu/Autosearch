@@ -6,13 +6,11 @@ from typing import Annotated
 import click
 import httpx
 import typer
-import uvicorn
 from pydantic import ValidationError
 
 from autosearch import __version__
 from autosearch.core.environment_probe import probe_environment
 from autosearch.core.models import SearchMode
-from autosearch.core.models import PipelineResult
 from autosearch.core.scope_clarifier import ScopeClarifier
 from autosearch.core.search_scope import (
     ChannelScope,
@@ -313,20 +311,6 @@ def configure(
     typer.echo(f"Written: {key} -> {secrets_path}")
 
 
-@app.command()
-def serve(
-    host: Annotated[
-        str,
-        typer.Option("--host", help="Host interface for the FastAPI server."),
-    ] = "127.0.0.1",
-    port: Annotated[
-        int,
-        typer.Option("--port", min=0, max=65535, help="TCP port for the FastAPI server."),
-    ] = 8080,
-) -> None:
-    uvicorn.run("autosearch.server.main:app", host=host, port=port)
-
-
 def _stderr_event_writer(event: dict[str, object]) -> None:
     sys.stderr.write(json.dumps(event, ensure_ascii=False) + "\n")
     sys.stderr.flush()
@@ -483,17 +467,6 @@ def _render_html(markdown_text: str, title: str) -> str:
         "<body><article>\n{body}\n</article></body>\n"
         "</html>\n"
     ).format(title=safe_title, body=body)
-
-
-def _json_sources(result: PipelineResult) -> list[dict[str, str]]:
-    return [
-        {
-            "channel": evidence.source_channel,
-            "url": evidence.url,
-            "title": evidence.title,
-        }
-        for evidence in result.evidences
-    ]
 
 
 if __name__ == "__main__":

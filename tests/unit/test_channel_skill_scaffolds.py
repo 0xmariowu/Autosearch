@@ -16,7 +16,7 @@ def _load_specs():
 def test_all_channels_loadable() -> None:
     specs = _load_specs()
 
-    assert len(specs) == 35
+    assert len(specs) == 37
     assert [spec.name for spec in specs] == [
         "arxiv",
         "bilibili",
@@ -31,6 +31,7 @@ def test_all_channels_loadable() -> None:
         "hackernews",
         "huggingface_hub",
         "infoq_cn",
+        "instagram",
         "kr36",
         "kuaishou",
         "openalex",
@@ -47,6 +48,7 @@ def test_all_channels_loadable() -> None:
         "tiktok",
         "twitter",
         "v2ex",
+        "wechat_channels",
         "weibo",
         "wikidata",
         "wikipedia",
@@ -103,7 +105,9 @@ def test_chinese_native_channels_cover_11() -> None:
 def test_shipped_method_impls_exist_for_registry_channels() -> None:
     expected_impls = {
         "arxiv": ["methods/api_search.py"],
-        "bilibili": ["methods/via_tikhub.py"],
+        "bilibili": ["methods/api_search.py", "methods/via_tikhub.py"],
+        "instagram": ["methods/via_tikhub.py"],
+        "wechat_channels": ["methods/via_tikhub.py"],
         "crossref": ["methods/api_search.py"],
         "dblp": ["methods/api_search.py"],
         "ddgs": ["methods/api.py"],
@@ -151,6 +155,7 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
 
     assert [channel.name for channel in registry.available()] == [
         "arxiv",
+        "bilibili",
         "crossref",
         "dblp",
         "ddgs",
@@ -303,13 +308,21 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
         if spec.name == "bilibili":
             methods = {method.id: method for method in metadata.methods}
 
+            # api_search (direct WBI, no key needed) is now the primary free method
+            available = metadata.available_methods()
+            assert len(available) == 1
+            assert available[0].id == "api_search"
+            assert methods["api_search"].available is True
+            assert methods["api_search"].unmet_requires == []
+            assert methods["via_tikhub"].available is False
+            assert methods["via_tikhub"].unmet_requires == ["env:TIKHUB_API_KEY"]
+            continue
+
+        if spec.name in ("instagram", "wechat_channels"):
+            methods = {method.id: method for method in metadata.methods}
             assert metadata.available_methods() == []
             assert methods["via_tikhub"].available is False
             assert methods["via_tikhub"].unmet_requires == ["env:TIKHUB_API_KEY"]
-            for other_id, method in methods.items():
-                if other_id != "via_tikhub":
-                    assert method.available is False
-                    assert method.unmet_requires == ["impl_missing"]
             continue
 
         assert metadata.available_methods() == []
