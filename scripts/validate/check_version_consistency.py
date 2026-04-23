@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def _read_pyproject() -> str:
-    text = (ROOT / "pyproject.toml").read_text()
+    text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     m = re.search(r'^version\s*=\s*"([^"]+)"', text, re.MULTILINE)
     if not m:
         raise ValueError("version not found in pyproject.toml")
@@ -29,7 +29,7 @@ def _read_pyproject() -> str:
 
 
 def _read_json_version(path: Path) -> str:
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8"))
     v = data.get("version")
     if not v:
         raise ValueError(f"version not found in {path}")
@@ -37,7 +37,7 @@ def _read_json_version(path: Path) -> str:
 
 
 def _read_changelog() -> str:
-    text = (ROOT / "CHANGELOG.md").read_text()
+    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     m = re.search(r"^## (\S+)", text, re.MULTILINE)
     if not m:
         raise ValueError("no ## heading found in CHANGELOG.md")

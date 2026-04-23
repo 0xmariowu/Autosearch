@@ -57,7 +57,7 @@ def main() -> int:
             )
 
         # Verify patterns.jsonl
-        lines = patterns_file.read_text().strip().splitlines()
+        lines = patterns_file.read_text(encoding="utf-8").strip().splitlines()
         if len(lines) != N_EVENTS:
             print(f"FAIL: expected {N_EVENTS} events in patterns.jsonl, got {len(lines)}")
             return 1
@@ -76,7 +76,7 @@ def main() -> int:
             print("FAIL: experience.md not created by compact()")
             return 1
 
-        md_lines = experience_md.read_text().splitlines()
+        md_lines = experience_md.read_text(encoding="utf-8").splitlines()
         if len(md_lines) > 120:
             print(f"FAIL: experience.md has {len(md_lines)} lines (> 120)")
             return 1

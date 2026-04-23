@@ -37,7 +37,7 @@ def test_configure_writes_new_key(tmp_path):
         result = runner.invoke(app, ["configure", "NEW_KEY", "abc123"])
 
     assert result.exit_code == 0
-    content = secrets.read_text()
+    content = secrets.read_text(encoding="utf-8")
     assert "NEW_KEY=" in content
 
 
@@ -54,7 +54,7 @@ def test_configure_skips_existing_key(tmp_path):
 
     assert result.exit_code == 0
     assert "already exists" in result.output
-    assert "old" in secrets.read_text()
+    assert "old" in secrets.read_text(encoding="utf-8")
 
 
 def test_configure_aborted_on_no_confirm(tmp_path):
