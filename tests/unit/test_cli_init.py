@@ -22,7 +22,9 @@ def test_cli_init_prints_summary_and_writes_config(
     }
     monkeypatch.setattr(cli_main.InitRunner, "detect_providers", lambda self: providers)
 
-    result = runner.invoke(app, ["init"], env={"HOME": str(tmp_path)})
+    # Set both HOME (Unix) and USERPROFILE (Windows) so Path.home() is redirected on all platforms
+    home_env = {"HOME": str(tmp_path), "USERPROFILE": str(tmp_path)}
+    result = runner.invoke(app, ["init"], env=home_env)
 
     assert result.exit_code == 0
     assert "Python 3.12+" in result.stdout
