@@ -3,8 +3,8 @@
 </h1>
 
 <p align="center">
-  <strong>Open-source deep research tool for AI coding developers.</strong><br>
-  Structured coverage across English and Chinese sources, cited markdown reports.
+  <strong>Deep research MCP server for AI developers.</strong><br>
+  39 search channels across academic, developer, and Chinese platforms — cited results, no hallucination.
 </p>
 
 <p align="center">
@@ -12,85 +12,63 @@
   <a href="LICENSE"><img src="https://img.shields.io/github/license/0xmariowu/Autosearch?style=flat-square" alt="License"></a>
   <a href="https://github.com/0xmariowu/Autosearch/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/0xmariowu/Autosearch/ci.yml?style=flat-square&label=CI" alt="CI"></a>
   <img src="https://img.shields.io/badge/python-3.12%2B-blue?style=flat-square" alt="Python">
-  <img src="https://img.shields.io/badge/status-v2%20alpha-orange?style=flat-square" alt="Status">
+  <a href="https://www.npmjs.com/package/autosearch-ai"><img src="https://img.shields.io/npm/v/autosearch-ai?style=flat-square" alt="npm"></a>
 </p>
 
 <p align="center">
-  <a href="#status">Status</a> &bull;
-  <a href="#quick-start">Quick Start</a> &bull;
-  <a href="#architecture">Architecture</a> &bull;
-  <a href="#interfaces">Interfaces</a> &bull;
-  <a href="docs/delivery-status.md">Delivery Status</a>
+  <a href="https://docs.autosearch.dev">Docs</a> &bull;
+  <a href="https://docs.autosearch.dev/install">Install</a> &bull;
+  <a href="https://docs.autosearch.dev/channels">Channels</a> &bull;
+  <a href="#mcp-tools">MCP Tools</a>
 </p>
 
 ---
 
-## Status
-
-AutoSearch is undergoing a full **v2 rewrite** (`legacy-v1` tag preserves the v1 state). v2 replaces the monolithic v1 with a modular pipeline (M0–M8) behind strict source-mapped reuse of proven deep-research projects. Channel adapters (the real data sources) are on the roadmap — the current release ships a `DemoChannel` placeholder so the end-to-end pipeline is exercisable.
-
-See [`docs/delivery-status.md`](docs/delivery-status.md) for a module-by-module checklist.
-
-## Quick Start
-
-**Dev install (current — no PyPI release yet):**
+## Install
 
 ```bash
-git clone https://github.com/0xmariowu/Autosearch
-cd Autosearch
-uv venv --python 3.12
-uv pip install -e . --python .venv/bin/python
-.venv/bin/autosearch query "your topic"
+# Option 1 — npm (recommended, no Python setup required)
+npm install -g autosearch-ai
+autosearch-ai init
+
+# Option 2 — pip
+pip install autosearch
+autosearch init
 ```
 
-**After the first tagged v2 release:**
+`init` auto-detects your LLM providers and writes the MCP config to `~/.claude/mcp.json` and `~/.cursor/mcp.json`.
 
-```bash
-pipx install autosearch
-autosearch query "your topic"
-```
+---
 
-Requirements: Python 3.12+. Set one of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`, or have the `claude` CLI on `PATH` — the LLM layer auto-detects the first available provider.
+## What it does
 
-Streaming progress to stderr is default (`--stream`); suppress with `--no-stream` or use `--json` for a machine-readable envelope:
+AutoSearch runs as an **MCP server** inside Claude Code, Cursor, or any MCP-compatible client. Your AI agent calls tools like `run_channel`, `delegate_subtask`, and `consolidate_research` — AutoSearch searches real sources and returns structured, cited results.
 
-```bash
-autosearch query "retrieval-augmented generation survey" --json
-```
+- **39 channels**: arxiv, PubMed, GitHub, Hacker News, Reddit, Xiaohongshu, Weibo, Twitter, Douyin, and more
+- **22 MCP tools**: search, delegation, loop management, citation export
+- **5 search modes**: academic / news / chinese_ugc / developer / product — auto-detected from query
+- **No hallucination**: every result cites the source URL
 
-## Architecture
+---
 
-```
-query
-  ↓
-M0 Knowledge Recall (known facts + gaps)
-M1 Goal Crystallization + Clarify (rubrics + mode)
-M2 Search Strategy (subqueries)
-M3 Iteration Controller (reflect-on-gaps loop across channels)
-M4 Material Cleaner (trafilatura)
-M5 Evidence Processor (URL dedup + SimHash + BM25)
-M7 Report Synthesizer (outline + per-section + citation remap)
-M8 Quality Gate (rubric evaluation, one retry on fail)
-  ↓
-markdown + References + Sources breakdown
-```
+## MCP Tools
 
-Observability (`CostTracker`) and persistence (`SessionStore`, three-table SQLite schema) are available as Pipeline constructor args.
+| Tool | Description |
+|---|---|
+| `run_clarify` | Detect query intent, pick mode and channels |
+| `run_channel` | Search one channel with dedup + BM25 ranking |
+| `delegate_subtask` | Run multiple channels in parallel |
+| `consolidate_research` | Compress evidence to prevent context overflow |
+| `loop_init` / `loop_update` / `loop_gaps` | Deep research loop |
+| `citation_create` / `citation_add` / `citation_export` | Citation management |
+| `list_skills` / `list_channels` / `list_modes` | Discover available resources |
+| `doctor` | Full channel health report with fix hints |
 
-Each module traces to a 1:1 source in a well-known deep-research project — see `docs/delivery-status.md` for the mapping.
-
-## Interfaces
-
-AutoSearch runs as:
-
-- **CLI**: `autosearch query "..."`
-- **HTTP + SSE**: `autosearch serve` — `POST /search` streams typed events (`phase` / `iteration` / `gap` / `quality` / `finished`)
-- **MCP server**: `autosearch mcp` (or `autosearch-mcp` console script) — exposes a `research` tool to Claude Code, Cursor, and other MCP clients. See [`docs/mcp-clients.md`](docs/mcp-clients.md) for per-client config samples.
-- **Claude Code slash command**: `/autosearch` (ships in `commands/autosearch.md`)
+---
 
 ## Supported Channels
 
-Generated from `autosearch/skills/channels/*/SKILL.md`. Run `.venv/bin/python scripts/generate_channels_table.py` after adding or changing a channel.
+Run `autosearch doctor` to see live status. Generated from `autosearch/skills/channels/*/SKILL.md`.
 
 <!-- channels-table-start -->
 ### Tier 0 - always-on (21)
@@ -136,9 +114,7 @@ Generated from `autosearch/skills/channels/*/SKILL.md`. Run `.venv/bin/python sc
 | zhihu | zh, mixed | env:TIKHUB_API_KEY | Chinese Q&A platform with deep technical discussions and user experience reports — use when query is Chinese or mixed and targets developer opinions, comparisons, or tutorials. | medium-high |
 <!-- channels-table-end -->
 
-## Contributing
-
-The v1 architecture (`skills/`, `channels/*/SKILL.md`, AVO self-evolution loop) was retired in v2. Contributions targeting the v2 architecture are welcome — the module map in `docs/delivery-status.md` is the starting point.
+---
 
 ## License
 

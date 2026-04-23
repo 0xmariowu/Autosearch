@@ -14,7 +14,11 @@
         "groups": [
           {
             "group": "Getting Started",
-            "pages": ["introduction"]
+            "pages": ["introduction", "install", "quickstart"]
+          },
+          {
+            "group": "Reference",
+            "pages": ["channels", "mcp-clients", "mcp-channels-playbook"]
           }
         ]
       }

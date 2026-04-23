@@ -1,8 +1,71 @@
 ---
 title: "AutoSearch"
-description: "Open-source deep research tool for AI coding developers"
+description: "Deep research MCP server for AI developers — 39 channels, cited results, no hallucination"
 ---
 
-AutoSearch is an open-source deep research tool built for AI coding developers who live in Claude Code, Cursor, or Codex. It runs structured queries across a curated set of English and Chinese sources, then synthesizes findings into a cited markdown report.
+AutoSearch is an MCP server that gives your AI agent access to 39 real search channels: academic databases, developer platforms, and Chinese social media. Every result is cited and deduplicated. No hallucination.
 
-**Status**: v2 is under active rewrite. Channel adapters, pipeline modules, and harness documentation are landing incrementally. Track progress in the [repository](https://github.com/0xmariowu/Autosearch).
+Works with **Claude Code**, **Cursor**, and any MCP-compatible client.
+
+## Install
+
+<CodeGroup>
+
+```bash npm (recommended)
+npm install -g autosearch-ai
+autosearch-ai init
+```
+
+```bash pip
+pip install autosearch
+autosearch init
+```
+
+</CodeGroup>
+
+`init` auto-detects your LLM providers and writes the MCP server config to `~/.claude/mcp.json` and `~/.cursor/mcp.json` automatically.
+
+## What you get
+
+<CardGroup cols={2}>
+  <Card title="39 Search Channels" icon="magnifying-glass">
+    arxiv, PubMed, GitHub, Hacker News, Reddit, Xiaohongshu, Weibo, Twitter, Douyin, and more — English and Chinese, free and paid tiers.
+  </Card>
+  <Card title="22 MCP Tools" icon="wrench">
+    `run_channel`, `delegate_subtask`, `consolidate_research`, citation management, deep research loops, and more.
+  </Card>
+  <Card title="5 Search Modes" icon="sliders">
+    academic / news / chinese_ugc / developer / product — auto-detected from the query, or set manually.
+  </Card>
+  <Card title="Cited Results" icon="link">
+    Every result includes source URL. No invented facts. Runs BM25 + SimHash dedup to surface the best results.
+  </Card>
+</CardGroup>
+
+## Quick example
+
+Once AutoSearch is running as your MCP server, your agent can do:
+
+```
+run_clarify("latest transformer architectures for long-context 2026")
+→ delegate_subtask(["arxiv", "papers", "hackernews"], query)
+→ consolidate_research(evidence)
+→ citation_export(format="markdown")
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/install">
+    Full install guide — MCP config, optional channels, troubleshooting
+  </Card>
+  <Card title="Channels" icon="list" href="/channels">
+    All 39 channels with tier, languages, and requirements
+  </Card>
+  <Card title="MCP Clients" icon="plug" href="/mcp-clients">
+    Config samples for Claude Code, Cursor, and others
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    First search in 5 minutes
+  </Card>
+</CardGroup>
