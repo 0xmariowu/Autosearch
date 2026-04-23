@@ -25,20 +25,30 @@ _CATEGORY = "P"
 
 
 async def _desktop_cmd(sbx: DesktopSandbox, cmd: str, timeout: int = 60) -> tuple[str, str, int]:
-    """Run bash command in desktop sandbox. Returns (stdout, stderr, exit_code)."""
+    """Run a shell command in desktop sandbox. Passes cmd directly — no bash -c wrapping."""
     loop = asyncio.get_event_loop()
 
     def _run() -> Any:
         try:
-            return sbx.commands.run(f"bash -c {repr(cmd)}", timeout=timeout)
+            return sbx.commands.run(cmd, timeout=timeout)
         except TypeError:
-            return sbx.commands.run(f"bash -c {repr(cmd)}")
+            return sbx.commands.run(cmd)
 
     result = await loop.run_in_executor(None, _run)
     stdout = getattr(result, "stdout", "") or ""
     stderr = getattr(result, "stderr", "") or ""
     exit_code = getattr(result, "exit_code", 0) or 0
     return stdout, stderr, exit_code
+
+
+async def _desktop_python(
+    sbx: DesktopSandbox, script: str, timeout: int = 60
+) -> tuple[str, str, int]:
+    """Run a Python script in desktop sandbox via base64 — safe for any string content."""
+    b64 = base64.b64encode(script.encode()).decode()
+    write_cmd = f"echo '{b64}' | base64 -d > /tmp/_p_test.py"
+    await _desktop_cmd(sbx, write_cmd, timeout=15)
+    return await _desktop_cmd(sbx, "python3 /tmp/_p_test.py", timeout=timeout)
 
 
 async def _create_desktop(env: dict) -> DesktopSandbox:
@@ -288,16 +298,17 @@ async def p5_list_skills_cli(sandbox_id: str, env: dict) -> ScenarioResult:
                 "error": "pip install failed",
             }
 
-        cmd = (
-            'python3 -c "import os; '
-            "from autosearch.core.channel_bootstrap import _build_channels; _build_channels(); "
-            "os.environ['AUTOSEARCH_LLM_MODE']='dummy'; "
-            "from autosearch.mcp.server import create_server; "
-            "s=create_server(); "
-            "tools=[t.name for t in s._tool_manager.list_tools()]; "
-            "print('tools:', len(tools), 'first:', tools[:3])\""
-        )
-        stdout, stderr, code = await _desktop_cmd(sbx, cmd, timeout=60)
+        script = """
+import os, json
+from autosearch.core.channel_bootstrap import _build_channels
+_build_channels()
+os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
+from autosearch.mcp.server import create_server
+s = create_server()
+tools = [t.name for t in s._tool_manager.list_tools()]
+print('tools:', len(tools), 'first:', tools[:3])
+"""
+        stdout, stderr, code = await _desktop_python(sbx, script, timeout=60)
         text = _combined(stdout, stderr)
         count = _extract_int("tools", text)
         ok = code == 0 and "tools:" in text and count >= 10
@@ -521,11 +532,13 @@ async def p9_wine_cli_path_test(sandbox_id: str, env: dict) -> ScenarioResult:
                 "error": "pip install failed",
             }
 
-        cmd = (
-            "python3 -c \"import os; os.environ['USERPROFILE']='C:\\\\Users\\\\test'; "
-            "import autosearch; print('ok')\""
-        )
-        stdout, stderr, code = await _desktop_cmd(sbx, cmd, timeout=60)
+        script = """
+import os
+os.environ['USERPROFILE'] = 'C:\\\\Users\\\\test'
+import autosearch
+print('ok')
+"""
+        stdout, stderr, code = await _desktop_python(sbx, script, timeout=60)
         text = _combined(stdout, stderr)
         ok = code == 0 and "ok" in text
         return {

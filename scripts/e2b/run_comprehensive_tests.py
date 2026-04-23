@@ -350,6 +350,9 @@ ALL_SCENARIOS = [
 # ── Single sandbox runner ─────────────────────────────────────────────────────
 
 
+_DESKTOP_CATEGORIES = {"P"}  # categories that manage their own sandbox lifecycle
+
+
 async def run_scenario_in_sandbox(
     scenario_id: str,
     category: str,
@@ -357,10 +360,36 @@ async def run_scenario_in_sandbox(
     env: dict[str, str],
     semaphore: asyncio.Semaphore,
 ) -> ScenarioResult:
-    """Create sandbox, install autosearch, run scenario, kill sandbox."""
+    """Create sandbox, install autosearch, run scenario, kill sandbox.
+
+    P-category scenarios manage their own desktop sandbox internally — this
+    function skips headless sandbox creation for them so we don't waste a slot.
+    """
     async with semaphore:
         sandbox_id = None
         t0 = time.monotonic()
+
+        # Desktop scenarios handle their own sandbox; pass a placeholder.
+        if category in _DESKTOP_CATEGORIES:
+            try:
+                print(f"  [{scenario_id}] running desktop scenario...")
+                result = await scenario_fn("desktop", env)
+                result.duration_s = time.monotonic() - t0
+                status = "✅" if result.passed else "❌"
+                print(f"  [{scenario_id}] {status} score={result.score} t={result.duration_s:.0f}s")
+                return result
+            except Exception as exc:
+                dur = time.monotonic() - t0
+                print(f"  [{scenario_id}] ❌ exception: {exc}")
+                return ScenarioResult(
+                    scenario_id,
+                    category,
+                    scenario_fn.__name__,
+                    score=0,
+                    passed=False,
+                    error=str(exc)[:200],
+                    duration_s=dur,
+                )
 
         async with httpx.AsyncClient(timeout=300) as client:
             try:
