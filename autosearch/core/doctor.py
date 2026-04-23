@@ -135,7 +135,6 @@ def format_report(results: list[ChannelStatus]) -> str:
 
     # Tier 0 — zero config
     ok0 = [r for r in tier0 if r.status == "ok"]
-    off0 = [r for r in tier0 if r.status != "ok"]
     lines.append(f"\n开箱即用 ({len(ok0)}/{len(tier0)})")
     for r in tier0:
         icon = "✅" if r.status == "ok" else ("⚠️ " if r.status == "warn" else "❌")
