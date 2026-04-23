@@ -3,7 +3,7 @@
 </h1>
 
 <p align="center">
-  <strong>给你的 AI Agent 装上 39 个搜索渠道</strong>
+  <strong>给你的 AI Agent 装上 40 个搜索渠道</strong>
 </p>
 
 <p align="center">
@@ -49,7 +49,7 @@ npx autosearch-ai
 curl -fsSL https://raw.githubusercontent.com/0xmariowu/Autosearch/main/scripts/install.sh | bash
 ```
 
-安装后你的 Agent 能同时搜 39 个渠道——学术论文、开发者社区、中文社媒，结果去重排序，每条结果都有来源链接。
+安装后你的 Agent 能同时搜 40 个渠道——学术论文、开发者社区、中文社媒、Linux DO 论坛帖子，结果去重排序，每条结果都有来源链接。
 
 ---
 
@@ -71,6 +71,7 @@ curl -fsSL https://raw.githubusercontent.com/0xmariowu/Autosearch/main/scripts/i
 | 🌐 **Wikipedia / Wikidata** | 百科 + 结构化知识 | — | 无需配置 |
 | 💬 **微信公众号** | 公众号文章全文搜索 | — | 无需配置 |
 | 📱 **36kr / InfoQ** | 中文科技商业资讯 | — | 无需配置 |
+| 🧵 **Linux DO / Discourse 论坛** | Linux DO 话题和基于 Discourse 的公开论坛讨论 | — | 无需配置 |
 | 🎬 **YouTube** | 视频搜索 + 字幕 | — | 设置 `YOUTUBE_API_KEY` |
 | 📺 **Bilibili** | 中文技术视频 | — | 设置 `TIKHUB_API_KEY` |
 | 📹 **微信视频号** | 中文短视频 | — | `TIKHUB_API_KEY` |

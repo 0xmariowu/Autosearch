@@ -3,7 +3,7 @@
 </h1>
 
 <p align="center">
-  <strong>39 search channels for your AI Agent</strong>
+  <strong>40 search channels for your AI Agent</strong>
 </p>
 
 <p align="center">
@@ -49,7 +49,7 @@ npx autosearch-ai
 curl -fsSL https://raw.githubusercontent.com/0xmariowu/Autosearch/main/scripts/install.sh | bash
 ```
 
-After install, your Agent searches 39 channels simultaneously — academic papers, developer communities, Chinese social media — results deduplicated and ranked, every result includes a source URL.
+After install, your Agent searches 40 channels simultaneously — academic papers, developer communities, Chinese social media, and Linux DO forum threads — results deduplicated and ranked, every result includes a source URL.
 
 ---
 
@@ -71,6 +71,7 @@ After install, your Agent searches 39 channels simultaneously — academic paper
 | 🌐 **Wikipedia / Wikidata** | Encyclopedia + structured knowledge | — | No config needed |
 | 💬 **WeChat Official Accounts** | Full-text article search | — | No config needed |
 | 📱 **36kr / InfoQ** | Chinese tech & business news | — | No config needed |
+| 🧵 **Linux DO / Discourse Forums** | Linux DO topics and Discourse-based public forum discussions | — | No config needed |
 | 🎬 **YouTube** | Video search + transcripts | — | Set `YOUTUBE_API_KEY` |
 | 📺 **Bilibili** | Chinese tech videos | — | Set `TIKHUB_API_KEY` |
 | 📹 **WeChat Channels** | Chinese short videos (视频号) | — | `TIKHUB_API_KEY` |
