@@ -69,6 +69,7 @@ After install, your Agent searches 39 channels simultaneously — academic paper
 | 📱 **36kr / InfoQ** | Chinese tech & business news | — | No config needed |
 | 🎬 **YouTube** | Video search + transcripts | — | Set `YOUTUBE_API_KEY` |
 | 📺 **Bilibili** | Chinese tech videos | — | Set `TIKHUB_API_KEY` |
+| 📹 **WeChat Channels** | Chinese short videos (视频号) | — | `TIKHUB_API_KEY` |
 | 🌸 **Xiaohongshu** | Lifestyle + product reviews | More stable | `autosearch login xhs` or `TIKHUB_API_KEY` |
 | 🐦 **Twitter / X** | Real-time discussion + tech news | — | `TIKHUB_API_KEY` |
 | 📣 **Weibo / Douyin / Zhihu** | Chinese social + in-depth discussion | — | `TIKHUB_API_KEY` |
