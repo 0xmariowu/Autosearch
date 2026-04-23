@@ -218,6 +218,12 @@ def init(
     for step in result.next_steps:
         typer.echo(f"- {step}")
 
+    typer.echo("")
+    typer.echo("MCP server setup — add to your Claude Code / Cursor MCP config:")
+    typer.echo('  { "autosearch": { "command": "autosearch-mcp", "type": "stdio" } }')
+    typer.echo("")
+    typer.echo("Then run:  autosearch doctor  — to see which channels are ready")
+
 
 def _print_channel_check() -> None:
     channels_root = default_channels_root()

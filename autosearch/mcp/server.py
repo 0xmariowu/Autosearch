@@ -735,24 +735,36 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
 
     # F009: channel health scanner
     @server.tool()
-    def doctor() -> list[dict]:
-        """Scan all configured channels and return their health status.
+    def doctor() -> dict:
+        """Scan all configured channels and return their health status with fix hints.
 
-        Returns a list of {channel, status, message, unmet_requires} dicts.
-        status: "ok" (all methods available), "warn" (partial), "off" (none available).
+        Returns a structured report grouped by tier:
+          - tier 0: zero-config (works out of the box)
+          - tier 1: needs API key
+          - tier 2: needs login / cookie  (run: autosearch login <platform>)
+
+        Each channel includes a fix_hint — a one-line command to resolve the issue.
         Use this to diagnose which channels are missing API keys or credentials.
         """
-        from autosearch.core.doctor import scan_channels  # noqa: PLC0415
+        from autosearch.core.doctor import format_report, scan_channels  # noqa: PLC0415
 
-        return [
-            {
-                "channel": s.channel,
-                "status": s.status,
-                "message": s.message,
-                "unmet_requires": s.unmet_requires,
-            }
-            for s in scan_channels()
-        ]
+        results = scan_channels()
+        ok_count = sum(1 for r in results if r.status == "ok")
+        return {
+            "summary": f"{ok_count}/{len(results)} channels available",
+            "report": format_report(results),
+            "channels": [
+                {
+                    "channel": s.channel,
+                    "status": s.status,
+                    "tier": s.tier,
+                    "message": s.message,
+                    "fix_hint": s.fix_hint,
+                    "unmet_requires": s.unmet_requires,
+                }
+                for s in results
+            ],
+        }
 
     # G1: channel capability directory (status + availability in one call)
     @server.tool()
@@ -785,13 +797,18 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
         return {
             "total": len(filtered),
             "ok_count": sum(1 for s in all_channels if s.status == "ok"),
+            "tier0_count": sum(1 for s in all_channels if s.tier == 0 and s.status == "ok"),
+            "tier1_count": sum(1 for s in all_channels if s.tier == 1 and s.status == "ok"),
+            "tier2_count": sum(1 for s in all_channels if s.tier == 2 and s.status == "ok"),
             "warn_count": sum(1 for s in all_channels if s.status == "warn"),
             "off_count": sum(1 for s in all_channels if s.status == "off"),
             "channels": [
                 {
                     "name": s.channel,
                     "status": s.status,
+                    "tier": s.tier,
                     "message": s.message,
+                    "fix_hint": s.fix_hint,
                     "unmet_requires": s.unmet_requires,
                 }
                 for s in filtered
