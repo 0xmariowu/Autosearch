@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026.04.23.2 — 2026-04-23
+
+**百万用户化改造（G1–G7，1:1 参考 Agent-Reach / MediaCrawlerPro）**
+
+**G1 — 一行安装：**
+- `docs/install.md`：把 URL 粘贴给 AI Agent 即可完成安装和 MCP 配置
+- `autosearch init` 末尾输出 MCP config snippet
+
+**G2 — Doctor 分层输出（1:1 from Agent-Reach doctor.py）：**
+- Tier 0（开箱即用 25 个）/ Tier 1（需 API key）/ Tier 2（需登录）三层展示
+- 每个未配置渠道显示 fix_hint（如 `autosearch login xhs`）
+- MCP `doctor()` 返回 `{report, channels, summary}` 结构化响应
+
+**G3 — 多平台登录：**
+- `autosearch login` 支持 7 个平台：xhs / twitter / bilibili / weibo / douyin / zhihu / xueqiu
+- `--from-string` 参数：Cookie-Editor 导出字符串直接粘贴
+- `_write_cookie_to_secrets()` 提取为可复用 helper
+
+**G4 — 新渠道（1:1 from Agent-Reach channels/）：**
+- `xueqiu`（雪球）：股票搜索 + 热门帖子，需 `autosearch login xueqiu`
+- `linkedin`：公开页面 via Jina Reader，零配置可用
+
+**G5 — 配额管理：**
+- Python 侧：`TikhubBudgetExhausted` 触发 fallback_chain 下一个方法，不再报错
+- Worker 侧：每个 IP 独立配额 50 次/天，防止一个用户耗尽共享 token
+
+**G6 — Circuit breaker 分类（MediaCrawlerPro 账号池设计）：**
+- `FailureCategory` 枚举：QUOTA_EXHAUSTED / AUTH_FAILURE / NETWORK_ERROR / PLATFORM_BLOCK
+- `ChannelHealth.record_categorized_failure()`：每类失败有独立冷却时间（24h / 0 / 5min / 1h）
+
+**G7 — 输出优化（1:1 from Agent-Reach format_xhs_result）：**
+- `Evidence.to_context_dict(max_content_chars=500)`：精简版，省约 60% token
+- `run_channel` MCP 工具默认使用精简输出
+
 ## 2026.04.23.1 — 2026-04-23
 
 **Channels — 37 total (+3 new, +4 fixed):**
