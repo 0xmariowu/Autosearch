@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 
 import httpx
 import structlog
