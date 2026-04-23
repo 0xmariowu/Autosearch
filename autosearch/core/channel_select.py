@@ -4,6 +4,11 @@ from __future__ import annotations
 
 _GROUP_KEYWORDS: dict[str, list[str]] = {
     "chinese-ugc": [
+        "Linux DO",
+        "linux do",
+        "linux.do",
+        "linuxdo",
+        "discourse",
         "小红书",
         "抖音",
         "B站",
@@ -86,7 +91,7 @@ _GROUP_KEYWORDS: dict[str, list[str]] = {
 }
 
 _GROUP_CHANNELS: dict[str, list[str]] = {
-    "chinese-ugc": ["bilibili", "xiaohongshu", "zhihu", "weibo", "douyin"],
+    "chinese-ugc": ["discourse_forum", "bilibili", "xiaohongshu", "zhihu", "weibo", "douyin"],
     "cn-tech": ["kr36", "infoq_cn", "sogou_weixin"],
     "academic": ["arxiv", "papers", "google_scholar"],
     "code-package": ["github", "package_search"],

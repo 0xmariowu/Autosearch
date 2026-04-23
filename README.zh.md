@@ -3,7 +3,7 @@
 </h1>
 
 <p align="center">
-  面向编程 Agent 的开源深度研究工具。OpenAI 和 Perplexity Deep Research 的替代方案——39 个渠道，含中文信息源。
+  面向编程 Agent 的开源深度研究工具。OpenAI 和 Perplexity Deep Research 的替代方案——40 个渠道，含中文信息源。
 </p>
 
 <p align="center">
@@ -47,7 +47,7 @@ curl -fsSL https://raw.githubusercontent.com/0xmariowu/Autosearch/main/scripts/i
 Help me install AutoSearch: https://raw.githubusercontent.com/0xmariowu/Autosearch/main/docs/install.md
 ```
 
-安装后你的 Agent 能同时搜 39 个渠道——学术论文、开发者社区、中文社媒，结果去重排序，每条结果都有来源链接。
+安装后你的 Agent 能同时搜 40 个渠道——学术论文、开发者社区、中文社媒、Linux DO 论坛帖子，结果去重排序，每条结果都有来源链接。
 
 ---
 
@@ -69,6 +69,7 @@ Help me install AutoSearch: https://raw.githubusercontent.com/0xmariowu/Autosear
 | 🌐 **Wikipedia / Wikidata** | 百科 + 结构化知识 | — | 无需配置 |
 | 💬 **微信公众号** | 公众号文章全文搜索 | — | 无需配置 |
 | 📱 **36kr / InfoQ** | 中文科技商业资讯 | — | 无需配置 |
+| 🧵 **Linux DO / Discourse 论坛** | Linux DO 话题和基于 Discourse 的公开论坛讨论 | — | 无需配置 |
 | 🎬 **YouTube** | 视频搜索 + 字幕 | — | 设置 `YOUTUBE_API_KEY` |
 | 📺 **Bilibili** | 中文技术视频 | — | 设置 `TIKHUB_API_KEY` |
 | 📹 **微信视频号** | 中文短视频 | — | `TIKHUB_API_KEY` |
