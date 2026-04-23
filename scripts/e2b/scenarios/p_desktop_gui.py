@@ -20,9 +20,11 @@ except ImportError:  # pragma: no cover - optional phase-2 dependency
     DesktopSandbox = None  # type: ignore[assignment]
 
 
-# Use python3 -m pip so pip and python3 are guaranteed to share the same interpreter.
+# pip 22 (Ubuntu 22.04 desktop template) misnames git-URL installs as "UNKNOWN-0.0.0" and
+# never writes files. Clone first, then pip install from local dir — avoids the metadata bug.
 _INSTALL_CMD = (
-    "python3 -m pip install git+https://github.com/0xmariowu/Autosearch.git -q 2>&1 | tail -3"
+    "git clone https://github.com/0xmariowu/Autosearch.git /tmp/autosearch_d -q 2>&1 | tail -1 "
+    "&& python3 -m pip install /tmp/autosearch_d -q 2>&1 | tail -2"
 )
 # After install, autosearch CLI entry-point may not be in PATH; use module invocation instead.
 _AUTOSEARCH_CLI = "python3 -m autosearch.cli.main"
@@ -507,7 +509,7 @@ print(json.dumps({{'ok': exists and contains, 'patterns_path': str(patterns_path
         )
         reinstall_out, reinstall_err, reinstall_code = await _desktop_cmd(
             sbx,
-            "python3 -m pip install --force-reinstall git+https://github.com/0xmariowu/Autosearch.git -q 2>&1 | tail -3",
+            "python3 -m pip install --force-reinstall /tmp/autosearch_d -q 2>&1 | tail -2",
             timeout=180,
         )
         after, _, _, _ = await _desktop_python_json(
