@@ -5,6 +5,28 @@ import time
 from collections import defaultdict, deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from enum import StrEnum
+
+
+class FailureCategory(StrEnum):
+    """Failure classification for circuit breaker — 1:1 from MediaCrawlerPro account pool design.
+
+    Different categories get different cooldown durations and user-facing messages.
+    """
+
+    QUOTA_EXHAUSTED = "quota"  # budget exhausted → cooldown 24h, degrade to free channel
+    AUTH_FAILURE = "auth"  # cookie/session invalid → no cooldown, prompt autosearch login
+    NETWORK_ERROR = "network"  # timeout/connection → cooldown 5min, retry
+    PLATFORM_BLOCK = "block"  # platform anti-bot block → cooldown 1h, degrade
+
+
+# Per-category cooldown durations (seconds)
+_CATEGORY_COOLDOWN: dict[FailureCategory, int] = {
+    FailureCategory.QUOTA_EXHAUSTED: 86400,  # 24h
+    FailureCategory.AUTH_FAILURE: 0,  # no cooldown, needs user action
+    FailureCategory.NETWORK_ERROR: 300,  # 5min
+    FailureCategory.PLATFORM_BLOCK: 3600,  # 1h
+}
 
 
 @dataclass(slots=True)
@@ -16,6 +38,7 @@ class _MethodHealthState:
     consecutive_failures: deque[float] = field(default_factory=deque)
     last_error: str | None = None
     last_latency_ms: float | None = None
+    last_failure_category: FailureCategory | None = None
 
 
 class ChannelHealth:
@@ -69,6 +92,35 @@ class ChannelHealth:
         if len(state.consecutive_failures) >= self._fail_threshold:
             state.cooldown_until = now + self._cooldown_seconds
             state.consecutive_failures.clear()
+
+    def record_categorized_failure(
+        self,
+        channel: str,
+        method: str,
+        category: FailureCategory,
+        latency_ms: float = 0.0,
+    ) -> None:
+        """Record a classified failure with category-specific cooldown.
+
+        1:1 from MediaCrawlerPro account pool pattern: each failure type
+        gets a different cooldown so the system degrades gracefully.
+        """
+        state = self._states[channel].setdefault(method, _MethodHealthState())
+        now = self._now()
+        state.last_error = category.value
+        state.last_failure_category = category
+        state.last_latency_ms = latency_ms
+        state.fail_count += 1
+        state.history.append((now, False))
+
+        cooldown = _CATEGORY_COOLDOWN.get(category, self._cooldown_seconds)
+        if cooldown > 0:
+            state.cooldown_until = now + cooldown
+            state.consecutive_failures.clear()
+
+    def get_failure_category(self, channel: str, method: str) -> FailureCategory | None:
+        """Return the last failure category for a channel/method pair."""
+        return self._states.get(channel, {}).get(method, _MethodHealthState()).last_failure_category
 
     def is_in_cooldown(self, channel: str, method: str | None = None) -> bool:
         now = self._now()
