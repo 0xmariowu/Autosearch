@@ -4,6 +4,9 @@
 const { execSync, spawnSync } = require("child_process");
 const args = process.argv.slice(2);
 
+const INSTALL_SCRIPT =
+  "https://raw.githubusercontent.com/0xmariowu/Autosearch/main/scripts/install.sh";
+
 function hasAutosearch() {
   try {
     execSync("autosearch --version", { stdio: "ignore" });
@@ -14,12 +17,11 @@ function hasAutosearch() {
 }
 
 if (!hasAutosearch()) {
-  console.log("");
-  console.log("AutoSearch is not installed yet. Run:");
-  console.log("");
-  console.log("  curl -fsSL https://raw.githubusercontent.com/0xmariowu/Autosearch/main/scripts/install.sh | bash");
-  console.log("");
-  process.exit(0);
+  // Download and run install.sh — handles uv/pipx/pip + shows init screen
+  const result = spawnSync("bash", ["-c", `curl -fsSL ${INSTALL_SCRIPT} | bash`], {
+    stdio: "inherit",
+  });
+  process.exit(result.status ?? 0);
 }
 
 const cmd = args.length > 0 ? args : ["init"];

@@ -27,23 +27,20 @@ Install AutoSearch and configure the MCP server so the user's agent has access t
 ### Step 1: Install AutoSearch
 
 ```bash
-# Option 1: npm (no Python setup required)
-npm install -g autosearch-ai
+# Option 1: npx — one command, no setup required (recommended)
+npx autosearch-ai
 
-# Option 2: pip
-pip install autosearch
+# Option 2: curl install script
+curl -fsSL https://raw.githubusercontent.com/0xmariowu/Autosearch/main/scripts/install.sh | bash
 
-# Option 3: pipx (cleanest Python install)
-pipx install autosearch
+# Option 3: pip
+pip install autosearch && autosearch init
+
+# Option 4: pipx
+pipx install autosearch && autosearch init
 ```
 
-### Step 2: Initialize
-
-> **npm users**: init runs automatically — skip this step.
-
-```bash
-autosearch init      # pip/pipx only
-```
+> npx and curl options run `autosearch init` automatically.
 
 This will:
 - Detect available LLM providers (Anthropic, OpenAI, Gemini, claude CLI)
