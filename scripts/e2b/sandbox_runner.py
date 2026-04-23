@@ -12,7 +12,7 @@ from typing import Any
 import httpx
 
 E2B_API_KEY = os.environ.get("E2B_API_KEY", "")
-TEMPLATE_ID = "y6nmb7m9h84kswgrddd6"  # autosearch-claude
+TEMPLATE_ID = "kiuqzrxuonk3458r5sn0"  # autosearch-py312 (Python 3.12 pre-installed)
 MANAGEMENT_URL = "https://api.e2b.app"
 SANDBOX_TIMEOUT = 900  # 15 min
 

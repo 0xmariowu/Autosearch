@@ -62,7 +62,7 @@ def run_one(
     t_overall = time.monotonic()
 
     try:
-        sbx = Sandbox.create("autosearch-claude", timeout=1800, envs=secrets)
+        sbx = Sandbox.create("autosearch-py312", timeout=1800, envs=secrets)
     except Exception as exc:
         return {
             "cell_id": cell_id,
