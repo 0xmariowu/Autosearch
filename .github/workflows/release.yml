@@ -108,6 +108,29 @@ jobs:
             --generate-notes \
             dist/*
 
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Publish npm wrapper
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          # Convert CalVer YYYY.MM.DD.N → npm semver YYYY.MMDD.N
+          YEAR=$(echo "$VERSION" | cut -d. -f1)
+          MONTH=$(echo "$VERSION" | cut -d. -f2 | sed 's/^0*//')
+          DAY=$(echo "$VERSION" | cut -d. -f3 | sed 's/^0*//')
+          SEQ=$(echo "$VERSION" | cut -d. -f4)
+          MMDD=$(( MONTH * 100 + DAY ))
+          NPM_VERSION="$YEAR.$MMDD.$SEQ"
+          echo "Publishing autosearch-ai@$NPM_VERSION"
+          cd npm
+          npm version "$NPM_VERSION" --no-git-tag-version
+          npm publish --access public
+
       - name: Summary
         env:
           TAG: ${{ steps.tag.outputs.tag }}
@@ -116,6 +139,12 @@ jobs:
           SERVER_URL: ${{ github.server_url }}
           REPO: ${{ github.repository }}
         run: |
+          YEAR=$(echo "$VERSION" | cut -d. -f1)
+          MONTH=$(echo "$VERSION" | cut -d. -f2 | sed 's/^0*//')
+          DAY=$(echo "$VERSION" | cut -d. -f3 | sed 's/^0*//')
+          SEQ=$(echo "$VERSION" | cut -d. -f4)
+          MMDD=$(( MONTH * 100 + DAY ))
+          NPM_VERSION="$YEAR.$MMDD.$SEQ"
           {
             echo "## Released $VERSION"
             echo "- GitHub Release: $SERVER_URL/$REPO/releases/tag/$TAG"
@@ -124,4 +153,5 @@ jobs:
             else
               echo "- PyPI: skipped (no PYPI_API_TOKEN secret)"
             fi
+            echo "- npm: https://www.npmjs.com/package/autosearch-ai/v/$NPM_VERSION"
           } >> "$GITHUB_STEP_SUMMARY"
