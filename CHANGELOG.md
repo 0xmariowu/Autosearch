@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026.04.23.1 — 2026-04-23
+
+**Channels — 37 total (+3 new, +4 fixed):**
+- You can now search Instagram and WeChat Channels (视频号) via TikHub
+- Bilibili now uses direct WBI signing (free, no TikHub needed) with TikHub as fallback
+- Twitter flat-timeline parsing fixed (was silently returning 0 results)
+- XHS now uses two-step TikHub sign flow (`sign` → `search`) — previous endpoints returned 400
+- Douyin switched to the working POST search endpoint (16 results)
+
+**Search quality:**
+- EvidenceProcessor is now active in `run_channel`: URL dedup → SimHash near-dedup → BM25 rerank. Previously written but never wired in.
+- New `consolidate_research` MCP tool: compresses multi-channel evidence lists to prevent context overflow in long research sessions
+
+**Search modes:**
+- New `list_modes` MCP tool: discover 5 built-in search modes (academic / news / chinese_ugc / developer / product)
+- `run_clarify` auto-detects query intent and injects channel priority/skip from the matched mode
+- User-customizable via `~/.config/autosearch/custom_modes.json`
+
+**Video transcription:**
+- New `video-to-text-bcut` skill: Bilibili Bcut API (free, no key needed, word-level timestamps — more precise than Whisper)
+
+**Signing Worker (Cloudflare):**
+- `POST /sign/bilibili` — WBI signing with KV-cached salt, cron refresh every 2h
+- `POST /sign/xhs` — TikHub sign + local X-s-common (saves per-call sign cost)
+- Rate-limit: 1000 requests/day per service token
+- Self-hosted: `autosearch-signsrv.autosearch-dev.workers.dev`
+
+**E2B test suite expanded:**
+- Phase 1: 59 scenarios, **96.3/100** 🟢 (install diversity, channel quality, error handling, AVO evolution, report quality, Windows emulation)
+- Phase 2: 126 scenarios, **84.3/100** 🟢 (desktop GUI, search quality judge, channel reliability, stress, experience effectiveness, TikHub pathfinding, cross-platform)
+
+**Cleanup:**
+- Deleted HTTP server (`autosearch serve`, 577 lines) — v2 is MCP-first, the endpoint was calling `Pipeline.run()` → `NotImplementedError`
+- `TikhubClient` retry logic deduplicated (`get()`/`post()` → shared `_execute()`, −45 lines)
+- Cross-platform CI: Windows + macOS runners, Python 3.11 reverse-compat test
+
 ## 2026.04.22.5 — 2026-04-23  ← v1.0.0
 
 This is the first production release of AutoSearch v2 tool-supplier architecture.
