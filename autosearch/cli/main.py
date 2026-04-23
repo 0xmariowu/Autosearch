@@ -214,11 +214,6 @@ def init(
 
     # ── Run init ──────────────────────────────────────────────────────────────
     runner = InitRunner()
-    config_exists = runner.config_path().exists()
-    action = "merged" if config_exists and not overwrite else "created"
-    if config_exists and overwrite:
-        action = "overwritten"
-
     try:
         result = runner.run(overwrite=overwrite)
     except InitError as exc:
