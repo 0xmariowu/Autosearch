@@ -880,6 +880,32 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
 
         return trim_to_budget(evidence, token_budget)
 
+    @server.tool()
+    def consolidate_research(evidence: list[dict], query: str, top_k: int = 5) -> dict:
+        """Compress accumulated evidence into a compact research brief.
+
+        Use this when a research session has accumulated many evidence items
+        (from multiple run_channel calls) and the context is getting large.
+        Deduplicates, reranks by relevance to query, and formats a brief summary.
+
+        Args:
+            evidence: Combined list of evidence dicts from run_channel / delegate_subtask.
+            query: The original research question (used for relevance ranking).
+            top_k: Max items to keep in the brief (default 5).
+
+        Returns:
+            {
+              total_processed: int,
+              kept: int,
+              top_evidence: list[dict],
+              source_coverage: {channel: count},
+              brief_text: "Markdown summary of key findings",
+            }
+        """
+        from autosearch.core.context_compression import compress_evidence  # noqa: PLC0415
+
+        return compress_evidence(evidence, query, top_k=top_k)
+
     return server
 
 
