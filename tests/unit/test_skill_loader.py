@@ -85,6 +85,9 @@ def test_load_all_skips_dirs_without_skill_md(
         def info(self, event: str, **kwargs: object) -> None:
             events.append((event, kwargs))
 
+        def debug(self, event: str, **kwargs: object) -> None:
+            events.append((event, kwargs))
+
     monkeypatch.setattr(loader_module, "LOGGER", _Logger())
 
     specs = load_all(tmp_path)

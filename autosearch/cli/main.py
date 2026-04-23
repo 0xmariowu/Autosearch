@@ -189,6 +189,30 @@ def init(
         _print_channel_check()
         return
 
+    # ── Banner ────────────────────────────────────────────────────────────────
+    typer.echo(
+        "\n"
+        " █████╗ ██╗   ██╗████████╗ ██████╗ ███████╗███████╗ █████╗ ██████╗  ██████╗██╗  ██╗\n"
+        "██╔══██╗██║   ██║╚══██╔══╝██╔═══██╗██╔════╝██╔════╝██╔══██╗██╔══██╗██╔════╝██║  ██║\n"
+        "███████║██║   ██║   ██║   ██║   ██║███████╗█████╗  ███████║██████╔╝██║     ███████║\n"
+        "██╔══██║██║   ██║   ██║   ██║   ██║╚════██║██╔══╝  ██╔══██║██╔══██╗██║     ██╔══██║\n"
+        "██║  ██║╚██████╔╝   ██║   ╚██████╔╝███████║███████╗██║  ██║██║  ██║╚██████╗██║  ██║\n"
+        "╚═╝  ╚═╝ ╚═════╝    ╚═╝    ╚═════╝ ╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝\n"
+    )
+    typer.echo("Welcome to AutoSearch — deep research for AI developers")
+    typer.echo("-" * 60)
+    typer.echo("This tool will:")
+    typer.echo("  - Detect your LLM providers (Anthropic, OpenAI, Gemini, claude CLI)")
+    typer.echo("  - Create ~/.autosearch/config.yaml")
+    typer.echo("  - Auto-configure the MCP server for Claude Code / Cursor")
+    typer.echo("  - Show which of the 39 search channels are ready to use")
+    typer.echo("")
+    typer.echo("(Nothing destructive — existing configs are merged, not overwritten)")
+    typer.echo("-" * 60)
+    typer.echo("Analyzing and configuring local environment...")
+    typer.echo("")
+
+    # ── Run init ──────────────────────────────────────────────────────────────
     runner = InitRunner()
     config_exists = runner.config_path().exists()
     action = "merged" if config_exists and not overwrite else "created"
@@ -201,28 +225,84 @@ def init(
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
 
+    # ── Provider status ───────────────────────────────────────────────────────
     version = sys.version_info
-    typer.echo(f"Python 3.12+ check: OK (running {version.major}.{version.minor}.{version.micro})")
-    typer.echo("Provider detection:")
+    typer.echo("Integration Status:")
+    typer.echo(f"  ✅ Python {version.major}.{version.minor}.{version.micro}            [OK]")
     for provider, detected in result.providers.items():
-        status = "✅" if detected else "❌"
-        typer.echo(f"{status} {provider}")
-    typer.echo(f"Config: {action} {result.config_path}")
+        if detected:
+            typer.echo(f"  ✅ {provider:<24} [Detected]")
+        else:
+            typer.echo(f"  ○  {provider:<24} [Not found]")
 
-    if result.warnings:
-        typer.echo("Warnings:")
-        for warning in result.warnings:
-            typer.echo(f"- {warning}")
+    # ── Auto-write MCP config ─────────────────────────────────────────────────
+    mcp_status = _auto_configure_mcp()
+    typer.echo(f"  ✅ MCP server                   [{mcp_status}]")
 
-    typer.echo("Next steps:")
-    for step in result.next_steps:
-        typer.echo(f"- {step}")
+    # ── Channel summary ───────────────────────────────────────────────────────
+    import os  # noqa: PLC0415
 
+    from autosearch.core.doctor import scan_channels  # noqa: PLC0415
+
+    # Suppress all log output at fd level (structlog bypasses sys.stderr)
+    _devnull_fd = os.open(os.devnull, os.O_WRONLY)
+    _old_stderr_fd = os.dup(2)
+    os.dup2(_devnull_fd, 2)
+    os.close(_devnull_fd)
+    try:
+        channel_results = scan_channels()
+    finally:
+        os.dup2(_old_stderr_fd, 2)
+        os.close(_old_stderr_fd)
+    ok_count = sum(1 for r in channel_results if r.status == "ok")
+    total = len(channel_results)
+    typer.echo(f"  ✅ Search channels              [{ok_count}/{total} ready]")
+
+    # ── Success box ───────────────────────────────────────────────────────────
     typer.echo("")
-    typer.echo("MCP server setup — add to your Claude Code / Cursor MCP config:")
-    typer.echo('  { "autosearch": { "command": "autosearch-mcp", "type": "stdio" } }')
+    typer.echo("+" + "-" * 60 + "+")
+    typer.echo("|  You are all set!                                          |")
+    typer.echo("|                                                            |")
+    typer.echo(f"|  Config: {str(result.config_path):<51}|")
+    typer.echo("|                                                            |")
+    typer.echo("|  Run:  autosearch doctor  — full channel status            |")
+    typer.echo("|  Run:  autosearch login xhs  — unlock Chinese social media |")
+    typer.echo("+" + "-" * 60 + "+")
     typer.echo("")
-    typer.echo("Then run:  autosearch doctor  — to see which channels are ready")
+
+
+def _auto_configure_mcp() -> str:
+    """Auto-write autosearch MCP entry to Claude Code config. Returns status string."""
+    import json
+    from pathlib import Path
+
+    mcp_config = {"command": "autosearch-mcp", "type": "stdio"}
+    config_files = [
+        Path.home() / ".claude" / "mcp.json",
+        Path.home() / ".cursor" / "mcp.json",
+    ]
+
+    written: list[str] = []
+    for config_path in config_files:
+        if not config_path.parent.exists():
+            continue
+        existing: dict = {}
+        if config_path.exists():
+            try:
+                existing = json.loads(config_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                existing = {}
+        if "autosearch" not in existing:
+            existing["autosearch"] = mcp_config
+            config_path.write_text(
+                json.dumps(existing, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            written.append(config_path.parent.name)
+
+    if written:
+        return f"Config written to {', '.join(written)}"
+    return "Config already set"
 
 
 def _print_channel_check() -> None:

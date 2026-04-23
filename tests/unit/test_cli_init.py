@@ -27,8 +27,10 @@ def test_cli_init_prints_summary_and_writes_config(
     result = runner.invoke(app, ["init"], env=home_env)
 
     assert result.exit_code == 0
-    assert "Python 3.12+" in result.stdout
-    assert "Config:" in result.stdout
+    # New banner-style output
+    assert "AutoSearch" in result.stdout
+    assert "You are all set" in result.stdout
+    assert "Integration Status" in result.stdout
     for provider in providers:
         assert any(provider in line for line in result.stdout.splitlines())
     assert (tmp_path / ".autosearch" / "config.yaml").exists()

@@ -129,10 +129,11 @@ def load_all(root: Path) -> list[SkillSpec]:
 
     specs: list[SkillSpec] = []
     for skill_dir in sorted(
-        (path for path in root.iterdir() if path.is_dir()), key=lambda path: path.name
+        (path for path in root.iterdir() if path.is_dir() and not path.name.startswith("_")),
+        key=lambda path: path.name,
     ):
         if not (skill_dir / SKILL_FILENAME).is_file():
-            LOGGER.info(
+            LOGGER.debug(
                 "skill_dir_skipped",
                 skill_dir=str(skill_dir),
                 reason="missing_skill_md",
