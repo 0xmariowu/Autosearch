@@ -168,12 +168,40 @@ async def search(query: SubQuery, client: httpx.AsyncClient | None = None) -> li
             return []
 
         payload = xhs_resp.json()
+        xhs_code = payload.get("code", 0)
+
+        # code=300011: account flagged by XHS — silently returns empty instead of error
+        if xhs_code == 300011:
+            LOGGER.warning(
+                "xhs_account_restricted",
+                reason="XHS account flagged (code=300011). Run 'autosearch login xhs' with a normal account.",
+            )
+            return []
+
         outer = payload.get("data", {})
         inner = outer.get("data", {}) if isinstance(outer, Mapping) else {}
         items = inner.get("items", []) if isinstance(inner, Mapping) else []
 
         if not isinstance(items, list):
             return []
+
+        # Empty results on a seemingly successful response → check if account is restricted
+        if not items and xhs_code == 0:
+            try:
+                me_resp = await _client.get(
+                    "https://edith.xiaohongshu.com/api/sns/web/v2/user/me",
+                    headers={k: v for k, v in xhs_headers.items() if k not in ("Content-Type",)},
+                    timeout=8,
+                )
+                me = me_resp.json()
+                if me.get("code") == 300011:
+                    LOGGER.warning(
+                        "xhs_account_restricted",
+                        reason="XHS account flagged — search silently returns empty. Run 'autosearch login xhs' with a normal account.",
+                    )
+                    return []
+            except Exception:
+                pass  # health check failure is non-fatal; return empty results
 
         fetched_at = datetime.now(UTC)
         results: list[Evidence] = []
