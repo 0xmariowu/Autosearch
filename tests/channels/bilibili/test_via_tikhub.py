@@ -146,7 +146,13 @@ async def test_search_extracts_videos_from_result_groups() -> None:
     assert client.calls == [
         (
             SEARCH_PATH,
-            {"keyword": "AI教程", "order": "totalrank", "page": 1, "page_size": 10},
+            {
+                "keyword": "AI教程",
+                "search_type": "video",
+                "order": "totalrank",
+                "page": 1,
+                "page_size": 10,
+            },
         )
     ]
     assert len(results) == 2
