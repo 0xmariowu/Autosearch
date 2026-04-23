@@ -75,7 +75,9 @@ def test_clarify_once_contract():
     # Verify commands/autosearch.md contains the "Only ask once" constraint
     from pathlib import Path
 
-    cmd_text = (Path(__file__).parents[2] / "commands" / "autosearch.md").read_text(encoding="utf-8")
+    cmd_text = (Path(__file__).parents[2] / "commands" / "autosearch.md").read_text(
+        encoding="utf-8"
+    )
     assert "Only ask once" in cmd_text, (
         "commands/autosearch.md must contain 'Only ask once' to document the single-clarification contract"
     )
