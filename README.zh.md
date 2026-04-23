@@ -69,6 +69,7 @@ npm install -g autosearch-ai && autosearch-ai init
 | 📱 **36kr / InfoQ** | 中文科技商业资讯 | — | 无需配置 |
 | 🎬 **YouTube** | 视频搜索 + 字幕 | — | 设置 `YOUTUBE_API_KEY` |
 | 📺 **Bilibili** | 中文技术视频 | — | 设置 `TIKHUB_API_KEY` |
+| 📹 **微信视频号** | 中文短视频 | — | `TIKHUB_API_KEY` |
 | 🌸 **小红书** | 生活方式 + 产品口碑 | 更稳定 | `autosearch login xhs` 或 `TIKHUB_API_KEY` |
 | 🐦 **Twitter / X** | 实时讨论 + 技术动态 | — | `TIKHUB_API_KEY` |
 | 📣 **微博 / 抖音 / 知乎** | 中文舆论 + 深度讨论 | — | `TIKHUB_API_KEY` |
