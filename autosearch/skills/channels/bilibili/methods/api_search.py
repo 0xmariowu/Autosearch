@@ -1,4 +1,5 @@
 """Bilibili direct API search — no TikHub, uses Bilibili's public wbi signing."""
+
 from __future__ import annotations
 
 import hashlib
@@ -21,10 +22,70 @@ _HTML_TAG_RE = re.compile(r"<[^>]+>")
 
 # Bilibili WBI mixin key positions (public constant)
 _MIXIN_KEY_ENC_TAB = [
-    46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35,
-    27, 43, 5, 49, 33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13,
-    37, 48, 7, 16, 24, 55, 40, 61, 26, 17, 0, 1, 60, 51, 30, 4,
-    22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52,
+    46,
+    47,
+    18,
+    2,
+    53,
+    8,
+    23,
+    32,
+    15,
+    50,
+    10,
+    31,
+    58,
+    3,
+    45,
+    35,
+    27,
+    43,
+    5,
+    49,
+    33,
+    9,
+    42,
+    19,
+    29,
+    28,
+    14,
+    39,
+    12,
+    38,
+    41,
+    13,
+    37,
+    48,
+    7,
+    16,
+    24,
+    55,
+    40,
+    61,
+    26,
+    17,
+    0,
+    1,
+    60,
+    51,
+    30,
+    4,
+    22,
+    25,
+    54,
+    21,
+    56,
+    59,
+    6,
+    63,
+    57,
+    62,
+    11,
+    36,
+    20,
+    34,
+    44,
+    52,
 ]
 
 _HEADERS = {
@@ -79,8 +140,10 @@ def _truncate(text: str, max_len: int) -> str:
 def _to_evidence(item: Mapping[str, object], *, fetched_at: datetime) -> Evidence | None:
     bvid = str(item.get("bvid") or "").strip()
     arcurl = str(item.get("arcurl") or "").strip()
-    url = arcurl if arcurl.startswith("http") else (
-        f"https://www.bilibili.com/video/{bvid}" if bvid else ""
+    url = (
+        arcurl
+        if arcurl.startswith("http")
+        else (f"https://www.bilibili.com/video/{bvid}" if bvid else "")
     )
     if not url:
         return None
@@ -112,8 +175,13 @@ async def search(query: SubQuery, client: httpx.AsyncClient | None = None) -> li
             return []
 
         params = _sign_params(
-            {"keyword": query.text, "page": "1", "page_size": "10",
-             "search_type": "video", "order": "totalrank"},
+            {
+                "keyword": query.text,
+                "page": "1",
+                "page_size": "10",
+                "search_type": "video",
+                "order": "totalrank",
+            },
             salt,
         )
 
