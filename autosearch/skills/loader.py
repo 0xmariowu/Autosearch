@@ -37,6 +37,7 @@ class MethodSpec(BaseModel):
 class WhenToUse(BaseModel):
     query_languages: list[Literal["zh", "en", "mixed"]] = Field(default_factory=list)
     query_types: list[str] = Field(default_factory=list)
+    domain_hints: list[str] = Field(default_factory=list)
     avoid_for: list[str] = Field(default_factory=list)
 
 
@@ -54,6 +55,12 @@ class SkillSpec(BaseModel):
     fallback_chain: list[str] = Field(default_factory=list)
     when_to_use: WhenToUse | None = None
     quality_hint: QualityHint | None = None
+    layer: str | None = None
+    domains: list[str] = Field(default_factory=list)
+    scenarios: list[str] = Field(default_factory=list)
+    model_tier: str | None = None
+    tier: int | None = Field(default=None, ge=0, le=2)
+    fix_hint: str | None = None
     skill_dir: Path
 
     @model_validator(mode="after")

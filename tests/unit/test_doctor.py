@@ -9,7 +9,13 @@ from unittest.mock import patch
 from autosearch.core.doctor import scan_channels
 
 
-def _make_spec(name: str, requires: list[str]):
+def _make_spec(
+    name: str,
+    requires: list[str],
+    *,
+    tier: int | None = None,
+    fix_hint: str | None = None,
+):
     """Build a minimal SkillSpec-like object for mocking."""
     from autosearch.skills.loader import MethodSpec, SkillSpec
 
@@ -18,6 +24,8 @@ def _make_spec(name: str, requires: list[str]):
         name=name,
         description="test",
         methods=[method],
+        tier=tier,
+        fix_hint=fix_hint,
         skill_dir=Path(f"/fake/skills/channels/{name}"),
     )
 
@@ -72,3 +80,55 @@ def test_scan_channels_warn_when_partial(tmp_path):
 def test_scan_channels_empty_root(tmp_path):
     results = scan_channels(tmp_path / "nonexistent")
     assert results == []
+
+
+def test_scan_channels_prefers_declared_doctor_metadata(tmp_path):
+    specs = [
+        _make_spec(
+            "xueqiu",
+            ["env:XUEQIU_COOKIES"],
+            tier=2,
+            fix_hint="autosearch login xueqiu",
+        )
+    ]
+    with (
+        patch("autosearch.core.doctor.load_all", return_value=specs),
+        patch("autosearch.core.doctor._current_env_keys", return_value=set()),
+    ):
+        results = scan_channels(tmp_path)
+
+    assert results[0].tier == 2
+    assert results[0].fix_hint == "autosearch login xueqiu"
+
+
+def test_scan_channels_reads_declared_doctor_metadata_from_frontmatter(tmp_path):
+    skill_dir = tmp_path / "xueqiu"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "name: xueqiu",
+                "description: Finance search",
+                "methods:",
+                "  - id: api_search",
+                "    impl: methods/api_search.py",
+                "    requires: [env:XUEQIU_COOKIES]",
+                "fallback_chain: [api_search]",
+                "tier: 2",
+                'fix_hint: "autosearch login xueqiu"',
+                "---",
+                "",
+                "Body.",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with patch("autosearch.core.doctor._current_env_keys", return_value=set()):
+        results = scan_channels(tmp_path)
+
+    assert results[0].channel == "xueqiu"
+    assert results[0].tier == 2
+    assert results[0].fix_hint == "autosearch login xueqiu"

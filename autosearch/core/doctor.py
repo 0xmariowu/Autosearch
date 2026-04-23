@@ -100,8 +100,9 @@ def scan_channels(channels_root: Path | None = None) -> list[ChannelStatus]:
             message = f"unmet: {', '.join(unique_unmet)}"
 
         unique_unmet = list(dict.fromkeys(all_unmet))
-        tier = _compute_tier([token for method in spec.methods for token in method.requires])
-        fix = _fix_hint(unique_unmet)
+        all_requires = [token for method in spec.methods for token in method.requires]
+        tier = _resolve_tier(spec, all_requires)
+        fix = _resolve_fix_hint(spec, unique_unmet)
 
         results.append(
             ChannelStatus(
@@ -180,6 +181,14 @@ def format_report(results: list[ChannelStatus]) -> str:
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 
+def _resolve_tier(spec: object, all_requires: list[str]) -> int:
+    """Resolve doctor tier from declared metadata first, then infer as fallback."""
+    declared_tier = getattr(spec, "tier", None)
+    if declared_tier is not None:
+        return declared_tier
+    return _compute_tier(all_requires)
+
+
 def _compute_tier(all_requires: list[str]) -> int:
     """Infer tier from a channel's full requires list.
 
@@ -200,6 +209,14 @@ def _compute_tier(all_requires: list[str]) -> int:
         elif kind in ("binary", "mcp"):
             return 1
     return 0
+
+
+def _resolve_fix_hint(spec: object, unmet_requires: list[str]) -> str:
+    """Resolve fix hint from declared metadata first, then infer as fallback."""
+    declared_fix_hint = getattr(spec, "fix_hint", None)
+    if isinstance(declared_fix_hint, str) and declared_fix_hint.strip():
+        return declared_fix_hint.strip()
+    return _fix_hint(unmet_requires)
 
 
 def _fix_hint(unmet_requires: list[str]) -> str:

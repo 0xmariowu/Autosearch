@@ -91,6 +91,33 @@ def test_parse_skill_md_reads_frontmatter(tmp_path: Path) -> None:
     assert summary.deprecated is False
 
 
+def test_parse_actual_discourse_forum_skill_md_exposes_governance_metadata() -> None:
+    skill_path = (
+        Path(__file__).resolve().parents[2]
+        / "autosearch"
+        / "skills"
+        / "channels"
+        / "discourse_forum"
+        / "SKILL.md"
+    )
+
+    summary = _parse_skill_md(skill_path, group="channels")
+
+    assert summary is not None
+    assert summary.name == "discourse_forum"
+    assert summary.group == "channels"
+    assert summary.layer == "leaf"
+    assert summary.domains == ["chinese-ugc"]
+    assert summary.scenarios == [
+        "developer-community",
+        "ai-tools",
+        "troubleshooting",
+        "public-forum",
+    ]
+    assert summary.model_tier == "Fast"
+    assert summary.deprecated is False
+
+
 def test_parse_skill_md_returns_none_on_missing_frontmatter(tmp_path: Path) -> None:
     skill_dir = tmp_path / "channels" / "weird"
     skill_dir.mkdir(parents=True)

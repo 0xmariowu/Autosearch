@@ -20,10 +20,17 @@ fallback_chain: [api_search, api_detail]
 when_to_use:
   query_languages: [zh, en]
   query_types: [academic-papers, literature-review]
+  domain_hints: [citations, scholarly-search]
   avoid_for: [real-time-news]
 quality_hint:
   typical_yield: medium-high
   chinese_native: false
+layer: leaf
+domains: [academic]
+scenarios: [paper-search, detail-hydration]
+model_tier: Standard
+tier: 1
+fix_hint: "autosearch configure ARXIV_TOKEN <value>"
 ---
 
 Prefer the search endpoint first, then hydrate selected records with the detail method.
