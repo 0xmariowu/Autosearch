@@ -36,9 +36,9 @@ async def search(
     max_results_per_source: int = 5,
     per_source_timeout_seconds: float = PER_SOURCE_TIMEOUT_SECONDS,
 ) -> list[Evidence]:
-    if os.getenv("AUTOSEARCH_LLM_MODE") == "dummy":
-        return []
     active_sources = sources or SOURCES
+    if os.getenv("AUTOSEARCH_LLM_MODE") == "dummy" and sources is None:
+        return []
     fetched_at = datetime.now(UTC)
     source_items = list(active_sources.items())
     tasks = [
