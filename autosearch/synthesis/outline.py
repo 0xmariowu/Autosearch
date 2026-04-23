@@ -202,16 +202,14 @@ def _clone_outline_node(node: OutlineNode, *, level: int) -> OutlineNode:
 
 
 def _top_level_headings(outline: OutlineNode) -> list[str]:
-    normalized = _normalize_outline_tree(outline)
-    if normalized.heading:
-        return [normalized.heading]
-    return [child.heading for child in normalized.children if child.heading.strip()]
+    if outline.heading:
+        return [outline.heading]
+    return [child.heading for child in outline.children if child.heading.strip()]
 
 
 def _outline_to_markdown(outline: OutlineNode) -> str:
-    normalized = _normalize_outline_tree(outline)
     lines: list[str] = []
-    roots = normalized.children if not normalized.heading else [normalized]
+    roots = outline.children if not outline.heading else [outline]
     for root in roots:
         _append_outline_lines(root, level=1, lines=lines)
     return "\n".join(lines)
