@@ -39,8 +39,8 @@ def test_channel_experience_init_script_exists():
     script = Path(__file__).resolve().parents[2] / "scripts/validate/init_channel_experience.sh"
     assert script.exists(), f"init_channel_experience.sh not found at {script}"
 
-    # Verify the script runs without error in dry-run mode (list channels only)
-    import subprocess
+    if sys.platform == "win32":
+        return  # bash not available on Windows — skip execution check
 
     result = subprocess.run(
         ["bash", str(script)],
