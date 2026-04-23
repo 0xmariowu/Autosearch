@@ -16,7 +16,7 @@ def _load_specs():
 def test_all_channels_loadable() -> None:
     specs = _load_specs()
 
-    assert len(specs) == 37
+    assert len(specs) >= 37
     assert [spec.name for spec in specs] == [
         "arxiv",
         "bilibili",
@@ -34,6 +34,7 @@ def test_all_channels_loadable() -> None:
         "instagram",
         "kr36",
         "kuaishou",
+        "linkedin",
         "openalex",
         "package_search",
         "papers",
@@ -53,6 +54,7 @@ def test_all_channels_loadable() -> None:
         "wikidata",
         "wikipedia",
         "xiaohongshu",
+        "xueqiu",
         "youtube",
         "zhihu",
     ]
@@ -97,9 +99,10 @@ def test_chinese_native_channels_cover_11() -> None:
         "v2ex",
         "weibo",
         "xiaohongshu",
+        "xueqiu",
         "zhihu",
     }
-    assert len(chinese_native) == 12
+    assert len(chinese_native) == 13
 
 
 def test_shipped_method_impls_exist_for_registry_channels() -> None:
@@ -139,8 +142,10 @@ def test_shipped_method_impls_exist_for_registry_channels() -> None:
         "wikidata": ["methods/api_search.py"],
         "wikipedia": ["methods/api_search.py"],
         "xiaohongshu": ["methods/via_tikhub.py", "methods/via_signsrv.py"],
+        "xueqiu": ["methods/api_search.py"],
         "zhihu": ["methods/via_tikhub.py"],
         "youtube": ["methods/data_api_v3.py"],
+        "linkedin": ["methods/via_jina.py"],
     }
 
     for spec in _load_specs():
@@ -167,6 +172,7 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
         "huggingface_hub",
         "infoq_cn",
         "kr36",
+        "linkedin",
         "openalex",
         "package_search",
         "papers",
@@ -325,6 +331,20 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
             assert metadata.available_methods() == []
             assert methods["via_tikhub"].available is False
             assert methods["via_tikhub"].unmet_requires == ["env:TIKHUB_API_KEY"]
+            continue
+
+        if spec.name == "linkedin":
+            available = metadata.available_methods()
+            assert len(available) == 1
+            assert available[0].id == "via_jina"
+            assert available[0].available is True
+            continue
+
+        if spec.name == "xueqiu":
+            methods = {method.id: method for method in metadata.methods}
+            assert metadata.available_methods() == []
+            assert methods["api_search"].available is False
+            assert methods["api_search"].unmet_requires == ["env:XUEQIU_COOKIES"]
             continue
 
         assert metadata.available_methods() == []
