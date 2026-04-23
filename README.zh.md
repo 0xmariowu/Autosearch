@@ -43,7 +43,9 @@ Help me install AutoSearch: https://raw.githubusercontent.com/0xmariowu/Autosear
 
 ```bash
 npx autosearch-ai
-# 或者
+```
+
+```bash
 curl -fsSL https://raw.githubusercontent.com/0xmariowu/Autosearch/main/scripts/install.sh | bash
 ```
 

@@ -43,7 +43,9 @@ Or install directly:
 
 ```bash
 npx autosearch-ai
-# or
+```
+
+```bash
 curl -fsSL https://raw.githubusercontent.com/0xmariowu/Autosearch/main/scripts/install.sh | bash
 ```
 
