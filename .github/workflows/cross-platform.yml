@@ -205,3 +205,4 @@ jobs:
           } else {
             Write-Host "PASS: Install failed with clear Python version message"
           }
+          exit 0  # pip failure was expected — don't propagate $LASTEXITCODE
