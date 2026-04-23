@@ -20,11 +20,11 @@ except ImportError:  # pragma: no cover - optional phase-2 dependency
     DesktopSandbox = None  # type: ignore[assignment]
 
 
-# pip 22 (Ubuntu 22.04 desktop template) misnames git-URL installs as "UNKNOWN-0.0.0" and
-# never writes files. Clone first, then pip install from local dir — avoids the metadata bug.
+# pip 22 (Ubuntu 22.04 desktop template) misnames git-URL installs as "UNKNOWN-0.0.0".
+# Clone first, then pip install from local dir. No pipes — pipes mask exit codes.
 _INSTALL_CMD = (
-    "git clone https://github.com/0xmariowu/Autosearch.git /tmp/autosearch_d -q 2>&1 | tail -1 "
-    "&& python3 -m pip install /tmp/autosearch_d -q 2>&1 | tail -2"
+    "git clone https://github.com/0xmariowu/Autosearch.git /tmp/autosearch_d -q "
+    "&& python3 -m pip install /tmp/autosearch_d -q"
 )
 # After install, autosearch CLI entry-point may not be in PATH; use module invocation instead.
 _AUTOSEARCH_CLI = "python3 -m autosearch.cli.main"
