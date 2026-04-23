@@ -73,27 +73,39 @@ def _extract_result_groups(
     if not isinstance(nested_data, Mapping):
         return None
 
-    result_groups = nested_data.get("result")
-    if not isinstance(result_groups, list):
+    result_list = nested_data.get("result")
+    if not isinstance(result_list, list) or not result_list:
         return None
 
-    groups: list[tuple[str, list[Mapping[str, object]]]] = []
-    for group in result_groups:
-        if not isinstance(group, Mapping):
-            continue
-        result_type = str(group.get("result_type") or "").strip().lower()
-        if result_type not in SUPPORTED_RESULT_TYPES:
-            continue
+    # Detect format: old = items have {"result_type", "data"}, new = flat items with "type"
+    first = result_list[0] if isinstance(result_list[0], Mapping) else {}
+    is_grouped = "result_type" in first and "data" in first
 
-        items = group.get("data")
-        if not isinstance(items, list):
-            continue
-
-        groups.append(
-            (result_type, [item for item in items if isinstance(item, Mapping)]),
-        )
-
-    return groups
+    if is_grouped:
+        # Old grouped format
+        groups: list[tuple[str, list[Mapping[str, object]]]] = []
+        for group in result_list:
+            if not isinstance(group, Mapping):
+                continue
+            result_type = str(group.get("result_type") or "").strip().lower()
+            if result_type not in SUPPORTED_RESULT_TYPES:
+                continue
+            items = group.get("data")
+            if not isinstance(items, list):
+                continue
+            groups.append((result_type, [item for item in items if isinstance(item, Mapping)]))
+        return groups or None
+    else:
+        # New flat format: each item in result_list is a direct evidence item
+        flat: dict[str, list[Mapping[str, object]]] = {}
+        for item in result_list:
+            if not isinstance(item, Mapping):
+                continue
+            result_type = str(item.get("type") or item.get("result_type") or "").strip().lower()
+            if result_type not in SUPPORTED_RESULT_TYPES:
+                continue
+            flat.setdefault(result_type, []).append(item)
+        return [(rt, items) for rt, items in flat.items() if items] or None
 
 
 def _build_video_url(item: Mapping[str, object]) -> str:
@@ -196,6 +208,7 @@ async def search(query: SubQuery, client: TikhubClient | None = None) -> list[Ev
             SEARCH_PATH,
             {
                 "keyword": query.text,
+                "search_type": "video",
                 "order": "totalrank",
                 "page": 1,
                 "page_size": 10,

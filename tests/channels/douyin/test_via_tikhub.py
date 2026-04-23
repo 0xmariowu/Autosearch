@@ -48,14 +48,21 @@ class _FakeTikhubClient:
         self.payload = payload
         self.calls: list[tuple[str, dict[str, object]]] = []
 
-    async def get(self, path: str, params: dict[str, object]) -> dict[str, object]:
+    async def get(self, path: str, params: dict[str, object], **_: object) -> dict[str, object]:
         self.calls.append((path, params))
+        return self.payload
+
+    async def post(self, path: str, body: dict[str, object]) -> dict[str, object]:
+        self.calls.append((path, body))
         return self.payload
 
 
 class _FailingTikhubClient:
-    async def get(self, path: str, params: dict[str, object]) -> dict[str, object]:
+    async def get(self, path: str, params: dict[str, object], **_: object) -> dict[str, object]:
         raise TikhubError(f"request failed for {path} with {params!r}")
+
+    async def post(self, path: str, body: dict[str, object]) -> dict[str, object]:
+        raise TikhubError(f"request failed for {path} with {body!r}")
 
 
 def _query() -> SubQuery:
@@ -111,7 +118,7 @@ async def test_search_maps_douyin_videos_to_evidence() -> None:
 
     results = await search(_query(), client=cast(TikhubClient, client))
 
-    assert client.calls == [(SEARCH_PATH, {"keyword": "科技评测"})]
+    assert client.calls == [(SEARCH_PATH, {"keyword": "科技评测", "cursor": 0, "sort_type": "0"})]
     assert len(results) == 2
 
     first = results[0]
