@@ -5,7 +5,7 @@ description: "All 39 search channels — tiers, languages, and requirements"
 
 AutoSearch organizes channels into three tiers. Run `autosearch doctor` to see live status.
 
-## Tier 0 — Always-on (21 channels)
+## Tier 0 — Always-on (26 channels)
 
 No configuration needed. Available immediately after install.
 
@@ -16,32 +16,38 @@ No configuration needed. Available immediately after install.
 | dblp | en | Computer science bibliography — papers, proceedings | medium |
 | ddgs | en, mixed | DuckDuckGo web search, no auth required | medium |
 | devto | en, mixed | Developer blog articles tagged by technology | medium |
+| dockerhub | en | Docker image and container registry search | medium |
 | github | en | Code, issues, and repository discovery | high |
 | google_news | en, mixed | Current news headlines via Google News RSS | high |
 | hackernews | en | Developer discussion, tooling opinions, early product signals | medium-high |
 | huggingface_hub | en, mixed | Open ML models on Hugging Face Hub | high |
 | infoq_cn | zh, mixed | Chinese engineering articles from InfoQ 中文 | medium |
 | kr36 | zh, mixed | Chinese tech business news and startup funding from 36kr | medium |
+| linkedin | en, mixed | LinkedIn public company profiles and articles via Jina Reader | low |
 | openalex | en, mixed | Scholarly works via OpenAlex open-access API | high |
 | package_search | en, mixed | PyPI and npm package discovery | medium |
 | papers | en, mixed | Multi-source academic search (arxiv + pubmed + biorxiv + more) | high |
 | podcast_cn | zh, mixed | Chinese podcasts via Apple iTunes API | low |
+| pubmed | en | Biomedical and life-science literature from PubMed | medium-high |
 | reddit | en, mixed | Community discussions and user experience reports | medium |
 | sec_edgar | en | US public company filings (10-K, 10-Q, 8-K) | medium |
 | sogou_weixin | zh, mixed | WeChat Official Account articles via Sogou | high |
 | stackoverflow | en, mixed | Programming Q&A with community-voted answers | high |
+| tieba | zh | Chinese community forum discussions on Baidu Tieba | medium |
+| v2ex | zh, mixed | Chinese developer community — programming, tech, career | medium |
 | wikidata | en, mixed | Structured entity data from Wikidata knowledge graph | medium |
 | wikipedia | en, mixed | Encyclopedia articles via Wikipedia Action API | high |
 
-## Tier 1 — Env-gated (1 channel)
+## Tier 1 — Env-gated (2 channels)
 
-Requires a free API key.
+Requires a free API key or self-hosted URL.
 
 | Channel | Languages | Setup | Yield |
 |---|---|---|---|
 | youtube | en, zh, mixed | `autosearch configure YOUTUBE_API_KEY <key>` ([get free key](https://console.cloud.google.com)) | medium |
+| searxng | en, zh, mixed | `autosearch configure SEARXNG_URL <url>` (self-hosted [SearXNG](https://docs.searxng.org)) | medium |
 
-## Tier 2 — BYOK paid (8 channels)
+## Tier 2 — BYOK paid (10 channels)
 
 Requires a [TikHub](https://tikhub.io) API key for Chinese social platforms.
 
@@ -53,16 +59,18 @@ autosearch configure TIKHUB_API_KEY <your-key>
 |---|---|---|---|
 | bilibili | zh, mixed | Chinese tech videos and tutorials | medium |
 | douyin | zh | Chinese short-video with product demos and tech reviews | medium |
+| instagram | en, mixed | Instagram public posts and reels search | medium |
 | kuaishou | zh, mixed | Chinese short-video platform | medium |
 | tiktok | en, mixed | Global short-video platform | medium |
 | twitter | en, mixed | Real-time public discourse and tech announcements | medium |
+| wechat_channels | zh, mixed | WeChat Channels (视频号) short videos | medium |
 | weibo | zh, mixed | Chinese microblog — trending topics, real-time opinion | medium |
 | xiaohongshu | zh, mixed | Chinese lifestyle notes with product/travel/food coverage | high |
 | zhihu | zh, mixed | Chinese Q&A with deep technical discussions | medium-high |
 
 ## Login-based channels
 
-Some channels support direct login without TikHub (using your own cookies):
+Some channels can be unlocked by logging in with your own account (using browser cookies):
 
 ```bash
 autosearch login xhs        # Xiaohongshu
@@ -72,6 +80,12 @@ autosearch login weibo      # Weibo
 autosearch login douyin     # Douyin
 autosearch login instagram  # Instagram
 autosearch login linkedin   # LinkedIn
+```
+
+**Xueqiu** (雪球, A-share/HK stock discussion) requires setting cookie env directly:
+
+```bash
+autosearch configure XUEQIU_COOKIES "<cookie-string>"
 ```
 
 If Chrome auto-extraction fails:
