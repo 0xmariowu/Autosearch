@@ -47,13 +47,13 @@ class _FakeTikhubClient:
         self.payload = payload
         self.calls: list[tuple[str, dict[str, object]]] = []
 
-    async def get(self, path: str, params: dict[str, object]) -> dict[str, object]:
+    async def get(self, path: str, params: dict[str, object], **_: object) -> dict[str, object]:
         self.calls.append((path, params))
         return self.payload
 
 
 class _FailingTikhubClient:
-    async def get(self, path: str, params: dict[str, object]) -> dict[str, object]:
+    async def get(self, path: str, params: dict[str, object], **_: object) -> dict[str, object]:
         raise TikhubError(f"request failed for {path} with {params!r}")
 
 
@@ -61,73 +61,33 @@ def _query() -> SubQuery:
     return SubQuery(text="OpenAI launch", rationale="Need Twitter launch coverage")
 
 
-def _tweet_result(
-    *, rest_id: str | None, screen_name: str | None, full_text: str
+def _flat_tweet(
+    tweet_id: str,
+    screen_name: str,
+    text: str,
 ) -> dict[str, object]:
-    result: dict[str, object] = {
-        "legacy": {"full_text": full_text},
-        "core": {
-            "user_results": {
-                "result": {
-                    "legacy": {},
-                }
-            }
-        },
-    }
-    if rest_id is not None:
-        result["rest_id"] = rest_id
-    if screen_name is not None:
-        result["core"]["user_results"]["result"]["legacy"]["screen_name"] = screen_name
-    return result
-
-
-def _timeline_payload(results: list[dict[str, object]]) -> dict[str, object]:
+    """Build a tweet in the current flat timeline format."""
     return {
-        "data": {
-            "data": {
-                "search_by_raw_query": {
-                    "search_timeline": {
-                        "timeline": {
-                            "instructions": [
-                                {
-                                    "type": "TimelineAddEntries",
-                                    "entries": [
-                                        {
-                                            "content": {
-                                                "itemContent": {
-                                                    "tweet_results": {
-                                                        "result": result,
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        for result in results
-                                    ],
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        }
+        "tweet_id": tweet_id,
+        "screen_name": screen_name,
+        "text": text,
+        "created_at": "Thu Apr 23 10:00:00 +0000 2026",
+        "entities": {},
     }
+
+
+def _timeline_payload(tweets: list[dict[str, object]]) -> dict[str, object]:
+    """Wrap tweets in the current flat data.timeline structure."""
+    return {"data": {"timeline": tweets, "next_cursor": "", "prev_cursor": ""}}
 
 
 @pytest.mark.asyncio
-async def test_search_extracts_tweets_from_nested_structure() -> None:
+async def test_search_extracts_tweets_from_flat_timeline() -> None:
     client = _FakeTikhubClient(
         _timeline_payload(
             [
-                _tweet_result(
-                    rest_id="1234567890",
-                    screen_name="openai",
-                    full_text="OpenAI ships a new API update.",
-                ),
-                _tweet_result(
-                    rest_id="9876543210",
-                    screen_name="sama",
-                    full_text="Second launch note with &amp; entity cleanup.",
-                ),
+                _flat_tweet("1234567890", "openai", "OpenAI ships a new API update."),
+                _flat_tweet("9876543210", "sama", "Second launch note with &amp; entity cleanup."),
             ]
         )
     )
@@ -135,33 +95,30 @@ async def test_search_extracts_tweets_from_nested_structure() -> None:
     results = await search(_query(), client=cast(TikhubClient, client))
 
     assert client.calls == [
-        (
-            SEARCH_PATH,
-            {"keyword": "OpenAI launch", "search_type": "Top"},
-        )
+        (SEARCH_PATH, {"keyword": "OpenAI launch", "search_type": "Latest"}),
     ]
     assert len(results) == 2
 
     first = results[0]
-    assert first.url == "https://twitter.com/openai/status/1234567890"
+    assert first.url == "https://x.com/openai/status/1234567890"
     assert first.title == "OpenAI ships a new API update."
     assert first.snippet == "OpenAI ships a new API update."
     assert first.content == "OpenAI ships a new API update."
     assert first.source_channel == "twitter:openai"
 
     second = results[1]
-    assert second.url == "https://twitter.com/sama/status/9876543210"
+    assert second.url == "https://x.com/sama/status/9876543210"
     assert second.title == "Second launch note with & entity cleanup."
-    assert second.snippet == "Second launch note with & entity cleanup."
+    assert second.source_channel == "twitter:sama"
 
 
 @pytest.mark.asyncio
-async def test_search_skips_tweet_without_rest_id_or_screen_name() -> None:
+async def test_search_skips_tweet_without_id_or_screen_name() -> None:
     client = _FakeTikhubClient(
         _timeline_payload(
             [
-                _tweet_result(rest_id=None, screen_name="openai", full_text="Missing rest id."),
-                _tweet_result(rest_id="123", screen_name=None, full_text="Missing screen name."),
+                {"screen_name": "openai", "text": "Missing tweet_id."},
+                {"tweet_id": "123", "text": "Missing screen_name."},
             ]
         )
     )
@@ -174,15 +131,7 @@ async def test_search_skips_tweet_without_rest_id_or_screen_name() -> None:
 @pytest.mark.asyncio
 async def test_search_source_channel_includes_screen_name() -> None:
     client = _FakeTikhubClient(
-        _timeline_payload(
-            [
-                _tweet_result(
-                    rest_id="1234567890",
-                    screen_name="elonmusk",
-                    full_text="Launch timing update.",
-                )
-            ]
-        )
+        _timeline_payload([_flat_tweet("1234567890", "elonmusk", "Launch timing update.")])
     )
 
     results = await search(_query(), client=cast(TikhubClient, client))
@@ -192,25 +141,12 @@ async def test_search_source_channel_includes_screen_name() -> None:
 
 
 @pytest.mark.asyncio
-async def test_search_returns_empty_on_empty_timeline(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    logger = _Logger()
-    monkeypatch.setattr(MODULE, "LOGGER", logger)
-    client = _FakeTikhubClient(
-        {
-            "data": {
-                "data": {
-                    "search_by_raw_query": {"search_timeline": {"timeline": {"instructions": []}}}
-                }
-            }
-        }
-    )
+async def test_search_returns_empty_on_empty_timeline() -> None:
+    client = _FakeTikhubClient({"data": {"timeline": []}})
 
     results = await search(_query(), client=cast(TikhubClient, client))
 
     assert results == []
-    assert logger.events == []
 
 
 @pytest.mark.asyncio

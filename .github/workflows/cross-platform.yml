@@ -1,0 +1,207 @@
+name: Cross-Platform Tests
+
+# Test autosearch install + basic functionality on Windows and macOS.
+# E2B sandboxes are Linux-only; this workflow provides real Windows/macOS coverage.
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"   # UTC 03:00 every Monday
+  workflow_dispatch:       # manual trigger
+  push:
+    branches: [main]
+    paths:
+      - "autosearch/**"
+      - "pyproject.toml"
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows (Python 3.12)
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install autosearch
+        run: pip install -e . --quiet
+
+      - name: Verify import
+        run: python -c "import autosearch; print('version:', autosearch.__version__)"
+
+      - name: MCP tools registered
+        run: |
+          python -c "
+          import os, json
+          os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
+          from autosearch.mcp.server import create_server
+          s = create_server()
+          tools = [t.name for t in s._tool_manager.list_tools()]
+          print('tools:', len(tools))
+          assert len(tools) >= 21, f'Expected >= 21 tools, got {len(tools)}'
+          print('required tools present:', all(t in tools for t in ['run_clarify','run_channel','list_skills','doctor']))
+          "
+
+      - name: Channel health scan
+        run: |
+          python -c "
+          import os
+          os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
+          from autosearch.core.doctor import scan_channels
+          results = scan_channels()
+          free = ['arxiv', 'pubmed', 'dockerhub', 'hackernews', 'ddgs', 'devto']
+          ok_ch = [r.channel for r in results if r.status == 'ok']
+          free_ok = [c for c in free if c in ok_ch]
+          print(f'Total channels: {len(results)}, ok: {len(ok_ch)}')
+          print(f'Free channels ok: {free_ok}')
+          assert len(results) >= 30, f'Expected >= 30 channels, got {len(results)}'
+          assert len(free_ok) >= 4, f'Expected >= 4 free channels ok, got {free_ok}'
+          "
+        env:
+          AUTOSEARCH_LLM_MODE: dummy
+
+      - name: Experience layer write/read
+        run: |
+          python -c "
+          import os, tempfile, json
+          from pathlib import Path
+          from datetime import datetime, UTC
+
+          os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
+          import autosearch.skills.experience as exp_mod
+          from autosearch.skills.experience import append_event
+
+          with tempfile.TemporaryDirectory() as tmp:
+              exp_mod._SKILLS_ROOT = Path(tmp)
+              (Path(tmp) / 'channels' / 'arxiv').mkdir(parents=True)
+
+              append_event('arxiv', {
+                  'skill': 'arxiv',
+                  'query': 'windows path test',
+                  'outcome': 'success',
+                  'count_returned': 5,
+                  'ts': datetime.now(UTC).isoformat(),
+              })
+
+              pf = Path(tmp) / 'channels' / 'arxiv' / 'experience' / 'patterns.jsonl'
+              assert pf.exists(), 'patterns.jsonl not created'
+              line = json.loads(pf.read_text().strip())
+              assert line['query'] == 'windows path test'
+              print('Experience layer works on Windows:', pf)
+          "
+
+      - name: Windows path separator handling
+        run: |
+          python -c "
+          import os, json, asyncio
+          from autosearch.core.channel_bootstrap import _build_channels
+          channels = _build_channels()
+          os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
+          from autosearch.mcp.server import create_server
+          from unittest.mock import patch
+
+          win_query = r'C:\Users\test\Documents\project path handling'
+
+          async def main():
+              with patch('autosearch.mcp.server._build_channels', return_value=channels):
+                  server = create_server()
+                  tm = server._tool_manager
+                  avail = {c.name for c in channels}
+                  ch = next((c for c in ['arxiv', 'devto', 'ddgs'] if c in avail), None)
+                  if not ch:
+                      print('No channel available')
+                      return
+                  r = await tm.call_tool('run_channel', {'channel_name': ch, 'query': win_query, 'k': 3})
+                  print(f'Windows path query ok={r.ok}, no crash')
+
+          asyncio.run(main())
+          "
+
+      - name: Run unit tests (skip live/slow/perf)
+        run: pytest -x -q -m "not real_llm and not perf and not slow and not live" --ignore=tests/perf
+        env:
+          AUTOSEARCH_LLM_MODE: dummy
+
+  macos:
+    name: macOS (Python 3.12)
+    runs-on: macos-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install autosearch
+        run: pip install -e . --quiet
+
+      - name: Verify import
+        run: python -c "import autosearch; print('version:', autosearch.__version__)"
+
+      - name: MCP tools registered
+        run: |
+          python -c "
+          import os
+          os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
+          from autosearch.mcp.server import create_server
+          s = create_server()
+          tools = [t.name for t in s._tool_manager.list_tools()]
+          assert len(tools) >= 21, f'Expected >= 21 tools, got {len(tools)}'
+          print('tools:', len(tools))
+          "
+
+      - name: Channel health scan
+        run: |
+          python -c "
+          import os
+          os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
+          from autosearch.core.doctor import scan_channels
+          results = scan_channels()
+          print(f'Total channels: {len(results)}')
+          assert len(results) >= 30
+          "
+
+      - name: Run unit tests (skip live/slow/perf)
+        run: pytest -x -q -m "not real_llm and not perf and not slow and not live" --ignore=tests/perf
+        env:
+          AUTOSEARCH_LLM_MODE: dummy
+
+  # Windows Python version boundary test: verify 3.11 install fails with clear error.
+  windows-wrong-python:
+    name: Windows (Python 3.11 — expect install failure)
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install should fail with clear Python version error
+        shell: pwsh
+        run: |
+          $output = pip install -e . 2>&1 | Out-String
+          Write-Host "pip output: $output"
+          if ($LASTEXITCODE -eq 0) {
+            Write-Error "Expected install to FAIL on Python 3.11 but it succeeded"
+            exit 1
+          }
+          if ($output -notmatch "3.12|requires-python|python_requires|Requires-Python") {
+            Write-Warning "Install failed but error message doesn't mention Python version requirement"
+            Write-Host "Output was: $output"
+            # Don't fail — unclear error is a warning, not a blocker
+          } else {
+            Write-Host "PASS: Install failed with clear Python version message"
+          }

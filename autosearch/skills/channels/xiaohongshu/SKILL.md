@@ -7,6 +7,10 @@ description: Chinese lifestyle + experience-sharing notes with strong product/be
 version: 1
 languages: [zh, mixed]
 methods:
+  - id: via_signsrv
+    impl: methods/via_signsrv.py
+    requires: [env:AUTOSEARCH_SIGNSRV_URL, env:AUTOSEARCH_SERVICE_TOKEN, env:XHS_A1_COOKIE]
+    rate_limit: {per_min: 60, per_hour: 1000}
   - id: via_tikhub
     impl: methods/via_tikhub.py
     requires: [env:TIKHUB_API_KEY]
@@ -19,7 +23,7 @@ methods:
     impl: methods/via_xhs_cli.py
     requires: [binary:xhs-cli, cookie:xiaohongshu]
     rate_limit: {per_min: 5, per_hour: 60}
-fallback_chain: [via_tikhub, via_mcporter, via_xhs_cli]
+fallback_chain: [via_signsrv, via_tikhub, via_mcporter, via_xhs_cli]
 when_to_use:
   query_languages: [zh, mixed]
   query_types: [product-review, experience-report, lifestyle, consumer, travel]

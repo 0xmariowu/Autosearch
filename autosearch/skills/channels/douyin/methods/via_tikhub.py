@@ -12,7 +12,7 @@ from autosearch.core.models import Evidence, SubQuery
 from autosearch.lib.tikhub_client import TikhubClient, TikhubError
 
 LOGGER = structlog.get_logger(__name__).bind(component="channel", channel="douyin")
-SEARCH_PATH = "/api/v1/douyin/web/fetch_video_search_result_v2"
+SEARCH_PATH = "/api/v1/douyin/search/fetch_general_search_v1"
 MAX_TITLE_LENGTH = 80
 MAX_SNIPPET_LENGTH = 300
 NON_SLUG_CHAR_RE = re.compile(r"[^\w-]+", re.UNICODE)
@@ -99,7 +99,10 @@ def _to_evidence(item: Mapping[str, object], *, fetched_at: datetime) -> Evidenc
 async def search(query: SubQuery, client: TikhubClient | None = None) -> list[Evidence]:
     try:
         tikhub_client = client or TikhubClient()
-        payload = await tikhub_client.get(SEARCH_PATH, {"keyword": query.text})
+        payload = await tikhub_client.post(
+            SEARCH_PATH,
+            {"keyword": query.text, "cursor": 0, "sort_type": "0"},
+        )
     except (TikhubError, ValueError) as exc:
         LOGGER.warning("douyin_tikhub_search_failed", reason=str(exc))
         return []

@@ -126,14 +126,26 @@ async def _search_single_channel(
     channel: Channel,
     query: str,
     rationale: str,
-) -> list[dict[str, object]]:
-    """Run a single channel's search and return slim-dict results.
+) -> list[Any]:
+    """Run a single channel's search and return Evidence objects.
 
     Raises on channel exception — callers should wrap.
     """
+
     subquery = SubQuery(text=query, rationale=rationale or query)
-    results = await channel.search(subquery)
-    return [evidence.to_slim_dict() for evidence in results]
+    return await channel.search(subquery)
+
+
+_evidence_processor: Any = None
+
+
+def _get_evidence_processor() -> Any:
+    global _evidence_processor
+    if _evidence_processor is None:
+        from autosearch.core.evidence import EvidenceProcessor
+
+        _evidence_processor = EvidenceProcessor()
+    return _evidence_processor
 
 
 class SkillSummary(BaseModel):
@@ -406,6 +418,39 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
         return "ok"
 
     @server.tool()
+    def list_modes() -> dict:
+        """List available search modes with their channel guidance.
+
+        Returns the built-in research modes (academic, news, chinese_ugc,
+        developer, product) plus any user-defined custom modes from
+        ~/.config/autosearch/custom_modes.json.
+
+        Each mode includes:
+          - key: mode identifier to pass to run_clarify as mode_hint
+          - label_zh / label_en: display name
+          - keywords: phrases that trigger auto-detection
+          - channel_priority: recommended channels for this mode
+          - channel_skip: channels to avoid for this mode
+        """
+        from autosearch.core.search_modes import list_modes as _list_modes
+
+        return {
+            "modes": [
+                {
+                    "key": m.key,
+                    "label_zh": m.label_zh,
+                    "label_en": m.label_en,
+                    "keywords": m.keywords[:6],
+                    "channel_priority": m.channel_priority,
+                    "channel_skip": m.channel_skip,
+                    "is_system": m.is_system,
+                }
+                for m in _list_modes()
+            ],
+            "total": len(_list_modes()),
+        }
+
+    @server.tool()
     async def run_clarify(
         query: str,
         mode_hint: Literal["fast", "deep", "comprehensive"] | None = None,
@@ -431,8 +476,27 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
               - mode / query_type / rubrics / channel_priority / channel_skip
                 as structured guidance for the runtime's next step.
         """
+        from autosearch.core.search_modes import detect_mode
+
         parsed_mode = SearchMode(mode_hint) if mode_hint else None
-        return await _invoke_clarifier(query=query, mode_hint=parsed_mode)
+        result = await _invoke_clarifier(query=query, mode_hint=parsed_mode)
+
+        # Augment with search mode guidance (channel priority + system prompt hint)
+        detected = detect_mode(query)
+        if detected is not None:
+            # Merge detected mode's channel guidance (clarifier result takes precedence)
+            if not result.channel_priority and detected.channel_priority:
+                result = result.model_copy(
+                    update={
+                        "channel_priority": detected.channel_priority,
+                        "channel_skip": list(set(result.channel_skip) | set(detected.channel_skip)),
+                    }
+                )
+            # Inject mode key so runtime AI knows which mode was detected
+            if result.mode is None:
+                result = result.model_copy(update={"mode": detected.key})
+
+        return result
 
     @server.tool()
     async def run_channel(
@@ -508,9 +572,14 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
                 reason=f"channel_error: {type(exc).__name__}: {exc}",
             )
 
-        total = len(slim)
+        # Quality pipeline: URL dedup → SimHash near-dedup → BM25 relevance rerank
         k = max(1, int(k)) if k else 10
-        returned = slim[:k]
+        proc = _get_evidence_processor()
+        slim = proc.dedup_urls(slim)
+        slim = proc.dedup_simhash(slim)
+        total = len(slim)  # count after dedup, before k cutoff
+        slim = proc.rerank_bm25(slim, query, top_k=k)
+        returned = [ev.to_slim_dict() for ev in slim]
         append_event(
             channel_name,
             {
@@ -810,6 +879,32 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
         from autosearch.core.context_retention_policy import trim_to_budget  # noqa: PLC0415
 
         return trim_to_budget(evidence, token_budget)
+
+    @server.tool()
+    def consolidate_research(evidence: list[dict], query: str, top_k: int = 5) -> dict:
+        """Compress accumulated evidence into a compact research brief.
+
+        Use this when a research session has accumulated many evidence items
+        (from multiple run_channel calls) and the context is getting large.
+        Deduplicates, reranks by relevance to query, and formats a brief summary.
+
+        Args:
+            evidence: Combined list of evidence dicts from run_channel / delegate_subtask.
+            query: The original research question (used for relevance ranking).
+            top_k: Max items to keep in the brief (default 5).
+
+        Returns:
+            {
+              total_processed: int,
+              kept: int,
+              top_evidence: list[dict],
+              source_coverage: {channel: count},
+              brief_text: "Markdown summary of key findings",
+            }
+        """
+        from autosearch.core.context_compression import compress_evidence  # noqa: PLC0415
+
+        return compress_evidence(evidence, query, top_k=top_k)
 
     return server
 

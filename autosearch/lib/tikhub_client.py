@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 
 import httpx
 import structlog
@@ -163,13 +163,15 @@ class TikhubClient:
 
         self._auth_header_value = f"Bearer {resolved_api_key}"
 
-    async def get(self, path: str, params: dict[str, object]) -> dict[str, object]:
-        url = self._build_url(path)
-        headers = {"Authorization": self._auth_header_value}
-
+    async def _execute(
+        self,
+        path: str,
+        make_request: "Callable[[], Awaitable[httpx.Response]]",
+    ) -> dict[str, object]:
+        """Shared retry + response-parsing logic for GET and POST."""
         for attempt in range(len(RETRY_DELAYS_SECONDS) + 1):
             try:
-                response = await self._request(url, headers=headers, params=params)
+                response = await make_request()
             except httpx.HTTPError as exc:
                 raise TikhubError("TikHub request failed before receiving a response") from exc
 
@@ -178,17 +180,14 @@ class TikhubClient:
                     payload = response.json()
                 except ValueError as exc:
                     raise TikhubError(
-                        "TikHub returned invalid JSON",
-                        status_code=response.status_code,
+                        "TikHub returned invalid JSON", status_code=response.status_code
                     ) from exc
-
                 if not isinstance(payload, dict):
                     raise TikhubError(
                         "TikHub returned a non-object JSON payload",
                         status_code=response.status_code,
                         detail={"payload": _sanitize_json(payload)},
                     )
-
                 return payload
 
             if response.status_code in RETRYABLE_STATUS_CODES and attempt < len(
@@ -205,10 +204,31 @@ class TikhubClient:
                 await asyncio.sleep(delay_seconds)
                 continue
 
-            detail = _sanitize_response_json(response)
-            raise self._error_for_status(path=path, status_code=response.status_code, detail=detail)
-
+            raise self._error_for_status(
+                path=path,
+                status_code=response.status_code,
+                detail=_sanitize_response_json(response),
+            )
         raise AssertionError("unreachable")
+
+    async def get(
+        self,
+        path: str,
+        params: dict[str, object],
+        extra_headers: dict[str, str] | None = None,
+    ) -> dict[str, object]:
+        url = self._build_url(path)
+        headers = {"Authorization": self._auth_header_value}
+        if extra_headers:
+            headers.update(extra_headers)
+        return await self._execute(path, lambda: self._request(url, headers=headers, params=params))
+
+    async def post(self, path: str, body: dict[str, object]) -> dict[str, object]:
+        url = self._build_url(path)
+        headers = {"Authorization": self._auth_header_value}
+        return await self._execute(
+            path, lambda: self._post_request(url, headers=headers, body=body)
+        )
 
     async def check_balance(self) -> dict[str, object]:
         payload = await self.get("/api/v1/tikhub/user/get_user_daily_usage", {})
@@ -244,6 +264,20 @@ class TikhubClient:
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS) as client:
             return await client.get(url, headers=headers, params=params)
 
+    async def _post_request(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str],
+        body: dict[str, object],
+    ) -> httpx.Response:
+        post_headers = {**headers, "Content-Type": "application/json"}
+        if self.http_client is not None:
+            return await self.http_client.post(url, headers=post_headers, json=body)
+
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS) as client:
+            return await client.post(url, headers=post_headers, json=body)
+
     @staticmethod
     def _error_for_status(
         *,
@@ -251,7 +285,7 @@ class TikhubClient:
         status_code: int,
         detail: dict[str, object],
     ) -> TikhubError:
-        message = f"TikHub GET {path} failed"
+        message = f"TikHub request to {path} failed"
 
         if status_code == 402:
             return TikhubBudgetExhausted(message, status_code=status_code, detail=detail)

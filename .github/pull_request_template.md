@@ -22,9 +22,23 @@ Closes #
 - [ ] `ruff check && ruff format --check` passes
 - [ ] New/changed code has tests
 
-## CHANGELOG
+## Security Impact
 
-- [ ] Added entry to `## Unreleased` (or N/A for infra-only)
+- New permissions or capabilities added? `Yes / No`
+- Secrets / tokens / API keys handling changed? `Yes / No`
+- New outbound network calls or external endpoints? `Yes / No`
+- If any Yes — risk and mitigation:
+
+## Root Cause (bug fix only — otherwise delete this section)
+
+- Root cause:
+- What guardrail was missing:
+
+## Evidence
+
+- [ ] Failing test / log before + passing after
+- [ ] Screenshot or trace
+- [ ] Perf numbers (if relevant)
 
 ## Revert
 
