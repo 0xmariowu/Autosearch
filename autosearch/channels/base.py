@@ -124,15 +124,31 @@ class _CompiledChannel:
                 )
                 last_retryable = exc
                 continue
-            except PermanentError as exc:
+            except Exception as _budget_exc:  # noqa: BLE001
+                # Check if it's TikhubBudgetExhausted — treat as rate-limited, fall through
+                if type(_budget_exc).__name__ == "TikhubBudgetExhausted":
+                    LOGGER.warning(
+                        "channel_budget_exhausted",
+                        channel=self.name,
+                        method=method_id,
+                        reason=str(_budget_exc)[:120],
+                    )
+                    self._record_health(
+                        method=method.id,
+                        success=False,
+                        started_at=started_at,
+                        error="TikhubBudgetExhausted",
+                    )
+                    last_retryable = _budget_exc
+                    continue
                 self._record_health(
                     method=method.id,
                     success=False,
                     started_at=started_at,
-                    error=type(exc).__name__,
+                    error=type(_budget_exc).__name__,
                 )
                 raise
-            except Exception as exc:
+            except PermanentError as exc:
                 self._record_health(
                     method=method.id,
                     success=False,

@@ -313,28 +313,62 @@ def configure(
 
 @app.command()
 def login(
-    platform: Annotated[str, typer.Argument(help="Platform to log in (e.g. xhs).")],
+    platform: Annotated[
+        str, typer.Argument(help="Platform to log in (e.g. xhs, twitter, bilibili).")
+    ],
     browser: Annotated[
         str,
         typer.Option(
             "--browser", "-b", help="Browser to read cookies from (chrome/firefox/edge/brave)."
         ),
     ] = "chrome",
+    from_string: Annotated[
+        str | None,
+        typer.Option(
+            "--from-string",
+            help="Paste a cookie string directly instead of reading from browser.",
+        ),
+    ] = None,
 ) -> None:
     """Import cookies from your local browser — no copy-paste needed.
 
     You must already be logged in to the platform in the specified browser.
+    Alternatively, use Cookie-Editor browser extension → Export → Header String,
+    then pass with --from-string.
 
-    Example:
+    Examples:
         autosearch login xhs
-        autosearch login xhs --browser firefox
-    """
-    from pathlib import Path
+        autosearch login twitter --browser firefox
+        autosearch login bilibili --from-string "SESSDATA=xxx; bili_jct=yyy"
 
-    supported = {"xhs": (".xiaohongshu.com",)}
-    if platform not in supported:
-        typer.echo(f"Unsupported platform: {platform}. Supported: {', '.join(supported)}", err=True)
+    Supported platforms: xhs, twitter, bilibili, weibo, douyin, zhihu, xueqiu
+    """
+
+    # 1:1 from Agent-Reach agent_reach/cookie_extract.py PLATFORM_SPECS
+    _PLATFORM_SPECS: dict[str, tuple[tuple[str, ...], str]] = {
+        "xhs": ((".xiaohongshu.com",), "XHS_COOKIES"),
+        "twitter": ((".x.com", ".twitter.com"), "TWITTER_COOKIES"),
+        "bilibili": ((".bilibili.com",), "BILIBILI_COOKIES"),
+        "weibo": ((".weibo.com", ".weibo.cn"), "WEIBO_COOKIES"),
+        "douyin": ((".douyin.com",), "DOUYIN_COOKIES"),
+        "zhihu": ((".zhihu.com",), "ZHIHU_COOKIES"),
+        "xueqiu": ((".xueqiu.com", "xueqiu.com"), "XUEQIU_COOKIES"),
+    }
+
+    if platform not in _PLATFORM_SPECS:
+        typer.echo(
+            f"Unsupported platform: {platform}. Supported: {', '.join(_PLATFORM_SPECS)}",
+            err=True,
+        )
         raise typer.Exit(code=1)
+
+    domains, env_key = _PLATFORM_SPECS[platform]
+
+    # Fast path: cookie string provided directly (from Cookie-Editor export)
+    if from_string:
+        _write_cookie_to_secrets(env_key, from_string.strip(), platform)
+        typer.echo(f"Done. {env_key} written from --from-string.")
+        return
 
     try:
         import rookiepy
@@ -347,7 +381,6 @@ def login(
         )
         raise typer.Exit(code=1)
 
-    domain = supported[platform]
     browser_lower = browser.lower()
     browser_map = {
         "chrome": rookiepy.chrome,
@@ -362,7 +395,7 @@ def login(
 
     typer.echo(f"Reading {platform} cookies from {browser}...")
     try:
-        raw = browser_map[browser_lower](list(domain))
+        raw = browser_map[browser_lower](list(domains))
     except Exception as exc:
         typer.echo(f"Could not read cookies: {exc}", err=True)
         raise typer.Exit(code=1)
@@ -370,15 +403,25 @@ def login(
     if not raw:
         typer.echo(
             f"No {platform} cookies found in {browser}. "
-            f"Make sure you're logged in to {platform} in {browser}.",
+            f"Make sure you're logged in to {platform} in {browser}.\n"
+            f"Tip: use Cookie-Editor extension → Export → Header String, then:\n"
+            f'  autosearch login {platform} --from-string "<paste>"',
             err=True,
         )
         raise typer.Exit(code=1)
 
     cookie_str = "; ".join(f"{c['name']}={c['value']}" for c in raw)
-    n = len(raw)
+    _write_cookie_to_secrets(env_key, cookie_str, platform, n_cookies=len(raw))
+    typer.echo(f"Done. {platform} searches will now use your {browser} session.")
 
-    env_key = {"xhs": "XHS_COOKIES"}[platform]
+
+def _write_cookie_to_secrets(
+    env_key: str, cookie_str: str, platform: str, n_cookies: int = 0
+) -> None:
+    """Write or update a cookie env var in ~/.config/ai-secrets.env."""
+    import shlex
+    from pathlib import Path
+
     secrets_path = Path.home() / ".config" / "ai-secrets.env"
     secrets_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -389,25 +432,21 @@ def login(
             if stripped and not stripped.startswith("#") and "=" in stripped:
                 existing_keys.add(stripped.split("=", 1)[0].strip())
 
-    import shlex
-
+    label = f"{n_cookies} cookies" if n_cookies else "cookies"
     if env_key in existing_keys:
-        # Update existing entry
         lines = secrets_path.read_text(encoding="utf-8").splitlines()
-        new_lines = []
-        for line in lines:
-            if line.strip().startswith(f"{env_key}="):
-                new_lines.append(f"{env_key}={shlex.quote(cookie_str)}")
-            else:
-                new_lines.append(line)
+        new_lines = [
+            f"{env_key}={shlex.quote(cookie_str)}"
+            if line.strip().startswith(f"{env_key}=")
+            else line
+            for line in lines
+        ]
         secrets_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
-        typer.echo(f"Updated {env_key} ({n} cookies) → {secrets_path}")
+        typer.echo(f"Updated {env_key} ({label}) → {secrets_path}")
     else:
         with secrets_path.open("a", encoding="utf-8") as fh:
             fh.write(f"\n{env_key}={shlex.quote(cookie_str)}\n")
-        typer.echo(f"Written {env_key} ({n} cookies) → {secrets_path}")
-
-    typer.echo(f"Done. XHS searches will now use your {browser} session automatically.")
+        typer.echo(f"Written {env_key} ({label}) → {secrets_path}")
 
 
 def _stderr_event_writer(event: dict[str, object]) -> None:
