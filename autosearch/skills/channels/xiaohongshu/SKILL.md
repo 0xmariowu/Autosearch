@@ -48,6 +48,20 @@ Xiaohongshu is a Chinese lifestyle and consumer discovery platform centered on s
 - TikHub search does not require local cookies or login state.
 - Evidence currently reflects note-body content only; comments are not included in this route.
 
+## ⚠️ Known Issue: via_signsrv Account Restriction (code=300011)
+
+XHS applies two-tier account restriction enforcement:
+1. **With valid signing**: restricted accounts return `code=0, 成功` but `items=[]` — silently empty, no error
+2. **Without signing**: returns `code=300011, 当前账号存在异常，请切换账号后重试`
+
+**This means**: if `via_signsrv` returns 0 results, it may be a restricted account, not genuinely empty search results.
+
+**Trigger**: New/unverified accounts, or accounts that triggered bot detection from excessive API calls.
+
+**Mitigation** (not yet implemented): When `via_signsrv` returns empty results, call `/api/sns/web/v2/user/me` to check account health. If `code=300011` is returned, surface `AccountRestrictedError` and prompt user to run `autosearch login xhs` with a different account.
+
+**Workaround**: Use `autosearch login xhs` with a normal, actively-used XHS account. `via_tikhub` is unaffected (uses TikHub's own accounts).
+
 # Quality Bar
 
 - Evidence items have non-empty title and url.
