@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026.04.23.6 — 2026-04-23
+
+- `npm install -g autosearch-ai` now runs init automatically — no second step needed
+
+
 ## 2026.04.23.5 — 2026-04-23
 
 - README rewritten in Agent-Reach style: pain points first, two install formats (Agent one-liner + npm)
