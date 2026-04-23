@@ -30,8 +30,13 @@ def _load_module():
 
 
 MODULE = _load_module()
+SIGN_PATH = MODULE.SIGN_PATH
 SEARCH_PATH = MODULE.SEARCH_PATH
 search = MODULE.search
+
+_FAKE_SIGN_RESPONSE = {
+    "data": {"X-s": "fake-xs-token", "X-t": "1234567890", "X-s-common": "fake-xs-common"}
+}
 
 
 class _Logger:
@@ -43,102 +48,136 @@ class _Logger:
 
 
 class _FakeTikhubClient:
-    def __init__(self, payload: dict[str, object]) -> None:
-        self.payload = payload
-        self.calls: list[tuple[str, dict[str, object]]] = []
+    """Two-step fake: post() returns sign tokens, get() returns search results."""
 
-    async def get(self, path: str, params: dict[str, object]) -> dict[str, object]:
-        self.calls.append((path, params))
-        return self.payload
+    def __init__(self, search_payload: dict[str, object]) -> None:
+        self.search_payload = search_payload
+        self.post_calls: list[tuple[str, dict[str, object]]] = []
+        self.get_calls: list[tuple[str, dict[str, object]]] = []
+
+    async def post(self, path: str, body: dict[str, object]) -> dict[str, object]:
+        self.post_calls.append((path, body))
+        return _FAKE_SIGN_RESPONSE
+
+    async def get(
+        self,
+        path: str,
+        params: dict[str, object],
+        extra_headers: dict[str, str] | None = None,
+    ) -> dict[str, object]:
+        self.get_calls.append((path, params))
+        return self.search_payload
 
 
 class _FailingTikhubClient:
-    async def get(self, path: str, params: dict[str, object]) -> dict[str, object]:
-        raise TikhubError(f"request failed for {path} with {params!r}")
+    async def post(self, path: str, body: dict[str, object]) -> dict[str, object]:
+        raise TikhubError(f"request failed for {path}")
+
+    async def get(
+        self,
+        path: str,
+        params: dict[str, object],
+        extra_headers: dict[str, str] | None = None,
+    ) -> dict[str, object]:
+        raise TikhubError(f"request failed for {path}")
 
 
 def _query() -> SubQuery:
     return SubQuery(text="防晒", rationale="Need Xiaohongshu product review coverage")
 
 
+def _note_item(
+    note_id: str,
+    display_title: str,
+    desc: str = "",
+    xsec_token: str = "",
+) -> dict[str, object]:
+    """Build a note item in the web_v3 flat format."""
+    return {
+        "id": note_id,
+        "xsecToken": xsec_token,
+        "noteCard": {
+            "displayTitle": display_title,
+            "desc": desc,
+            "user": {"nickname": "Test User"},
+        },
+    }
+
+
+def _search_payload(items: list[dict]) -> dict[str, object]:
+    return {"data": {"data": {"items": items}}}
+
+
 @pytest.mark.asyncio
 async def test_search_maps_xhs_items_to_evidence() -> None:
     client = _FakeTikhubClient(
-        {
-            "data": {
-                "items": [
-                    {
-                        "id": "note-abc",
-                        "title": "护肤 &amp; 防晒推荐 ",
-                        "desc": "适合夏天通勤使用，质地很轻薄。",
-                        "share_info": {"link": "https://www.xiaohongshu.com/explore/note-abc"},
-                    },
-                    {
-                        "id": "note-def",
-                        "title": "旅行清单",
-                        "desc": "出发前一定要带上防晒和补水喷雾。",
-                        "share_info": {"link": "https://www.xiaohongshu.com/explore/note-def"},
-                    },
-                ]
-            }
-        }
+        _search_payload(
+            [
+                _note_item(
+                    "note-abc",
+                    "护肤 &amp; 防晒推荐 ",
+                    desc="适合夏天通勤使用，质地很轻薄。",
+                    xsec_token="token-abc",
+                ),
+                _note_item(
+                    "note-def",
+                    "旅行清单",
+                    desc="出发前一定要带上防晒和补水喷雾。",
+                    xsec_token="token-def",
+                ),
+            ]
+        )
     )
 
     results = await search(_query(), client=cast(TikhubClient, client))
 
-    assert client.calls == [(SEARCH_PATH, {"keyword": "防晒"})]
+    # sign step: POST to SIGN_PATH
+    assert len(client.post_calls) == 1
+    assert client.post_calls[0][0] == SIGN_PATH
+    assert client.post_calls[0][1]["data"]["keyword"] == "防晒"
+
+    # search step: GET to SEARCH_PATH
+    assert len(client.get_calls) == 1
+    assert client.get_calls[0] == (SEARCH_PATH, {"keyword": "防晒", "page": 1})
+
     assert len(results) == 2
 
     first = results[0]
-    assert first.url == "https://www.xiaohongshu.com/explore/note-abc"
+    assert "note-abc" in first.url
+    assert "token-abc" in first.url
     assert first.title == "护肤 & 防晒推荐"
     assert first.snippet == "适合夏天通勤使用，质地很轻薄。"
-    assert first.content == "适合夏天通勤使用，质地很轻薄。"
     assert first.source_channel == "xiaohongshu:tikhub"
 
     second = results[1]
-    assert second.url == "https://www.xiaohongshu.com/explore/note-def"
+    assert "note-def" in second.url
     assert second.title == "旅行清单"
     assert second.snippet == "出发前一定要带上防晒和补水喷雾。"
     assert second.source_channel == "xiaohongshu:tikhub"
 
 
 @pytest.mark.asyncio
-async def test_search_uses_id_fallback_when_share_info_missing() -> None:
+async def test_search_uses_id_without_xsec_when_token_missing() -> None:
     client = _FakeTikhubClient(
-        {
-            "data": {
-                "items": [
-                    {
-                        "id": "note-fallback",
-                        "title": "好物分享",
-                        "desc": "没有 share link 时使用 note id。",
-                    }
-                ]
-            }
-        }
+        _search_payload([_note_item("note-fallback", "好物分享", desc="没有 xsec token。")])
     )
 
     results = await search(_query(), client=cast(TikhubClient, client))
 
     assert len(results) == 1
-    assert results[0].url == "https://www.xiaohongshu.com/explore/note-fallback"
+    assert "note-fallback" in results[0].url
 
 
 @pytest.mark.asyncio
-async def test_search_skips_item_without_id_or_share_link() -> None:
+async def test_search_skips_item_without_id() -> None:
     client = _FakeTikhubClient(
-        {
-            "data": {
-                "items": [
-                    {
-                        "title": "Broken item",
-                        "desc": "This should be skipped.",
-                        "share_info": {},
-                    }
-                ]
-            }
-        }
+        _search_payload(
+            [
+                {
+                    "noteCard": {"displayTitle": "No ID note", "desc": "Should be skipped."},
+                }
+            ]
+        )
     )
 
     results = await search(_query(), client=cast(TikhubClient, client))
@@ -147,7 +186,7 @@ async def test_search_skips_item_without_id_or_share_link() -> None:
 
 
 @pytest.mark.asyncio
-async def test_search_returns_empty_on_tikhub_error(
+async def test_search_returns_empty_on_sign_tikhub_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     logger = _Logger()
@@ -157,25 +196,14 @@ async def test_search_returns_empty_on_tikhub_error(
 
     assert results == []
     assert logger.events
-    assert logger.events[0][0] == "xiaohongshu_tikhub_search_failed"
-    assert SEARCH_PATH in str(logger.events[0][1]["reason"])
+    assert logger.events[0][0] == "xiaohongshu_tikhub_sign_failed"
 
 
 @pytest.mark.asyncio
 async def test_search_truncates_desc_to_snippet_on_word_boundary() -> None:
     long_desc = ("word " * 59) + "splitpoint continues after the limit"
     client = _FakeTikhubClient(
-        {
-            "data": {
-                "items": [
-                    {
-                        "id": "note-long",
-                        "title": "Long note",
-                        "desc": long_desc,
-                    }
-                ]
-            }
-        }
+        _search_payload([_note_item("note-long", "Long note", desc=long_desc, xsec_token="tok")])
     )
 
     results = await search(_query(), client=cast(TikhubClient, client))

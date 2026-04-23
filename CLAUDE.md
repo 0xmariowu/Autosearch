@@ -6,6 +6,14 @@
 
 A self-improving search system. The human provides intent. The AI does everything else: understand the goal, generate strategies, run them across all platforms, score results, reflect, iterate, and harvest.
 
+## Local test (run before push)
+
+```bash
+.venv/bin/python -m pytest tests/unit/ -x -q -m "not real_llm and not slow and not network"
+```
+
+Fast subset only (~4s). Full suite runs in CI.
+
 ## Session Checklist
 
 1. If working on AVO/skills → read § AVO rules below
