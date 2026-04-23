@@ -30,14 +30,19 @@ _CATEGORY = "P"
 
 
 async def _desktop_cmd(sbx: DesktopSandbox, cmd: str, timeout: int = 60) -> tuple[str, str, int]:
-    """Run a shell command in desktop sandbox. Passes cmd directly — no bash -c wrapping."""
+    """Run a shell command in desktop sandbox via /bin/bash -c + shlex.quote.
+
+    Uses shlex.quote (not Python repr) so single quotes in cmd are handled safely.
+    Pipes, redirects, and all shell features work correctly.
+    """
     loop = asyncio.get_event_loop()
+    shell_cmd = f"/bin/bash -c {shlex.quote(cmd)}"
 
     def _run() -> Any:
         try:
-            return sbx.commands.run(cmd, timeout=timeout)
+            return sbx.commands.run(shell_cmd, timeout=timeout)
         except TypeError:
-            return sbx.commands.run(cmd)
+            return sbx.commands.run(shell_cmd)
 
     result = await loop.run_in_executor(None, _run)
     stdout = getattr(result, "stdout", "") or ""
@@ -51,7 +56,8 @@ async def _desktop_python(
 ) -> tuple[str, str, int]:
     """Run a Python script in desktop sandbox via base64 — safe for any string content."""
     b64 = base64.b64encode(script.encode()).decode()
-    write_cmd = f"echo '{b64}' | base64 -d > /tmp/_p_test.py"
+    # Write script via pipe+redirect (requires shell, handled by _desktop_cmd)
+    write_cmd = f"printf '%s' {shlex.quote(b64)} | base64 -d > /tmp/_p_test.py"
     await _desktop_cmd(sbx, write_cmd, timeout=15)
     return await _desktop_cmd(sbx, "python3 /tmp/_p_test.py", timeout=timeout)
 
