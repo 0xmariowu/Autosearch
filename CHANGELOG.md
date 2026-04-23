@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026.04.23.7 — 2026-04-23
+
+- Fixed `npm install -g autosearch-ai` failing on Macs where pip3 points to Xcode's Python 3.9 — now detects Python 3.12+ explicitly
+
+
 ## 2026.04.23.6 — 2026-04-23
 
 - `npm install -g autosearch-ai` now runs init automatically — no second step needed
