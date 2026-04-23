@@ -7,15 +7,13 @@ Five-step Bcut flow:
   4. POST /task                 → start ASR task
   5. GET  /task/result          → poll until state==4 (done)
 """
+
 from __future__ import annotations
 
 import asyncio
-import math
-import os
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any
 from urllib.parse import urlparse
 
 import httpx
@@ -50,11 +48,13 @@ def _build_segments(utterances: list[dict]) -> list[dict[str, object]]:
 
         if not words:
             # No word timestamps — use utterance boundaries
-            segments.append({
-                "start": utt.get("start_time", 0) / 1000.0,
-                "end": utt.get("end_time", 0) / 1000.0,
-                "text": text,
-            })
+            segments.append(
+                {
+                    "start": utt.get("start_time", 0) / 1000.0,
+                    "end": utt.get("end_time", 0) / 1000.0,
+                    "text": text,
+                }
+            )
             continue
 
         current: list[dict] = []
@@ -79,25 +79,30 @@ def _build_segments(utterances: list[dict]) -> list[dict[str, object]]:
                     should_split = True
 
             if should_split and current:
-                segments.append({
-                    "start": current[0].get("start_time", 0) / 1000.0,
-                    "end": current[-1].get("end_time", 0) / 1000.0,
-                    "text": cur_text,
-                })
+                segments.append(
+                    {
+                        "start": current[0].get("start_time", 0) / 1000.0,
+                        "end": current[-1].get("end_time", 0) / 1000.0,
+                        "text": cur_text,
+                    }
+                )
                 current = []
 
         if current:
             cur_text = "".join(w.get("label", "") for w in current)
-            segments.append({
-                "start": current[0].get("start_time", 0) / 1000.0,
-                "end": current[-1].get("end_time", 0) / 1000.0,
-                "text": cur_text,
-            })
+            segments.append(
+                {
+                    "start": current[0].get("start_time", 0) / 1000.0,
+                    "end": current[-1].get("end_time", 0) / 1000.0,
+                    "text": cur_text,
+                }
+            )
 
     return segments
 
 
 # ── Bcut API ──────────────────────────────────────────────────────────────────
+
 
 async def _bcut_upload(client: httpx.AsyncClient, audio_path: Path) -> str:
     """Upload audio to Bcut and return task-ready download_url."""
@@ -107,8 +112,13 @@ async def _bcut_upload(client: httpx.AsyncClient, audio_path: Path) -> str:
     # Step 1: Request upload slots
     r = await client.post(
         f"{_BCUT_BASE}/resource/create",
-        json={"type": 2, "name": audio_path.name, "size": size,
-              "ResourceFileType": "mp3", "model_id": "8"},
+        json={
+            "type": 2,
+            "name": audio_path.name,
+            "size": size,
+            "ResourceFileType": "mp3",
+            "model_id": "8",
+        },
         timeout=30,
     )
     r.raise_for_status()
@@ -123,7 +133,7 @@ async def _bcut_upload(client: httpx.AsyncClient, audio_path: Path) -> str:
     etags: list[str] = []
     async with httpx.AsyncClient(timeout=60) as up_client:
         for i, url in enumerate(upload_urls):
-            chunk = audio_bytes[i * per_size: (i + 1) * per_size]
+            chunk = audio_bytes[i * per_size : (i + 1) * per_size]
             resp = await up_client.put(url, content=chunk)
             resp.raise_for_status()
             etags.append(resp.headers.get("ETag", "").strip('"'))
@@ -131,8 +141,13 @@ async def _bcut_upload(client: httpx.AsyncClient, audio_path: Path) -> str:
     # Step 3: Commit upload
     r2 = await client.post(
         f"{_BCUT_BASE}/resource/create/complete",
-        json={"InBossKey": in_boss_key, "ResourceId": resource_id,
-              "Etags": ",".join(etags), "UploadId": upload_id, "model_id": "8"},
+        json={
+            "InBossKey": in_boss_key,
+            "ResourceId": resource_id,
+            "Etags": ",".join(etags),
+            "UploadId": upload_id,
+            "model_id": "8",
+        },
         timeout=30,
     )
     r2.raise_for_status()
@@ -166,6 +181,7 @@ async def _bcut_transcribe(audio_path: Path) -> list[dict]:
             state = task.get("state")
             if state == 4:
                 import json as _json
+
                 result_raw = task.get("result", "{}")
                 return _json.loads(result_raw).get("utterances", [])
             if state == -1:
@@ -176,6 +192,7 @@ async def _bcut_transcribe(audio_path: Path) -> list[dict]:
 
 # ── Audio extraction ──────────────────────────────────────────────────────────
 
+
 def _extract_audio_to_wav(source: str, output_wav: Path) -> None:
     """Download (if URL) and convert to 16kHz mono WAV via yt-dlp + ffmpeg."""
     parsed = urlparse(source)
@@ -185,9 +202,19 @@ def _extract_audio_to_wav(source: str, output_wav: Path) -> None:
         if is_url:
             audio_tmp = Path(tmpdir) / "audio"
             result = subprocess.run(
-                ["yt-dlp", "-x", "--audio-format", "mp3",
-                 "-o", str(audio_tmp), source, "--quiet", "--no-playlist"],
-                capture_output=True, timeout=120,
+                [
+                    "yt-dlp",
+                    "-x",
+                    "--audio-format",
+                    "mp3",
+                    "-o",
+                    str(audio_tmp),
+                    source,
+                    "--quiet",
+                    "--no-playlist",
+                ],
+                capture_output=True,
+                timeout=120,
             )
             if result.returncode != 0:
                 raise RuntimeError(
@@ -202,13 +229,27 @@ def _extract_audio_to_wav(source: str, output_wav: Path) -> None:
             input_path = source
 
         subprocess.run(
-            ["ffmpeg", "-i", input_path, "-ar", "16000", "-ac", "1",
-             "-f", "wav", "-y", str(output_wav)],
-            capture_output=True, timeout=60, check=True,
+            [
+                "ffmpeg",
+                "-i",
+                input_path,
+                "-ar",
+                "16000",
+                "-ac",
+                "1",
+                "-f",
+                "wav",
+                "-y",
+                str(output_wav),
+            ],
+            capture_output=True,
+            timeout=60,
+            check=True,
         )
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
+
 
 async def transcribe(source: str, timeout: float = _DEFAULT_TIMEOUT) -> BcutResult:
     """Transcribe a video/audio URL or local path using Bcut ASR.

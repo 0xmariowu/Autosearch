@@ -9,6 +9,7 @@ Flow:
   1. POST Worker /sign/xhs with uri + data + a1 → X-s/X-t/X-s-common
   2. POST XHS native API with signed headers → search results
 """
+
 from __future__ import annotations
 
 import html
