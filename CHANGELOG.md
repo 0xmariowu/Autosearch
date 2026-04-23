@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026.04.23.5 — 2026-04-23
+
+- README rewritten in Agent-Reach style: pain points first, two install formats (Agent one-liner + npm)
+
+
 ## 2026.04.23.4 — 2026-04-23
 
 - You can now install AutoSearch with `npm install -g autosearch-ai` — no Python setup required
