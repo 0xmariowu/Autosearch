@@ -12,6 +12,7 @@ Usage:
   mode = get_mode("academic")   # returns SearchModeConfig
   mode = detect_mode("最新 AI 论文综述")  # auto-detect from query
 """
+
 from __future__ import annotations
 
 import json
@@ -19,6 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 # ── Built-in modes ────────────────────────────────────────────────────────────
+
 
 @dataclass
 class SearchModeConfig:
@@ -43,8 +45,20 @@ _BUILTIN_MODES: list[SearchModeConfig] = [
         key="academic",
         label_zh="学术研究",
         label_en="Academic",
-        keywords=["论文", "研究", "文献", "综述", "paper", "research", "survey", "journal",
-                  "arxiv", "pubmed", "citation", "methodology"],
+        keywords=[
+            "论文",
+            "研究",
+            "文献",
+            "综述",
+            "paper",
+            "research",
+            "survey",
+            "journal",
+            "arxiv",
+            "pubmed",
+            "citation",
+            "methodology",
+        ],
         channel_priority=["arxiv", "pubmed", "openalex", "crossref", "dblp", "papers"],
         channel_skip=["tiktok", "instagram", "kuaishou", "wechat_channels"],
         system_prompt=(
@@ -58,8 +72,21 @@ _BUILTIN_MODES: list[SearchModeConfig] = [
         key="news",
         label_zh="时事新闻",
         label_en="News & Current Events",
-        keywords=["最新", "今天", "新闻", "动态", "latest", "today", "news", "breaking",
-                  "current", "2024", "2025", "2026", "recent"],
+        keywords=[
+            "最新",
+            "今天",
+            "新闻",
+            "动态",
+            "latest",
+            "today",
+            "news",
+            "breaking",
+            "current",
+            "2024",
+            "2025",
+            "2026",
+            "recent",
+        ],
         channel_priority=["google_news", "twitter", "hackernews", "weibo", "ddgs"],
         channel_skip=["arxiv", "sec_edgar", "crossref", "dblp"],
         system_prompt=(
@@ -72,10 +99,32 @@ _BUILTIN_MODES: list[SearchModeConfig] = [
         key="chinese_ugc",
         label_zh="中文社区",
         label_en="Chinese Community",
-        keywords=["中文", "国内", "中国", "用户", "经验", "评测", "推荐", "种草",
-                  "小红书", "知乎", "B站", "微博", "抖音", "UGC"],
-        channel_priority=["xiaohongshu", "zhihu", "bilibili", "weibo", "douyin",
-                          "tieba", "v2ex", "sogou_weixin"],
+        keywords=[
+            "中文",
+            "国内",
+            "中国",
+            "用户",
+            "经验",
+            "评测",
+            "推荐",
+            "种草",
+            "小红书",
+            "知乎",
+            "B站",
+            "微博",
+            "抖音",
+            "UGC",
+        ],
+        channel_priority=[
+            "xiaohongshu",
+            "zhihu",
+            "bilibili",
+            "weibo",
+            "douyin",
+            "tieba",
+            "v2ex",
+            "sogou_weixin",
+        ],
         channel_skip=["arxiv", "pubmed", "sec_edgar", "reddit", "stackoverflow"],
         system_prompt=(
             "你是一位中文内容研究员。优先引用来自中文社区的第一手用户经验，"
@@ -86,10 +135,33 @@ _BUILTIN_MODES: list[SearchModeConfig] = [
         key="developer",
         label_zh="技术开发",
         label_en="Developer & Technical",
-        keywords=["代码", "实现", "API", "库", "框架", "bug", "debug", "code", "implement",
-                  "library", "framework", "tutorial", "how to", "github", "npm", "pypi"],
-        channel_priority=["github", "stackoverflow", "hackernews", "devto",
-                          "huggingface_hub", "package_search", "arxiv"],
+        keywords=[
+            "代码",
+            "实现",
+            "API",
+            "库",
+            "框架",
+            "bug",
+            "debug",
+            "code",
+            "implement",
+            "library",
+            "framework",
+            "tutorial",
+            "how to",
+            "github",
+            "npm",
+            "pypi",
+        ],
+        channel_priority=[
+            "github",
+            "stackoverflow",
+            "hackernews",
+            "devto",
+            "huggingface_hub",
+            "package_search",
+            "arxiv",
+        ],
         channel_skip=["tiktok", "kuaishou", "wechat_channels", "sec_edgar"],
         system_prompt=(
             "You are a senior developer assistant. Include working code examples. "
@@ -101,10 +173,30 @@ _BUILTIN_MODES: list[SearchModeConfig] = [
         key="product",
         label_zh="产品调研",
         label_en="Product Research",
-        keywords=["产品", "竞品", "用户反馈", "体验", "对比", "评测", "product", "review",
-                  "compare", "competitor", "feedback", "ux", "pricing"],
-        channel_priority=["reddit", "hackernews", "twitter", "xiaohongshu",
-                          "instagram", "devto", "v2ex"],
+        keywords=[
+            "产品",
+            "竞品",
+            "用户反馈",
+            "体验",
+            "对比",
+            "评测",
+            "product",
+            "review",
+            "compare",
+            "competitor",
+            "feedback",
+            "ux",
+            "pricing",
+        ],
+        channel_priority=[
+            "reddit",
+            "hackernews",
+            "twitter",
+            "xiaohongshu",
+            "instagram",
+            "devto",
+            "v2ex",
+        ],
         channel_skip=["arxiv", "pubmed", "sec_edgar", "crossref"],
         system_prompt=(
             "You are a product researcher. Surface user pain points and genuine opinions. "
@@ -132,17 +224,19 @@ def _load_custom_modes() -> list[SearchModeConfig]:
         modes = []
         for entry in data if isinstance(data, list) else []:
             if isinstance(entry, dict) and entry.get("key"):
-                modes.append(SearchModeConfig(
-                    key=entry["key"],
-                    label_zh=entry.get("label_zh", entry["key"]),
-                    label_en=entry.get("label_en", entry["key"]),
-                    keywords=entry.get("keywords", []),
-                    channel_priority=entry.get("channel_priority", []),
-                    channel_skip=entry.get("channel_skip", []),
-                    system_prompt=entry.get("system_prompt", ""),
-                    enabled=entry.get("enabled", True),
-                    is_system=False,
-                ))
+                modes.append(
+                    SearchModeConfig(
+                        key=entry["key"],
+                        label_zh=entry.get("label_zh", entry["key"]),
+                        label_en=entry.get("label_en", entry["key"]),
+                        keywords=entry.get("keywords", []),
+                        channel_priority=entry.get("channel_priority", []),
+                        channel_skip=entry.get("channel_skip", []),
+                        system_prompt=entry.get("system_prompt", ""),
+                        enabled=entry.get("enabled", True),
+                        is_system=False,
+                    )
+                )
         return modes
     except Exception:
         return []

@@ -6,6 +6,7 @@ into a concise brief that keeps the essential findings without the raw data.
 
 Used by the consolidate_research MCP tool.
 """
+
 from __future__ import annotations
 
 from typing import Any
