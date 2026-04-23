@@ -113,11 +113,12 @@ def test_mcp_tools_registered_via_python() -> None:
         missing = required - tool_names
         assert not missing, f"Missing tools: {missing}"
 
-        # G3-T2: doctor() returns list of channel status dicts
+        # G3-T2: doctor() returns structured report dict with channels list
         result = server._tool_manager._tools["doctor"].fn()
-        assert isinstance(result, list)
-        assert len(result) >= 1
-        assert all("channel" in item and "status" in item for item in result)
+        assert isinstance(result, dict)
+        assert "channels" in result and "report" in result
+        assert len(result["channels"]) >= 1
+        assert all("channel" in item and "status" in item for item in result["channels"])
 
         # G3-T1: list_skills returns >= 34 channel skills
         ls = server._tool_manager._tools["list_skills"].fn(group="channels")
