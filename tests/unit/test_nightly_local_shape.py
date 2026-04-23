@@ -15,7 +15,11 @@ SCRIPT = REPO_ROOT / "scripts" / "nightly-local.sh"
 
 
 def test_script_exists_and_is_executable():
+    import sys
+
     assert SCRIPT.is_file(), f"{SCRIPT} missing"
+    if sys.platform == "win32":
+        return  # Windows has no Unix executable bits — skip the permission check
     mode = SCRIPT.stat().st_mode
     assert mode & stat.S_IXUSR, "nightly-local.sh must be executable (+x for owner)"
 
