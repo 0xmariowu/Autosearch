@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026.04.23.9 — 2026-04-24
+
+- `npx autosearch-ai` is now the one-command installer — auto-installs and shows init screen on any machine
+
+
 ## 2026.04.23.8 — 2026-04-23
 
 - New one-command installer: `curl -fsSL https://raw.githubusercontent.com/0xmariowu/Autosearch/main/scripts/install.sh | bash` — handles uv/pipx/pip automatically and shows the init screen
