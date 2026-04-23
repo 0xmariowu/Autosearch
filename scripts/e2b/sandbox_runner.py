@@ -227,6 +227,52 @@ async def clone_autosearch(
     return c2 == 0
 
 
+# ── Desktop sandbox (e2b_desktop) ────────────────────────────────────────────
+
+async def create_desktop_sandbox(
+    env: dict[str, str],
+    timeout: int = 300,
+    resolution: tuple[int, int] = (1280, 720),
+) -> "Any":
+    """Create an e2b_desktop Sandbox. Returns DesktopSandbox object."""
+    import asyncio
+    from e2b_desktop import Sandbox as DesktopSandbox
+    loop = asyncio.get_event_loop()
+    sbx = await loop.run_in_executor(
+        None,
+        lambda: DesktopSandbox.create(
+            resolution=resolution,
+            envs=env,
+            timeout=timeout,
+        )
+    )
+    return sbx
+
+
+async def run_desktop_cmd(sbx: "Any", cmd: str, timeout: int = 60) -> tuple[str, str, int]:
+    """Run a bash command in a desktop sandbox. Returns (stdout, stderr, exit_code)."""
+    import asyncio
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(
+        None,
+        lambda: sbx.commands.run(f"bash -c {cmd!r}"),
+    )
+    stdout = getattr(result, "stdout", "") or ""
+    stderr = getattr(result, "stderr", "") or ""
+    exit_code = getattr(result, "exit_code", 0) or 0
+    return stdout, stderr, exit_code
+
+
+async def kill_desktop_sandbox(sbx: "Any") -> None:
+    """Kill a desktop sandbox."""
+    import asyncio
+    loop = asyncio.get_event_loop()
+    try:
+        await loop.run_in_executor(None, sbx.kill)
+    except Exception:
+        pass
+
+
 # ── ScenarioResult ────────────────────────────────────────────────────────────
 
 

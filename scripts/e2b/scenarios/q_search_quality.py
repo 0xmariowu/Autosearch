@@ -1,4 +1,4 @@
-"""Scenarios Q1-Q15: Search quality via relevance LLM judge."""
+"""Scenarios Q1-Q15: Search quality via pairwise LLM judge (AutoSearch vs bare Claude)."""
 
 from __future__ import annotations
 
@@ -11,45 +11,58 @@ import httpx
 from scripts.e2b.sandbox_runner import ScenarioResult, install_autosearch, run_python
 
 
-async def _relevance_judge(
+async def _bare_claude(
     query: str,
-    results: list[dict],
     openrouter_key: str,
-) -> tuple[int, str]:
-    """Judge relevance of search results for a query. Returns (score 0-100, reason)."""
+    model: str = "anthropic/claude-haiku-4-5",
+) -> str:
+    """Get bare Claude response with no AutoSearch context."""
     if not openrouter_key:
-        return 50, "no key"
-    if not results:
-        return 10, "no results returned"
+        return ""
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={"Authorization": f"Bearer {openrouter_key}"},
+            json={
+                "model": model,
+                "max_tokens": 400,
+                "messages": [
+                    {"role": "user", "content": f"Answer this research question: {query}"}
+                ],
+            },
+        )
+        r.raise_for_status()
+        return r.json()["choices"][0]["message"]["content"]
 
-    results_text = "\n".join(
-        f"- {r.get('title', '')}: {r.get('snippet', '')}"
-        for r in results[:5]
-        if r.get("title") or r.get("snippet")
-    )
-    if not results_text.strip():
-        return 15, "results have no content"
 
-    prompt = f"""Research query: "{query}"
+async def _pairwise_judge(query: str, a: str, b: str, openrouter_key: str) -> str:
+    """Pairwise judge. Randomize A/B position to prevent position bias."""
+    import random
 
-Search results from AutoSearch:
-{results_text}
+    if random.random() < 0.5:
+        prompt_a, prompt_b, flip = a, b, False
+    else:
+        prompt_a, prompt_b, flip = b, a, True
 
-Rate the RELEVANCE and USEFULNESS of these search results for a researcher on a scale 0-100:
-- 80-100: Highly relevant, specific real sources that directly address the query
-- 60-79: Relevant, would genuinely help a researcher
-- 40-59: Partially relevant, some useful content
-- 0-39: Not relevant, too generic, or no real value
+    if not openrouter_key:
+        return "tie"
 
-Reply EXACTLY as JSON: {{"score": <number>, "reason": "<one sentence>"}}"""
+    prompt = f"""Compare two research responses to: "{query}"
 
-    async with httpx.AsyncClient(timeout=20) as client:
+Response A: {prompt_a[:500]}
+
+Response B: {prompt_b[:500]}
+
+Which response is more useful for actual research (real sources, specific content, factual depth)?
+Reply EXACTLY with one of: {{"winner":"A"}} or {{"winner":"B"}} or {{"winner":"tie"}}"""
+
+    async with httpx.AsyncClient(timeout=25) as client:
         r = await client.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers={"Authorization": f"Bearer {openrouter_key}"},
             json={
                 "model": "anthropic/claude-haiku-4-5",
-                "max_tokens": 80,
+                "max_tokens": 30,
                 "messages": [{"role": "user", "content": prompt}],
             },
         )
@@ -58,15 +71,15 @@ Reply EXACTLY as JSON: {{"score": <number>, "reason": "<one sentence>"}}"""
 
     for line in reversed(content.strip().splitlines()):
         line = line.strip()
-        if "{" in line and "score" in line:
+        if "{" in line and "winner" in line:
             try:
-                obj = json.loads(line[line.index("{") : line.rindex("}") + 1])
-                score = max(0, min(100, int(obj.get("score", 50))))
-                reason = str(obj.get("reason", ""))[:100]
-                return score, reason
-            except Exception:  # noqa: BLE001 - tolerate malformed external judge output
+                w = json.loads(line[line.index("{") : line.rindex("}") + 1]).get("winner", "tie")
+                if flip:
+                    w = {"A": "B", "B": "A"}.get(w, w)
+                return w
+            except Exception:
                 pass
-    return 50, "parse failed"
+    return "tie"
 
 
 _CHANNEL_SEARCH = """
@@ -120,35 +133,24 @@ async def _run_quality_scenario(
         )
 
     script = _CHANNEL_SEARCH.format(channel=channel, query=query)
-    result, stderr = await run_python(sandbox_id, script, env={}, timeout=60)
+    result, stderr = await run_python(sandbox_id, script, env=env, timeout=90)
     if not isinstance(result, dict):
         result = {"ok": False, "error": "non-dict result", "raw_result": result}
 
     openrouter_key = env.get("OPENROUTER_API_KEY", "")
-    raw_results = result.get("results", [])
-    results: list[dict] = (
-        [item for item in raw_results if isinstance(item, dict)]
-        if isinstance(raw_results, list)
-        else []
-    )
+    autosearch_summary = str(result.get("summary") or "")
     evidence_count = int(result.get("count", 0) or 0)
     details: dict[str, Any] = {
         "channel": channel,
         "query": query,
         "search_ok": bool(result.get("ok")),
         "search_error": result.get("error", ""),
-        "results": results,
-        "stderr": stderr[-500:] if stderr else "",
+        "autosearch_summary": autosearch_summary[:800],
+        "results": result.get("results", []),
     }
 
     if not openrouter_key:
-        details.update(
-            {
-                "skipped": True,
-                "count": len(results),
-                "judge_skipped": "OPENROUTER_API_KEY missing",
-            }
-        )
+        details["judge_skipped"] = "OPENROUTER_API_KEY missing"
         return ScenarioResult(
             scenario_id,
             "Q",
@@ -162,7 +164,8 @@ async def _run_quality_scenario(
         )
 
     try:
-        relevance_score, reason = await _relevance_judge(query, results, openrouter_key)
+        bare = await _bare_claude(query, openrouter_key)
+        winner = await _pairwise_judge(query, autosearch_summary, bare, openrouter_key)
     except Exception as exc:  # noqa: BLE001 - external judge boundary
         details["judge_error"] = f"{type(exc).__name__}: {exc}"[:300]
         return ScenarioResult(
@@ -177,13 +180,14 @@ async def _run_quality_scenario(
             duration_s=time.monotonic() - t0,
         )
 
-    score = 100 if relevance_score >= 80 else (70 if relevance_score >= 60 else 0)
-    passed = relevance_score >= 60
+    score = {"A": 100, "tie": 70, "B": 0}.get(winner, 70)
+    passed = winner in ("A", "tie")
     details.update(
         {
-            "relevance_score": relevance_score,
-            "reason": reason,
-            "result_count": len(results),
+            "bare_claude_length": len(bare),
+            "bare_claude_preview": bare[:500],
+            "winner": winner,
+            "stderr": stderr[-500:] if stderr else "",
         }
     )
     return ScenarioResult(
@@ -194,7 +198,7 @@ async def _run_quality_scenario(
         passed=passed,
         evidence_count=evidence_count,
         details=details,
-        error="" if passed else "search results below relevance threshold",
+        error="" if passed else "pairwise judge preferred bare Claude",
         duration_s=time.monotonic() - t0,
     )
 

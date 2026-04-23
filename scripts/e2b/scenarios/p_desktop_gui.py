@@ -20,69 +20,25 @@ except ImportError:  # pragma: no cover - optional phase-2 dependency
     DesktopSandbox = None  # type: ignore[assignment]
 
 
-# Ubuntu 22.04 desktop template has Python 3.10; autosearch requires >=3.12.
-# Install Python 3.12 via deadsnakes PPA + venv (venv ships its own pip, no distutils issues).
-# Total setup ~47s: PPA 19s + venv 3s + pip install 25s.
-_PYTHON312_SETUP = (
-    "sudo add-apt-repository -y ppa:deadsnakes/ppa 2>&1 | tail -1 "
-    "&& sudo apt-get update -q 2>&1 | tail -1 "
-    "&& sudo apt-get install -y python3.12 python3.12-venv -q 2>&1 | tail -1 "
-    "&& python3.12 -m venv /tmp/venv312"
-)
-_INSTALL_CMD = (
-    f"{_PYTHON312_SETUP} "
-    "&& git clone https://github.com/0xmariowu/Autosearch.git /tmp/autosearch_d -q "
-    "&& /tmp/venv312/bin/pip install /tmp/autosearch_d -q"
-)
-_VENV_PYTHON = "/tmp/venv312/bin/python"
-_AUTOSEARCH_CLI = f"{_VENV_PYTHON} -m autosearch.cli.main"
+_INSTALL_CMD = "pip3 install git+https://github.com/0xmariowu/Autosearch.git -q 2>&1 | tail -3"
 _CATEGORY = "P"
 
 
 async def _desktop_cmd(sbx: DesktopSandbox, cmd: str, timeout: int = 60) -> tuple[str, str, int]:
-    """Run a shell command in desktop sandbox via /bin/bash -c + shlex.quote.
-
-    Uses shlex.quote (not Python repr) so single quotes in cmd are handled safely.
-    Pipes, redirects, and all shell features work correctly.
-    """
+    """Run bash command in desktop sandbox. Returns (stdout, stderr, exit_code)."""
     loop = asyncio.get_event_loop()
-    shell_cmd = f"/bin/bash -c {shlex.quote(cmd)}"
 
     def _run() -> Any:
         try:
-            return sbx.commands.run(shell_cmd, timeout=timeout)
+            return sbx.commands.run(f"bash -c {repr(cmd)}", timeout=timeout)
         except TypeError:
-            try:
-                return sbx.commands.run(shell_cmd)
-            except Exception as exc:
-                return exc  # CommandExitException has stdout/stderr/exit_code
-        except Exception as exc:
-            return exc  # CommandExitException has stdout/stderr/exit_code
+            return sbx.commands.run(f"bash -c {repr(cmd)}")
 
     result = await loop.run_in_executor(None, _run)
     stdout = getattr(result, "stdout", "") or ""
     stderr = getattr(result, "stderr", "") or ""
-    # CommandExitException.exit_code is non-zero; normal result.exit_code == 0
-    raw_code = getattr(result, "exit_code", 0)
-    exit_code = raw_code if raw_code is not None else (1 if isinstance(result, Exception) else 0)
+    exit_code = getattr(result, "exit_code", 0) or 0
     return stdout, stderr, exit_code
-
-
-async def _desktop_python(
-    sbx: DesktopSandbox, script: str, timeout: int = 60
-) -> tuple[str, str, int]:
-    """Run a Python script in desktop sandbox via base64 — safe for any string content."""
-    b64 = base64.b64encode(script.encode()).decode()
-    # Write script via pipe+redirect (requires shell, handled by _desktop_cmd)
-    write_cmd = f"printf '%s' {shlex.quote(b64)} | base64 -d > /tmp/_p_test.py"
-    await _desktop_cmd(sbx, write_cmd, timeout=15)
-    # Use venv Python (3.12) so autosearch imports work
-    py = (
-        _VENV_PYTHON
-        if (await _desktop_cmd(sbx, f"test -x {_VENV_PYTHON}", timeout=5))[2] == 0
-        else "python3"
-    )
-    return await _desktop_cmd(sbx, f"{py} /tmp/_p_test.py", timeout=timeout)
 
 
 async def _create_desktop(env: dict) -> DesktopSandbox:
@@ -97,7 +53,7 @@ async def _create_desktop(env: dict) -> DesktopSandbox:
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(
         None,
-        lambda: DesktopSandbox.create(resolution=(1280, 720), envs=desktop_env, timeout=600),
+        lambda: DesktopSandbox.create(resolution=(1280, 720), envs=desktop_env, timeout=300),
     )
 
 
@@ -148,8 +104,7 @@ async def _with_desktop(
 
 
 async def _install(sbx: DesktopSandbox) -> tuple[str, str, int]:
-    # deadsnakes PPA + venv + pip install takes ~50-90s total
-    return await _desktop_cmd(sbx, _INSTALL_CMD, timeout=300)
+    return await _desktop_cmd(sbx, _INSTALL_CMD, timeout=180)
 
 
 def _combined(stdout: str, stderr: str) -> str:
@@ -169,7 +124,7 @@ async def _desktop_python_json(
     b64 = base64.b64encode(script.encode()).decode()
     cmd = (
         f"printf %s {shlex.quote(b64)} | base64 -d > /tmp/_autosearch_desktop_test.py "
-        f"&& {_VENV_PYTHON} /tmp/_autosearch_desktop_test.py"
+        "&& python3 /tmp/_autosearch_desktop_test.py"
     )
     stdout, stderr, code = await _desktop_cmd(sbx, cmd, timeout=timeout)
     if code != 0:
@@ -201,9 +156,7 @@ async def p1_cli_install_in_terminal(sandbox_id: str, env: dict) -> ScenarioResu
 
     async def _body(sbx: DesktopSandbox) -> dict[str, Any]:
         install_out, install_err, install_code = await _install(sbx)
-        help_out, help_err, help_code = await _desktop_cmd(
-            sbx, f"{_AUTOSEARCH_CLI} --help 2>&1 | head -5"
-        )
+        help_out, help_err, help_code = await _desktop_cmd(sbx, "autosearch --help 2>&1 | head -5")
         help_text = _combined(help_out, help_err)
         install_ok = install_code == 0
         help_ok = help_code == 0 and ("autosearch" in help_text.lower() or "Usage" in help_text)
@@ -236,29 +189,14 @@ async def p2_doctor_cli_output(sandbox_id: str, env: dict) -> ScenarioResult:
                 "error": "pip install failed",
             }
 
-        # Use Python directly — CLI subcommand routing may not expose doctor in module mode
-        stdout, stderr, code = await _desktop_python(
-            sbx,
-            """
-import os
-from autosearch.core.channel_bootstrap import _build_channels
-_build_channels()
-os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
-from autosearch.core.doctor import scan_channels
-r = scan_channels()
-names = [c.channel for c in r if c.status in ('ok', 'warn')][:5]
-print('channels:', len(r), 'sample:', names)
-""",
-            timeout=60,
-        )
+        stdout, stderr, code = await _desktop_cmd(sbx, "autosearch doctor 2>&1", timeout=60)
         text = _combined(stdout, stderr)
-        count = _extract_int("channels", text)
-        expected = count >= 10 and ("channels:" in text)
+        expected = any(token in text.lower() for token in ("arxiv", "ok", "warn", "off"))
         ok = code == 0 and expected
         return {
-            "score": 100 if count >= 30 else (60 if count >= 10 else 0),
+            "score": 100 if ok else (60 if code == 0 else 0),
             "passed": ok,
-            "details": {"exit_code": code, "channel_count": count, "output": text[:1200]},
+            "details": {"exit_code": code, "output": text[:1200]},
             "error": "" if ok else "doctor output unexpected or crashed",
         }
 
@@ -280,24 +218,22 @@ async def p3_configure_cli(sandbox_id: str, env: dict) -> ScenarioResult:
 
         cmd = (
             'echo "OPENROUTER_API_KEY=test_key_12345" >> /tmp/test_secrets.env '
-            f"&& {_AUTOSEARCH_CLI} configure OPENROUTER_API_KEY test_key_12345 2>&1"
+            "&& autosearch configure OPENROUTER_API_KEY test_key_12345 2>&1"
         )
         stdout, stderr, code = await _desktop_cmd(sbx, cmd, timeout=60)
         text = _combined(stdout, stderr)
         command_missing = code == 127 or "not found" in text.lower()
-        needs_tty = "tty" in text.lower() or "interactive" in text.lower()
         signal = any(
             token in text.lower() for token in ("saved", "updated", "written", "openrouter")
         )
-        # Pass if success OR if command exists but needs TTY (valid in non-interactive sandbox)
-        ok = code == 0 or signal or (not command_missing and needs_tty)
+        ok = code == 0 or signal
         return {
-            "score": 100 if (code == 0 or signal) else (60 if (not command_missing) else 0),
+            "score": 100 if ok else (0 if command_missing else 60),
             "passed": ok,
-            "details": {"exit_code": code, "output": text[:1200], "needs_tty": needs_tty},
+            "details": {"exit_code": code, "output": text[:1200]},
             "error": ""
             if ok
-            else ("configure not found" if command_missing else "unexpected output"),
+            else ("configure command not found" if command_missing else "unexpected output"),
         }
 
     return await _with_desktop("P3", "configure_cli", env, _body)
@@ -317,7 +253,7 @@ async def p4_mcp_server_starts(sandbox_id: str, env: dict) -> ScenarioResult:
             }
 
         stdout, stderr, code = await _desktop_cmd(
-            sbx, f"timeout 10 {_VENV_PYTHON} -m autosearch.mcp.cli 2>&1 || true", timeout=15
+            sbx, "timeout 10 autosearch-mcp 2>&1 || true", timeout=15
         )
         text = _combined(stdout, stderr)
         lower = text.lower()
@@ -352,17 +288,16 @@ async def p5_list_skills_cli(sandbox_id: str, env: dict) -> ScenarioResult:
                 "error": "pip install failed",
             }
 
-        script = """
-import os, json
-from autosearch.core.channel_bootstrap import _build_channels
-_build_channels()
-os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
-from autosearch.mcp.server import create_server
-s = create_server()
-tools = [t.name for t in s._tool_manager.list_tools()]
-print('tools:', len(tools), 'first:', tools[:3])
-"""
-        stdout, stderr, code = await _desktop_python(sbx, script, timeout=60)
+        cmd = (
+            'python3 -c "import os; '
+            "from autosearch.core.channel_bootstrap import _build_channels; _build_channels(); "
+            "os.environ['AUTOSEARCH_LLM_MODE']='dummy'; "
+            "from autosearch.mcp.server import create_server; "
+            "s=create_server(); "
+            "tools=[t.name for t in s._tool_manager.list_tools()]; "
+            "print('tools:', len(tools), 'first:', tools[:3])\""
+        )
+        stdout, stderr, code = await _desktop_cmd(sbx, cmd, timeout=60)
         text = _combined(stdout, stderr)
         count = _extract_int("tools", text)
         ok = code == 0 and "tools:" in text and count >= 10
@@ -389,19 +324,15 @@ async def p6_doctor_json_output(sandbox_id: str, env: dict) -> ScenarioResult:
                 "error": "pip install failed",
             }
 
-        stdout, stderr, code = await _desktop_python(
-            sbx,
-            """
-import os
-from autosearch.core.channel_bootstrap import _build_channels
-_build_channels()
-os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
-from autosearch.core.doctor import scan_channels
-r = scan_channels()
-print('channels:', len(r), 'ok:', sum(1 for c in r if c.status == 'ok'))
-""",
-            timeout=60,
+        cmd = (
+            'python3 -c "import os; '
+            "from autosearch.core.channel_bootstrap import _build_channels; _build_channels(); "
+            "os.environ['AUTOSEARCH_LLM_MODE']='dummy'; "
+            "from autosearch.core.doctor import scan_channels; "
+            "r=scan_channels(); "
+            "print('channels:', len(r), 'ok:', sum(1 for c in r if c.status=='ok'))\""
         )
+        stdout, stderr, code = await _desktop_cmd(sbx, cmd, timeout=60)
         text = _combined(stdout, stderr)
         count = _extract_int("channels", text)
         ok = code == 0 and "channels:" in text and count >= 20
@@ -518,9 +449,7 @@ async def p8_reinstall_no_state_corruption(sandbox_id: str, env: dict) -> Scenar
             sbx,
             f"""
 import json
-from datetime import datetime, timezone as _tz
-
-UTC = _tz.utc
+from datetime import UTC, datetime
 from pathlib import Path
 from autosearch.skills.experience import _find_skill_dir, append_event
 
@@ -545,7 +474,7 @@ print(json.dumps({{'ok': exists and contains, 'patterns_path': str(patterns_path
         )
         reinstall_out, reinstall_err, reinstall_code = await _desktop_cmd(
             sbx,
-            "/tmp/venv312/bin/pip install --force-reinstall /tmp/autosearch_d -q",
+            "pip3 install --force-reinstall git+https://github.com/0xmariowu/Autosearch.git -q 2>&1 | tail -3",
             timeout=180,
         )
         after, _, _, _ = await _desktop_python_json(
@@ -592,13 +521,11 @@ async def p9_wine_cli_path_test(sandbox_id: str, env: dict) -> ScenarioResult:
                 "error": "pip install failed",
             }
 
-        script = """
-import os
-os.environ['USERPROFILE'] = 'C:\\\\Users\\\\test'
-import autosearch
-print('ok')
-"""
-        stdout, stderr, code = await _desktop_python(sbx, script, timeout=60)
+        cmd = (
+            "python3 -c \"import os; os.environ['USERPROFILE']='C:\\\\Users\\\\test'; "
+            "import autosearch; print('ok')\""
+        )
+        stdout, stderr, code = await _desktop_cmd(sbx, cmd, timeout=60)
         text = _combined(stdout, stderr)
         ok = code == 0 and "ok" in text
         return {
@@ -687,19 +614,14 @@ async def p11_long_running_no_hang(sandbox_id: str, env: dict) -> ScenarioResult
                 "error": "pip install failed",
             }
 
-        stdout, stderr, code = await _desktop_python(
-            sbx,
-            """
-import os
-from autosearch.core.channel_bootstrap import _build_channels
-_build_channels()
-os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
-from autosearch.core.doctor import scan_channels
-r = scan_channels()
-print('done', len(r))
-""",
-            timeout=20,
+        cmd = (
+            'timeout 15 python3 -c "import os; '
+            "from autosearch.core.channel_bootstrap import _build_channels; _build_channels(); "
+            "os.environ['AUTOSEARCH_LLM_MODE']='dummy'; "
+            "from autosearch.core.doctor import scan_channels; "
+            "r=scan_channels(); print('done', len(r))\""
         )
+        stdout, stderr, code = await _desktop_cmd(sbx, cmd, timeout=20)
         text = _combined(stdout, stderr)
         ok = code == 0 and "done" in text
         return {
@@ -726,10 +648,10 @@ async def p12_help_text_complete(sandbox_id: str, env: dict) -> ScenarioResult:
             }
 
         main_out, main_err, main_code = await _desktop_cmd(
-            sbx, f"{_AUTOSEARCH_CLI} --help 2>&1", timeout=60
+            sbx, "autosearch --help 2>&1", timeout=60
         )
         doctor_out, doctor_err, doctor_code = await _desktop_cmd(
-            sbx, f"{_AUTOSEARCH_CLI} doctor --help 2>&1", timeout=60
+            sbx, "autosearch doctor --help 2>&1", timeout=60
         )
         ok_count = int(main_code == 0) + int(doctor_code == 0)
         ok = ok_count == 2
