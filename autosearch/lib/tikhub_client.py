@@ -163,6 +163,54 @@ class TikhubClient:
 
         self._auth_header_value = f"Bearer {resolved_api_key}"
 
+    async def _execute(
+        self,
+        path: str,
+        make_request: "Callable[[], Awaitable[httpx.Response]]",
+    ) -> dict[str, object]:
+        """Shared retry + response-parsing logic for GET and POST."""
+        for attempt in range(len(RETRY_DELAYS_SECONDS) + 1):
+            try:
+                response = await make_request()
+            except httpx.HTTPError as exc:
+                raise TikhubError("TikHub request failed before receiving a response") from exc
+
+            if response.status_code == 200:
+                try:
+                    payload = response.json()
+                except ValueError as exc:
+                    raise TikhubError(
+                        "TikHub returned invalid JSON", status_code=response.status_code
+                    ) from exc
+                if not isinstance(payload, dict):
+                    raise TikhubError(
+                        "TikHub returned a non-object JSON payload",
+                        status_code=response.status_code,
+                        detail={"payload": _sanitize_json(payload)},
+                    )
+                return payload
+
+            if response.status_code in RETRYABLE_STATUS_CODES and attempt < len(
+                RETRY_DELAYS_SECONDS
+            ):
+                delay_seconds = RETRY_DELAYS_SECONDS[attempt]
+                LOGGER.warning(
+                    "tikhub_request_retry",
+                    path=path,
+                    status_code=response.status_code,
+                    attempt=attempt + 1,
+                    delay_seconds=delay_seconds,
+                )
+                await asyncio.sleep(delay_seconds)
+                continue
+
+            raise self._error_for_status(
+                path=path,
+                status_code=response.status_code,
+                detail=_sanitize_response_json(response),
+            )
+        raise AssertionError("unreachable")
+
     async def get(
         self,
         path: str,
@@ -173,96 +221,14 @@ class TikhubClient:
         headers = {"Authorization": self._auth_header_value}
         if extra_headers:
             headers.update(extra_headers)
-
-        for attempt in range(len(RETRY_DELAYS_SECONDS) + 1):
-            try:
-                response = await self._request(url, headers=headers, params=params)
-            except httpx.HTTPError as exc:
-                raise TikhubError("TikHub request failed before receiving a response") from exc
-
-            if response.status_code == 200:
-                try:
-                    payload = response.json()
-                except ValueError as exc:
-                    raise TikhubError(
-                        "TikHub returned invalid JSON",
-                        status_code=response.status_code,
-                    ) from exc
-
-                if not isinstance(payload, dict):
-                    raise TikhubError(
-                        "TikHub returned a non-object JSON payload",
-                        status_code=response.status_code,
-                        detail={"payload": _sanitize_json(payload)},
-                    )
-
-                return payload
-
-            if response.status_code in RETRYABLE_STATUS_CODES and attempt < len(
-                RETRY_DELAYS_SECONDS
-            ):
-                delay_seconds = RETRY_DELAYS_SECONDS[attempt]
-                LOGGER.warning(
-                    "tikhub_request_retry",
-                    path=path,
-                    status_code=response.status_code,
-                    attempt=attempt + 1,
-                    delay_seconds=delay_seconds,
-                )
-                await asyncio.sleep(delay_seconds)
-                continue
-
-            detail = _sanitize_response_json(response)
-            raise self._error_for_status(path=path, status_code=response.status_code, detail=detail)
-
-        raise AssertionError("unreachable")
+        return await self._execute(path, lambda: self._request(url, headers=headers, params=params))
 
     async def post(self, path: str, body: dict[str, object]) -> dict[str, object]:
         url = self._build_url(path)
         headers = {"Authorization": self._auth_header_value}
-
-        for attempt in range(len(RETRY_DELAYS_SECONDS) + 1):
-            try:
-                response = await self._post_request(url, headers=headers, body=body)
-            except httpx.HTTPError as exc:
-                raise TikhubError("TikHub request failed before receiving a response") from exc
-
-            if response.status_code == 200:
-                try:
-                    payload = response.json()
-                except ValueError as exc:
-                    raise TikhubError(
-                        "TikHub returned invalid JSON",
-                        status_code=response.status_code,
-                    ) from exc
-
-                if not isinstance(payload, dict):
-                    raise TikhubError(
-                        "TikHub returned a non-object JSON payload",
-                        status_code=response.status_code,
-                        detail={"payload": _sanitize_json(payload)},
-                    )
-
-                return payload
-
-            if response.status_code in RETRYABLE_STATUS_CODES and attempt < len(
-                RETRY_DELAYS_SECONDS
-            ):
-                delay_seconds = RETRY_DELAYS_SECONDS[attempt]
-                LOGGER.warning(
-                    "tikhub_request_retry",
-                    path=path,
-                    status_code=response.status_code,
-                    attempt=attempt + 1,
-                    delay_seconds=delay_seconds,
-                )
-                await asyncio.sleep(delay_seconds)
-                continue
-
-            detail = _sanitize_response_json(response)
-            raise self._error_for_status(path=path, status_code=response.status_code, detail=detail)
-
-        raise AssertionError("unreachable")
+        return await self._execute(
+            path, lambda: self._post_request(url, headers=headers, body=body)
+        )
 
     async def check_balance(self) -> dict[str, object]:
         payload = await self.get("/api/v1/tikhub/user/get_user_daily_usage", {})
