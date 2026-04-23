@@ -134,7 +134,7 @@ def run_channel_bench(
 
     try:
         log("sandbox.create")
-        sbx = Sandbox.create("autosearch-claude", timeout=1800, envs=secrets)
+        sbx = Sandbox.create("autosearch-py312", timeout=1800, envs=secrets)
     except Exception as exc:
         return {"channel": channel, "status": "sandbox_create_failed", "error": str(exc)}
 
