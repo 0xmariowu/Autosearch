@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026.04.23.3 — 2026-04-23
+
+- `autosearch init` now shows ASCII banner, auto-configures MCP for Claude Code / Cursor, and displays Integration Status + "You are all set!" — vibeusage-style install UX
+
+
+
 ## 2026.04.23.2 — 2026-04-23
 
 **百万用户化改造（G1–G7，1:1 参考 Agent-Reach / MediaCrawlerPro）**
