@@ -1,8 +1,15 @@
-"""Bilibili direct API search — no TikHub, uses Bilibili's public wbi signing."""
+"""Bilibili direct API search — WBI signing (local or via AutoSearch signing Worker).
+
+Priority:
+  1. AUTOSEARCH_SIGNSRV_URL configured → use Worker for WBI signing
+  2. Fallback → local Python WBI implementation (always available)
+"""
+
 from __future__ import annotations
 
 import hashlib
 import html
+import os
 import re
 import time
 from collections.abc import Mapping
@@ -17,14 +24,78 @@ LOGGER = structlog.get_logger(__name__).bind(component="channel", channel="bilib
 
 _NAV_URL = "https://api.bilibili.com/x/web-interface/nav"
 _SEARCH_URL = "https://api.bilibili.com/x/web-interface/search/all/v2"
+
+# Optional: AutoSearch signing Worker
+_SIGNSRV_URL = os.environ.get("AUTOSEARCH_SIGNSRV_URL", "").rstrip("/")
+_SERVICE_TOKEN = os.environ.get("AUTOSEARCH_SERVICE_TOKEN", "")
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 
 # Bilibili WBI mixin key positions (public constant)
 _MIXIN_KEY_ENC_TAB = [
-    46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35,
-    27, 43, 5, 49, 33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13,
-    37, 48, 7, 16, 24, 55, 40, 61, 26, 17, 0, 1, 60, 51, 30, 4,
-    22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52,
+    46,
+    47,
+    18,
+    2,
+    53,
+    8,
+    23,
+    32,
+    15,
+    50,
+    10,
+    31,
+    58,
+    3,
+    45,
+    35,
+    27,
+    43,
+    5,
+    49,
+    33,
+    9,
+    42,
+    19,
+    29,
+    28,
+    14,
+    39,
+    12,
+    38,
+    41,
+    13,
+    37,
+    48,
+    7,
+    16,
+    24,
+    55,
+    40,
+    61,
+    26,
+    17,
+    0,
+    1,
+    60,
+    51,
+    30,
+    4,
+    22,
+    25,
+    54,
+    21,
+    56,
+    59,
+    6,
+    63,
+    57,
+    62,
+    11,
+    36,
+    20,
+    34,
+    44,
+    52,
 ]
 
 _HEADERS = {
@@ -79,8 +150,10 @@ def _truncate(text: str, max_len: int) -> str:
 def _to_evidence(item: Mapping[str, object], *, fetched_at: datetime) -> Evidence | None:
     bvid = str(item.get("bvid") or "").strip()
     arcurl = str(item.get("arcurl") or "").strip()
-    url = arcurl if arcurl.startswith("http") else (
-        f"https://www.bilibili.com/video/{bvid}" if bvid else ""
+    url = (
+        arcurl
+        if arcurl.startswith("http")
+        else (f"https://www.bilibili.com/video/{bvid}" if bvid else "")
     )
     if not url:
         return None
@@ -100,22 +173,60 @@ def _to_evidence(item: Mapping[str, object], *, fetched_at: datetime) -> Evidenc
     )
 
 
+async def _sign_via_worker(keyword: str, client: httpx.AsyncClient) -> dict[str, str] | None:
+    """Try signing via AutoSearch Worker. Returns signed params dict or None on failure."""
+    if not _SIGNSRV_URL or not _SERVICE_TOKEN:
+        return None
+    try:
+        r = await client.post(
+            f"{_SIGNSRV_URL}/sign/bilibili",
+            headers={
+                "Authorization": f"Bearer {_SERVICE_TOKEN}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "keyword": keyword,
+                "page": 1,
+                "page_size": 10,
+                "search_type": "video",
+                "order": "totalrank",
+            },
+            timeout=8,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            if data.get("ok"):
+                return data["params"]
+    except Exception as exc:
+        LOGGER.debug("bilibili_worker_sign_failed", reason=str(exc))
+    return None
+
+
 async def search(query: SubQuery, client: httpx.AsyncClient | None = None) -> list[Evidence]:
-    """Search Bilibili directly using WBI signing — no TikHub required."""
+    """Search Bilibili directly using WBI signing — Worker first, local fallback."""
     _client = client or httpx.AsyncClient(timeout=20)
     _owns_client = client is None
     try:
-        try:
-            salt = await _get_wbi_salt(_client)
-        except Exception as exc:
-            LOGGER.warning("bilibili_wbi_salt_failed", reason=str(exc))
-            return []
+        # Try Worker signing first (uses KV-cached salt, global PoP)
+        params = await _sign_via_worker(query.text, _client)
 
-        params = _sign_params(
-            {"keyword": query.text, "page": "1", "page_size": "10",
-             "search_type": "video", "order": "totalrank"},
-            salt,
-        )
+        if params is None:
+            # Local fallback: fetch WBI salt directly from Bilibili
+            try:
+                salt = await _get_wbi_salt(_client)
+            except Exception as exc:
+                LOGGER.warning("bilibili_wbi_salt_failed", reason=str(exc))
+                return []
+            params = _sign_params(
+                {
+                    "keyword": query.text,
+                    "page": "1",
+                    "page_size": "10",
+                    "search_type": "video",
+                    "order": "totalrank",
+                },
+                salt,
+            )
 
         try:
             r = await _client.get(_SEARCH_URL, params=params, headers=_HEADERS, timeout=15)
