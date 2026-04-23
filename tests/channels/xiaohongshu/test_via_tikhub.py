@@ -30,13 +30,8 @@ def _load_module():
 
 
 MODULE = _load_module()
-SIGN_PATH = MODULE.SIGN_PATH
 SEARCH_PATH = MODULE.SEARCH_PATH
 search = MODULE.search
-
-_FAKE_SIGN_RESPONSE = {
-    "data": {"X-s": "fake-xs-token", "X-t": "1234567890", "X-s-common": "fake-xs-common"}
-}
 
 
 class _Logger:
@@ -48,36 +43,26 @@ class _Logger:
 
 
 class _FakeTikhubClient:
-    """Two-step fake: post() returns sign tokens, get() returns search results."""
+    """Single-step fake: get() returns search results directly (no sign step)."""
 
     def __init__(self, search_payload: dict[str, object]) -> None:
         self.search_payload = search_payload
-        self.post_calls: list[tuple[str, dict[str, object]]] = []
         self.get_calls: list[tuple[str, dict[str, object]]] = []
-
-    async def post(self, path: str, body: dict[str, object]) -> dict[str, object]:
-        self.post_calls.append((path, body))
-        return _FAKE_SIGN_RESPONSE
 
     async def get(
         self,
         path: str,
         params: dict[str, object],
-        extra_headers: dict[str, str] | None = None,
     ) -> dict[str, object]:
         self.get_calls.append((path, params))
         return self.search_payload
 
 
 class _FailingTikhubClient:
-    async def post(self, path: str, body: dict[str, object]) -> dict[str, object]:
-        raise TikhubError(f"request failed for {path}")
-
     async def get(
         self,
         path: str,
         params: dict[str, object],
-        extra_headers: dict[str, str] | None = None,
     ) -> dict[str, object]:
         raise TikhubError(f"request failed for {path}")
 
@@ -92,7 +77,6 @@ def _note_item(
     desc: str = "",
     xsec_token: str = "",
 ) -> dict[str, object]:
-    """Build a note item in the web_v3 flat format."""
     return {
         "id": note_id,
         "xsecToken": xsec_token,
@@ -131,14 +115,10 @@ async def test_search_maps_xhs_items_to_evidence() -> None:
 
     results = await search(_query(), client=cast(TikhubClient, client))
 
-    # sign step: POST to SIGN_PATH
-    assert len(client.post_calls) == 1
-    assert client.post_calls[0][0] == SIGN_PATH
-    assert client.post_calls[0][1]["data"]["keyword"] == "防晒"
-
-    # search step: GET to SEARCH_PATH
+    # Direct GET to SEARCH_PATH — no sign step
     assert len(client.get_calls) == 1
-    assert client.get_calls[0] == (SEARCH_PATH, {"keyword": "防晒", "page": 1})
+    assert client.get_calls[0][0] == SEARCH_PATH
+    assert client.get_calls[0][1]["keyword"] == "防晒"
 
     assert len(results) == 2
 
@@ -186,7 +166,7 @@ async def test_search_skips_item_without_id() -> None:
 
 
 @pytest.mark.asyncio
-async def test_search_returns_empty_on_sign_tikhub_error(
+async def test_search_returns_empty_on_tikhub_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     logger = _Logger()
@@ -196,7 +176,7 @@ async def test_search_returns_empty_on_sign_tikhub_error(
 
     assert results == []
     assert logger.events
-    assert logger.events[0][0] == "xiaohongshu_tikhub_sign_failed"
+    assert logger.events[0][0] == "xiaohongshu_tikhub_search_failed"
 
 
 @pytest.mark.asyncio
