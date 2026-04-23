@@ -113,7 +113,9 @@ def render(results: list[ScenarioResult], summary: dict, output_dir: Path) -> st
             "|---|---|---|",
         ]
         for br in summary.get("bonus_results", []):
-            lines.append(f"| {br['scenario_id']} | {br['name']} | {'✅' if br['passed'] else '❌'} |")
+            lines.append(
+                f"| {br['scenario_id']} | {br['name']} | {'✅' if br['passed'] else '❌'} |"
+            )
         lines.append("")
 
     lines += [

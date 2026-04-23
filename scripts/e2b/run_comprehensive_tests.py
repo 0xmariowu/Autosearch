@@ -264,7 +264,9 @@ async def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-llm", action="store_true", help="Skip G2/G3 (require OpenRouter)")
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument(
-        "--list-scenarios", action="store_true", help="List all scenario IDs and exit without running"
+        "--list-scenarios",
+        action="store_true",
+        help="List all scenario IDs and exit without running",
     )
     args = parser.parse_args(argv)
 
