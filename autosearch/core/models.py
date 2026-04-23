@@ -83,6 +83,22 @@ class Evidence(BaseModel):
             data["source_page"] = self.source_page.slim().model_dump()
         return data
 
+    def to_context_dict(self, max_content_chars: int = 500) -> dict:
+        """Minimal dict optimised for AI context injection.
+
+        1:1 from Agent-Reach agent_reach/channels/xiaohongshu.py:format_xhs_result
+        Strips fetched_at, source_page, and truncates content — cuts token usage ~60%.
+        """
+        d: dict = {"url": self.url, "title": self.title}
+        text = self.snippet or self.content or ""
+        if text:
+            d["snippet"] = text[:max_content_chars]
+        if self.source_channel:
+            d["source"] = self.source_channel
+        if self.score and self.score > 0:
+            d["score"] = round(self.score, 2)
+        return d
+
 
 class EvidenceDigest(BaseModel):
     model_config = ConfigDict(frozen=True)
