@@ -254,3 +254,71 @@ async def test_missing_impl_channel_raises_method_unavailable(tmp_path: Path) ->
         await registry.get("missing_impl_call").search(
             SubQuery(text="pending query", rationale="Exercise missing impl stub")
         )
+
+
+@pytest.mark.asyncio
+async def test_permanent_error_propagates_and_is_not_swallowed_as_retryable(
+    tmp_path: Path,
+) -> None:
+    """Regression: prior to the exception-order fix, `except Exception` came before
+    `except PermanentError`, so PermanentError was swallowed by the bare-Exception
+    branch and re-raised as opaque rather than as the typed PermanentError. This
+    pins the contract: PermanentError must surface as PermanentError, and must
+    NOT trigger the fallback-method loop."""
+    root = tmp_path / "channels"
+    _write_channel_skill(
+        root,
+        name="permanent_failure_chan",
+        skill_text="""
+        ---
+        name: permanent_failure_chan
+        description: "Fixture channel whose first method raises PermanentError."
+        version: 1
+        languages: [en]
+        methods:
+          - id: bad
+            impl: methods/bad.py
+            requires: []
+          - id: good
+            impl: methods/good.py
+            requires: []
+        fallback_chain: [bad, good]
+        ---
+        """,
+        methods={
+            "methods/bad.py": """
+                from autosearch.channels.base import PermanentError
+                from autosearch.core.models import Evidence, SubQuery
+
+
+                async def search(query: SubQuery) -> list[Evidence]:
+                    raise PermanentError("auth revoked")
+            """,
+            "methods/good.py": """
+                from datetime import UTC, datetime
+
+                from autosearch.core.models import Evidence, SubQuery
+
+
+                async def search(query: SubQuery) -> list[Evidence]:
+                    return [
+                        Evidence(
+                            url="https://example.com/should-not-reach",
+                            title="should not be returned",
+                            snippet="",
+                            source_channel="permanent_failure_chan:good",
+                            fetched_at=datetime.now(UTC),
+                        )
+                    ]
+            """,
+        },
+    )
+
+    from autosearch.channels.base import PermanentError
+
+    registry = ChannelRegistry.compile_from_skills(root, Environment())
+
+    with pytest.raises(PermanentError, match="auth revoked"):
+        await registry.get("permanent_failure_chan").search(
+            SubQuery(text="permanent test", rationale="Pin PermanentError contract")
+        )
