@@ -30,7 +30,11 @@ def _evidence_from_dict(d: dict[str, Any]) -> Evidence | None:
             title=d.get("title", ""),
             snippet=d.get("snippet"),
             content=d.get("content"),
-            source_channel=d.get("source_channel", "unknown"),
+            # Bug 3 (fix-plan): run_channel emits Evidence.to_context_dict(),
+            # which writes the channel name under "source" (not "source_channel").
+            # Accept both so consolidate_research / compress_evidence don't see
+            # every item as "unknown" coming straight from run_channel output.
+            source_channel=d.get("source_channel") or d.get("source") or "unknown",
             score=float(d.get("score") or 0.0),
             fetched_at=datetime.now(UTC),
         )
