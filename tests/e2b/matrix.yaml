@@ -46,6 +46,30 @@ phases:
         expect:
           exit: 0
           stdout_contains: "overwrite"
+      - id: doctor_runs
+        timeout: 60
+        cmd: $HOME/work/autosearch/.venv/bin/autosearch doctor
+        expect:
+          exit: 0
+          stdout_contains: "开箱即用"
+      - id: doctor_json
+        timeout: 60
+        cmd: $HOME/work/autosearch/.venv/bin/autosearch doctor --json
+        expect:
+          exit: 0
+          stdout_regex: '"channel":\s*"[a-z0-9_]+"'
+      - id: mcp_check_passes
+        timeout: 60
+        cmd: $HOME/work/autosearch/.venv/bin/autosearch mcp-check
+        expect:
+          exit: 0
+          stdout_contains: "OK: all 10 required tools registered"
+      - id: unknown_cmd_rejected
+        cmd: |
+          $HOME/work/autosearch/.venv/bin/autosearch doctor-nonexistent 2>&1 | tail -5 || true
+        expect:
+          exit: 0
+          stdout_contains: "No such command"
 
   # F002 S1 — Fresh dev install end-to-end
   F002_S1_dev_install:
