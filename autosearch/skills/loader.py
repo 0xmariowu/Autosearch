@@ -136,10 +136,7 @@ def load_skill(skill_dir: Path) -> SkillSpec:
     if not skill_path.is_file():
         raise SkillLoadError(f"Expected {SKILL_FILENAME} in {skill_dir}")
 
-    try:
-        payload = load_frontmatter(skill_path)
-    except SkillLoadError:
-        raise
+    payload = load_frontmatter(skill_path)
     payload["skill_dir"] = skill_dir
 
     try:

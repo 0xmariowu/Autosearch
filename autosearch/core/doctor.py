@@ -190,9 +190,8 @@ def format_report(results: list[ChannelStatus]) -> str:
 
 def _resolve_tier(spec: SkillSpec, all_requires: list[str]) -> int:
     """Resolve doctor tier from declared metadata first, then infer as fallback."""
-    declared_tier = getattr(spec, "tier", None)
-    if declared_tier is not None:
-        return declared_tier
+    if spec.tier is not None:
+        return spec.tier
     return _compute_tier(all_requires)
 
 
@@ -220,9 +219,8 @@ def _compute_tier(all_requires: list[str]) -> int:
 
 def _resolve_fix_hint(spec: SkillSpec, unmet_requires: list[str]) -> str:
     """Resolve fix hint from declared metadata first, then infer as fallback."""
-    declared_fix_hint = getattr(spec, "fix_hint", None)
-    if isinstance(declared_fix_hint, str) and declared_fix_hint.strip():
-        return declared_fix_hint.strip()
+    if spec.fix_hint is not None and spec.fix_hint.strip():
+        return spec.fix_hint.strip()
     return _fix_hint(unmet_requires)
 
 

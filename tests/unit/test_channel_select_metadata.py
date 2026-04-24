@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import pytest
 
 from autosearch.core import channel_select
@@ -7,7 +9,7 @@ from autosearch.core.channel_select import ChannelRouteSpec, select_channels
 
 
 @pytest.fixture(autouse=True)
-def clear_channel_catalog_cache() -> None:
+def clear_channel_catalog_cache() -> Iterator[None]:
     cache_clear = getattr(channel_select.load_channel_route_catalog, "cache_clear", None)
     if callable(cache_clear):
         cache_clear()

@@ -65,9 +65,9 @@ def _truncate_on_word_boundary(text: str, *, max_length: int) -> str:
 def _clean_site_search_title(title: str, *, site: Mapping[str, str]) -> str:
     """Strip a site-specific forum suffix from fallback search result titles."""
     cleaned = title.strip()
-    title_suffix = site.get("title_suffix", "").strip()
+    title_suffix = site.get("title_suffix", "")
     if title_suffix and cleaned.endswith(title_suffix):
-        cleaned = cleaned[: -len(title_suffix)].strip()
+        cleaned = cleaned[: -len(title_suffix)].rstrip()
     return cleaned
 
 
@@ -256,8 +256,18 @@ async def search(
     """Search a public Discourse forum and enrich matched topics with full text."""
     if http_client is None:
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, follow_redirects=True) as client:
-            return await search(query, http_client=client, site_key=site_key)
+            return await _search_with_client(query, http_client=client, site_key=site_key)
 
+    return await _search_with_client(query, http_client=http_client, site_key=site_key)
+
+
+async def _search_with_client(
+    query: SubQuery,
+    *,
+    http_client: httpx.AsyncClient,
+    site_key: str,
+) -> list[Evidence]:
+    """Run Discourse search using a caller-owned async HTTP client."""
     site = SITE_PRESETS[site_key]
     try:
         params = {"q": query.text}
