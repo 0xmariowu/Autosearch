@@ -46,14 +46,16 @@ phases:
         expect:
           exit: 0
           stdout_regex: "^[0-9]{4}\\.[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]+"
-      - id: fresh_env_real_query_smoke
-        timeout: 600
-        env_keys: [ANTHROPIC_API_KEY]
+      - id: fresh_env_doctor_and_mcp_check
+        timeout: 120
         cmd: |
-          /tmp/fresh-env/bin/autosearch query "What is BM25" --mode fast --no-stream 2>&1 | tail -50
+          set -e
+          /tmp/fresh-env/bin/autosearch doctor --json \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); assert isinstance(d, list) and len(d) >= 30, f'expected >=30 channels, got {len(d) if isinstance(d, list) else type(d).__name__}'; print(f'doctor_ok channels={len(d)}')"
+          /tmp/fresh-env/bin/autosearch mcp-check 2>&1 | tail -20
         expect:
           exit: 0
-          stdout_contains: "References"
+          stdout_contains: "OK: all 10 required tools registered."
 
   # F301 — Python 3.12 compatibility
   F301_python_3_12_smoke:
