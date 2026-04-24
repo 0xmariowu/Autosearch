@@ -190,3 +190,84 @@ def test_write_for_clients_runs_each_known_writer(tmp_path: Path, monkeypatch) -
 
 def test_writers_registry_lists_three_clients() -> None:
     assert set(WRITERS) == {"claude", "cursor", "zed"}
+
+
+# ── Zed JSONC handling ──────────────────────────────────────────────────────
+
+
+def test_zed_writer_does_not_treat_jsonc_settings_as_corrupt(tmp_path: Path) -> None:
+    """Regression: Zed ships `settings.json` as JSONC (// comments + trailing
+    commas). The original writer parsed it as strict JSON, called it corrupt,
+    backed it up, and wrote a fresh file — nuking the user's font/theme
+    settings. The Zed-specific writer must treat this file as parseable."""
+    target = tmp_path / "zed" / "settings.json"
+    target.parent.mkdir()
+    target.write_text(
+        """// Zed settings — preamble comment
+
+{
+  "ui_font_size": 16,
+  "buffer_font_size": 15,
+  "theme": {
+    "mode": "system",
+    "light": "One Light",
+    "dark": "One Dark",
+  },
+}
+""",
+        encoding="utf-8",
+    )
+
+    result = ZedWriter().write(path_override=target)
+    assert result.status == "written", "JSONC must be accepted, not backed up as corrupt"
+    assert result.backup_path is None, "no backup file should be created for valid JSONC"
+
+    new_text = target.read_text(encoding="utf-8")
+    # User's existing settings + comments must survive
+    assert "ui_font_size" in new_text
+    assert "buffer_font_size" in new_text
+    assert "Zed settings — preamble comment" in new_text, "comments must be preserved"
+    # And the new context_servers block must be present
+    assert '"context_servers"' in new_text
+    assert '"autosearch"' in new_text
+    assert '"autosearch-mcp"' in new_text
+
+
+def test_zed_writer_falls_back_to_plain_json_when_context_servers_already_present(
+    tmp_path: Path,
+) -> None:
+    """If the file already has a `context_servers` block we don't try to
+    surgically merge into it — re-emit as plain JSON. Comments are lost in
+    this case but data is preserved (Zed still reads JSON fine)."""
+    target = tmp_path / "zed" / "settings.json"
+    target.parent.mkdir()
+    target.write_text(
+        json.dumps(
+            {
+                "ui_font_size": 16,
+                "context_servers": {"other-server": {"command": "x", "type": "stdio"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = ZedWriter().write(path_override=target)
+    assert result.status == "written"
+    data = json.loads(target.read_text(encoding="utf-8"))
+    # Both servers preserved, autosearch added
+    assert data["context_servers"]["other-server"]["command"] == "x"
+    assert data["context_servers"]["autosearch"]["command"] == "autosearch-mcp"
+    assert data["ui_font_size"] == 16
+
+
+def test_zed_writer_idempotent_on_jsonc_file(tmp_path: Path) -> None:
+    target = tmp_path / "zed" / "settings.json"
+    target.parent.mkdir()
+    target.write_text(
+        '{ "ui_font_size": 16, } // trailing comma + comment',
+        encoding="utf-8",
+    )
+    writer = ZedWriter()
+    writer.write(path_override=target)
+    second = writer.write(path_override=target)
+    assert second.status == "already-set"
