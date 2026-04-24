@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from autosearch.skills.experience import _find_skill_dir, _parse_datetime
+from autosearch.skills.experience import _parse_datetime, _runtime_skill_dir
 
 
 @dataclass
@@ -63,11 +63,11 @@ def _read_events(patterns_path: Path) -> list[dict[str, Any]]:
 def compact(skill_name: str) -> bool:
     """Promote recurring raw experience events into a compact skill digest."""
     try:
-        skill_dir = _find_skill_dir(skill_name)
-        if skill_dir is None:
+        runtime_dir = _runtime_skill_dir(skill_name)
+        if runtime_dir is None:
             return False
 
-        patterns_path = skill_dir / "experience" / "patterns.jsonl"
+        patterns_path = runtime_dir / "experience" / "patterns.jsonl"
         if not patterns_path.is_file():
             return False
 
@@ -186,7 +186,7 @@ def compact(skill_name: str) -> bool:
             ]
         )
 
-        digest_path = skill_dir / "experience.md"
+        digest_path = runtime_dir / "experience.md"
         digest_path.write_text("\n".join(lines[:120]), encoding="utf-8")
         return True
     except Exception:

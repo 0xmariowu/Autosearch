@@ -41,6 +41,7 @@ def _make_skill_dir(tmp_path, monkeypatch, skill_name: str = "bilibili"):
     skill_dir = root / "channels" / skill_name
     skill_dir.mkdir(parents=True)
     monkeypatch.setattr(experience, "_SKILLS_ROOT", root)
+    monkeypatch.setenv("AUTOSEARCH_EXPERIENCE_DIR", str(root))
     return skill_dir
 
 

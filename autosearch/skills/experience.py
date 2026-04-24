@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -10,11 +11,37 @@ _SKILL_GROUPS = ("channels", "tools", "meta")
 
 
 def _find_skill_dir(skill_name: str) -> Path | None:
+    """Locate the bundled (read-only) skill directory shipped inside the package."""
     for group in _SKILL_GROUPS:
         skill_dir = _SKILLS_ROOT / group / skill_name
         if skill_dir.is_dir():
             return skill_dir
     return None
+
+
+def _runtime_root() -> Path:
+    """Return the per-user, writable experience root.
+
+    Resolution order:
+      1. `$AUTOSEARCH_EXPERIENCE_DIR` (test/CI override)
+      2. `$XDG_DATA_HOME/autosearch/experience`
+      3. `~/.local/share/autosearch/experience`
+    """
+    override = os.environ.get("AUTOSEARCH_EXPERIENCE_DIR")
+    if override:
+        return Path(override).expanduser()
+    xdg = os.environ.get("XDG_DATA_HOME")
+    base = Path(xdg).expanduser() if xdg else Path.home() / ".local" / "share"
+    return base / "autosearch" / "experience"
+
+
+def _runtime_skill_dir(skill_name: str) -> Path | None:
+    """Return the writable runtime directory for a skill, or None if unknown."""
+    bundled = _find_skill_dir(skill_name)
+    if bundled is None:
+        return None
+    group = bundled.parent.name  # channels / tools / meta
+    return _runtime_root() / group / skill_name
 
 
 def _parse_datetime(value: Any) -> datetime | None:
@@ -54,16 +81,15 @@ def _last_compacted_at(experience_md: Path) -> datetime | None:
 
 
 def append_event(skill_name: str, event: dict) -> None:
-    """Append one event to a skill's raw experience log.
+    """Append one event to a skill's raw experience log under the user's data dir.
 
-    This helper is intentionally best-effort. Experience capture should never
-    break the caller's primary channel execution path.
+    Best-effort: capture failures must never break the caller's channel call.
     """
     try:
-        skill_dir = _find_skill_dir(skill_name)
-        if skill_dir is None:
+        runtime_dir = _runtime_skill_dir(skill_name)
+        if runtime_dir is None:
             return
-        experience_dir = skill_dir / "experience"
+        experience_dir = runtime_dir / "experience"
         experience_dir.mkdir(parents=True, exist_ok=True)
         patterns_path = experience_dir / "patterns.jsonl"
         with patterns_path.open("a", encoding="utf-8") as handle:
@@ -73,17 +99,22 @@ def append_event(skill_name: str, event: dict) -> None:
 
 
 def load_experience_digest(skill_name: str) -> str | None:
-    """Return the compact experience digest for a skill, if present."""
-    skill_dir = _find_skill_dir(skill_name)
-    if skill_dir is None:
-        return None
-    try:
-        digest_path = skill_dir / "experience.md"
-        if not digest_path.is_file():
-            return None
-        return digest_path.read_text(encoding="utf-8")
-    except OSError:
-        return None
+    """Return the compact experience digest. Runtime-compacted version wins;
+    falls back to the bundled read-only seed shipped with the package."""
+    runtime_dir = _runtime_skill_dir(skill_name)
+    candidates = []
+    if runtime_dir is not None:
+        candidates.append(runtime_dir / "experience.md")
+    bundled = _find_skill_dir(skill_name)
+    if bundled is not None:
+        candidates.append(bundled / "experience.md")
+    for digest_path in candidates:
+        try:
+            if digest_path.is_file():
+                return digest_path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+    return None
 
 
 def should_compact(
@@ -92,18 +123,22 @@ def should_compact(
     size_threshold_bytes: int = 65536,
 ) -> bool:
     """Return whether a skill's raw experience log should be compacted."""
-    skill_dir = _find_skill_dir(skill_name)
-    if skill_dir is None:
+    runtime_dir = _runtime_skill_dir(skill_name)
+    if runtime_dir is None:
         return False
 
-    patterns_path = skill_dir / "experience" / "patterns.jsonl"
+    patterns_path = runtime_dir / "experience" / "patterns.jsonl"
     try:
         if not patterns_path.is_file():
             return False
         if patterns_path.stat().st_size >= size_threshold_bytes:
             return True
 
-        compacted_at = _last_compacted_at(skill_dir / "experience.md")
+        compacted_at = _last_compacted_at(runtime_dir / "experience.md")
+        if compacted_at is None:
+            bundled = _find_skill_dir(skill_name)
+            if bundled is not None:
+                compacted_at = _last_compacted_at(bundled / "experience.md")
         new_events = 0
         with patterns_path.open(encoding="utf-8") as handle:
             for line in handle:

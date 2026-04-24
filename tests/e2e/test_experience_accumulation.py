@@ -39,6 +39,7 @@ async def test_experience_accumulates_and_compacts(tmp_path, monkeypatch):
     skill_dir.mkdir(parents=True)
     monkeypatch.setattr(exp_mod, "_SKILLS_ROOT", tmp_path)
     monkeypatch.setenv("AUTOSEARCH_LLM_MODE", "dummy")
+    monkeypatch.setenv("AUTOSEARCH_EXPERIENCE_DIR", str(tmp_path))
 
     with (
         patch("autosearch.mcp.server._build_channels", return_value=[_MockArxiv()]),
@@ -124,6 +125,7 @@ async def test_experience_not_injected_before_first_run(tmp_path, monkeypatch):
     skill_dir.mkdir(parents=True)
     monkeypatch.setattr(exp_mod, "_SKILLS_ROOT", tmp_path)
     monkeypatch.setenv("AUTOSEARCH_LLM_MODE", "dummy")
+    monkeypatch.setenv("AUTOSEARCH_EXPERIENCE_DIR", str(tmp_path))
 
     captured = []
 
