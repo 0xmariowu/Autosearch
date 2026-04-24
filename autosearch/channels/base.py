@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Awaitable, Callable, Protocol, Self
 import structlog
 
 from autosearch.core.models import Evidence, SubQuery
+from autosearch.core.rate_limiter import RateLimiter
 from autosearch.skills.loader import MethodSpec, QualityHint, WhenToUse, load_all
 
 if TYPE_CHECKING:
@@ -94,11 +95,13 @@ class _CompiledChannel:
         self,
         metadata: ChannelMetadata,
         health_provider: Callable[[], ChannelHealth | None],
+        limiter_provider: Callable[[], RateLimiter | None] | None = None,
     ) -> None:
         self.name = metadata.name
         self.languages = list(metadata.languages)
         self._metadata = metadata
         self._health_provider = health_provider
+        self._limiter_provider = limiter_provider or (lambda: None)
         self._methods_by_id = {method.id: method for method in metadata.methods}
 
     async def search(self, query: SubQuery) -> list[Evidence]:
@@ -116,6 +119,26 @@ class _CompiledChannel:
             health = self._health_provider()
             if health is not None and health.is_in_cooldown(self.name, method.id):
                 continue
+
+            # Rate limit check (per-method declared in SKILL.md).
+            limiter = self._limiter_provider()
+            rate_limit_meta = method.skill_method.rate_limit or {}
+            per_min = rate_limit_meta.get("per_min") if isinstance(rate_limit_meta, dict) else None
+            per_hour = (
+                rate_limit_meta.get("per_hour") if isinstance(rate_limit_meta, dict) else None
+            )
+            if limiter is not None and (per_min or per_hour):
+                allowed, retry_after = limiter.acquire(
+                    self.name,
+                    method.id,
+                    per_min=int(per_min) if per_min else None,
+                    per_hour=int(per_hour) if per_hour else None,
+                )
+                if not allowed:
+                    last_retryable = RateLimited(
+                        f"rate_limited: {self.name}.{method.id} retry_after={retry_after:.1f}s"
+                    )
+                    continue
 
             attempted = True
             started_at = time.monotonic()
@@ -203,6 +226,7 @@ class ChannelRegistry:
         self._channels: dict[str, Channel] = {}
         self._metadata: dict[str, ChannelMetadata] = {}
         self._health: ChannelHealth | None = None
+        self._limiter: RateLimiter | None = None
 
     @classmethod
     def compile_from_skills(
@@ -240,7 +264,13 @@ class ChannelRegistry:
                 fallback_chain=list(skill.fallback_chain),
             )
             registry._metadata[skill.name] = metadata
-            registry.register(_CompiledChannel(metadata, lambda: registry._health))
+            registry.register(
+                _CompiledChannel(
+                    metadata,
+                    lambda: registry._health,
+                    lambda: registry._limiter,
+                )
+            )
 
         return registry
 
@@ -366,6 +396,9 @@ class ChannelRegistry:
 
     def attach_health(self, health: ChannelHealth) -> None:
         self._health = health
+
+    def attach_limiter(self, limiter: RateLimiter) -> None:
+        self._limiter = limiter
 
 
 def _build_missing_impl_stub(

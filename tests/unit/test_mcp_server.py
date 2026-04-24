@@ -205,10 +205,21 @@ async def test_research_response_serializable_json(
 
 
 @pytest.mark.asyncio
-async def test_health_tool_returns_ok() -> None:
+async def test_health_tool_returns_structured_snapshot() -> None:
+    """Per plan §P1-5: health() must return a structured snapshot, not just
+    'ok'. Includes version, tool counts, channel counts, secrets-file presence
+    (key NAMES only, never values), and the runtime ChannelHealth snapshot."""
     server = mcp_server.create_server()
 
     health_tool = server._tool_manager.get_tool("health")
-
     assert health_tool is not None
-    assert await health_tool.run({}) == "ok"
+
+    result = await health_tool.run({})
+    assert isinstance(result, dict), f"expected dict snapshot, got {type(result).__name__}"
+    assert result.get("ok") is True
+    assert "version" in result
+    assert "tool_count" in result and result["tool_count"] >= 10
+    assert "required_tools_present" in result
+    assert "channels" in result
+    assert "secrets_file" in result
+    assert "channel_health_snapshot" in result

@@ -101,6 +101,11 @@ async def test_experience_accumulates_and_compacts(tmp_path, monkeypatch):
                 _CapturingArxiv.last_rationale = q.rationale
                 return [_ev(99)]
 
+        # Drop the runtime cached during the first batch so the new mock is
+        # actually consulted on the next `run_channel` call.
+        from autosearch.core.channel_runtime import reset_channel_runtime
+
+        reset_channel_runtime()
         with patch("autosearch.mcp.server._build_channels", return_value=[_CapturingArxiv()]):
             server2 = create_server()
             await server2._tool_manager.call_tool(
