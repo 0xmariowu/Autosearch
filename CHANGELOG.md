@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026.04.24.8 — 2026-04-24
+
+The "every channel stops lying about success" release — finishes the github
+pilot from `2026.04.24.7` across all 30+ channel adapters.
+
+- **Channels propagate typed failures.** Every channel (TikHub-shared and
+  direct-HTTP alike) now turns network errors / 401-403 / 429 / parse failures
+  into typed exceptions (`ChannelAuthError`, `RateLimited`, `TransientError`,
+  `PermanentError`) that the MCP boundary maps to distinct `run_channel`
+  statuses. A YouTube key gone bad surfaces as `auth_failed`; a TikHub
+  budget-exhausted surfaces as `rate_limited`; a network blip surfaces as
+  `channel_error`. Real empty results still come back as `no_results`.
+- **arxiv specifically:** an empty atom feed is now a quiet `[]` (legitimate
+  "no matches"). `ArxivRateLimitError` raises `RateLimited` and bozo / parse
+  errors raise `PermanentError`, so retry logic + circuit breaker can react
+  to the right thing.
+- **Two new helpers** in the public API: `autosearch.channels.base.raise_as_channel_error(exc)` for direct-HTTP channels, and `autosearch.lib.tikhub_client.to_channel_error(exc)` for TikHub-routed ones. New channel implementations only need to call the right helper from their broad except block.
+
 ## 2026.04.24.7 — 2026-04-24
 
 The "second-pass diagnostic" release — six follow-up bugs the v6 audit caught
