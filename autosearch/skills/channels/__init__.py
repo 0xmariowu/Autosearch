@@ -16,6 +16,7 @@ def resolve_skill_module(
     *,
     module_name: str | None = None,
 ) -> ModuleType:
+    """Load a shipped channel module directly from the packaged skills tree."""
     module_path = _CHANNELS_ROOT / channel_name / module_relative_path
     spec = importlib.util.spec_from_file_location(
         module_name or f"{channel_name}_{module_path.stem}",

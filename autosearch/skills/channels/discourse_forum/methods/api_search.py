@@ -63,6 +63,7 @@ def _truncate_on_word_boundary(text: str, *, max_length: int) -> str:
 
 
 def _clean_site_search_title(title: str, *, site: Mapping[str, str]) -> str:
+    """Strip a site-specific forum suffix from fallback search result titles."""
     cleaned = title.strip()
     title_suffix = site.get("title_suffix", "").strip()
     if title_suffix and cleaned.endswith(title_suffix):
@@ -125,6 +126,7 @@ def _site_search_query(site: Mapping[str, str], query: str) -> str:
 
 
 def _same_origin(url: str, base_url: str) -> bool:
+    """Require exact scheme and host equality before trusting a fallback result URL."""
     parsed_url = urlparse(url)
     parsed_base = urlparse(base_url)
     return parsed_url.scheme == parsed_base.scheme and parsed_url.netloc == parsed_base.netloc
@@ -176,6 +178,7 @@ async def _fetch_topic_markdown(
     *,
     http_client: httpx.AsyncClient | None = None,
 ) -> str | None:
+    """Fetch topic markdown via the Jina reader and normalize the payload."""
     reader_url = _reader_url(url)
     try:
         if http_client is not None:
@@ -196,6 +199,7 @@ async def _enrich_evidence(
     *,
     http_client: httpx.AsyncClient | None = None,
 ) -> Evidence:
+    """Hydrate one evidence item with full topic markdown when available."""
     markdown = await _fetch_topic_markdown(evidence.url, http_client=http_client)
     if not markdown:
         return evidence
@@ -221,6 +225,7 @@ async def _enrich_evidence(
 
 
 async def _search_site(query: SubQuery, *, site: Mapping[str, str]) -> list[Evidence]:
+    """Fallback to site-limited DDGS search when the forum API is blocked."""
     results = await asyncio.to_thread(
         lambda: list(DDGS().text(_site_search_query(site, query.text), max_results=MAX_RESULTS))
     )
@@ -248,6 +253,7 @@ async def search(
     http_client: httpx.AsyncClient | None = None,
     site_key: str = DEFAULT_SITE_KEY,
 ) -> list[Evidence]:
+    """Search a public Discourse forum and enrich matched topics with full text."""
     if http_client is None:
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, follow_redirects=True) as client:
             return await search(query, http_client=client, site_key=site_key)

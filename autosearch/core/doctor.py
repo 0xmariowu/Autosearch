@@ -46,6 +46,8 @@ _TIER1_ENV_PATTERNS = ("API_KEY", "TIKHUB", "YOUTUBE", "FIRECRAWL", "OPENROUTER"
 
 @dataclass
 class ChannelStatus:
+    """Computed health state for one channel as shown by `autosearch doctor`."""
+
     channel: str
     status: str  # "ok" | "warn" | "off"
     message: str

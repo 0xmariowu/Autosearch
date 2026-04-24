@@ -19,6 +19,8 @@ class SkillLoadError(ValueError):
 
 
 class MethodSpec(BaseModel):
+    """Validated runtime metadata for a single skill method."""
+
     id: str
     impl: str
     requires: list[str] = Field(default_factory=list)
@@ -35,6 +37,8 @@ class MethodSpec(BaseModel):
 
 
 class WhenToUse(BaseModel):
+    """Query-shape hints used by routing and docs surfaces."""
+
     query_languages: list[Literal["zh", "en", "mixed"]] = Field(default_factory=list)
     query_types: list[str] = Field(default_factory=list)
     domain_hints: list[str] = Field(default_factory=list)
@@ -42,11 +46,15 @@ class WhenToUse(BaseModel):
 
 
 class QualityHint(BaseModel):
+    """Lightweight quality annotations exposed in docs and runtime metadata."""
+
     typical_yield: Literal["low", "medium", "medium-high", "high", "unknown"] = "unknown"
     chinese_native: bool = False
 
 
 class SkillSpec(BaseModel):
+    """Validated frontmatter contract for one skill directory."""
+
     name: str
     description: str
     version: int = 1
@@ -82,6 +90,7 @@ class SkillSpec(BaseModel):
 
 
 def _extract_frontmatter(raw_text: str, skill_path: Path) -> dict[str, object]:
+    """Parse YAML frontmatter from a skill file and return the mapping payload."""
     lines = raw_text.splitlines()
     start_index = next((index for index, line in enumerate(lines) if line.strip() == "---"), None)
     if start_index is None:
@@ -110,6 +119,7 @@ def _extract_frontmatter(raw_text: str, skill_path: Path) -> dict[str, object]:
 
 
 def load_frontmatter(skill_path: Path) -> dict[str, object]:
+    """Read a skill file from disk and return only its validated frontmatter."""
     skill_path = Path(skill_path)
     try:
         raw_text = skill_path.read_text(encoding="utf-8")
@@ -120,6 +130,7 @@ def load_frontmatter(skill_path: Path) -> dict[str, object]:
 
 
 def load_skill(skill_dir: Path) -> SkillSpec:
+    """Load one skill directory into a validated `SkillSpec`."""
     skill_dir = Path(skill_dir)
     skill_path = skill_dir / SKILL_FILENAME
     if not skill_path.is_file():
@@ -138,6 +149,7 @@ def load_skill(skill_dir: Path) -> SkillSpec:
 
 
 def load_all(root: Path) -> list[SkillSpec]:
+    """Load every skill directory under `root` in deterministic name order."""
     root = Path(root)
     if not root.is_dir():
         raise SkillLoadError(f"Skill root does not exist or is not a directory: {root}")

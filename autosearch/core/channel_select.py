@@ -127,6 +127,8 @@ _CHANNEL_ALIASES: dict[str, tuple[str, ...]] = {
 
 @dataclass(frozen=True, slots=True)
 class ChannelRouteSpec:
+    """Routing metadata distilled from a channel skill's frontmatter."""
+
     name: str
     domains: tuple[str, ...]
     scenarios: tuple[str, ...]
@@ -162,6 +164,7 @@ def _normalize_domain(value: str) -> str:
 
 
 def _keyword_variants(value: str) -> set[str]:
+    """Expand a routing hint into safe match variants without oversplitting phrases."""
     normalized = _normalize_text(value.replace("-", " "))
     if not normalized:
         return set()
@@ -217,6 +220,7 @@ def _channel_keywords(
 
 @lru_cache(maxsize=1)
 def _load_channel_route_catalog() -> tuple[ChannelRouteSpec, ...]:
+    """Build the cached routing catalog from channel `SKILL.md` metadata."""
     if not _SKILLS_ROOT.is_dir():
         return ()
 
@@ -301,6 +305,7 @@ def _query_tokens(query_lower: str) -> set[str]:
 
 
 def _matches_query(term: str, query_lower: str, query_tokens: set[str]) -> bool:
+    """Match short aliases on token boundaries and longer terms by substring."""
     if len(term) < 3 and term.isascii():
         return term in query_tokens
     return term in query_lower
@@ -338,6 +343,7 @@ def _domain_score(
     query_tokens: set[str],
     channels: tuple[ChannelRouteSpec, ...],
 ) -> int:
+    """Score a metadata domain from both domain keywords and member-channel matches."""
     keyword_score = sum(1 for keyword in _DOMAIN_KEYWORDS.get(domain, ()) if keyword in query_lower)
     channel_scores = sorted(
         (_channel_match_score(spec, query_lower, query_tokens) for spec in channels),
