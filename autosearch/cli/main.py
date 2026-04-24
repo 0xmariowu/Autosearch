@@ -793,5 +793,44 @@ def mcp_check(
     raise typer.Exit(code=1)
 
 
+@app.command()
+def diagnostics(
+    redact_output: Annotated[
+        bool,
+        typer.Option(
+            "--redact",
+            help=(
+                "Required. Strip secrets / cookies / API key values before "
+                "printing. Without this flag the command refuses to run, so a "
+                "user copy-paste into a public issue can't accidentally leak "
+                "credentials."
+            ),
+        ),
+    ] = False,
+) -> None:
+    """Print a copy-pasteable diagnostics bundle for support / GitHub issues.
+
+    Includes: autosearch version, Python info, install method, MCP client
+    config status, secrets-file presence (key NAMES only, never values),
+    runtime experience dir size, MCP tool registry summary, doctor counts.
+
+    Excludes: secret values, raw env dumps, full user queries.
+    """
+    from autosearch.cli.diagnostics import build_bundle, render_bundle
+
+    if not redact_output:
+        typer.echo(
+            "error: refusing to run without --redact. The bundle may contain "
+            "filesystem paths, environment variable names, or other context "
+            "that should be scrubbed before posting publicly. Re-run with "
+            "`autosearch diagnostics --redact`.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    bundle = build_bundle()
+    typer.echo(render_bundle(bundle, redact_output=True))
+
+
 if __name__ == "__main__":
     app()
