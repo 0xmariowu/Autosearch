@@ -1,2 +1,6 @@
-# Self-written, plan v2.3 § 7
-__version__ = "0.0.1a1"
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    __version__ = version("autosearch")
+except PackageNotFoundError:
+    __version__ = "dev"
