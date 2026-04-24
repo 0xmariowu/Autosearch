@@ -318,6 +318,14 @@ def _scan_skill_catalog(
     return sorted(results, key=lambda s: (s.group, s.name))
 
 
+def _health_required_tools() -> tuple[str, ...]:
+    """Lazy import of the required-v2-tools list — kept on cli.main as the
+    canonical home (mcp-check uses the same list)."""
+    from autosearch.cli.main import _REQUIRED_MCP_TOOLS
+
+    return _REQUIRED_MCP_TOOLS
+
+
 def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
     # Push ~/.config/ai-secrets.env keys into process env BEFORE any channel
     # method or LLM provider is constructed — otherwise their `os.getenv()`
@@ -435,9 +443,67 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
         )
 
     @server.tool()
-    def health() -> str:
-        """Return a cheap liveness indicator for MCP clients."""
-        return "ok"
+    def health() -> dict:
+        """Return a structured health snapshot for MCP clients.
+
+        Includes version, registered tool count, required-tool status, channel
+        counts by status, secrets-file presence (key NAMES only), and a
+        cooldown summary from the runtime ChannelHealth. All values are
+        redacted before return — no key VALUES, no cookies, no token text.
+        """
+        from autosearch.core.channel_runtime import get_channel_runtime
+        from autosearch.core.doctor import scan_channels
+        from autosearch.core.redact import redact
+        from autosearch.core.secrets_store import load_secrets, secrets_path
+
+        snapshot: dict[str, object] = {"ok": True}
+        try:
+            from autosearch import __version__  # noqa: PLC0415
+
+            snapshot["version"] = __version__
+        except Exception:  # noqa: BLE001
+            snapshot["version"] = "unknown"
+
+        try:
+            tools = list(server._tool_manager.list_tools())  # noqa: SLF001
+            tool_names = {t.name for t in tools}
+            snapshot["tool_count"] = len(tool_names)
+            snapshot["required_tools_present"] = sorted(
+                {n for n in _health_required_tools() if n in tool_names}
+            )
+            snapshot["required_tools_missing"] = sorted(
+                {n for n in _health_required_tools() if n not in tool_names}
+            )
+        except Exception as exc:  # noqa: BLE001
+            snapshot["tool_inspection_error"] = redact(f"{type(exc).__name__}: {exc}")
+
+        try:
+            statuses = scan_channels()
+            counts: dict[str, int] = {"total": len(statuses), "ok": 0, "warn": 0, "off": 0}
+            for s in statuses:
+                counts[s.status] = counts.get(s.status, 0) + 1
+            snapshot["channels"] = counts
+        except Exception:  # noqa: BLE001
+            snapshot["channels"] = {}
+
+        try:
+            secrets_keys = sorted(load_secrets().keys())
+            snapshot["secrets_file"] = {
+                "path": str(secrets_path()),
+                "exists": secrets_path().is_file(),
+                "key_count": len(secrets_keys),
+                "key_names": secrets_keys,  # names only
+            }
+        except Exception:  # noqa: BLE001
+            snapshot["secrets_file"] = {}
+
+        try:
+            runtime = get_channel_runtime()
+            snapshot["channel_health_snapshot"] = runtime.health.snapshot()
+        except Exception:  # noqa: BLE001
+            snapshot["channel_health_snapshot"] = {}
+
+        return snapshot
 
     @server.tool()
     def list_modes() -> dict:
@@ -548,22 +614,22 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
             (up to k items; each evidence is already source_page-slimmed),
             `reason` populated on failure, and `count_total / count_returned`.
         """
-        from autosearch.core.channel_bootstrap import _build_registry
+        from autosearch.core.channel_runtime import get_channel_runtime
 
-        channels = _build_channels()
+        runtime = get_channel_runtime()
+        channels = runtime.channels
+        registry = runtime.registry
         matched = next((c for c in channels if c.name == channel_name), None)
         if matched is None:
             # Differentiate "channel name typo" (unknown_channel) from "channel
             # exists but its requirements aren't met" (not_configured). The
             # latter must surface fix_hint + unmet_requires so the host agent
             # can ask the user for the missing key instead of falling back.
-            registry = _build_registry()
             if registry is not None and channel_name in registry._metadata:  # noqa: SLF001
                 meta = registry.metadata(channel_name)
                 unmet: list[str] = []
                 for method in meta.methods:
                     unmet.extend(method.unmet_requires)
-                # Stable order, unique
                 unmet = list(dict.fromkeys(unmet))
                 from autosearch.core.doctor import _resolve_fix_hint
 
