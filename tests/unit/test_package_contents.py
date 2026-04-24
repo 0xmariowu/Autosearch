@@ -135,3 +135,39 @@ def test_built_wheel_does_not_ship_legacy_v1_modules() -> None:
     assert not leaked, f"{latest.name} still ships legacy v1 modules (plan §P2-1):\n" + "\n".join(
         f"  {n}" for n in leaked
     )
+
+
+def test_no_channel_uses_legacy_experience_subdir_seed_path() -> None:
+    """Plan §P2-2: bundled experience seed digests must live at
+    `<skill>/experience.md`, NOT `<skill>/experience/experience.md`. The runtime
+    loader (`autosearch.skills.experience.load_experience_digest`) only checks
+    the top-level path, so seeds parked in the subdir variant were silently
+    dead. Standardize on top-level."""
+    channels_root = ROOT / "autosearch" / "skills" / "channels"
+    offenders = sorted(
+        channels_root.glob("*/experience/experience.md"),
+    )
+    assert not offenders, (
+        "channel(s) still ship the legacy experience-subdir seed path; the "
+        "loader will not see them. Move each to <skill>/experience.md "
+        "(top-level):\n" + "\n".join(f"  {p.relative_to(ROOT)}" for p in offenders)
+    )
+
+
+def test_built_wheel_uses_only_top_level_experience_seed_path() -> None:
+    """Companion: even if a future PR re-creates a `<skill>/experience/` dir
+    locally, this guard catches it at the wheel layer (where setuptools'
+    `**/*.md` glob would otherwise quietly include it)."""
+    dist = ROOT / "dist"
+    wheels = sorted(dist.glob("autosearch-*.whl"))
+    if not wheels:
+        pytest.skip("no built wheel in dist/ — run `uv build --wheel` first")
+    latest = wheels[-1]
+    with zipfile.ZipFile(latest) as zf:
+        names = zf.namelist()
+    pattern = re.compile(r"^autosearch/skills/channels/[^/]+/experience/experience\.md$")
+    leaked = [n for n in names if pattern.match(n)]
+    assert not leaked, (
+        f"{latest.name} ships seed digest(s) at the legacy subdir path "
+        "(plan §P2-2):\n" + "\n".join(f"  {n}" for n in leaked)
+    )
