@@ -144,6 +144,15 @@ jobs:
           spec.loader.exec_module(mod)
           print(mod.derive_npm_version('$VERSION'))
           ")
+          # Intra-day pyproject bumps (YYYY.MM.DD.1 → YYYY.MM.DD.2) map to the
+          # same npm version. The npm tarball only depends on the base date,
+          # so if it's already published we skip rather than fail the whole
+          # release workflow.
+          PUBLISHED=$(npm view "autosearch-ai@$NPM_VERSION" version 2>/dev/null || echo "")
+          if [ "$PUBLISHED" = "$NPM_VERSION" ]; then
+            echo "npm already has autosearch-ai@$NPM_VERSION — skipping (intra-day pyproject bump, nothing new to publish)"
+            exit 0
+          fi
           echo "Publishing autosearch-ai@$NPM_VERSION (derived from $VERSION)"
           cd npm
           npm version "$NPM_VERSION" --no-git-tag-version --allow-same-version
