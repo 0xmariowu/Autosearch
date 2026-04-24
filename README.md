@@ -90,9 +90,11 @@ Run `autosearch doctor` to check the status of every channel:
 ```
 AutoSearch Channel Status
 ==========================================
-Always-on (21/21)   ✅ arxiv  ✅ github  ✅ hackernews ...
-Env-gated  (0/1)    ○  youtube  →  set YOUTUBE_API_KEY
-Login      (0/15)   ○  xiaohongshu  →  autosearch login xhs
+Always-on (27/27)   ✅ arxiv  ✅ github  ✅ hackernews ...
+API-key   (0/11)    ○  youtube  →  set YOUTUBE_API_KEY
+                    ○  bilibili →  set TIKHUB_API_KEY
+Login     (0/2)     ○  xiaohongshu  →  autosearch login xhs
+                    ○  xueqiu       →  autosearch login xueqiu
 ```
 
 ---

@@ -14,7 +14,7 @@ Help me install AutoSearch: https://raw.githubusercontent.com/0xmariowu/Autosear
 
 ### Goal
 
-Install AutoSearch and configure the MCP server so the user's agent has access to 39 search channels across academic papers, developer platforms, Chinese social media, and more.
+Install AutoSearch and configure the MCP server so the user's agent has access to 40 search channels across academic papers, developer platforms, Chinese social media, and more.
 
 ### ⚠️ Boundaries
 
@@ -40,7 +40,7 @@ pip install autosearch && autosearch init
 pipx install autosearch && autosearch init
 ```
 
-> npx and curl options run `autosearch init` automatically.
+> The curl option runs `autosearch init` automatically. The npx option prints the install URL it's about to fetch and waits for `y` to confirm — pass `--yes` (or `-y`) to skip the prompt for non-interactive automation.
 
 This will:
 - Detect available LLM providers (Anthropic, OpenAI, Gemini, claude CLI)
@@ -58,21 +58,22 @@ You'll see a tiered report:
 ```
 AutoSearch Channel Status
 ==========================================
-Always-on (21/21)
-  ✅ arxiv              ready
-  ✅ pubmed             ready
-  ✅ ddgs               ready
-  ... 18 more
+Always-on (27/27)
+  ✅ arxiv              1/1 methods available
+  ✅ pubmed             1/1 methods available
+  ✅ ddgs               1/1 methods available
+  ... 24 more
 
-Env-gated (0/1)
-  ○  youtube            set YOUTUBE_API_KEY to enable
+API-key (0/11)
+  ○  youtube            autosearch configure YOUTUBE_API_KEY <your-key>
+  ○  bilibili           autosearch configure TIKHUB_API_KEY <your-key>
+  ... 9 more
 
-Login required (0/15)
-  ○  xiaohongshu        run: autosearch login xhs
-  ○  twitter            run: autosearch login twitter
-  ... 13 more
+Login required (0/2)
+  ○  xiaohongshu        autosearch login xhs
+  ○  xueqiu             autosearch login xueqiu
 
-Status: 21/37 channels ready
+Status: 27/40 channels ready
 ```
 
 ---

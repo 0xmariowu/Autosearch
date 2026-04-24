@@ -88,11 +88,13 @@ Help me install AutoSearch: https://raw.githubusercontent.com/0xmariowu/Autosear
 运行 `autosearch doctor` 查看每个渠道的状态：
 
 ```
-AutoSearch Channel Status
+AutoSearch 渠道状态
 ==========================================
-Always-on (21/21)   ✅ arxiv  ✅ github  ✅ hackernews ...
-Env-gated  (0/1)    ○  youtube  →  set YOUTUBE_API_KEY
-Login      (0/15)   ○  xiaohongshu  →  autosearch login xhs
+开箱即用 (27/27)    ✅ arxiv  ✅ github  ✅ hackernews ...
+API key   (0/11)   ○  youtube      →  set YOUTUBE_API_KEY
+                   ○  bilibili     →  set TIKHUB_API_KEY
+需登录    (0/2)    ○  xiaohongshu  →  autosearch login xhs
+                   ○  xueqiu       →  autosearch login xueqiu
 ```
 
 ---
