@@ -41,15 +41,27 @@ if [ -x "$REPO_ROOT/.venv/bin/python" ]; then
   PYTHON="$REPO_ROOT/.venv/bin/python"
 elif command -v python3.12 >/dev/null 2>&1; then
   PYTHON=$(command -v python3.12)
+elif command -v python3 >/dev/null 2>&1; then
+  PYTHON=$(command -v python3)
 else
-  echo "FAIL: no Python 3.12 found (need .venv/bin/python or python3.12 on PATH)" >&2
+  echo "FAIL: no Python found (need .venv/bin/python, python3.12, or python3 on PATH)" >&2
   exit 1
 fi
 
-# Resolve adjacent CLI tools so we don't depend on $PATH in the venv.
-RUFF="$REPO_ROOT/.venv/bin/ruff"
-PYTEST="$REPO_ROOT/.venv/bin/pytest"
-AUTOSEARCH="$REPO_ROOT/.venv/bin/autosearch"
+# Resolve adjacent CLI tools — prefer the project venv, fall back to PATH so
+# this script works in CI runners where deps land in system Python.
+_resolve_tool() {
+  local venv_path="$REPO_ROOT/.venv/bin/$1"
+  if [ -x "$venv_path" ]; then
+    printf '%s' "$venv_path"
+  else
+    command -v "$1" 2>/dev/null || true
+  fi
+}
+
+RUFF=$(_resolve_tool ruff)
+PYTEST=$(_resolve_tool pytest)
+AUTOSEARCH=$(_resolve_tool autosearch)
 
 step() { printf "\n==> %s\n" "$1"; }
 pass() { printf "PASS: %s\n" "$1"; }
