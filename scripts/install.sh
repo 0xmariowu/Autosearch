@@ -13,9 +13,59 @@ success() { echo -e "${GREEN}✓${RESET} $*"; }
 warn()    { echo -e "${YELLOW}!${RESET} $*"; }
 die()     { echo -e "${RED}✗${RESET} $*" >&2; exit 1; }
 
+# ── Flag parsing ─────────────────────────────────────────────────────────────
+DRY_RUN=false
+NO_INIT=false
+VERSION=""
+
+usage() {
+  cat <<EOF
+AutoSearch installer
+
+Usage:
+  install.sh [--dry-run] [--no-init] [--version VERSION]
+
+Flags:
+  --dry-run         Print every install command without executing it.
+                    No package install, no shell-profile edit, no init.
+  --no-init         Install AutoSearch but skip the final 'autosearch init'.
+                    Use this in CI / unattended setups that already provision
+                    config separately.
+  --version VER     Pin a specific version (e.g. 2026.04.24.4) instead of
+                    installing the latest. Applies to uv / pipx / pip.
+  -h, --help        Show this help.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run)     DRY_RUN=true; shift ;;
+    --no-init)     NO_INIT=true; shift ;;
+    --version)     [[ -z "${2:-}" ]] && die "--version requires an argument"; VERSION="$2"; shift 2 ;;
+    --version=*)   VERSION="${1#--version=}"; shift ;;
+    -h|--help)     usage; exit 0 ;;
+    *)             die "unknown flag: $1 (try --help)" ;;
+  esac
+done
+
+# Wrapper: in dry-run mode, print the command instead of running it.
+run() {
+  if [[ "$DRY_RUN" == true ]]; then
+    printf "  [dry-run] %s\n" "$*"
+  else
+    eval "$@"
+  fi
+}
+
+PKG_SPEC="autosearch"
+[[ -n "$VERSION" ]] && PKG_SPEC="autosearch==$VERSION"
+
 echo ""
 echo -e "${BOLD}  AutoSearch — Install${RESET}"
 echo "  ─────────────────────────────────────"
+[[ "$DRY_RUN" == true ]] && warn "DRY RUN — no commands will execute"
+[[ -n "$VERSION" ]]      && info "  Pinned version: $VERSION"
+[[ "$NO_INIT" == true ]] && info "  Will skip 'autosearch init' after install"
 echo ""
 
 # ── 1. Find Python 3.12+ ────────────────────────────────────────────────────
@@ -36,22 +86,22 @@ install_autosearch() {
   # uv tool install (best: isolated, cross-platform, fast)
   if command -v uv &>/dev/null; then
     info "Installing via uv..."
-    uv tool install autosearch --quiet && success "Installed via uv" && return 0
+    run "uv tool install '$PKG_SPEC' --quiet" && success "Installed via uv ($PKG_SPEC)" && return 0
   fi
 
   # pipx (also isolated, widely available)
   if command -v pipx &>/dev/null; then
     info "Installing via pipx..."
-    pipx install autosearch && success "Installed via pipx" && return 0
+    run "pipx install '$PKG_SPEC'" && success "Installed via pipx ($PKG_SPEC)" && return 0
   fi
 
   # pip with Python 3.12+
   PYTHON=$(find_python || true)
   if [ -n "$PYTHON" ]; then
     info "Installing via pip ($PYTHON)..."
-    "$PYTHON" -m pip install --quiet --upgrade --break-system-packages autosearch 2>/dev/null \
-      || "$PYTHON" -m pip install --quiet --upgrade autosearch
-    success "Installed via pip" && return 0
+    run "'$PYTHON' -m pip install --quiet --upgrade --break-system-packages '$PKG_SPEC' 2>/dev/null \
+      || '$PYTHON' -m pip install --quiet --upgrade '$PKG_SPEC'"
+    success "Installed via pip ($PKG_SPEC)" && return 0
   fi
 
   die "Could not install autosearch. Install Python 3.12+ first: https://python.org"
@@ -78,10 +128,14 @@ persist_path() {
   local line='export PATH="$HOME/.local/bin:$PATH"'
   for profile in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.profile"; do
     if [ -f "$profile" ] && ! grep -q '.local/bin' "$profile" 2>/dev/null; then
-      echo "" >> "$profile"
-      echo "# Added by AutoSearch installer" >> "$profile"
-      echo "$line" >> "$profile"
-      warn "Added ~/.local/bin to PATH in $profile"
+      if [[ "$DRY_RUN" == true ]]; then
+        printf "  [dry-run] would append PATH export to %s\n" "$profile"
+      else
+        echo "" >> "$profile"
+        echo "# Added by AutoSearch installer" >> "$profile"
+        echo "$line" >> "$profile"
+        warn "Added ~/.local/bin to PATH in $profile"
+      fi
       break
     fi
   done
@@ -90,6 +144,18 @@ persist_path() {
 # ── Main ─────────────────────────────────────────────────────────────────────
 install_autosearch
 fix_path
+
+# In dry-run mode the binary is not actually present, so the PATH check below
+# would always fail and noisily ask the user to restart their shell. Skip.
+if [[ "$DRY_RUN" == true ]]; then
+  echo ""
+  if [[ "$NO_INIT" == true ]]; then
+    echo "  [dry-run] would skip 'autosearch init' (--no-init)"
+  else
+    echo "  [dry-run] would run: autosearch init"
+  fi
+  exit 0
+fi
 
 if ! command -v autosearch &>/dev/null; then
   persist_path
@@ -106,5 +172,9 @@ echo ""
 echo "  ─────────────────────────────────────"
 echo ""
 
-# Run init — this shows the full AutoSearch setup screen
-autosearch init
+if [[ "$NO_INIT" == true ]]; then
+  success "Install complete. Run 'autosearch init' when you're ready to set up."
+else
+  # Run init — this shows the full AutoSearch setup screen
+  autosearch init
+fi
