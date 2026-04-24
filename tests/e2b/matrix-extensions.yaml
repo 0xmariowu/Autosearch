@@ -136,7 +136,10 @@ phases:
           claude --dangerously-skip-permissions -p "/autosearch what is BM25" 2>&1 | tail -200
         expect:
           exit: 0
-          stdout_contains: "References"
+          # v2 contract: agent synthesizes from run_channel evidence; the literal
+          # "References" section was a v1 report-format artifact. We assert the
+          # query topic surfaces in the answer instead.
+          stdout_regex: "BM25|bm25"
 
   # F104 — MCP-as-tool (Claude Code invoking autosearch via MCP config)
   F104_mcp_as_tool:
@@ -175,7 +178,9 @@ phases:
         env_keys: [ANTHROPIC_API_KEY]
         cmd: |
           cd $HOME/work/autosearch
-          claude --mcp-config $HOME/.claude/mcp.json --dangerously-skip-permissions -p "Use the research tool with mode=fast to briefly summarize BM25" 2>&1 | tail -200
+          # v2 contract: the host agent calls list_skills + run_channel and
+          # synthesizes itself, instead of the deprecated single-shot research tool.
+          claude --mcp-config $HOME/.claude/mcp.json --dangerously-skip-permissions -p "List the autosearch MCP skills, then call run_channel on the arxiv channel with query 'BM25 ranking' and summarize the top results." 2>&1 | tail -200
         expect:
           exit: 0
           stdout_contains: "BM25"
