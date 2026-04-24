@@ -1,31 +1,20 @@
 from __future__ import annotations
 
-import importlib.util
-from pathlib import Path
+from datetime import UTC, datetime
 
 import httpx
 import pytest
 
 from autosearch.core.models import SubQuery
+from autosearch.skills.channels import resolve_skill_module
 
 
 def _load_module():
-    module_path = (
-        Path(__file__).resolve().parents[3]
-        / "autosearch"
-        / "skills"
-        / "channels"
-        / "discourse_forum"
-        / "methods"
-        / "api_search.py"
+    return resolve_skill_module(
+        "discourse_forum",
+        "methods/api_search.py",
+        module_name="test_discourse_forum_api_search",
     )
-    spec = importlib.util.spec_from_file_location("test_discourse_forum_api_search", module_path)
-    if spec is None or spec.loader is None:
-        raise AssertionError(f"Failed to load module spec from {module_path}")
-
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 MODULE = _load_module()
@@ -46,6 +35,26 @@ def _query() -> SubQuery:
 
 def _client(handler) -> httpx.AsyncClient:
     return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+
+def test_site_search_title_uses_site_specific_suffix() -> None:
+    evidence = MODULE._to_site_search_evidence(
+        {
+            "title": "Custom title - TEST FORUM",
+            "href": "https://linux.do/t/topic/1798141",
+            "body": "摘要。",
+        },
+        site={
+            "base_url": "https://linux.do",
+            "search_endpoint": "/search.json",
+            "source_channel": "discourse_forum:test_forum",
+            "title_suffix": " - TEST FORUM",
+        },
+        fetched_at=datetime.now(UTC),
+    )
+
+    assert evidence is not None
+    assert evidence.title == "Custom title"
 
 
 @pytest.mark.asyncio
@@ -359,6 +368,60 @@ async def test_search_enriches_site_search_results_with_full_topic_content(
         "reader_url": "https://r.jina.ai/https://linux.do/t/topic/743319",
         "title": "Claude Code 小白指引贴 - 文档共建",
     }
+
+
+@pytest.mark.asyncio
+async def test_search_reuses_single_client_for_search_and_enrichment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created_clients = 0
+
+    class _FakeAsyncClient:
+        def __init__(self, *args, **kwargs) -> None:
+            nonlocal created_clients
+            created_clients += 1
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        async def get(self, url: str, *, params=None, headers=None) -> httpx.Response:
+            if url == "https://linux.do/search.json":
+                return httpx.Response(
+                    200,
+                    json={
+                        "posts": [
+                            {
+                                "topic_id": 760680,
+                                "topic_title_headline": "Claude Code 上手指南",
+                                "blurb": "帖子摘要。",
+                            }
+                        ]
+                    },
+                    request=httpx.Request("GET", url, params=params, headers=headers),
+                )
+            if url == "https://r.jina.ai/https://linux.do/t/760680":
+                return httpx.Response(
+                    200,
+                    text=(
+                        "Title: Claude Code 上手指南 - LINUX DO\n\n"
+                        "URL Source: https://linux.do/t/760680\n\n"
+                        "Markdown Content:\n"
+                        "这里是完整正文。"
+                    ),
+                    request=httpx.Request("GET", url, headers=headers),
+                )
+            raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(MODULE.httpx, "AsyncClient", _FakeAsyncClient)
+
+    results = await search(_query())
+
+    assert created_clients == 1
+    assert len(results) == 1
+    assert results[0].content == "这里是完整正文。"
 
 
 @pytest.mark.asyncio

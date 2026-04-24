@@ -109,6 +109,16 @@ def _extract_frontmatter(raw_text: str, skill_path: Path) -> dict[str, object]:
     return payload
 
 
+def load_frontmatter(skill_path: Path) -> dict[str, object]:
+    skill_path = Path(skill_path)
+    try:
+        raw_text = skill_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise SkillLoadError(f"Failed to read {skill_path}: {exc}") from exc
+
+    return _extract_frontmatter(raw_text, skill_path)
+
+
 def load_skill(skill_dir: Path) -> SkillSpec:
     skill_dir = Path(skill_dir)
     skill_path = skill_dir / SKILL_FILENAME
@@ -116,11 +126,9 @@ def load_skill(skill_dir: Path) -> SkillSpec:
         raise SkillLoadError(f"Expected {SKILL_FILENAME} in {skill_dir}")
 
     try:
-        raw_text = skill_path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise SkillLoadError(f"Failed to read {skill_path}: {exc}") from exc
-
-    payload = _extract_frontmatter(raw_text, skill_path)
+        payload = load_frontmatter(skill_path)
+    except SkillLoadError:
+        raise
     payload["skill_dir"] = skill_dir
 
     try:

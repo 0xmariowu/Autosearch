@@ -8,7 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 import re
 
-from autosearch.skills.loader import SkillLoadError, _extract_frontmatter
+from autosearch.skills.loader import SkillLoadError, load_frontmatter
 
 _SKILLS_ROOT = Path(__file__).resolve().parents[1] / "skills" / "channels"
 _MODE_LIMITS = {"fast": 5, "deep": 8}
@@ -174,9 +174,10 @@ def _keyword_variants(value: str) -> set[str]:
     if _CJK_PATTERN.search(normalized):
         return {variant for variant in variants if variant}
 
-    for token in _WORD_PATTERN.findall(normalized):
-        if len(token) >= 3:
-            variants.add(token)
+    if " " not in normalized:
+        for token in _WORD_PATTERN.findall(normalized):
+            if len(token) >= 3:
+                variants.add(token)
 
     return {variant for variant in variants if len(variant) >= 3}
 
@@ -226,8 +227,7 @@ def _load_channel_route_catalog() -> tuple[ChannelRouteSpec, ...]:
             continue
 
         try:
-            raw = skill_path.read_text(encoding="utf-8")
-            payload = _extract_frontmatter(raw, skill_path)
+            payload = load_frontmatter(skill_path)
         except (OSError, SkillLoadError):
             continue
 
@@ -273,6 +273,9 @@ def _load_channel_route_catalog() -> tuple[ChannelRouteSpec, ...]:
         )
 
     return tuple(sorted(specs, key=lambda spec: spec.name))
+
+
+load_channel_route_catalog = _load_channel_route_catalog
 
 
 def _channels_by_domain(
@@ -362,7 +365,7 @@ def select_channels(
     query_lower = _normalize_text(query)
     query_tokens = _query_tokens(query_lower)
     has_cjk = _has_cjk(query)
-    catalog = _load_channel_route_catalog()
+    catalog = load_channel_route_catalog()
     channels_by_domain = _channels_by_domain(catalog)
 
     scores: dict[str, int] = {}

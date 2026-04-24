@@ -6,6 +6,7 @@ from autosearch.skills.loader import (
     SkillSpec,
     WhenToUse,
     load_all,
+    load_frontmatter,
     load_skill,
 )
 
@@ -16,5 +17,6 @@ __all__ = [
     "SkillSpec",
     "WhenToUse",
     "load_all",
+    "load_frontmatter",
     "load_skill",
 ]

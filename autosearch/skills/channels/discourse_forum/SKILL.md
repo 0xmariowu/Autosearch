@@ -12,7 +12,7 @@ fallback_chain: [api_search]
 when_to_use:
   query_languages: [zh, mixed]
   query_types: [community, developer, product-feedback, tech-discussion, chinese-ugc]
-  domain_hints: [linux.do, linux do, discourse, forum, claude code]
+  domain_hints: [linux.do, linux do, discourse, forum]
   avoid_for: [academic, consumer-lifestyle, multimedia]
 quality_hint:
   typical_yield: medium
