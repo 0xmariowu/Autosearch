@@ -18,8 +18,10 @@ class _StubPipeline:
 
 
 @pytest.mark.asyncio
-async def test_research_emits_deprecation_warning() -> None:
-    """Calling the legacy research() MCP tool must emit a DeprecationWarning."""
+async def test_research_emits_deprecation_warning(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When opted in via AUTOSEARCH_LEGACY_RESEARCH=1, calling research() must
+    still emit a DeprecationWarning so users know they're on a sunset path."""
+    monkeypatch.setenv("AUTOSEARCH_LEGACY_RESEARCH", "1")
     server = create_server(pipeline_factory=lambda: _StubPipeline())  # type: ignore[arg-type]
     tm = server._tool_manager  # noqa: SLF001
 
@@ -54,42 +56,23 @@ async def test_server_instructions_mention_tool_supplier_trio() -> None:
 
 
 @pytest.mark.asyncio
-async def test_research_default_returns_deprecation_without_pipeline(
+async def test_research_tool_not_registered_by_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """W3.3 PR A: default (no AUTOSEARCH_LEGACY_RESEARCH env) must NOT invoke the pipeline.
+    """Plan §P1-4: by default the deprecated research tool is not registered
+    at all — host agents only see it if AUTOSEARCH_LEGACY_RESEARCH=1 opts in.
 
-    The research() tool should return a ResearchResponse with:
-    - delivery_status == "deprecated"
-    - content mentions the trio
-    - routing_trace indicates deprecation
-
-    The Pipeline factory is set to a stub that would raise if called. If research()
-    is properly short-circuited, the test passes without triggering the stub.
+    Previous behavior was "registered but returns deprecation response"; that
+    still let LLMs choose the attractive `research` tool name and waste a turn.
     """
     monkeypatch.delenv("AUTOSEARCH_LEGACY_RESEARCH", raising=False)
 
-    from autosearch.mcp.server import ResearchResponse
-
     server = create_server(pipeline_factory=lambda: _StubPipeline())  # type: ignore[arg-type]
-    tm = server._tool_manager  # noqa: SLF001
-
-    import warnings as _warnings
-
-    with _warnings.catch_warnings():
-        _warnings.simplefilter("ignore", DeprecationWarning)
-        response = await tm.call_tool(
-            "research",
-            {"query": "anything", "mode": "fast"},
-        )
-
-    assert isinstance(response, ResearchResponse)
-    assert response.delivery_status == "deprecated"
-    assert "deprecated" in response.content.lower()
-    assert "list_skills" in response.content
-    assert "run_clarify" in response.content
-    assert "run_channel" in response.content
-    assert response.routing_trace.get("deprecated") is True
+    tools = await server.list_tools()
+    tool_names = {tool.name for tool in tools}
+    assert "research" not in tool_names, (
+        f"research must not register without opt-in (got: {sorted(tool_names)})"
+    )
 
 
 @pytest.mark.asyncio

@@ -194,14 +194,31 @@ def test_scan_returns_empty_for_missing_root(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_list_skills_mcp_tool_is_registered() -> None:
-    """End-to-end: create MCP server, confirm list_skills tool is registered."""
+async def test_list_skills_mcp_tool_is_registered(monkeypatch) -> None:
+    """End-to-end: create MCP server, confirm list_skills + health are present
+    by default. The deprecated `research` tool is opt-in (plan §P1-4) — see
+    `test_legacy_research_tool_only_registered_when_opted_in` below."""
+    monkeypatch.delenv("AUTOSEARCH_LEGACY_RESEARCH", raising=False)
     server = create_server(pipeline_factory=lambda: None)  # type: ignore[arg-type]
     tools = await server.list_tools()
     tool_names = {tool.name for tool in tools}
     assert "list_skills" in tool_names
-    assert "research" in tool_names
     assert "health" in tool_names
+    assert "research" not in tool_names, (
+        "deprecated `research` tool must NOT register by default (plan §P1-4); "
+        "set AUTOSEARCH_LEGACY_RESEARCH=1 to opt in"
+    )
+
+
+@pytest.mark.asyncio
+async def test_legacy_research_tool_only_registered_when_opted_in(monkeypatch) -> None:
+    monkeypatch.setenv("AUTOSEARCH_LEGACY_RESEARCH", "1")
+    server = create_server(pipeline_factory=lambda: None)  # type: ignore[arg-type]
+    tools = await server.list_tools()
+    tool_names = {tool.name for tool in tools}
+    assert "research" in tool_names, (
+        "AUTOSEARCH_LEGACY_RESEARCH=1 must restore the legacy research tool"
+    )
 
 
 def test_skill_summary_pydantic_roundtrip() -> None:

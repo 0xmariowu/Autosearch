@@ -346,7 +346,18 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
         ),
     )
 
-    @server.tool()
+    # Plan §P1-4: the deprecated `research` tool is registered only when the
+    # user explicitly opts in via AUTOSEARCH_LEGACY_RESEARCH=1. By default the
+    # MCP tool list does NOT advertise it — so a host agent cannot mis-pick
+    # the v1 entry point over the v2 trio (list_skills + run_clarify + run_channel).
+    import os as _os_research_gate
+
+    _legacy_research_enabled = (
+        _os_research_gate.environ.get("AUTOSEARCH_LEGACY_RESEARCH", "").strip() == "1"
+    )
+    _maybe_register = server.tool() if _legacy_research_enabled else (lambda f: f)
+
+    @_maybe_register
     async def research(
         query: str,
         mode: Literal["fast", "deep"] = "fast",
