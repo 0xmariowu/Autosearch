@@ -73,6 +73,11 @@ class Evidence(BaseModel):
     content: str | None = None
     source_channel: str
     fetched_at: datetime
+    # Bug 4 (fix-plan): when a channel knows the publish date (arxiv,
+    # github, twitter, papers, google_news, …), it must surface it so
+    # `recent_signal_fusion` and citation-quality tools can rank by recency.
+    # Optional — channels that don't know it leave it None.
+    published_at: datetime | None = None
     score: float | None = None
     source_page: FetchedPage | None = None
 
@@ -95,6 +100,9 @@ class Evidence(BaseModel):
             d["snippet"] = text[:max_content_chars]
         if self.source_channel:
             d["source"] = self.source_channel
+        if self.published_at is not None:
+            # ISO 8601 — recent_signal_fusion looks for the "published_at" key.
+            d["published_at"] = self.published_at.isoformat()
         if self.score and self.score > 0:
             d["score"] = round(self.score, 2)
         return d
