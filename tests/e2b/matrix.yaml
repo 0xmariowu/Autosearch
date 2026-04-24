@@ -198,66 +198,37 @@ phases:
       $HOME/.local/bin/uv venv --python 3.12 .venv
       $HOME/.local/bin/uv pip install --python .venv/bin/python -e . > /tmp/install.log 2>&1
     tasks:
-      - id: fast_stream_openrouter
-        timeout: 300
-        env_keys: [OPENROUTER_API_KEY]
+      # v2 contract: `autosearch query` is deprecated. Pin the deprecation
+      # message + non-zero exit so a future regression that resurrects the v1
+      # path (or removes the deprecation hint) is caught.
+      - id: query_subcommand_is_deprecated
+        timeout: 60
         cmd: |
-          OPENAI_API_KEY=$OPENROUTER_API_KEY \
-          OPENAI_BASE_URL=https://openrouter.ai/api/v1 \
-          OPENAI_MODEL=anthropic/claude-haiku-3-5-20241022 \
-          AUTOSEARCH_PROVIDER_CHAIN=openai \
-          $HOME/work/autosearch/.venv/bin/autosearch query "Explain retrieval-augmented generation in LLM applications, including its benefits over fine-tuning" --mode fast --stream
+          $HOME/work/autosearch/.venv/bin/autosearch query "smoke test" --no-stream 2>&1 | tail -5
+        expect:
+          exit_nonzero: true
+          stdout_contains: "deprecated"
+      # v2 happy path: real users invoke run_channel via MCP. Hits a free
+      # channel (no LLM key required) so it runs in any sandbox.
+      - id: mcp_run_channel_real_evidence
+        timeout: 90
+        cmd: |
+          cd $HOME/work/autosearch
+          .venv/bin/python <<'PY'
+          import asyncio
+          from autosearch.mcp.server import create_server
+          server = create_server()
+          result = asyncio.run(server.call_tool(
+              "run_channel",
+              {"channel_name": "ddgs", "query": "BM25 ranking function"},
+          ))
+          payload = str(result)
+          assert len(payload) > 50, f"empty result: {payload!r}"
+          print("mcp_run_channel_evidence_ok")
+          PY
         expect:
           exit: 0
-          stdout_contains: "References"
-      - id: fast_json_openrouter
-        timeout: 300
-        env_keys: [OPENROUTER_API_KEY]
-        cmd: |
-          OPENAI_API_KEY=$OPENROUTER_API_KEY \
-          OPENAI_BASE_URL=https://openrouter.ai/api/v1 \
-          OPENAI_MODEL=anthropic/claude-haiku-3-5-20241022 \
-          AUTOSEARCH_PROVIDER_CHAIN=openai \
-          $HOME/work/autosearch/.venv/bin/autosearch query "Explain BM25 ranking function with formula and worked example" --mode fast --json
-        expect:
-          exit: 0
-          stdout_contains: "markdown"
-      - id: fast_nostream_openrouter
-        timeout: 600
-        env_keys: [OPENROUTER_API_KEY]
-        cmd: |
-          OPENAI_API_KEY=$OPENROUTER_API_KEY \
-          OPENAI_BASE_URL=https://openrouter.ai/api/v1 \
-          OPENAI_MODEL=anthropic/claude-haiku-3-5-20241022 \
-          AUTOSEARCH_PROVIDER_CHAIN=openai \
-          $HOME/work/autosearch/.venv/bin/autosearch query "What is dense retrieval using sentence-transformers, and how does it compare to BM25?" --mode fast --no-stream
-        expect:
-          exit: 0
-          stdout_contains: "Sources"
-      - id: deep_stream_openrouter
-        timeout: 1200
-        env_keys: [OPENROUTER_API_KEY]
-        cmd: |
-          OPENAI_API_KEY=$OPENROUTER_API_KEY \
-          OPENAI_BASE_URL=https://openrouter.ai/api/v1 \
-          OPENAI_MODEL=anthropic/claude-haiku-3-5-20241022 \
-          AUTOSEARCH_PROVIDER_CHAIN=openai \
-          $HOME/work/autosearch/.venv/bin/autosearch query "Compare BM25 vs dense vector retrieval in production search systems" --mode deep --stream
-        expect:
-          exit: 0
-          stdout_contains: "References"
-      - id: fast_stream_fallback_openrouter
-        timeout: 360
-        env_keys: [OPENROUTER_API_KEY]
-        cmd: |
-          OPENAI_API_KEY=$OPENROUTER_API_KEY \
-          OPENAI_BASE_URL=https://openrouter.ai/api/v1 \
-          OPENAI_MODEL=anthropic/claude-haiku-3-5-20241022 \
-          AUTOSEARCH_PROVIDER_CHAIN=openai \
-          $HOME/work/autosearch/.venv/bin/autosearch query "Explain Facebook AI Similarity Search (FAISS) library use cases" --mode fast --stream
-        expect:
-          exit: 0
-          stdout_contains: "References"
+          stdout_contains: "mcp_run_channel_evidence_ok"
 
   # F004 S2 — MCP stdio: verify server starts and tools/list returns expected tools
   F004_S2_mcp_stdio:
@@ -375,43 +346,54 @@ phases:
       $HOME/.local/bin/uv venv --python 3.12 .venv
       $HOME/.local/bin/uv pip install --python .venv/bin/python -e . mcp > /tmp/install.log 2>&1
     tasks:
-      - id: mcp_handshake_and_tools
-        timeout: 360
-        env_keys: [ANTHROPIC_API_KEY]
+      - id: mcp_handshake_and_v2_tools
+        timeout: 120
         cmd: |
           $HOME/work/autosearch/.venv/bin/python <<'PY'
           import asyncio, os
           from mcp import ClientSession, StdioServerParameters
           from mcp.client.stdio import stdio_client
 
+          # v2 contract: handshake + list_tools must surface the required v2
+          # surface; doctor + run_channel must work over stdio without an LLM
+          # key. The deprecated `research` tool is intentionally NOT asserted.
+          REQUIRED = {
+              "list_skills", "run_clarify", "run_channel", "list_channels",
+              "doctor", "select_channels_tool", "delegate_subtask",
+              "citation_create", "citation_add", "citation_export",
+          }
+
           async def main():
               params = StdioServerParameters(
                   command=os.path.expanduser("~/work/autosearch/.venv/bin/autosearch-mcp"),
                   args=[],
-                  env={"ANTHROPIC_API_KEY": os.environ.get("ANTHROPIC_API_KEY", ""),
-                       "PATH": os.environ.get("PATH", "")},
+                  env={"PATH": os.environ.get("PATH", "")},
               )
               async with stdio_client(params) as (read, write):
                   async with ClientSession(read, write) as session:
                       await session.initialize()
-                      tools = await session.list_tools()
-                      tool_names = sorted([t.name for t in tools.tools])
-                      print("tools=", tool_names)
-                      assert "research" in tool_names, f"research tool missing: {tool_names}"
-                      result = await session.call_tool("research", {"query": "Explain BM25 ranking with example", "mode": "fast"})
-                      content_text = ""
-                      for c in result.content:
-                          if hasattr(c, "text"):
-                              content_text += c.text
-                      assert "Reference" in content_text or "reference" in content_text.lower(), \
-                          f"no references in result: {content_text[:300]}"
-                      print("mcp_ok")
+                      listed = await session.list_tools()
+                      tool_names = {t.name for t in listed.tools}
+                      missing = REQUIRED - tool_names
+                      assert not missing, f"missing v2 tools over stdio: {missing}"
+
+                      doctor_resp = await session.call_tool("doctor", {})
+                      doctor_text = "".join(getattr(c, "text", "") for c in doctor_resp.content)
+                      assert "channel" in doctor_text.lower(), f"doctor returned no channel info: {doctor_text[:200]}"
+
+                      rc_resp = await session.call_tool(
+                          "run_channel", {"channel_name": "ddgs", "query": "BM25 ranking"}
+                      )
+                      rc_text = "".join(getattr(c, "text", "") for c in rc_resp.content)
+                      assert len(rc_text) > 50, f"empty run_channel result: {rc_text!r}"
+
+                      print("mcp_v2_stdio_ok")
 
           asyncio.run(main())
           PY
         expect:
           exit: 0
-          stdout_contains: "mcp_ok"
+          stdout_contains: "mcp_v2_stdio_ok"
 
   # F005 — 4 LLM provider true validation
   # Note: claude_code (no claude CLI in default template) + gemini (GOOGLE_API_KEY missing in secrets)
@@ -495,21 +477,22 @@ phases:
         expect:
           exit: 0
           stdout_contains: "cost_tracker_ok"
-      - id: fallback_auth_error_no_fallback
-        timeout: 240
-        env_keys: [ANTHROPIC_API_KEY]
+      # F005 fallback path was previously asserted via `autosearch query`,
+      # but query is deprecated in v2 and exits before any LLM call. Until
+      # the fallback contract is re-pinned at the LLMClient layer (see
+      # plan §"Channel Runtime Reliability"), only verify that the deprecation
+      # message is consistent regardless of provider chain config.
+      - id: query_deprecated_under_provider_chain
+        timeout: 60
         cmd: |
           set -o pipefail
           cd $HOME/work/autosearch
-          # Verifies design: 401 auth errors do NOT trigger fallback (transport errors do).
-          # Without this contract, a misconfigured key on primary would silently route to a
-          # different (working) provider and mask the config bug.
           OPENAI_API_KEY=sk-invalid-fake-fallback-test \
           AUTOSEARCH_PROVIDER_CHAIN=openai,anthropic \
           .venv/bin/autosearch query "Explain BM25" --mode fast --no-stream 2>&1 | tail -10
         expect:
           exit_nonzero: true
-          stdout_regex: "401|Unauthorized"
+          stdout_contains: "deprecated"
       # fallback_chain_happy_path removed: requires a real OPENAI_API_KEY to meaningfully test
       # "primary serves, no fallback" — without it the chain silently falls through to anthropic
       # and the task PASSes for the wrong reason. Re-add once OPENAI_API_KEY is populated.
@@ -647,19 +630,26 @@ phases:
       $HOME/.local/bin/uv venv --python 3.12 .venv
       $HOME/.local/bin/uv pip install --python .venv/bin/python -e . > /tmp/install.log 2>&1
     tasks:
-      - id: zero_key_query
+      # The original "no LLM key" / "invalid key" failure paths were
+      # exercised through `autosearch query`, which now short-circuits with
+      # a deprecation message regardless of key state. They no longer prove
+      # what they claimed (provider-detection / auth-failure handling).
+      # Convert to the v2 contract: query is deprecated and exits non-zero
+      # with a deprecation hint, regardless of key environment.
+      - id: query_deprecated_with_zero_keys
         unset_env: [ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, CLAUDE_API_KEY]
         cmd: $HOME/work/autosearch/.venv/bin/autosearch query "Explain RAG architecture" 2>&1
         timeout: 60
         expect:
           exit_nonzero: true
-          stdout_contains: "provider"
-      - id: invalid_anthropic_key
+          stdout_contains: "deprecated"
+      - id: query_deprecated_with_invalid_key
         unset_env: [OPENAI_API_KEY, GOOGLE_API_KEY, CLAUDE_API_KEY]
         cmd: ANTHROPIC_API_KEY=sk-ant-invalid-fake-key-test-for-failure-path $HOME/work/autosearch/.venv/bin/autosearch query "Explain RAG architecture" 2>&1
         timeout: 90
         expect:
           exit_nonzero: true
+          stdout_contains: "deprecated"
 
   # F008 S1 — SessionStore disk durability + 1000 row stress
   F008_S1_session_store:
