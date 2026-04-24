@@ -204,6 +204,15 @@ class _CompiledChannel:
                 )
                 last_retryable = exc
                 continue
+            except ChannelAuthError as exc:
+                self._record_health(
+                    method=method.id,
+                    success=False,
+                    started_at=started_at,
+                    error=type(exc).__name__,
+                )
+                last_retryable = exc
+                continue
             except PermanentError as exc:
                 # Must come before the bare-Exception clause below; previously this
                 # handler was unreachable because Exception caught it first.

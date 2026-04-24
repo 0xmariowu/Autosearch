@@ -205,21 +205,28 @@ async def search(query: SubQuery, client: httpx.AsyncClient | None = None) -> li
 
         # Empty results on a seemingly successful response → check if account is restricted
         if not items and xhs_code == 0:
+            me_payload: Mapping[str, object] | None = None
             try:
                 me_resp = await _client.get(
                     "https://edith.xiaohongshu.com/api/sns/web/v2/user/me",
                     headers={k: v for k, v in xhs_headers.items() if k not in ("Content-Type",)},
                     timeout=8,
                 )
-                me = me_resp.json()
-                if me.get("code") == 300011:
-                    LOGGER.warning(
-                        "xhs_account_restricted",
-                        reason="XHS account flagged — search silently returns empty. Run 'autosearch login xhs' with a normal account.",
-                    )
-                    return []
+                me_payload = me_resp.json()
             except Exception:
-                pass  # health check failure is non-fatal; return empty results
+                pass  # health check failure is non-fatal; fall through to empty list
+
+            if isinstance(me_payload, Mapping) and me_payload.get("code") == 300011:
+                from autosearch.channels.base import ChannelAuthError
+
+                LOGGER.warning(
+                    "xhs_account_restricted",
+                    reason="XHS account flagged — search silently returns empty. Run 'autosearch login xhs' with a different account.",
+                )
+                raise ChannelAuthError(
+                    "XHS account flagged (code=300011). "
+                    "Run 'autosearch login xhs' with a different account."
+                )
 
         fetched_at = datetime.now(UTC)
         results: list[Evidence] = []
