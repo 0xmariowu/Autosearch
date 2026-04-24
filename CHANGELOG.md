@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026.04.24.5 — 2026-04-24
+
+The "trim, gate, and stop tempting LLMs" release.
+
+- **The deprecated `research` MCP tool no longer registers by default.** Previously it shipped on every server start and only returned a deprecation response when called — but the attractive name still tempted host LLMs to pick it over the v2 trio. Default tool count drops from 24 → 23. Set `AUTOSEARCH_LEGACY_RESEARCH=1` to opt in if you really need it; the behavior in opt-in mode is unchanged.
+- **`scripts/install.sh` now supports `--dry-run`, `--no-init`, and `--version`.** Enterprise users can preview every command before piping the script into bash, CI can run unattended without the interactive `autosearch init`, and you can pin a specific release (`--version 2026.04.24.5`) instead of always taking latest. Default behavior is byte-identical when no flags are passed.
+- **Windows CI now exercises the v2 runtime experience path.** The `cross-platform.yml` workflow's experience-layer step was still mutating `_SKILLS_ROOT` (v1 contract); it now sets `AUTOSEARCH_EXPERIENCE_DIR` and asserts writes against the real runtime path so a Windows-specific path-handling regression actually trips a check.
+- **E2B test matrices stop importing modules that were removed in 2026.04.24.4.** `matrix.yaml` shipped-imports list dropped 5 deleted module names; `matrix-extensions.yaml`'s F112 channel-failure-isolation phase removed (covered by unit tests against `ChannelRuntime`); `roadmap_r1_r5_commits_exist` task removed; `tests/e2b/bench/single_channel_bench.py` deleted (132-line v1 bench whose import target no longer exists). Net **-269 / +3 lines**.
+- **Two new package-content guards**: `tests/unit/test_package_contents.py` now also fails the release if any channel ships a seed digest at the legacy `<skill>/experience/experience.md` path (the runtime loader only checks the top-level `<skill>/experience.md`, so subdir variants were silently dead). Caught and removed `linkedin/experience/experience.md` + `xueqiu/experience/experience.md` 1-byte placeholders that had been quietly riding in the wheel.
+
 ## 2026.04.24.4 — 2026-04-24
 
 The "smaller wheel, honest docs" release.
