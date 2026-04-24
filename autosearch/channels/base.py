@@ -69,6 +69,12 @@ class ChannelMetadata:
     languages: list[str]
     when_to_use: WhenToUse | None
     quality_hint: QualityHint | None
+    layer: str | None
+    domains: list[str]
+    scenarios: list[str]
+    model_tier: str | None
+    tier: int | None
+    fix_hint: str | None
     methods: list[CompiledMethod]
     fallback_chain: list[str]
 
@@ -222,6 +228,12 @@ class ChannelRegistry:
                 languages=list(skill.languages),
                 when_to_use=skill.when_to_use,
                 quality_hint=skill.quality_hint,
+                layer=skill.layer,
+                domains=list(skill.domains),
+                scenarios=list(skill.scenarios),
+                model_tier=skill.model_tier,
+                tier=skill.tier,
+                fix_hint=skill.fix_hint,
                 methods=methods,
                 fallback_chain=list(skill.fallback_chain),
             )

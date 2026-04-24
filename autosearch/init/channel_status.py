@@ -12,10 +12,12 @@ Status = Literal["available", "blocked", "scaffold-only"]
 TIER_ORDER: tuple[Tier, ...] = ("t0", "t1", "t2", "scaffold")
 TIER_LABELS: dict[Tier, str] = {
     "t0": "Tier 0 - always-on",
-    "t1": "Tier 1 - env-gated",
-    "t2": "Tier 2 - BYOK paid",
+    "t1": "Tier 1 - env/API gated",
+    "t2": "Tier 2 - login/cookie gated",
     "scaffold": "Scaffold-only (channel templates not shipped)",
 }
+
+_TIER2_REQUIRES_PATTERNS = ("COOKIES", "COOKIE", "SESSION", "SESSDATA", "AUTH_TOKEN")
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +34,9 @@ def default_channels_root() -> Path:
 
 def infer_tier(metadata: ChannelMetadata) -> Tier:
     """Return the visibility tier for a channel based on shipped methods."""
+
+    if metadata.tier is not None:
+        return _DECLARED_TIER_MAP.get(metadata.tier, "t0")
 
     return infer_tier_from_requires(
         [method.skill_method.requires for method in shipped_methods(metadata)]
@@ -96,7 +101,7 @@ def infer_tier_from_requires(requires_by_method: list[list[str]]) -> Tier:
         return "scaffold"
     if any(not requires for requires in requires_by_method):
         return "t0"
-    if any("env:TIKHUB_API_KEY" in requires for requires in requires_by_method):
+    if any(_requires_login(tokens) for tokens in requires_by_method):
         return "t2"
     return "t1"
 
@@ -105,3 +110,17 @@ def required_env_tokens_from_requires(requires_by_method: list[list[str]]) -> li
     return sorted(
         {token for requires in requires_by_method for token in requires if token.startswith("env:")}
     )
+
+
+_DECLARED_TIER_MAP: dict[int, Tier] = {0: "t0", 1: "t1", 2: "t2"}
+
+
+def _requires_login(tokens: list[str]) -> bool:
+    for token in tokens:
+        kind, _, value = token.partition(":")
+        upper_value = value.upper()
+        if kind == "cookie":
+            return True
+        if kind == "env" and any(pattern in upper_value for pattern in _TIER2_REQUIRES_PATTERNS):
+            return True
+    return False

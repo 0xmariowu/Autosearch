@@ -56,6 +56,52 @@ def test_compile_from_skills_method_unavailable_with_unmet_requires() -> None:
     assert "cookie:stub_cookie" in metadata.methods[0].unmet_requires
 
 
+def test_compile_from_skills_preserves_declared_metadata(tmp_path: Path) -> None:
+    root = tmp_path / "channels"
+    _write_channel_skill(
+        root,
+        name="metadata_stub",
+        skill_text="""
+        ---
+        name: metadata_stub
+        description: "Fixture channel with declared routing metadata."
+        version: 1
+        languages: [zh, mixed]
+        methods:
+          - id: api_search
+            impl: methods/api_search.py
+            requires: [env:STUB_COOKIE]
+        fallback_chain: [api_search]
+        when_to_use:
+          query_languages: [zh, mixed]
+          query_types: [community, troubleshooting]
+          domain_hints: [linux.do, discourse]
+        quality_hint:
+          typical_yield: medium
+          chinese_native: true
+        layer: leaf
+        domains: [chinese-ugc]
+        scenarios: [developer-community, public-forum]
+        model_tier: Fast
+        tier: 2
+        fix_hint: "autosearch login metadata_stub"
+        ---
+        """,
+    )
+
+    registry = ChannelRegistry.compile_from_skills(root, Environment())
+    metadata = registry.metadata("metadata_stub")
+
+    assert metadata.layer == "leaf"
+    assert metadata.domains == ["chinese-ugc"]
+    assert metadata.scenarios == ["developer-community", "public-forum"]
+    assert metadata.model_tier == "Fast"
+    assert metadata.tier == 2
+    assert metadata.fix_hint == "autosearch login metadata_stub"
+    assert metadata.when_to_use is not None
+    assert metadata.when_to_use.domain_hints == ["linux.do", "discourse"]
+
+
 def test_compile_from_skills_impl_missing_marks_unavailable(tmp_path: Path) -> None:
     root = tmp_path / "channels"
     _write_channel_skill(
