@@ -143,28 +143,32 @@ async def test_search_sets_user_agent_and_accept_headers() -> None:
 
 
 @pytest.mark.asyncio
-async def test_search_returns_empty_on_http_error(
+async def test_search_raises_auth_error_on_403(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Bug 1 (fix-plan): a 401/403 must raise ChannelAuthError so the MCP
+    boundary returns status='auth_failed' instead of 'no_results'."""
+    from autosearch.channels.base import ChannelAuthError
+
     logger = _Logger()
     monkeypatch.setattr(MODULE, "LOGGER", logger)
 
     async def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(403, json={"message": "rate limited"}, request=request)
+        return httpx.Response(403, json={"message": "Forbidden"}, request=request)
 
     async with _client(handler) as http_client:
-        results = await search(_query(), http_client=http_client)
-
-    assert results == []
-    assert logger.events
-    assert logger.events[0][0] == "github_search_public_repos_failed"
-    assert "403" in str(logger.events[0][1]["reason"])
+        with pytest.raises(ChannelAuthError):
+            await search(_query(), http_client=http_client)
 
 
 @pytest.mark.asyncio
-async def test_search_returns_empty_on_malformed_payload(
+async def test_search_raises_permanent_error_on_malformed_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Bug 1: a schema-shape change should raise PermanentError, not silently
+    return [] (which would look identical to a real empty result)."""
+    from autosearch.channels.base import PermanentError
+
     logger = _Logger()
     monkeypatch.setattr(MODULE, "LOGGER", logger)
 
@@ -172,12 +176,23 @@ async def test_search_returns_empty_on_malformed_payload(
         return httpx.Response(200, json={"total_count": 0}, request=request)
 
     async with _client(handler) as http_client:
+        with pytest.raises(PermanentError):
+            await search(_query(), http_client=http_client)
+
+
+@pytest.mark.asyncio
+async def test_search_returns_empty_on_zero_real_matches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Sanity: a real empty result (200 OK + items=[]) still returns [] —
+    the typed exceptions only fire on actual upstream failures."""
+    logger = _Logger()
+    monkeypatch.setattr(MODULE, "LOGGER", logger)
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"total_count": 0, "items": []}, request=request)
+
+    async with _client(handler) as http_client:
         results = await search(_query(), http_client=http_client)
 
     assert results == []
-    assert logger.events == [
-        (
-            "github_search_public_repos_failed",
-            {"reason": "invalid items payload"},
-        )
-    ]
