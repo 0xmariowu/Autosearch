@@ -11,15 +11,7 @@ methods:
     impl: methods/via_tikhub.py
     requires: [env:TIKHUB_API_KEY]
     rate_limit: {per_min: 60, per_hour: 1000}
-  - id: api_search
-    impl: methods/api_search.py
-    requires: []
-    rate_limit: {per_min: 30, per_hour: 500}
-  - id: api_answer_detail
-    impl: methods/api_answer.py
-    requires: [cookie:zhihu]
-    rate_limit: {per_min: 20, per_hour: 300}
-fallback_chain: [via_tikhub, api_search, api_answer_detail]
+fallback_chain: [via_tikhub]
 when_to_use:
   query_languages: [zh, mixed]
   query_types: [technical, experience-report, product-review, tutorial, comparison]

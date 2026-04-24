@@ -11,11 +11,7 @@ methods:
     impl: methods/via_tikhub.py
     requires: [env:TIKHUB_API_KEY]
     rate_limit: {per_min: 60, per_hour: 1000}
-  - id: api_search
-    impl: methods/api_search.py
-    requires: [env:TWITTER_BEARER_TOKEN]
-    rate_limit: {per_min: 10, per_hour: 100}
-fallback_chain: [via_tikhub, api_search]
+fallback_chain: [via_tikhub]
 when_to_use:
   query_languages: [en, mixed]
   query_types: [current-events, product-launch, breaking-news, developer-announcement]
