@@ -67,6 +67,15 @@ jobs:
           fi
           echo "Verified: pyproject.toml version = $VERSION"
 
+      - name: Verify all version files agree (pyproject + plugin + marketplace + CHANGELOG + npm)
+        run: python scripts/validate/check_version_consistency.py
+
+      - name: Install autosearch (for release-gate CLI surface checks)
+        run: pip install -e ".[dev]"
+
+      - name: Run release-gate.sh --quick (version + lint + CLI surface)
+        run: bash scripts/release-gate.sh --quick
+
       - name: Install build backend
         run: pip install build twine
 
@@ -123,16 +132,21 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ steps.tag.outputs.version }}
         run: |
-          # Convert CalVer YYYY.MM.DD.N → npm semver YYYY.MMDD.N
-          YEAR=$(echo "$VERSION" | cut -d. -f1)
-          MONTH=$(echo "$VERSION" | cut -d. -f2 | sed 's/^0*//')
-          DAY=$(echo "$VERSION" | cut -d. -f3 | sed 's/^0*//')
-          SEQ=$(echo "$VERSION" | cut -d. -f4)
-          MMDD=$(( MONTH * 100 + DAY ))
-          NPM_VERSION="$YEAR.$MMDD.$SEQ"
-          echo "Publishing autosearch-ai@$NPM_VERSION"
+          # Single source of truth for the pyproject→npm mapping lives in
+          # scripts/validate/check_version_consistency.py:derive_npm_version
+          # so a publish here matches what npm/package.json on disk should hold.
+          NPM_VERSION=$(python -c "
+          import importlib.util
+          spec = importlib.util.spec_from_file_location(
+              'cv', 'scripts/validate/check_version_consistency.py'
+          )
+          mod = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          print(mod.derive_npm_version('$VERSION'))
+          ")
+          echo "Publishing autosearch-ai@$NPM_VERSION (derived from $VERSION)"
           cd npm
-          npm version "$NPM_VERSION" --no-git-tag-version
+          npm version "$NPM_VERSION" --no-git-tag-version --allow-same-version
           npm publish --access public
 
       - name: Summary

@@ -34,3 +34,15 @@ def test_release_gate_script_supports_quick_and_help_flags() -> None:
 
     bad = subprocess.run([str(SCRIPT), "--no-such-flag"], capture_output=True, text=True)
     assert bad.returncode != 0
+
+
+def test_release_workflow_invokes_release_gate_and_validator() -> None:
+    """release.yml must run both `check_version_consistency.py` and
+    `release-gate.sh` so a tag push can't silently publish a drifted release.
+    Pin the wiring textually so a refactor that drops one of them shows up
+    in code review."""
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    assert "check_version_consistency.py" in workflow, (
+        "release workflow no longer runs check_version_consistency.py"
+    )
+    assert "release-gate.sh" in workflow, "release workflow no longer runs release-gate.sh"
