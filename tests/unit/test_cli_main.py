@@ -57,3 +57,58 @@ def test_unknown_subcommand_no_longer_silently_routes_to_query() -> None:
     # After removing the default-query fallback, the deprecation path
     # from `query` must not be triggered for unknown subcommands.
     assert "deprecated" not in combined.lower()
+
+
+def test_init_dry_run_shows_writes_without_touching_filesystem(tmp_path, monkeypatch) -> None:
+    """`init --dry-run` exits 0, prints the planned MCP writes for whichever
+    clients are detected, and creates no files. This is the safe path for
+    agent-driven installs."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".cursor").mkdir()
+
+    result = runner.invoke(cli_main.app, ["init", "--dry-run"])
+    assert result.exit_code == 0, result.stdout + (result.stderr or "")
+    assert "Dry-run" in result.stdout
+    assert "claude" in result.stdout and "cursor" in result.stdout
+    assert not (tmp_path / ".claude" / "mcp.json").exists()
+    assert not (tmp_path / ".cursor" / "mcp.json").exists()
+
+
+def test_mcp_check_with_client_passes_when_writer_was_run(tmp_path, monkeypatch) -> None:
+    """End-to-end: write the Claude config via the writer, then `mcp-check
+    --client claude` should report the entry as present."""
+    from autosearch.cli.mcp_config_writers import ClaudeCodeWriter
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / ".claude").mkdir()
+    ClaudeCodeWriter().write()
+
+    result = runner.invoke(cli_main.app, ["mcp-check", "--client", "claude"])
+    assert result.exit_code == 0, result.stdout + (result.stderr or "")
+    assert "Client config check (claude)" in result.stdout
+    assert "mcpServers.autosearch" in result.stdout
+
+
+def test_mcp_check_with_client_fails_when_entry_missing(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / ".claude").mkdir()
+    # Write a config that has the WRONG shape (entry at root, like the old bug)
+    (tmp_path / ".claude" / "mcp.json").write_text(
+        '{"autosearch": {"command": "autosearch-mcp"}}', encoding="utf-8"
+    )
+
+    result = runner.invoke(cli_main.app, ["mcp-check", "--client", "claude"])
+    assert result.exit_code != 0
+    output = result.stdout + (result.stderr or "")
+    # Either "missing `mcpServers` object" (when namespace absent) or
+    # "missing `mcpServers.autosearch` entry" (when namespace present but no entry)
+    # — both prove verify() rejected the broken config.
+    assert "mcpServers" in output and "missing" in output
+
+
+def test_mcp_check_rejects_unknown_client(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    result = runner.invoke(cli_main.app, ["mcp-check", "--client", "vim"])
+    assert result.exit_code != 0
+    assert "unknown client" in (result.stdout + (result.stderr or "")).lower()

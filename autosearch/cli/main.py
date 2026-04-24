@@ -185,9 +185,22 @@ def init(
             help="Replace the generated config instead of merging detected providers into it.",
         ),
     ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Print MCP client config writes that would happen without touching files.",
+        ),
+    ] = False,
 ) -> None:
     if check_channels:
         _print_channel_check()
+        return
+
+    if dry_run:
+        typer.echo("Dry-run: showing MCP client writes only (no files will be modified).\n")
+        for line in _auto_configure_mcp(dry_run=True).split("; "):
+            typer.echo(f"  {line}")
         return
 
     # ── Banner ────────────────────────────────────────────────────────────────
@@ -269,38 +282,34 @@ def init(
     typer.echo("")
 
 
-def _auto_configure_mcp() -> str:
-    """Auto-write autosearch MCP entry to Claude Code config. Returns status string."""
-    import json
-    from pathlib import Path
+def _auto_configure_mcp(dry_run: bool = False) -> str:
+    """Write the autosearch MCP entry to every supported client's config file.
 
-    mcp_config = {"command": "autosearch-mcp", "type": "stdio"}
-    config_files = [
-        Path.home() / ".claude" / "mcp.json",
-        Path.home() / ".cursor" / "mcp.json",
-    ]
+    Each client gets its own writer (Claude Code, Cursor, Zed) so the entry
+    lands under the correct namespace key — not a flat top-level dict that the
+    client cannot load. Skips clients whose config dir doesn't exist (i.e. the
+    user hasn't installed them).
+    """
+    from autosearch.cli.mcp_config_writers import write_for_clients
 
-    written: list[str] = []
-    for config_path in config_files:
-        if not config_path.parent.exists():
+    results = write_for_clients(dry_run=dry_run)
+
+    parts: list[str] = []
+    for r in results:
+        if r.status == "skipped":
             continue
-        existing: dict = {}
-        if config_path.exists():
-            try:
-                existing = json.loads(config_path.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
-                existing = {}
-        if "autosearch" not in existing:
-            existing["autosearch"] = mcp_config
-            config_path.write_text(
-                json.dumps(existing, indent=2, ensure_ascii=False) + "\n",
-                encoding="utf-8",
-            )
-            written.append(config_path.parent.name)
+        prefix = "(dry-run) " if dry_run else ""
+        if r.status == "already-set":
+            parts.append(f"{prefix}{r.client}: already set")
+        elif r.status == "backup-and-replaced":
+            backup_note = f" (backup → {r.backup_path.name})" if r.backup_path else ""
+            parts.append(f"{prefix}{r.client}: rewritten{backup_note}")
+        else:
+            parts.append(f"{prefix}{r.client}: written")
 
-    if written:
-        return f"Config written to {', '.join(written)}"
-    return "Config already set"
+    if not parts:
+        return "no MCP clients detected (none of ~/.claude, ~/.cursor, ~/.config/zed exist)"
+    return "; ".join(parts)
 
 
 def _print_channel_check() -> None:
@@ -716,11 +725,24 @@ def doctor(
 
 
 @app.command("mcp-check")
-def mcp_check() -> None:
+def mcp_check(
+    client: Annotated[
+        str | None,
+        typer.Option(
+            "--client",
+            help="Also verify a specific MCP client's config file shape "
+            "(claude/cursor/zed). Without this flag only the server-side "
+            "tool registry is checked.",
+        ),
+    ] = None,
+) -> None:
     """Verify the MCP server registers every tool the v2 install contract requires.
 
     Creates the server in-process, lists registered tools, and exits non-zero
     when any of the required tools is missing. Performs no network I/O.
+
+    With `--client <name>`, additionally inspect that client's config file and
+    confirm the autosearch entry sits under the correct namespace key.
     """
     import asyncio
 
@@ -748,6 +770,27 @@ def mcp_check() -> None:
         typer.echo(f"FAIL: {len(missing)} required tool(s) missing: {', '.join(missing)}")
         raise typer.Exit(code=1)
     typer.echo(f"OK: all {len(_REQUIRED_MCP_TOOLS)} required tools registered.")
+
+    if client is None:
+        return
+
+    from autosearch.cli.mcp_config_writers import WRITERS
+
+    typer.echo("")
+    writer = WRITERS.get(client)
+    if writer is None:
+        typer.echo(
+            f"FAIL: unknown client {client!r}. Known: {', '.join(sorted(WRITERS))}",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    ok, message = writer.verify()
+    typer.echo(f"Client config check ({client}):")
+    if ok:
+        typer.echo(f"  ✓ {message}")
+        return
+    typer.echo(f"  ✗ {message}")
+    raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":
