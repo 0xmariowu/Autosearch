@@ -121,11 +121,23 @@ def _to_evidence(entry: object, *, fetched_at: datetime) -> Evidence:
     summary = _normalize_whitespace(str(getattr(entry, "summary", "") or ""))
     url = str(getattr(entry, "link", "") or getattr(entry, "id", "") or "").strip()
 
+    # Bug 4: feedparser exposes the arxiv <published> tag — surface it so
+    # recent_signal_fusion can rank papers by date.
+    published_at: datetime | None = None
+    published_raw = getattr(entry, "published", None)
+    if published_raw:
+        try:
+            parsed = datetime.fromisoformat(str(published_raw).replace("Z", "+00:00"))
+            published_at = parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+        except (TypeError, ValueError):
+            published_at = None
+
     return Evidence(
         url=url,
         title=title,
         snippet=summary[:500] or None,
         source_channel="arxiv",
         fetched_at=fetched_at,
+        published_at=published_at,
         score=0.0,
     )
