@@ -18,6 +18,8 @@ class OpenAIProvider:
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY is required for the OpenAI provider.")
         self.model = model or os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+        base = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+        self.completions_url = f"{base}/chat/completions"
         self.http_client = http_client
 
     async def complete(self, prompt: str, response_model: type[BaseModel]) -> str:
@@ -40,14 +42,14 @@ class OpenAIProvider:
 
         if self.http_client is not None:
             response = await self.http_client.post(
-                "https://api.openai.com/v1/chat/completions",
+                self.completions_url,
                 headers=headers,
                 json=payload,
             )
         else:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 response = await client.post(
-                    "https://api.openai.com/v1/chat/completions",
+                    self.completions_url,
                     headers=headers,
                     json=payload,
                 )

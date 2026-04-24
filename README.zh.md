@@ -3,7 +3,7 @@
 </h1>
 
 <p align="center">
-  <strong>给你的 AI Agent 装上 39 个搜索渠道</strong>
+  面向编程 Agent 的开源深度研究工具。OpenAI 和 Perplexity Deep Research 的替代方案——39 个渠道，含中文信息源。
 </p>
 
 <p align="center">
@@ -33,20 +33,18 @@
 
 **AutoSearch 把这件事变成一句话：**
 
-复制给你的 AI Agent（Claude Code、Cursor 等）：
-
-```
-Help me install AutoSearch: https://raw.githubusercontent.com/0xmariowu/Autosearch/main/docs/install.md
-```
-
-或者直接安装：
-
 ```bash
 npx autosearch-ai
 ```
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/0xmariowu/Autosearch/main/scripts/install.sh | bash
+```
+
+或者复制给你的 AI Agent（Claude Code、Cursor 等）：
+
+```
+Help me install AutoSearch: https://raw.githubusercontent.com/0xmariowu/Autosearch/main/docs/install.md
 ```
 
 安装后你的 Agent 能同时搜 39 个渠道——学术论文、开发者社区、中文社媒，结果去重排序，每条结果都有来源链接。

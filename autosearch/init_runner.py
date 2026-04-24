@@ -72,7 +72,10 @@ class InitRunner:
         config_path = self.write_config(providers, overwrite=overwrite)
 
         warnings: list[str] = []
-        next_steps = ['Run `autosearch query "your question"` to test the setup.']
+        next_steps = [
+            "Run `autosearch doctor` to verify channel availability.",
+            "Run `autosearch mcp-check` to verify MCP tools registered for your Agent.",
+        ]
 
         if not any(providers.values()):
             warnings.append(

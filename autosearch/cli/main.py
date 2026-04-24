@@ -3,7 +3,6 @@ import json
 import sys
 from typing import Annotated
 
-import click
 import httpx
 import typer
 from pydantic import ValidationError
@@ -35,20 +34,22 @@ _NO_PROVIDER_MESSAGE = (
 )
 _AUTH_FAILURE_MESSAGE = "LLM authentication failed"
 
+# Tools that must be registered on the MCP server for a v2 install to be usable.
+_REQUIRED_MCP_TOOLS = (
+    "list_skills",
+    "run_clarify",
+    "run_channel",
+    "list_channels",
+    "doctor",
+    "select_channels_tool",
+    "delegate_subtask",
+    "citation_create",
+    "citation_add",
+    "citation_export",
+)
 
-class _DefaultQueryGroup(typer.core.TyperGroup):
-    default_command = "query"
 
-    def resolve_command(
-        self, ctx: click.Context, args: list[str]
-    ) -> tuple[str | None, click.Command | None, list[str]]:
-        if args and not args[0].startswith("-") and args[0] not in self.commands:
-            command = self.get_command(ctx, self.default_command)
-            return self.default_command, command, args
-        return super().resolve_command(ctx, args)
-
-
-app = typer.Typer(add_completion=False, no_args_is_help=False, cls=_DefaultQueryGroup)
+app = typer.Typer(add_completion=False, no_args_is_help=False)
 
 
 def _version_callback(value: bool) -> None:
@@ -199,7 +200,9 @@ def init(
         "██║  ██║╚██████╔╝   ██║   ╚██████╔╝███████║███████╗██║  ██║██║  ██║╚██████╗██║  ██║\n"
         "╚═╝  ╚═╝ ╚═════╝    ╚═╝    ╚═════╝ ╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝\n"
     )
-    typer.echo("Welcome to AutoSearch — deep research for AI developers")
+    typer.echo(
+        f"Welcome to AutoSearch v{__version__} — Open-source deep research for coding agents"
+    )
     typer.echo("-" * 60)
     typer.echo("This tool will:")
     typer.echo("  - Detect your LLM providers (Anthropic, OpenAI, Gemini, claude CLI)")
@@ -686,6 +689,65 @@ def _render_html(markdown_text: str, title: str) -> str:
         "<body><article>\n{body}\n</article></body>\n"
         "</html>\n"
     ).format(title=safe_title, body=body)
+
+
+@app.command()
+def doctor(
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", help="Emit ChannelStatus list as JSON instead of human report."),
+    ] = False,
+) -> None:
+    """Scan channel availability and print a status report.
+
+    Does not require any LLM key. Exits 0 when the scan completes.
+    """
+    from dataclasses import asdict
+
+    from autosearch.core.doctor import format_report, scan_channels
+
+    results = scan_channels()
+
+    if json_output:
+        typer.echo(json.dumps([asdict(r) for r in results], ensure_ascii=False, indent=2))
+        return
+
+    typer.echo(format_report(results))
+
+
+@app.command("mcp-check")
+def mcp_check() -> None:
+    """Verify the MCP server registers every tool the v2 install contract requires.
+
+    Creates the server in-process, lists registered tools, and exits non-zero
+    when any of the required tools is missing. Performs no network I/O.
+    """
+    import asyncio
+
+    from autosearch.mcp.server import create_server
+
+    server = create_server()
+    tools = asyncio.run(server.list_tools())
+    registered = sorted({t.name for t in tools})
+
+    typer.echo(f"Registered tools ({len(registered)}):")
+    for name in registered:
+        typer.echo(f"  {name}")
+
+    typer.echo("")
+    typer.echo("Required v2 tools:")
+    missing: list[str] = []
+    for name in _REQUIRED_MCP_TOOLS:
+        mark = "✓" if name in registered else "✗"
+        typer.echo(f"  {mark} {name}")
+        if name not in registered:
+            missing.append(name)
+
+    typer.echo("")
+    if missing:
+        typer.echo(f"FAIL: {len(missing)} required tool(s) missing: {', '.join(missing)}")
+        raise typer.Exit(code=1)
+    typer.echo(f"OK: all {len(_REQUIRED_MCP_TOOLS)} required tools registered.")
 
 
 if __name__ == "__main__":
