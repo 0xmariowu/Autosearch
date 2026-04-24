@@ -268,3 +268,88 @@ def test_generate_prefers_declared_tier_over_requires_inference(tmp_path: Path) 
         "| xueqiu | zh, mixed | env:XUEQIU_COOKIES | Login-gated finance channel | medium |"
         in rendered
     )
+
+
+def test_generate_prefers_declared_tier_without_requires(tmp_path: Path) -> None:
+    module = _load_script_module()
+    channels_root = tmp_path / "skills" / "channels"
+    skill_dir = channels_root / "declared_login"
+    (skill_dir / "methods").mkdir(parents=True, exist_ok=True)
+    (skill_dir / "SKILL.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "name: declared_login",
+                'description: "Declared login tier without env inference"',
+                "version: 1",
+                "languages: [en]",
+                "methods:",
+                "  - id: api_search",
+                "    impl: methods/api_search.py",
+                "    requires: []",
+                "fallback_chain: [api_search]",
+                "quality_hint:",
+                "  typical_yield: low",
+                "  chinese_native: false",
+                "tier: 2",
+                "---",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (skill_dir / "methods" / "api_search.py").write_text(
+        "async def search(query):\n    return []\n",
+        encoding="utf-8",
+    )
+
+    rendered = module.render_supported_channels(channels_root)
+
+    assert "### Tier 2 - login/cookie gated (1)" in rendered
+    assert (
+        "| declared_login | en | - | Declared login tier without env inference | low |" in rendered
+    )
+
+
+def test_generate_rejects_invalid_declared_tier_type(tmp_path: Path, capsys) -> None:
+    module = _load_script_module()
+    channels_root = tmp_path / "skills" / "channels"
+    skill_dir = channels_root / "broken_tier"
+    (skill_dir / "methods").mkdir(parents=True, exist_ok=True)
+    (skill_dir / "SKILL.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "name: broken_tier",
+                'description: "Broken tier type"',
+                "version: 1",
+                "languages: [en]",
+                "methods:",
+                "  - id: api_search",
+                "    impl: methods/api_search.py",
+                "    requires: []",
+                "fallback_chain: [api_search]",
+                "quality_hint:",
+                "  typical_yield: low",
+                "  chinese_native: false",
+                "tier: true",
+                "---",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (skill_dir / "methods" / "api_search.py").write_text(
+        "async def search(query):\n    return []\n",
+        encoding="utf-8",
+    )
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "# Demo\n\n<!-- channels-table-start -->\nstale\n<!-- channels-table-end -->\n",
+        encoding="utf-8",
+    )
+
+    exit_code = module.main(["--channels-root", str(channels_root), "--readme", str(readme)])
+
+    assert exit_code == 1
+    assert "tier must be an int in 0..2" in capsys.readouterr().err

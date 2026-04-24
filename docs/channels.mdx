@@ -3,15 +3,16 @@ title: "Channels"
 description: "All 40 search channels — tiers, languages, and requirements"
 ---
 
-AutoSearch organizes channels into three tiers. Run `autosearch doctor` to see live status.
+AutoSearch organizes channels into three availability tiers. Run `autosearch doctor` to see live status.
 
-## Tier 0 — Always-on (27 channels)
+## Tier 0 — Always-on (28 channels)
 
 No configuration needed. Available immediately after install.
 
 | Channel | Languages | Description | Yield |
 |---|---|---|---|
 | arxiv | en | Academic preprints in CS/ML/physics | medium-high |
+| bilibili | zh, mixed | Chinese tech videos and tutorials | medium |
 | crossref | en | Cross-publisher scholarly search via DOI registry | medium |
 | dblp | en | Computer science bibliography — papers, proceedings | medium |
 | ddgs | en, mixed | DuckDuckGo web search, no auth required | medium |
@@ -39,39 +40,35 @@ No configuration needed. Available immediately after install.
 | wikidata | en, mixed | Structured entity data from Wikidata knowledge graph | medium |
 | wikipedia | en, mixed | Encyclopedia articles via Wikipedia Action API | high |
 
-## Tier 1 — Env-gated (2 channels)
+## Tier 1 — Env/API gated (10 channels)
 
-Requires a free API key or self-hosted URL.
+Requires an API key, self-hosted URL, or service token.
 
 | Channel | Languages | Setup | Yield |
 |---|---|---|---|
-| youtube | en, zh, mixed | `autosearch configure YOUTUBE_API_KEY <key>` ([get free key](https://console.cloud.google.com)) | medium |
+| douyin | zh | `autosearch configure TIKHUB_API_KEY <key>` | medium |
+| instagram | en, mixed | `autosearch configure TIKHUB_API_KEY <key>` | medium |
+| kuaishou | zh, mixed | `autosearch configure TIKHUB_API_KEY <key>` | medium |
 | searxng | en, zh, mixed | `autosearch configure SEARXNG_URL <url>` (self-hosted [SearXNG](https://docs.searxng.org)) | medium |
+| tiktok | en, mixed | `autosearch configure TIKHUB_API_KEY <key>` | medium |
+| twitter | en, mixed | `autosearch configure TIKHUB_API_KEY <key>` | medium |
+| wechat_channels | zh, mixed | `autosearch configure TIKHUB_API_KEY <key>` | medium |
+| weibo | zh, mixed | `autosearch configure TIKHUB_API_KEY <key>` | medium |
+| youtube | en, zh, mixed | `autosearch configure YOUTUBE_API_KEY <key>` ([get free key](https://console.cloud.google.com)) | medium |
+| zhihu | zh, mixed | `autosearch configure TIKHUB_API_KEY <key>` | medium-high |
 
-## Tier 2 — BYOK paid (10 channels)
+## Tier 2 — Login/cookie gated (2 channels)
 
-Requires a [TikHub](https://tikhub.io) API key for Chinese social platforms.
+Requires account cookies or login-backed setup.
 
-```bash
-autosearch configure TIKHUB_API_KEY <your-key>
-```
-
-| Channel | Languages | Description | Yield |
+| Channel | Languages | Setup | Yield |
 |---|---|---|---|
-| bilibili | zh, mixed | Chinese tech videos and tutorials | medium |
-| douyin | zh | Chinese short-video with product demos and tech reviews | medium |
-| instagram | en, mixed | Instagram public posts and reels search | medium |
-| kuaishou | zh, mixed | Chinese short-video platform | medium |
-| tiktok | en, mixed | Global short-video platform | medium |
-| twitter | en, mixed | Real-time public discourse and tech announcements | medium |
-| wechat_channels | zh, mixed | WeChat Channels (视频号) short videos | medium |
-| weibo | zh, mixed | Chinese microblog — trending topics, real-time opinion | medium |
-| xiaohongshu | zh, mixed | Chinese lifestyle notes with product/travel/food coverage | high |
-| zhihu | zh, mixed | Chinese Q&A with deep technical discussions | medium-high |
+| xiaohongshu | zh, mixed | `autosearch login xhs` or `autosearch configure XHS_A1_COOKIE <cookie>` | high |
+| xueqiu | zh, mixed | `autosearch login xueqiu` or `autosearch configure XUEQIU_COOKIES <cookie>` | medium |
 
 ## Login-based channels
 
-Some channels can be unlocked by logging in with your own account (using browser cookies):
+Some tier-2 channels can be unlocked by logging in with your own account (using browser cookies):
 
 ```bash
 autosearch login xhs        # Xiaohongshu
@@ -83,7 +80,7 @@ autosearch login instagram  # Instagram
 autosearch login linkedin   # LinkedIn
 ```
 
-**Xueqiu** (雪球, A-share/HK stock discussion) requires setting cookie env directly:
+**Xueqiu** (雪球, A-share/HK stock discussion) also supports setting cookie env directly:
 
 ```bash
 autosearch configure XUEQIU_COOKIES "<cookie-string>"

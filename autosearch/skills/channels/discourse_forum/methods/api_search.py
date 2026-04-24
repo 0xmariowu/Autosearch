@@ -121,6 +121,12 @@ def _site_search_query(site: Mapping[str, str], query: str) -> str:
     return f"site:{domain} {query}"
 
 
+def _same_origin(url: str, base_url: str) -> bool:
+    parsed_url = urlparse(url)
+    parsed_base = urlparse(base_url)
+    return parsed_url.scheme == parsed_base.scheme and parsed_url.netloc == parsed_base.netloc
+
+
 def _to_site_search_evidence(
     result: Mapping[str, object],
     *,
@@ -128,7 +134,7 @@ def _to_site_search_evidence(
     fetched_at: datetime,
 ) -> Evidence | None:
     href = str(result.get("href") or "").strip()
-    if not href.startswith(site["base_url"]):
+    if not _same_origin(href, site["base_url"]):
         return None
     parsed = urlparse(href)
     if "/t/" not in parsed.path:
