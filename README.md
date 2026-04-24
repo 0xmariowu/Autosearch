@@ -3,7 +3,7 @@
 </h1>
 
 <p align="center">
-  <strong>39 search channels for your AI Agent</strong>
+  Open-source deep research for coding agents. An alternative to OpenAI and Perplexity Deep Research — 39 channels including Chinese sources.
 </p>
 
 <p align="center">
@@ -33,20 +33,18 @@ You ask your AI to research something. It answers from training data cutoff —
 
 **AutoSearch fixes this in one line.**
 
-Paste into your AI Agent (Claude Code, Cursor, etc.):
-
-```
-Help me install AutoSearch: https://raw.githubusercontent.com/0xmariowu/Autosearch/main/docs/install.md
-```
-
-Or install directly:
-
 ```bash
 npx autosearch-ai
 ```
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/0xmariowu/Autosearch/main/scripts/install.sh | bash
+```
+
+Or paste into your AI Agent (Claude Code, Cursor, etc.):
+
+```
+Help me install AutoSearch: https://raw.githubusercontent.com/0xmariowu/Autosearch/main/docs/install.md
 ```
 
 After install, your Agent searches 39 channels simultaneously — academic papers, developer communities, Chinese social media — results deduplicated and ranked, every result includes a source URL.
