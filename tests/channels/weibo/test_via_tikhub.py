@@ -303,12 +303,20 @@ async def test_search_returns_empty_on_tikhub_error(
     logger = _Logger()
     monkeypatch.setattr(MODULE, "LOGGER", logger)
 
-    results = await search(
-        _query(),
-        client=cast(TikhubClient, _FailingTikhubClient("secret-token-xyz")),
+    # Bug 1 (fix-plan): typed exception now propagates instead of [].
+    from autosearch.channels.base import (
+        ChannelAuthError,
+        PermanentError,
+        RateLimited,
+        TransientError,
     )
 
-    assert results == []
+    with pytest.raises((TransientError, PermanentError, RateLimited, ChannelAuthError)):
+        await search(
+            _query(),
+            client=cast(TikhubClient, _FailingTikhubClient("secret-token-xyz")),
+        )
+
     assert logger.events
     assert logger.events[0][0] == "weibo_tikhub_search_failed"
     reason = str(logger.events[0][1]["reason"])

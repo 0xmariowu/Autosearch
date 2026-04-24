@@ -51,7 +51,9 @@ async def test_search_returns_evidence(search, subquery):
 
 @pytest.mark.asyncio()
 async def test_search_returns_empty_on_exception(search, subquery):
-    with patch.object(ddgs_mod, "DDGS", side_effect=Exception("network error")):
-        results = await search(subquery)
+    # Bug 1 (fix-plan): typed exception now propagates instead of [].
+    from autosearch.channels.base import TransientError
 
-    assert results == []
+    with patch.object(ddgs_mod, "DDGS", side_effect=Exception("network error")):
+        with pytest.raises(TransientError):
+            await search(subquery)

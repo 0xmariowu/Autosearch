@@ -73,23 +73,37 @@ async def test_search_returns_evidence(search, subquery):
 
 @pytest.mark.asyncio()
 async def test_search_returns_empty_on_http_error(search, subquery):
+    # Bug 1 (fix-plan): typed exception now propagates instead of [].
+    from autosearch.channels.base import (
+        ChannelAuthError,
+        PermanentError,
+        RateLimited,
+        TransientError,
+    )
+
     with patch(
         "httpx.AsyncClient.get",
         new_callable=AsyncMock,
         side_effect=httpx.HTTPStatusError("500", request=None, response=None),
     ):
-        results = await search(subquery)
-
-    assert results == []
+        with pytest.raises((TransientError, PermanentError, RateLimited, ChannelAuthError)):
+            await search(subquery)
 
 
 @pytest.mark.asyncio()
 async def test_search_returns_empty_on_rate_limit(search, subquery):
+    # Bug 1 (fix-plan): typed exception now propagates instead of [].
+    from autosearch.channels.base import (
+        ChannelAuthError,
+        PermanentError,
+        RateLimited,
+        TransientError,
+    )
+
     mock_resp = MagicMock(spec=httpx.Response)
     mock_resp.text = "Rate exceeded."
     mock_resp.raise_for_status = MagicMock()
 
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=mock_resp):
-        results = await search(subquery)
-
-    assert results == []
+        with pytest.raises((TransientError, PermanentError, RateLimited, ChannelAuthError)):
+            await search(subquery)

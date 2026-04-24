@@ -7,6 +7,7 @@ import feedparser
 import httpx
 import structlog
 
+from autosearch.channels.base import raise_as_channel_error
 from autosearch.core.models import Evidence, SubQuery
 
 LOGGER = structlog.get_logger(__name__).bind(component="channel", channel="arxiv")
@@ -36,12 +37,17 @@ async def search(query: SubQuery) -> list[Evidence]:
 
     try:
         entries = await _search_entries_with_retry(query.text)
-    except ArxivRateLimitError:
+    except ArxivRateLimitError as exc:
+        # Bug 1 (fix-plan): rate limit is a recoverable failure category, not
+        # an empty result. Surface as RateLimited so the host agent can back
+        # off instead of treating it as "no matches".
+        from autosearch.channels.base import RateLimited
+
         LOGGER.warning("arxiv_search_failed", reason="rate_exceeded")
-        return []
+        raise RateLimited("arxiv rate limit (rate_exceeded)") from exc
     except Exception as exc:
         LOGGER.warning("arxiv_search_failed", reason=str(exc))
-        return []
+        raise_as_channel_error(exc)
 
     fetched_at = datetime.now(UTC)
     results = [_to_evidence(entry, fetched_at=fetched_at) for entry in entries]
@@ -84,10 +90,9 @@ async def _fetch_entries(query_text: str) -> list[object]:
         bozo_exception = getattr(feed, "bozo_exception", None)
         raise ValueError(str(bozo_exception or "failed to parse Atom feed"))
 
-    entries = list(getattr(feed, "entries", []))
-    if not entries:
-        raise ValueError("empty feed")
-    return entries
+    # An empty feed = arxiv legitimately found nothing. Return [] so the MCP
+    # boundary surfaces status="no_results" instead of channel_error.
+    return list(getattr(feed, "entries", []))
 
 
 def _is_rate_limited(response_text: str) -> bool:

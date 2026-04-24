@@ -295,3 +295,28 @@ class TikhubClient:
             return TikhubUpstreamError(message, status_code=status_code, detail=detail)
 
         return TikhubError(message, status_code=status_code, detail=detail)
+
+
+def to_channel_error(exc: TikhubError) -> Exception:
+    """Translate a TikHub-specific error into the channels/base typed error
+    the MCP boundary knows how to map to a `run_channel` status.
+
+    Bug 1 (fix-plan): without this adapter, channel methods using TikHub
+    catch (TikhubError, ValueError) and `return []`, so a 402 budget
+    exhausted, a 429 rate limit, or a 403 auth rejection all surface as
+    `status="no_results"` — indistinguishable from a real empty search.
+    """
+    from autosearch.channels.base import (  # noqa: PLC0415 — break import cycle
+        ChannelAuthError,
+        PermanentError,
+        RateLimited,
+        TransientError,
+    )
+
+    if isinstance(exc, (TikhubRateLimited, TikhubBudgetExhausted)):
+        return RateLimited(str(exc))
+    if isinstance(exc, TikhubUpstreamError) and exc.status_code in (401, 403):
+        return ChannelAuthError(str(exc))
+    if isinstance(exc, TikhubUpstreamError):
+        return PermanentError(str(exc))
+    return TransientError(str(exc))

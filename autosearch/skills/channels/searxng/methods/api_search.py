@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 import httpx
 import structlog
 
-from autosearch.channels.base import MethodUnavailable
+from autosearch.channels.base import MethodUnavailable, raise_as_channel_error
 from autosearch.core.models import Evidence, SubQuery
 
 LOGGER = structlog.get_logger(__name__).bind(component="channel", channel="searxng")
@@ -28,7 +28,7 @@ async def search(query: SubQuery) -> list[Evidence]:
         raise
     except Exception as exc:
         LOGGER.warning("searxng_search_failed", reason=str(exc))
-        return []
+        raise_as_channel_error(exc)
 
 
 async def _do_search(base_url: str, query: str) -> list[Evidence]:

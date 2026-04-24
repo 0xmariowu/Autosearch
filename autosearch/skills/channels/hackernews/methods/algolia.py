@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 import httpx
 import structlog
 
+from autosearch.channels.base import raise_as_channel_error
 from autosearch.core.models import Evidence, SubQuery
 
 LOGGER = structlog.get_logger(__name__).bind(component="channel", channel="hackernews")
@@ -52,7 +53,7 @@ async def search(query: SubQuery) -> list[Evidence]:
             raise ValueError("invalid hits payload")
     except Exception as exc:
         LOGGER.warning("hackernews_search_failed", reason=str(exc))
-        return []
+        raise_as_channel_error(exc)
 
     fetched_at = datetime.now(UTC)
     return [_to_evidence(hit, fetched_at=fetched_at) for hit in hits if isinstance(hit, Mapping)]

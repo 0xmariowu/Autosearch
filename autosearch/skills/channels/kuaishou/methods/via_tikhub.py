@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 import structlog
 
 from autosearch.core.models import Evidence, SubQuery
-from autosearch.lib.tikhub_client import TikhubClient, TikhubError
+from autosearch.lib.tikhub_client import TikhubClient, TikhubError, to_channel_error
 
 LOGGER = structlog.get_logger(__name__).bind(component="channel", channel="kuaishou")
 SEARCH_PATH = "/api/v1/kuaishou/app/search_comprehensive"
@@ -69,7 +69,16 @@ async def search(query: SubQuery, client: TikhubClient | None = None) -> list[Ev
                 "search_scope": "all",
             },
         )
-    except (TikhubError, ValueError) as exc:
+    except TikhubError as exc:
+        # Bug 1 (fix-plan): translate TikHub error → channels.base typed
+        # error so a 401/403/429/402 surfaces as auth_failed/rate_limited
+        # at the MCP boundary instead of looking like an empty result.
+        LOGGER.warning("kuaishou_tikhub_search_failed", reason=str(exc))
+        raise to_channel_error(exc) from exc
+    except ValueError as exc:
+        # TikhubClient() raises ValueError on missing TIKHUB_API_KEY; the
+        # MCP boundary already returns not_configured for that case via
+        # SKILL.md requires, so this is a redundant safety net.
         LOGGER.warning("kuaishou_tikhub_search_failed", reason=str(exc))
         return []
 

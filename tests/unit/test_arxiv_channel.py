@@ -106,13 +106,10 @@ async def test_search_empty_feed_returns_empty_list(monkeypatch: pytest.MonkeyPa
 
     results = await registry.get("arxiv").search(_subquery("retrieval augmented generation"))
 
+    # Bug 1 (fix-plan): an empty feed is a legitimate "no results" — channel
+    # returns [] without raising, MCP boundary surfaces status="no_results".
     assert results == []
-    assert logger.events == [
-        (
-            "arxiv_search_failed",
-            {"reason": "empty feed"},
-        )
-    ]
+    assert logger.events == []
 
 
 @pytest.mark.asyncio
@@ -130,15 +127,14 @@ async def test_search_handles_network_error_gracefully(
     monkeypatch.setattr(search_callable.__globals__["httpx"].AsyncClient, "get", fake_get)
     monkeypatch.setitem(search_callable.__globals__, "LOGGER", logger)
 
-    results = await registry.get("arxiv").search(_subquery("rag"))
+    # Bug 1 (fix-plan): network failure now raises TransientError so the host
+    # agent can distinguish a transient blip from "actually no results".
+    from autosearch.channels.base import TransientError
 
-    assert results == []
-    assert logger.events == [
-        (
-            "arxiv_search_failed",
-            {"reason": "boom"},
-        )
-    ]
+    with pytest.raises(TransientError):
+        await registry.get("arxiv").search(_subquery("rag"))
+    assert logger.events
+    assert logger.events[0][0] == "arxiv_search_failed"
 
 
 @pytest.mark.asyncio
@@ -155,9 +151,11 @@ async def test_search_handles_parse_error_gracefully(
     monkeypatch.setattr(search_callable.__globals__["httpx"].AsyncClient, "get", fake_get)
     monkeypatch.setitem(search_callable.__globals__, "LOGGER", logger)
 
-    results = await registry.get("arxiv").search(_subquery("rag"))
+    # Bug 1 (fix-plan): malformed feed → typed PermanentError, not silent [].
+    from autosearch.channels.base import PermanentError
 
-    assert results == []
+    with pytest.raises(PermanentError):
+        await registry.get("arxiv").search(_subquery("rag"))
     assert logger.events
     assert logger.events[0][0] == "arxiv_search_failed"
     assert "reason" in logger.events[0][1]
@@ -250,9 +248,12 @@ async def test_arxiv_rate_exceeded_exhausts_retries_returns_empty(
     monkeypatch.setattr(search_callable.__globals__["asyncio"], "sleep", fake_sleep)
     monkeypatch.setitem(search_callable.__globals__, "LOGGER", logger)
 
-    results = await registry.get("arxiv").search(_subquery("retry query"))
+    # Bug 1 (fix-plan): rate limit exhaustion now raises RateLimited so the
+    # host agent can backoff intentionally rather than treating it as empty.
+    from autosearch.channels.base import RateLimited
 
-    assert results == []
+    with pytest.raises(RateLimited):
+        await registry.get("arxiv").search(_subquery("retry query"))
     assert call_count == 4
     assert logger.events == [
         (
@@ -279,9 +280,11 @@ async def test_arxiv_rate_exceeded_backoff_doubles(
     monkeypatch.setattr(search_callable.__globals__["httpx"].AsyncClient, "get", fake_get)
     monkeypatch.setattr(search_callable.__globals__["asyncio"], "sleep", fake_sleep)
 
-    results = await registry.get("arxiv").search(_subquery("retry query"))
+    # Bug 1 (fix-plan): rate-limit exhaustion raises RateLimited.
+    from autosearch.channels.base import RateLimited
 
-    assert results == []
+    with pytest.raises(RateLimited):
+        await registry.get("arxiv").search(_subquery("retry query"))
     assert sleep_calls == [1, 2, 4]
 
 
@@ -381,9 +384,12 @@ async def test_arxiv_cache_does_not_store_rate_limit_failures(
     monkeypatch.setattr(search_callable.__globals__["asyncio"], "sleep", fake_sleep)
     monkeypatch.setitem(search_callable.__globals__, "LOGGER", logger)
 
-    first_results = await registry.get("arxiv").search(_subquery("retry query"))
+    # Bug 1 (fix-plan): rate-limit failures raise RateLimited; verify they
+    # ALSO don't poison the cache so a follow-up succeeds.
+    from autosearch.channels.base import RateLimited
 
-    assert first_results == []
+    with pytest.raises(RateLimited):
+        await registry.get("arxiv").search(_subquery("retry query"))
     assert search_callable.__globals__["_QUERY_CACHE"] == {}
 
     second_results = await registry.get("arxiv").search(_subquery("retry query"))

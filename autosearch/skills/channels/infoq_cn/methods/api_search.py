@@ -11,6 +11,7 @@ import feedparser
 import httpx
 import structlog
 
+from autosearch.channels.base import raise_as_channel_error
 from autosearch.core.models import Evidence, SubQuery
 
 LOGGER = structlog.get_logger(__name__).bind(component="channel", channel="infoq_cn")
@@ -154,7 +155,7 @@ async def search(
         feed = await asyncio.to_thread(feedparser.parse, response.text)
     except Exception as exc:
         LOGGER.warning("infoq_cn_search_failed", reason=str(exc))
-        return []
+        raise_as_channel_error(exc)
 
     if getattr(feed, "bozo", 0) == 1:
         reason = str(getattr(feed, "bozo_exception", None) or "failed to parse RSS feed")

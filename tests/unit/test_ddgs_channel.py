@@ -92,9 +92,11 @@ async def test_search_handles_exception_gracefully(monkeypatch: pytest.MonkeyPat
     )
     monkeypatch.setitem(search_callable.__globals__, "LOGGER", logger)
 
-    results = await registry.get("ddgs").search(SubQuery(text="bm25", rationale="Need web results"))
+    # Bug 1 (fix-plan): channel raises typed error instead of [].
+    from autosearch.channels.base import TransientError
 
-    assert results == []
+    with pytest.raises(TransientError):
+        await registry.get("ddgs").search(SubQuery(text="bm25", rationale="Need web results"))
     assert logger.events == [
         (
             "ddgs_search_failed",

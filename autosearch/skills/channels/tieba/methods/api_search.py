@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 import httpx
 import structlog
 
+from autosearch.channels.base import raise_as_channel_error
 from autosearch.core.models import Evidence, SubQuery
 
 LOGGER = structlog.get_logger(__name__).bind(component="channel", channel="tieba")
@@ -28,7 +29,7 @@ async def search(query: SubQuery) -> list[Evidence]:
         return await _search_tieba(query.text)
     except Exception as exc:
         LOGGER.warning("tieba_search_failed", reason=str(exc))
-        return []
+        raise_as_channel_error(exc)
 
 
 async def _search_tieba(query: str) -> list[Evidence]:

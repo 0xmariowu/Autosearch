@@ -172,9 +172,12 @@ async def test_search_returns_empty_on_tikhub_error(
     logger = _Logger()
     monkeypatch.setattr(MODULE, "LOGGER", logger)
 
-    results = await search(_query(), client=cast(TikhubClient, _FailingTikhubClient()))
+    # Bug 1 (fix-plan): typed exception now propagates instead of [].
+    from autosearch.channels.base import TransientError
 
-    assert results == []
+    with pytest.raises(TransientError):
+        await search(_query(), client=cast(TikhubClient, _FailingTikhubClient()))
+
     assert logger.events
     assert logger.events[0][0] == "xiaohongshu_tikhub_search_failed"
 

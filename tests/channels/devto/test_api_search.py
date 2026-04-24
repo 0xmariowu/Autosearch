@@ -143,6 +143,14 @@ async def test_search_decodes_html_entities_in_title() -> None:
 async def test_search_returns_empty_on_http_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Bug 1 (fix-plan): typed exception now propagates instead of [].
+    from autosearch.channels.base import (
+        ChannelAuthError,
+        PermanentError,
+        RateLimited,
+        TransientError,
+    )
+
     logger = _Logger()
     monkeypatch.setattr(MODULE, "LOGGER", logger)
 
@@ -150,9 +158,8 @@ async def test_search_returns_empty_on_http_error(
         return httpx.Response(500, json={"error": "server error"}, request=request)
 
     async with _client(handler) as http_client:
-        results = await search(_query(), http_client=http_client)
-
-    assert results == []
+        with pytest.raises((TransientError, PermanentError, RateLimited, ChannelAuthError)):
+            await search(_query(), http_client=http_client)
     assert logger.events
     assert logger.events[0][0] == "devto_search_failed"
     assert "500" in str(logger.events[0][1]["reason"])
@@ -162,6 +169,14 @@ async def test_search_returns_empty_on_http_error(
 async def test_search_returns_empty_on_malformed_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Bug 1 (fix-plan): typed exception now propagates instead of [].
+    from autosearch.channels.base import (
+        ChannelAuthError,
+        PermanentError,
+        RateLimited,
+        TransientError,
+    )
+
     logger = _Logger()
     monkeypatch.setattr(MODULE, "LOGGER", logger)
 
@@ -169,9 +184,8 @@ async def test_search_returns_empty_on_malformed_payload(
         return httpx.Response(200, json={}, request=request)
 
     async with _client(handler) as http_client:
-        results = await search(_query(), http_client=http_client)
-
-    assert results == []
+        with pytest.raises((TransientError, PermanentError, RateLimited, ChannelAuthError)):
+            await search(_query(), http_client=http_client)
     assert logger.events == [
         (
             "devto_search_failed",

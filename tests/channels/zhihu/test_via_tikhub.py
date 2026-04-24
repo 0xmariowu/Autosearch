@@ -100,10 +100,12 @@ async def test_search_maps_tikhub_articles_to_evidence() -> None:
 
 
 @pytest.mark.asyncio
-async def test_search_returns_empty_list_on_tikhub_error() -> None:
-    results = await search(
-        SubQuery(text="LLM agent", rationale="Need Zhihu article coverage"),
-        client=cast(TikhubClient, _FailingTikhubClient()),
-    )
+async def test_search_raises_typed_error_on_tikhub_error() -> None:
+    # Bug 1 (fix-plan): typed exception now propagates instead of [].
+    from autosearch.channels.base import TransientError
 
-    assert results == []
+    with pytest.raises(TransientError):
+        await search(
+            SubQuery(text="LLM agent", rationale="Need Zhihu article coverage"),
+            client=cast(TikhubClient, _FailingTikhubClient()),
+        )

@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 import structlog
 
+from autosearch.channels.base import raise_as_channel_error
 from autosearch.core.models import Evidence, SubQuery
 
 try:
@@ -33,7 +34,7 @@ async def search(query: SubQuery) -> list[Evidence]:
         )
     except Exception as exc:
         LOGGER.warning("ddgs_search_failed", reason=str(exc))
-        return []
+        raise_as_channel_error(exc)
 
     fetched_at = datetime.now(UTC)
     return [_to_evidence(result, fetched_at=fetched_at) for result in results]

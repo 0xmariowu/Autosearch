@@ -204,6 +204,14 @@ async def test_search_source_channel_uses_first_category() -> None:
 
 @pytest.mark.asyncio
 async def test_search_returns_empty_on_http_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Bug 1 (fix-plan): typed exception now propagates instead of [].
+    from autosearch.channels.base import (
+        ChannelAuthError,
+        PermanentError,
+        RateLimited,
+        TransientError,
+    )
+
     logger = _Logger()
     monkeypatch.setattr(MODULE, "LOGGER", logger)
 
@@ -211,9 +219,8 @@ async def test_search_returns_empty_on_http_error(monkeypatch: pytest.MonkeyPatc
         return httpx.Response(500, text="server error", request=request)
 
     async with _client(handler) as http_client:
-        results = await search(_query("LLM"), http_client=http_client)
-
-    assert results == []
+        with pytest.raises((TransientError, PermanentError, RateLimited, ChannelAuthError)):
+            await search(_query("LLM"), http_client=http_client)
     assert logger.events
     assert logger.events[0][0] == "infoq_cn_search_failed"
     assert "500" in str(logger.events[0][1]["reason"])

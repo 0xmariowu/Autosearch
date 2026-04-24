@@ -81,6 +81,14 @@ async def test_search_returns_empty_on_no_ids(search, subquery):
 
 @pytest.mark.asyncio()
 async def test_search_returns_empty_on_http_error(search, subquery):
+    # Bug 1 (fix-plan): typed exception now propagates instead of [].
+    from autosearch.channels.base import (
+        ChannelAuthError,
+        PermanentError,
+        RateLimited,
+        TransientError,
+    )
+
     import httpx
 
     with patch(
@@ -88,9 +96,8 @@ async def test_search_returns_empty_on_http_error(search, subquery):
         new_callable=AsyncMock,
         side_effect=httpx.HTTPStatusError("error", request=None, response=None),
     ):
-        results = await search(subquery)
-
-    assert results == []
+        with pytest.raises((TransientError, PermanentError, RateLimited, ChannelAuthError)):
+            await search(subquery)
 
 
 def _mock_response(data: dict):

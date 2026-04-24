@@ -178,6 +178,14 @@ async def test_search_sets_country_cn_param() -> None:
 
 @pytest.mark.asyncio
 async def test_search_returns_empty_on_http_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Bug 1 (fix-plan): typed exception now propagates instead of [].
+    from autosearch.channels.base import (
+        ChannelAuthError,
+        PermanentError,
+        RateLimited,
+        TransientError,
+    )
+
     logger = _Logger()
     monkeypatch.setattr(MODULE, "LOGGER", logger)
 
@@ -185,9 +193,8 @@ async def test_search_returns_empty_on_http_error(monkeypatch: pytest.MonkeyPatc
         return httpx.Response(503, json={"error": "unavailable"}, request=request)
 
     async with _client(handler) as http_client:
-        results = await search(_query(), http_client=http_client)
-
-    assert results == []
+        with pytest.raises((TransientError, PermanentError, RateLimited, ChannelAuthError)):
+            await search(_query(), http_client=http_client)
     assert logger.events
     assert logger.events[0][0] == "podcast_cn_search_failed"
     assert "503" in str(logger.events[0][1]["reason"])
