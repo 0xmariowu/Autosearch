@@ -84,17 +84,22 @@ def _last_compacted_at(experience_md: Path) -> datetime | None:
 def append_event(skill_name: str, event: dict) -> None:
     """Append one event to a skill's raw experience log under the user's data dir.
 
-    Best-effort: capture failures must never break the caller's channel call.
+    String fields in `event` (e.g. `query`) are redacted for secret-shaped
+    tokens before write. Capture failures must never break the caller's
+    channel call (best-effort).
     """
     try:
+        from autosearch.core.redact import redact
+
         runtime_dir = _runtime_skill_dir(skill_name)
         if runtime_dir is None:
             return
         experience_dir = runtime_dir / "experience"
         experience_dir.mkdir(parents=True, exist_ok=True)
+        scrubbed = {k: (redact(v) if isinstance(v, str) else v) for k, v in event.items()}
         patterns_path = experience_dir / "patterns.jsonl"
         with patterns_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(event, ensure_ascii=False, sort_keys=True) + "\n")
+            handle.write(json.dumps(scrubbed, ensure_ascii=False, sort_keys=True) + "\n")
     except Exception:
         return
 
