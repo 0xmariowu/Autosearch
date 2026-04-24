@@ -71,6 +71,13 @@ def main(
         ),
     ] = None,
 ) -> None:
+    # Push ~/.config/ai-secrets.env keys into process env so subcommands and
+    # any provider/channel that does `os.getenv("FOO_API_KEY")` actually sees
+    # what the user configured via `autosearch configure`.
+    from autosearch.core.secrets_store import inject_into_env
+
+    inject_into_env()
+
     if ctx.invoked_subcommand is None and not version:
         raise typer.Exit(code=0)
 

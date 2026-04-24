@@ -74,3 +74,28 @@ def resolve_env_value(key: str, path: Path | None = None) -> str | None:
     if env_value:
         return env_value
     return load_secrets(path).get(key) or None
+
+
+def inject_into_env(path: Path | None = None) -> set[str]:
+    """Push secrets-file values into `os.environ` for any key that isn't
+    already set. Returns the set of keys that were newly injected.
+
+    This is what makes the v2 contract true end-to-end: `autosearch configure`
+    writes to `~/.config/ai-secrets.env`, but channel methods, LLM providers,
+    and external libraries (yt-dlp, firecrawl, tikhub) all read process env
+    via `os.getenv()`. Without this push, doctor sees the file but the actual
+    runtime call sees nothing.
+
+    Process env always wins — we only fill in MISSING keys, never overwrite a
+    user's explicit env var. The function is idempotent and cheap; safe to call
+    on every CLI/MCP entrypoint.
+    """
+    injected: set[str] = set()
+    for key, value in load_secrets(path).items():
+        if not value:
+            continue
+        if os.environ.get(key):
+            continue  # explicit env override stays in effect
+        os.environ[key] = value
+        injected.add(key)
+    return injected

@@ -304,6 +304,13 @@ def _scan_skill_catalog(
 
 
 def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
+    # Push ~/.config/ai-secrets.env keys into process env BEFORE any channel
+    # method or LLM provider is constructed — otherwise their `os.getenv()`
+    # calls miss keys the user configured via `autosearch configure`.
+    from autosearch.core.secrets_store import inject_into_env
+
+    inject_into_env()
+
     factory = pipeline_factory or _default_pipeline_factory
     server = FastMCP(
         name="autosearch",
