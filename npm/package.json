@@ -24,8 +24,5 @@
   ],
   "engines": {
     "node": ">=18"
-  },
-  "scripts": {
-    "postinstall": "node bin/autosearch-ai.js"
   }
 }
