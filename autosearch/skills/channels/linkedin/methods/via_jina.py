@@ -30,16 +30,32 @@ async def search(query: SubQuery) -> list[Evidence]:
     target_url = f"https://www.linkedin.com/search/results/all/?keywords={encoded}"
     jina_url = f"{_JINA_BASE}/{target_url}"
 
+    # Bug 2 (fix-plan v8 follow-up): typed errors instead of silent [] so
+    # 401 / 403 / 429 / network failures don't masquerade as "no LinkedIn
+    # results found".
+    from autosearch.channels.base import (
+        ChannelAuthError,
+        PermanentError,
+        RateLimited,
+        TransientError,
+    )
+
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             resp = await client.get(jina_url, headers=_HEADERS)
-            if resp.status_code != 200:
-                return []
-            content = resp.text[:2000].strip()
-    except Exception:
-        return []
+    except httpx.HTTPError as exc:
+        raise TransientError(f"linkedin via Jina network error: {exc}") from exc
 
+    if resp.status_code in (401, 403):
+        raise ChannelAuthError(f"linkedin via Jina rejected (HTTP {resp.status_code})")
+    if resp.status_code == 429:
+        raise RateLimited("linkedin via Jina rate limit (HTTP 429)")
+    if resp.status_code != 200:
+        raise PermanentError(f"linkedin via Jina HTTP {resp.status_code}")
+
+    content = resp.text[:2000].strip()
     if not content:
+        # Legitimate "Jina returned 200 with empty body" — keep as [].
         return []
 
     return [

@@ -27,19 +27,19 @@ N_EVENTS = 10
 
 def main() -> int:
     with tempfile.TemporaryDirectory() as tmpdir:
-        import autosearch.skills.experience as exp_mod
+        # Bug 4 (fix-plan v8 follow-up): runtime experience writes resolve
+        # via AUTOSEARCH_EXPERIENCE_DIR (or ~/.autosearch/experience), NOT
+        # via the bundled skills _SKILLS_ROOT. Patching the latter targeted
+        # the wrong file path so the test's "verify patterns.jsonl exists"
+        # check would later read a stale/missing file in real installs.
+        import os
+
+        os.environ["AUTOSEARCH_EXPERIENCE_DIR"] = tmpdir
 
         tmp_path = Path(tmpdir)
-        # Create skill dir structure that _find_skill_dir expects:
-        # _SKILLS_ROOT / group / skill_name
-        skill_dir = tmp_path / "channels" / CHANNEL
-        skill_dir.mkdir(parents=True)
-        channel_dir = skill_dir / "experience"
+        channel_dir = tmp_path / "channels" / CHANNEL / "experience"
         channel_dir.mkdir(parents=True)
         patterns_file = channel_dir / "patterns.jsonl"
-
-        # Patch _SKILLS_ROOT so _find_skill_dir resolves to our temp dir
-        exp_mod._SKILLS_ROOT = tmp_path
 
         # Append 10 events with winning_pattern so compact() can promote
         for i in range(N_EVENTS):
@@ -70,8 +70,9 @@ def main() -> int:
         should_compact(CHANNEL)
         compact(CHANNEL)
 
-        # compact() writes to skill_dir/experience.md (not skill_dir/experience/experience.md)
-        experience_md = skill_dir / "experience.md"
+        # compact() writes to <runtime_root>/<group>/<skill>/experience.md
+        # (per the v2 runtime path that resolves via AUTOSEARCH_EXPERIENCE_DIR).
+        experience_md = tmp_path / "channels" / CHANNEL / "experience.md"
         if not experience_md.exists():
             print("FAIL: experience.md not created by compact()")
             return 1

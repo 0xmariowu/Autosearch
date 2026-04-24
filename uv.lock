@@ -78,7 +78,7 @@ wheels = [
 
 [[package]]
 name = "autosearch"
-version = "2026.4.22.5"
+version = "2026.4.24.8"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
@@ -92,11 +92,8 @@ dependencies = [
     { name = "mcp" },
     { name = "paper-search-mcp" },
     { name = "pydantic" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
     { name = "pyyaml" },
     { name = "rank-bm25" },
-    { name = "ruff" },
     { name = "simhash" },
     { name = "structlog" },
     { name = "tiktoken" },
@@ -109,6 +106,11 @@ dependencies = [
 [package.optional-dependencies]
 browser = [
     { name = "playwright" },
+]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "ruff" },
 ]
 embeddings = [
     { name = "scikit-learn" },
@@ -129,11 +131,11 @@ requires-dist = [
     { name = "paper-search-mcp" },
     { name = "playwright", marker = "extra == 'browser'", specifier = ">=1.40" },
     { name = "pydantic" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
+    { name = "pytest", marker = "extra == 'dev'" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'" },
     { name = "pyyaml" },
     { name = "rank-bm25" },
-    { name = "ruff" },
+    { name = "ruff", marker = "extra == 'dev'" },
     { name = "scikit-learn", marker = "extra == 'embeddings'", specifier = ">=1.4" },
     { name = "sentence-transformers", marker = "extra == 'embeddings'", specifier = ">=2.5" },
     { name = "simhash" },
@@ -144,7 +146,7 @@ requires-dist = [
     { name = "uvicorn" },
     { name = "yt-dlp", specifier = ">=2026.3.17" },
 ]
-provides-extras = ["browser", "embeddings"]
+provides-extras = ["browser", "embeddings", "dev"]
 
 [[package]]
 name = "babel"

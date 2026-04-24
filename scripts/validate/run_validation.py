@@ -124,7 +124,19 @@ def main() -> int:
     if not args.bench_only:
         results["S1 pytest"] = _run(
             "S1 pytest full suite",
-            [sys.executable, "-m", "pytest", "-x", "-q", "--ignore=tests/perf"],
+            # Bug 4 (fix-plan v8 follow-up): exclude live/network/slow markers
+            # so a tieba/twitter/etc. network blip doesn't kill the whole
+            # release-validation run.
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "-x",
+                "-q",
+                "-m",
+                "not real_llm and not perf and not slow and not network and not live",
+                "--ignore=tests/perf",
+            ],
         )
         results["S2 mcp tools"] = _run(
             "S2 MCP tool registration",
