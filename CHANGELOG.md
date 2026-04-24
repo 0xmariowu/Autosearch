@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026.04.24.10 — 2026-04-25
+
+The "fourth-pass fallback" release — seven more paths that masqueraded
+upstream failures as "no results", surfaced by a follow-up audit of the
+v8 fixes.
+
+- **XHS 300011 account-flag raise was eaten by an outer `try/except Exception: pass`.** The v8 release added `raise ChannelAuthError` for the account-restricted case but the raise lived inside the health-check `try` block, so the typed error was swallowed and the channel still returned `[]`. Restructured the health check so the raise fires outside the swallow. Regression test added.
+- **`ChannelAuthError` no longer short-circuits the channel fallback chain.** It inherits `PermanentError`, so the registry's `except PermanentError: raise` was re-raising it immediately — the paid TikHub backup never got a chance to run when the primary method's cookie was bad. Added a dedicated `except ChannelAuthError` branch that records health-failure, stashes the error in `last_retryable`, and continues to the next method. If every method exhausts, `last_retryable` still surfaces so MCP reports `auth_failed`.
+- **TikHub payload-shape drift (Twitter, Xiaohongshu) now raises `PermanentError`.** Two `return []` paths were masking schema changes at the provider as silent empty results. Now surfaces as `channel_error` so the user knows to file a bug.
+- **v2ex / kr36 broad `except Exception: return []` converted to `raise_as_channel_error`.** HTTP 5xx, network errors, and schema drift were all collapsed into a single fake empty result. Now get classified into `TransientError` / `PermanentError` / `RateLimited` / `ChannelAuthError` by the shared adapter.
+- **`npx autosearch-ai --version` runs the version-skew check.** The `--version` short-circuit was returning before `checkVersionAlignment()` could fire, so users filing bugs never saw the wrapper/CLI drift warning the v8 release added.
+- **`scripts/validate/test_experience_e2e.py` uses a real bundled channel.** The fake `CHANNEL = "test-experience-channel"` caused `_runtime_skill_dir` to early-return; `patterns.jsonl` was never written and the script was always red with `FileNotFoundError`. Now uses `github` (temp `AUTOSEARCH_EXPERIENCE_DIR` keeps the real runtime clean).
+
 ## 2026.04.24.9 — 2026-04-24
 
 The "third-pass diagnostic" release — six follow-up bugs the v8 audit
