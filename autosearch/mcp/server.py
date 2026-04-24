@@ -45,14 +45,19 @@ class ResearchResponse(BaseModel):
 class RunChannelResponse(BaseModel):
     """Structured MCP tool response for the run_channel tool.
 
-    `status` discriminates the four meaningful outcomes a host agent must
-    distinguish:
+    `status` discriminates the meaningful outcomes a host agent must distinguish:
       - `ok`: results returned (may be empty list)
+      - `no_results`: channel ran successfully but found nothing for this query
       - `not_configured`: channel exists but its requirements (env keys,
         cookies, etc.) are not met. `unmet_requires` and `fix_hint` tell
         the agent exactly what to ask the user for.
       - `unknown_channel`: the requested name is not registered at all.
-      - `channel_error`: known and configured, but the call raised.
+      - `auth_failed`: upstream rejected the request (401/403, expired cookie,
+        invalid API key) — surface "your key looks invalid" to the user
+        instead of letting it look like "no matches" (Bug 1 / fix-plan).
+      - `rate_limited`: upstream returned 429 / explicit rate-limit signal —
+        agent should backoff and retry rather than treating as a hard error.
+      - `channel_error`: any other unexpected failure.
     """
 
     channel: str
@@ -691,13 +696,18 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
             )
             if should_compact(channel_name):
                 compact(channel_name)
-            from autosearch.channels.base import RateLimited
+            from autosearch.channels.base import ChannelAuthError, RateLimited
             from autosearch.core.redact import redact
 
-            # Rate limit is a recoverable failure category — surface it as its
-            # own status so the host agent can backoff/retry instead of
-            # treating it like a hard channel error.
-            status = "rate_limited" if isinstance(exc, RateLimited) else "channel_error"
+            # Bug 1 (fix-plan): map known typed channel errors to distinct
+            # status values so an authentication failure / rate limit doesn't
+            # masquerade as "channel_error" or — worse — empty results.
+            if isinstance(exc, ChannelAuthError):
+                status = "auth_failed"
+            elif isinstance(exc, RateLimited):
+                status = "rate_limited"
+            else:
+                status = "channel_error"
             return RunChannelResponse(
                 channel=channel_name,
                 ok=False,

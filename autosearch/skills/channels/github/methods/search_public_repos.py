@@ -5,6 +5,12 @@ from datetime import UTC, datetime
 import httpx
 import structlog
 
+from autosearch.channels.base import (
+    ChannelAuthError,
+    PermanentError,
+    RateLimited,
+    TransientError,
+)
 from autosearch.core.models import Evidence, SubQuery
 
 LOGGER = structlog.get_logger(__name__).bind(component="channel", channel="github")
@@ -57,24 +63,42 @@ async def search(
         "order": "desc",
     }
 
+    # Bug 1 (fix-plan): distinguish "GitHub returned zero results" (legit empty)
+    # from network failures, auth rejection (401/403), rate limits (429), and
+    # malformed payloads. Each maps to a typed exception the MCP boundary
+    # translates into a distinct status — so a 401 on a misconfigured token
+    # no longer looks like "no matches found".
     try:
         if http_client is not None:
             response = await http_client.get(BASE_URL, params=params, headers=headers)
         else:
             async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
                 response = await client.get(BASE_URL, params=params, headers=headers)
+    except httpx.HTTPError as exc:
+        LOGGER.warning("github_search_public_repos_network_failed", reason=str(exc))
+        raise TransientError(f"github network error: {exc}") from exc
 
+    if response.status_code in (401, 403):
+        LOGGER.warning("github_search_public_repos_auth_failed", status=response.status_code)
+        raise ChannelAuthError(f"github rejected request (HTTP {response.status_code})")
+    if response.status_code == 429:
+        LOGGER.warning("github_search_public_repos_rate_limited")
+        raise RateLimited("github rate limit (HTTP 429)")
+    try:
         response.raise_for_status()
-        payload = response.json()
-        if not isinstance(payload, Mapping):
-            raise ValueError("invalid payload")
+    except httpx.HTTPStatusError as exc:
+        LOGGER.warning("github_search_public_repos_http_error", status=response.status_code)
+        raise TransientError(f"github HTTP {response.status_code}") from exc
 
-        items = payload.get("items")
-        if not isinstance(items, list):
-            raise ValueError("invalid items payload")
-    except Exception as exc:
-        LOGGER.warning("github_search_public_repos_failed", reason=str(exc))
-        return []
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise PermanentError(f"github returned non-JSON payload: {exc}") from exc
+    if not isinstance(payload, Mapping):
+        raise PermanentError("github payload was not a JSON object")
+    items = payload.get("items")
+    if not isinstance(items, list):
+        raise PermanentError("github payload missing 'items' list (schema changed?)")
 
     fetched_at = datetime.now(UTC)
     evidences: list[Evidence] = []

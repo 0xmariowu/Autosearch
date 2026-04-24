@@ -40,6 +40,14 @@ class PermanentError(Exception):
     """Raised when a channel method fails in a non-retryable way."""
 
 
+class ChannelAuthError(PermanentError):
+    """Raised when an upstream rejects the request as unauthenticated /
+    unauthorized (HTTP 401 / 403, expired cookie, missing API key the
+    channel forgot to declare). Distinct from a quiet `[]` result so the
+    host agent can surface "your key looks invalid" instead of
+    "no matches" (Bug 1 / fix-plan)."""
+
+
 @dataclass(slots=True)
 class Environment:
     """Runtime probe result: what credentials/servers/binaries are available."""
