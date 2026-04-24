@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026.04.24.9 — 2026-04-24
+
+The "third-pass diagnostic" release — six follow-up bugs the v8 audit
+caught that the previous batch missed.
+
+- **YouTube failures stop hiding as `no_results`.** A separate `except httpx.HTTPStatusError` branch in `youtube/data_api_v3.py` was logging "auth_failed" but still returning `[]`, so 401 / 403 / 429 / quota-exhausted looked identical to "no matching videos". Now propagates through the typed-error classifier — same pattern as every other channel.
+- **xiaohongshu / bilibili / linkedin: inner `return []` defeated the fallback chain.** The registry's fallback chain is supposed to try `via_tikhub` when the primary method dies, but it treats `[]` as success and stops. Three channels had inner `except: return []` that swallowed real failures (signsrv outage, WBI salt fetch failure, Jina HTTP error). All converted to typed-error raises. XHS code 300011 ("account flagged") now raises `ChannelAuthError` with the right `autosearch login xhs` fix hint.
+- **TikHub 401 → `auth_failed`, 402 → new `budget_exhausted` status.** A stale `TIKHUB_API_KEY` (HTTP 401) used to surface as `channel_error` because `_error_for_status` lacked a 401 case. And 402 ("top up your wallet") was lumped into `rate_limited`, which prompted the agent to wait-and-retry instead of telling the user to refill. Distinct typed error `BudgetExhausted` now produces `status="budget_exhausted"`.
+- **`scripts/validate/run_validation.py` excludes network markers.** A tieba/twitter network blip would kill the whole release-validation run because the script ran plain `pytest -x -q --ignore=tests/perf` with no marker filter. Fixed.
+- **`scripts/validate/test_experience_e2e.py` uses the v2 runtime path.** It used to patch `_SKILLS_ROOT`, but runtime experience writes resolve via `AUTOSEARCH_EXPERIENCE_DIR` — so the test was reading from the wrong file. Fixed.
+- **Release gate catches `uv.lock` drift.** New `uv lockfile freshness` step in `scripts/release-gate.sh` runs `uv lock --check`. Without this gate, `uv.lock` could lag pyproject for days; any `uv run` would silently rewrite it and pollute the working tree. Fixed (and ran `uv lock` to sync to v8 → v9).
+- **`npm` wrapper warns on Python-CLI version skew.** It used to accept any installed `autosearch` regardless of version. Now compares the wrapper's `year.month.day` prefix against the installed CLI and prints an upgrade hint when they diverge — so users with a stale Python install don't silently run an old CLI.
+
 ## 2026.04.24.8 — 2026-04-24
 
 The "every channel stops lying about success" release — finishes the github
