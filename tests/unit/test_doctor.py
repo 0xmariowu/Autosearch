@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 
-from autosearch.core.doctor import scan_channels
+from autosearch.core.doctor import format_report, scan_channels
 
 
 def _make_spec(name: str, requires: list[str]):
@@ -72,3 +72,28 @@ def test_scan_channels_warn_when_partial(tmp_path):
 def test_scan_channels_empty_root(tmp_path):
     results = scan_channels(tmp_path / "nonexistent")
     assert results == []
+
+
+def test_searxng_env_requires_tier_1(tmp_path):
+    """SEARXNG_URL is not an API key but still requires config — must land in tier 1, not tier 0."""
+    specs = [_make_spec("searxng", ["env:SEARXNG_URL"])]
+    with (
+        patch("autosearch.core.doctor.load_all", return_value=specs),
+        patch("autosearch.core.doctor._current_env_keys", return_value=set()),
+    ):
+        results = scan_channels(tmp_path)
+
+    assert results[0].tier == 1
+
+
+def test_format_report_does_not_suggest_nonexistent_fix_flag(tmp_path):
+    """doctor output must not reference `autosearch doctor --fix` (the flag does not exist)."""
+    specs = [_make_spec("mychann", ["env:MISSING_KEY"])]
+    with (
+        patch("autosearch.core.doctor.load_all", return_value=specs),
+        patch("autosearch.core.doctor._current_env_keys", return_value=set()),
+    ):
+        results = scan_channels(tmp_path)
+
+    report = format_report(results)
+    assert "doctor --fix" not in report, "report still points to the non-existent --fix flag"

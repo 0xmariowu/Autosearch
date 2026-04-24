@@ -38,7 +38,7 @@ _ENV_FIX_HINTS: dict[str, str] = {
 
 # Channels that need login/cookie are tier 2; API key channels are tier 1; free are tier 0
 _TIER2_ENV_PATTERNS = ("COOKIES", "COOKIE", "SESSION", "SESSDATA", "AUTH_TOKEN")
-_TIER1_ENV_PATTERNS = ("API_KEY", "TIKHUB", "YOUTUBE", "FIRECRAWL", "OPENROUTER")
+_TIER1_ENV_PATTERNS = ("API_KEY", "TIKHUB", "YOUTUBE", "FIRECRAWL", "OPENROUTER", "SEARXNG")
 
 
 @dataclass
@@ -172,7 +172,9 @@ def format_report(results: list[ChannelStatus]) -> str:
 
     off_count = total - ok_count
     if off_count > 0:
-        lines.append("提示：运行 autosearch doctor --fix 查看所有修复步骤")
+        lines.append(
+            "提示：按每条渠道旁的修复命令逐个配置；或 autosearch doctor --json 查看完整数据。"
+        )
 
     return "\n".join(lines)
 
