@@ -45,7 +45,7 @@ phases:
           /tmp/fresh-env/bin/autosearch --version
         expect:
           exit: 0
-          stdout_contains: "0.0.1a1"
+          stdout_regex: "^[0-9]{4}\\.[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]+"
       - id: fresh_env_real_query_smoke
         timeout: 600
         env_keys: [ANTHROPIC_API_KEY]
@@ -85,7 +85,7 @@ phases:
           .venv/bin/autosearch --version
         expect:
           exit: 0
-          stdout_contains: "0.0.1a1"
+          stdout_regex: "^[0-9]{4}\\.[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]+"
       - id: default_pytest_on_3_12
         timeout: 600
         cmd: |

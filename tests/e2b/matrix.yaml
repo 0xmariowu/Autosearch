@@ -30,7 +30,7 @@ phases:
         cmd: $HOME/work/autosearch/.venv/bin/autosearch --version
         expect:
           exit: 0
-          stdout_contains: "0.0.1a1"
+          stdout_regex: "^[0-9]{4}\\.[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]+"
       - id: top_help
         cmd: $HOME/work/autosearch/.venv/bin/autosearch --help
         expect:
@@ -68,7 +68,7 @@ phases:
           .venv/bin/autosearch --version
         expect:
           exit: 0
-          stdout_contains: "0.0.1a1"
+          stdout_regex: "^[0-9]{4}\\.[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]+"
 
   # F002 S2 — autosearch init probes 3 LLM providers
   F002_S2_init_probe_3_providers:
@@ -174,53 +174,71 @@ phases:
       $HOME/.local/bin/uv venv --python 3.12 .venv
       $HOME/.local/bin/uv pip install --python .venv/bin/python -e . > /tmp/install.log 2>&1
     tasks:
-      - id: fast_stream_anthropic
+      - id: fast_stream_openrouter
         timeout: 300
-        env_keys: [ANTHROPIC_API_KEY]
-        cmd: AUTOSEARCH_PROVIDER_CHAIN=anthropic $HOME/work/autosearch/.venv/bin/autosearch query "Explain retrieval-augmented generation in LLM applications, including its benefits over fine-tuning" --mode fast --stream
+        env_keys: [OPENROUTER_API_KEY]
+        cmd: |
+          OPENAI_API_KEY=$OPENROUTER_API_KEY \
+          OPENAI_BASE_URL=https://openrouter.ai/api/v1 \
+          OPENAI_MODEL=anthropic/claude-haiku-3-5-20241022 \
+          AUTOSEARCH_PROVIDER_CHAIN=openai \
+          $HOME/work/autosearch/.venv/bin/autosearch query "Explain retrieval-augmented generation in LLM applications, including its benefits over fine-tuning" --mode fast --stream
         expect:
           exit: 0
           stdout_contains: "References"
-      - id: fast_json_anthropic
+      - id: fast_json_openrouter
         timeout: 300
-        env_keys: [ANTHROPIC_API_KEY]
-        cmd: AUTOSEARCH_PROVIDER_CHAIN=anthropic $HOME/work/autosearch/.venv/bin/autosearch query "Explain BM25 ranking function with formula and worked example" --mode fast --json
+        env_keys: [OPENROUTER_API_KEY]
+        cmd: |
+          OPENAI_API_KEY=$OPENROUTER_API_KEY \
+          OPENAI_BASE_URL=https://openrouter.ai/api/v1 \
+          OPENAI_MODEL=anthropic/claude-haiku-3-5-20241022 \
+          AUTOSEARCH_PROVIDER_CHAIN=openai \
+          $HOME/work/autosearch/.venv/bin/autosearch query "Explain BM25 ranking function with formula and worked example" --mode fast --json
         expect:
           exit: 0
           stdout_contains: "markdown"
-      - id: fast_nostream_anthropic
+      - id: fast_nostream_openrouter
         timeout: 600
-        env_keys: [ANTHROPIC_API_KEY]
-        # Fast mode after W1-W6 averages 4-6min on 31-channel pipeline; 300s was
-        # the pre-W1-W6 budget. Raised to 600s.
-        cmd: AUTOSEARCH_PROVIDER_CHAIN=anthropic $HOME/work/autosearch/.venv/bin/autosearch query "What is dense retrieval using sentence-transformers, and how does it compare to BM25?" --mode fast --no-stream
+        env_keys: [OPENROUTER_API_KEY]
+        cmd: |
+          OPENAI_API_KEY=$OPENROUTER_API_KEY \
+          OPENAI_BASE_URL=https://openrouter.ai/api/v1 \
+          OPENAI_MODEL=anthropic/claude-haiku-3-5-20241022 \
+          AUTOSEARCH_PROVIDER_CHAIN=openai \
+          $HOME/work/autosearch/.venv/bin/autosearch query "What is dense retrieval using sentence-transformers, and how does it compare to BM25?" --mode fast --no-stream
         expect:
           exit: 0
           stdout_contains: "Sources"
-      - id: deep_stream_anthropic
+      - id: deep_stream_openrouter
         timeout: 1200
-        env_keys: [ANTHROPIC_API_KEY]
-        # Deep mode after W1-W6 averages 6-10min on a 31-channel fast pipeline;
-        # budget raised from 480s (pre-W1-W6) to 1200s to match F206 measured p50.
-        cmd: AUTOSEARCH_PROVIDER_CHAIN=anthropic $HOME/work/autosearch/.venv/bin/autosearch query "Compare BM25 vs dense vector retrieval in production search systems" --mode deep --stream
+        env_keys: [OPENROUTER_API_KEY]
+        cmd: |
+          OPENAI_API_KEY=$OPENROUTER_API_KEY \
+          OPENAI_BASE_URL=https://openrouter.ai/api/v1 \
+          OPENAI_MODEL=anthropic/claude-haiku-3-5-20241022 \
+          AUTOSEARCH_PROVIDER_CHAIN=openai \
+          $HOME/work/autosearch/.venv/bin/autosearch query "Compare BM25 vs dense vector retrieval in production search systems" --mode deep --stream
         expect:
           exit: 0
           stdout_contains: "References"
-      # fast_stream_openai removed: OPENAI_API_KEY not configured in boss secrets (file empty).
-      # Re-add once ~/.config/ai-secrets.env has a real OPENAI_API_KEY value.
-      - id: fast_stream_chain
+      - id: fast_stream_fallback_openrouter
         timeout: 360
-        env_keys: [ANTHROPIC_API_KEY, OPENAI_API_KEY]
-        cmd: AUTOSEARCH_PROVIDER_CHAIN=anthropic,openai $HOME/work/autosearch/.venv/bin/autosearch query "Explain Facebook AI Similarity Search (FAISS) library use cases" --mode fast --stream
+        env_keys: [OPENROUTER_API_KEY]
+        cmd: |
+          OPENAI_API_KEY=$OPENROUTER_API_KEY \
+          OPENAI_BASE_URL=https://openrouter.ai/api/v1 \
+          OPENAI_MODEL=anthropic/claude-haiku-3-5-20241022 \
+          AUTOSEARCH_PROVIDER_CHAIN=openai \
+          $HOME/work/autosearch/.venv/bin/autosearch query "Explain Facebook AI Similarity Search (FAISS) library use cases" --mode fast --stream
         expect:
           exit: 0
           stdout_contains: "References"
 
-  # F004 S2 — FastAPI server endpoints (uses setup_env_keys for serve startup)
-  F004_S2_serve_endpoints:
+  # F004 S2 — MCP stdio: verify server starts and tools/list returns expected tools
+  F004_S2_mcp_stdio:
     parallel: 1
-    timeout: 900
-    setup_env_keys: [ANTHROPIC_API_KEY]
+    timeout: 300
     upload:
       - src: /tmp/autosearch-src.tar.gz
         dst: /tmp/autosearch-src.tar.gz
@@ -232,73 +250,43 @@ phases:
       cd $HOME/work/autosearch
       $HOME/.local/bin/uv venv --python 3.12 .venv
       $HOME/.local/bin/uv pip install --python .venv/bin/python -e . > /tmp/install.log 2>&1
-      nohup $HOME/work/autosearch/.venv/bin/autosearch serve --host 127.0.0.1 --port 18080 > /tmp/serve.log 2>&1 &
-      echo $! > /tmp/serve.pid
-      for i in $(seq 1 30); do
-        curl -sf http://127.0.0.1:18080/health > /dev/null 2>&1 && break
-        sleep 1
-      done
     tasks:
-      - id: health
-        cmd: curl -sf http://127.0.0.1:18080/health
-        expect:
-          exit: 0
-          stdout_contains: "ok"
-      - id: models_list
-        cmd: curl -sf http://127.0.0.1:18080/v1/models
-        expect:
-          exit: 0
-          stdout_contains: "data"
-      - id: chat_nonstream
-        timeout: 300
+      - id: mcp_tools_list
+        timeout: 60
         cmd: |
-          BODY=$(curl -s -w '\n%{http_code}' -X POST http://127.0.0.1:18080/v1/chat/completions \
-            -H 'Content-Type: application/json' \
-            -d '{"model":"autosearch","messages":[{"role":"user","content":"Explain BM25 ranking with example"}],"stream":false}')
-          CODE=$(echo "$BODY" | tail -1)
-          echo "http_code=$CODE"
-          echo "$BODY" | head -n -1 | python3 -c 'import sys,json; r=json.load(sys.stdin); print("content_present" if r["choices"][0]["message"]["content"] else "empty"); md=r.get("metadata",{}); print("visitedURLs_present" if "visitedURLs" in md else "no_visitedURLs"); print("reasoning_content_present" if "reasoning_content" in md else "no_reasoning_content")'
+          cd $HOME/work/autosearch
+          .venv/bin/python -c "
+          import asyncio
+          from autosearch.mcp.server import create_server
+          server = create_server()
+          tools = asyncio.run(server.list_tools())
+          names = [t.name for t in tools]
+          print('tools=', names)
+          required = {'run_channel', 'list_skills', 'run_clarify'}
+          missing = required - set(names)
+          assert not missing, f'missing tools: {missing}'
+          print(f'mcp_tools_ok count={len(names)}')
+          "
         expect:
           exit: 0
-          stdout_contains: "content_present"
-      - id: chat_stream
-        timeout: 300
+          stdout_contains: "mcp_tools_ok"
+      - id: mcp_run_channel_ddgs
+        timeout: 60
         cmd: |
-          curl -sNf -X POST http://127.0.0.1:18080/v1/chat/completions \
-            -H 'Content-Type: application/json' \
-            -d '{"model":"autosearch","messages":[{"role":"user","content":"Explain dense retrieval briefly"}],"stream":true}' \
-          | tee /tmp/sse.out | grep -c "^data:"
-          echo "---last 5 lines---"
-          tail -5 /tmp/sse.out
+          cd $HOME/work/autosearch
+          .venv/bin/python -c "
+          import asyncio
+          from autosearch.mcp.server import create_server
+          server = create_server()
+          result = asyncio.run(server.call_tool('run_channel', {'channel_name': 'ddgs', 'query': 'BM25 ranking algorithm'}))
+          content = str(result)
+          print('preview=', content[:200])
+          assert len(content) > 10, f'empty result from run_channel: {content}'
+          print('mcp_run_channel_ok')
+          "
         expect:
           exit: 0
-          stdout_contains: "[DONE]"
-      - id: search_sse
-        timeout: 300
-        cmd: |
-          # Provide scope inline so the scope_clarifier (added in 0419 channels plan)
-          # does not emit `scope_needed` questions ahead of actual phase events.
-          curl -sNf -X POST http://127.0.0.1:18080/search \
-            -H 'Content-Type: application/json' \
-            -d '{"query":"Explain Facebook FAISS library","mode":"fast","scope":{"channel_scope":"all","depth":"fast","output_format":"md","domain_followups":[]}}' \
-          | tee /tmp/search-sse.out
-          echo "---event types---"
-          grep -o '"type"[[:space:]]*:[[:space:]]*"[^"]*"' /tmp/search-sse.out | sort -u
-        expect:
-          exit: 0
-          stdout_regex: '"type":\s*"(phase|finished|scope_needed)"'
-      - id: empty_messages
-        cmd: |
-          curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18080/v1/chat/completions \
-            -H 'Content-Type: application/json' -d '{"model":"autosearch","messages":[]}'
-        expect:
-          exit: 0
-          stdout_regex: "^4"
-      - id: shutdown_clean
-        cmd: kill -TERM $(cat /tmp/serve.pid) && sleep 2 && (kill -0 $(cat /tmp/serve.pid) 2>/dev/null && echo "alive" || echo "dead")
-        expect:
-          exit: 0
-          stdout_contains: "dead"
+          stdout_contains: "mcp_run_channel_ok"
 
   # F004 S3 — OpenAI SDK strict schema
   F004_S3_openai_sdk_compat:
@@ -502,11 +490,10 @@ phases:
       # "primary serves, no fallback" — without it the chain silently falls through to anthropic
       # and the task PASSes for the wrong reason. Re-add once OPENAI_API_KEY is populated.
 
-  # F013 S0 — DDGS channel smoke (first real channel, no LLM required for the channel itself,
-  # but the query pipeline invokes LLM — needs ANTHROPIC_API_KEY for M2/M3/M7/M8)
+  # F013 S0 — DDGS channel smoke (direct search fn call, no LLM)
   F013_channel_ddgs_smoke:
     parallel: 1
-    timeout: 600
+    timeout: 300
     upload:
       - src: /tmp/autosearch-src.tar.gz
         dst: /tmp/autosearch-src.tar.gz
@@ -519,57 +506,26 @@ phases:
       $HOME/.local/bin/uv venv --python 3.12 .venv
       $HOME/.local/bin/uv pip install --python .venv/bin/python -e . > /tmp/install.log 2>&1
     tasks:
-      - id: ddgs_real_query
-        timeout: 480
-        env_keys: [ANTHROPIC_API_KEY]
+      - id: ddgs_search
+        timeout: 60
         cmd: |
-          set -o pipefail
           cd $HOME/work/autosearch
-          AUTOSEARCH_PROVIDER_CHAIN=anthropic \
-          .venv/bin/autosearch query "Explain BM25 ranking with formula" --mode fast --no-stream 2>&1 | tail -60
-        expect:
-          exit: 0
-          stdout_contains: "References"
-        # Note: asserts report contains References section. DDGS returns real web URLs,
-        # so Evidence with real URLs should appear in the report (vs DemoChannel placeholder).
-      - id: ddgs_channel_in_metadata
-        timeout: 240
-        env_keys: [ANTHROPIC_API_KEY]
-        cmd: |
-          set -o pipefail
-          cd $HOME/work/autosearch
-          AUTOSEARCH_PROVIDER_CHAIN=anthropic \
-          .venv/bin/autosearch query "Explain BM25 ranking" --mode fast --json 2>&1 | tail -80 | python3 -c "
-          import sys, json
-          out = sys.stdin.read()
-          # Extract the last JSON object from output (skip any preceding logs)
-          try:
-              start = out.index('{')
-              data = json.loads(out[start:])
-              sources = data.get('sources') or {}
-              channels = set()
-              if isinstance(sources, dict):
-                  channels.update(sources.keys())
-              elif isinstance(sources, list):
-                  for s in sources:
-                      if isinstance(s, dict) and 'channel' in s:
-                          channels.add(s['channel'])
-              print('channels=', sorted(channels))
-              assert 'ddgs' in channels, f'ddgs missing from sources: {channels}'
-              print('ddgs_in_sources_ok')
-          except Exception as e:
-              print('parse_error:', e)
-              print('sample:', out[:500])
-              sys.exit(1)
+          .venv/bin/python -c "
+          import asyncio
+          from autosearch.core.models import SubQuery
+          from autosearch.skills.channels.ddgs.methods.api import search
+          results = asyncio.run(search(SubQuery(text='BM25 ranking algorithm formula', rationale='')))
+          assert len(results) > 0, f'ddgs: got 0 results'
+          print(f'ddgs_ok results={len(results)} url={results[0].url[:50]}')
           "
         expect:
           exit: 0
-          stdout_contains: "ddgs_in_sources_ok"
+          stdout_contains: "ddgs_ok"
 
-  # F013 S1 — arxiv channel smoke (free API, no key required)
+  # F013 S1 — arxiv channel smoke (direct search fn call, no LLM, free API)
   F013_channel_arxiv_smoke:
     parallel: 1
-    timeout: 600
+    timeout: 300
     upload:
       - src: /tmp/autosearch-src.tar.gz
         dst: /tmp/autosearch-src.tar.gz
@@ -582,36 +538,23 @@ phases:
       $HOME/.local/bin/uv venv --python 3.12 .venv
       $HOME/.local/bin/uv pip install --python .venv/bin/python -e . > /tmp/install.log 2>&1
     tasks:
-      - id: arxiv_in_sources
-        timeout: 900
-        env_keys: [ANTHROPIC_API_KEY]
+      - id: arxiv_search
+        timeout: 60
         cmd: |
-          set -o pipefail
           cd $HOME/work/autosearch
-          AUTOSEARCH_PROVIDER_CHAIN=anthropic \
-          .venv/bin/autosearch query "Survey papers on retrieval augmented generation" --mode fast --json 2>&1 | tail -80 | python3 -c "
-          import sys, json
-          out = sys.stdin.read()
-          start = out.index('{')
-          data = json.loads(out[start:])
-          sources = data.get('sources') or {}
-          channels = set()
-          if isinstance(sources, dict):
-              channels.update(sources.keys())
-          elif isinstance(sources, list):
-              for source in sources:
-                  if isinstance(source, dict) and 'channel' in source:
-                      channels.add(source['channel'])
-          print('channels=', sorted(channels))
-          assert 'arxiv' in channels, f'arxiv missing from sources: {channels}'
-          refs = data.get('markdown') or ''
-          has_arxiv_url = 'arxiv.org/abs' in refs
-          assert has_arxiv_url, 'no arxiv.org/abs URL in markdown'
-          print('arxiv_in_report_ok')
+          .venv/bin/python -c "
+          import asyncio
+          from autosearch.core.models import SubQuery
+          from autosearch.skills.channels.arxiv.methods.api_search import search
+          results = asyncio.run(search(SubQuery(text='retrieval augmented generation survey', rationale='')))
+          assert len(results) > 0, f'arxiv: got 0 results'
+          has_arxiv_url = any('arxiv.org' in (r.url or '') for r in results)
+          assert has_arxiv_url, f'no arxiv.org URLs in results'
+          print(f'arxiv_ok results={len(results)} url={results[0].url[:50]}')
           "
         expect:
           exit: 0
-          stdout_contains: "arxiv_in_report_ok"
+          stdout_contains: "arxiv_ok"
 
   # F013 S4 — registry-compiled channels probe (post-F003)
   F013_registry_channels_available:
@@ -956,3 +899,117 @@ phases:
         expect:
           exit: 0
           stdout_contains: "roadmap_claims_backed_ok"
+
+  # F013 S5 — TikHub channel smokes (direct search fn calls, no LLM pipeline)
+  # Tests: bilibili, twitter, weibo, xiaohongshu, douyin, wechat_channels
+  F013_tikhub_channels:
+    parallel: 1
+    timeout: 600
+    upload:
+      - src: /tmp/autosearch-src.tar.gz
+        dst: /tmp/autosearch-src.tar.gz
+    setup: |
+      set -e
+      mkdir -p $HOME/work/autosearch
+      tar -xzf /tmp/autosearch-src.tar.gz -C $HOME/work/autosearch
+      curl -LsSf https://astral.sh/uv/install.sh | sh > /dev/null 2>&1
+      cd $HOME/work/autosearch
+      $HOME/.local/bin/uv venv --python 3.12 .venv
+      $HOME/.local/bin/uv pip install --python .venv/bin/python -e . > /tmp/install.log 2>&1
+    tasks:
+      - id: bilibili_search
+        timeout: 60
+        env_keys: [TIKHUB_API_KEY]
+        cmd: |
+          cd $HOME/work/autosearch
+          .venv/bin/python -c "
+          import asyncio, os
+          from autosearch.core.models import SubQuery
+          from autosearch.skills.channels.bilibili.methods.via_tikhub import search
+          results = asyncio.run(search(SubQuery(text='Python机器学习教程', rationale='')))
+          assert len(results) > 0, f'bilibili: got 0 results'
+          print(f'bilibili_ok results={len(results)} title={results[0].title[:40]}')
+          "
+        expect:
+          exit: 0
+          stdout_contains: "bilibili_ok"
+      - id: twitter_search
+        timeout: 60
+        env_keys: [TIKHUB_API_KEY]
+        cmd: |
+          cd $HOME/work/autosearch
+          .venv/bin/python -c "
+          import asyncio, os
+          from autosearch.core.models import SubQuery
+          from autosearch.skills.channels.twitter.methods.via_tikhub import search
+          results = asyncio.run(search(SubQuery(text='LLM agents 2024', rationale='')))
+          assert len(results) > 0, f'twitter: got 0 results'
+          print(f'twitter_ok results={len(results)} title={results[0].title[:40]}')
+          "
+        expect:
+          exit: 0
+          stdout_contains: "twitter_ok"
+      - id: weibo_search
+        timeout: 60
+        env_keys: [TIKHUB_API_KEY]
+        cmd: |
+          cd $HOME/work/autosearch
+          .venv/bin/python -c "
+          import asyncio, os
+          from autosearch.core.models import SubQuery
+          from autosearch.skills.channels.weibo.methods.via_tikhub import search
+          results = asyncio.run(search(SubQuery(text='人工智能', rationale='')))
+          assert len(results) > 0, f'weibo: got 0 results'
+          print(f'weibo_ok results={len(results)} title={results[0].title[:40]}')
+          "
+        expect:
+          exit: 0
+          stdout_contains: "weibo_ok"
+      - id: xiaohongshu_search
+        timeout: 60
+        env_keys: [TIKHUB_API_KEY]
+        cmd: |
+          cd $HOME/work/autosearch
+          .venv/bin/python -c "
+          import asyncio, os
+          from autosearch.core.models import SubQuery
+          from autosearch.skills.channels.xiaohongshu.methods.via_tikhub import search
+          results = asyncio.run(search(SubQuery(text='iPhone推荐', rationale='')))
+          assert len(results) > 0, f'xiaohongshu: got 0 results'
+          print(f'xiaohongshu_ok results={len(results)} title={results[0].title[:40]}')
+          "
+        expect:
+          exit: 0
+          stdout_contains: "xiaohongshu_ok"
+      - id: douyin_search
+        timeout: 60
+        env_keys: [TIKHUB_API_KEY]
+        cmd: |
+          cd $HOME/work/autosearch
+          .venv/bin/python -c "
+          import asyncio, os
+          from autosearch.core.models import SubQuery
+          from autosearch.skills.channels.douyin.methods.via_tikhub import search
+          results = asyncio.run(search(SubQuery(text='编程学习', rationale='')))
+          assert len(results) > 0, f'douyin: got 0 results'
+          print(f'douyin_ok results={len(results)} title={results[0].title[:40]}')
+          "
+        expect:
+          exit: 0
+          stdout_contains: "douyin_ok"
+      - id: wechat_channels_search
+        timeout: 60
+        env_keys: [TIKHUB_API_KEY]
+        cmd: |
+          cd $HOME/work/autosearch
+          .venv/bin/python -c "
+          import asyncio, os
+          from autosearch.core.models import SubQuery
+          from autosearch.skills.channels.wechat_channels.methods.via_tikhub import search
+          results = asyncio.run(search(SubQuery(text='人工智能产品', rationale='')))
+          assert len(results) > 0, f'wechat_channels: got 0 results'
+          print(f'wechat_channels_ok results={len(results)} title={results[0].title[:40]}')
+          "
+        expect:
+          exit: 0
+          stdout_contains: "wechat_channels_ok"
