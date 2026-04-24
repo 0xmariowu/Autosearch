@@ -82,10 +82,32 @@ PY
   fi
 }
 
+update_npm_package_version() {
+  local path="npm/package.json"
+  [ -f "$path" ] || return 0
+  python3 - "$path" "$new_version" <<'PY'
+import json, sys
+path, py_version = sys.argv[1], sys.argv[2]
+parts = py_version.split('.')
+if len(parts) != 4:
+    raise SystemExit(f"unexpected pyproject version shape: {py_version}")
+year, month, day, _seq = parts
+npm_version = f"{int(year)}.{int(month)}.{int(day)}"
+with open(path) as f: d = json.load(f)
+if d.get('version') == npm_version:
+    raise SystemExit(0)
+d['version'] = npm_version
+with open(path, 'w') as f: json.dump(d, f, indent=2); f.write('\n')
+print(npm_version)
+PY
+  echo "  updated $path (derived from $new_version)"
+}
+
 update_pyproject
 update_json_version .claude-plugin/plugin.json
 update_json_version .claude-plugin/marketplace.json
+update_npm_package_version
 ensure_changelog_entry
 
 echo "Done. Review diff before committing:"
-echo "  git diff pyproject.toml .claude-plugin/ CHANGELOG.md"
+echo "  git diff pyproject.toml .claude-plugin/ npm/package.json CHANGELOG.md"
