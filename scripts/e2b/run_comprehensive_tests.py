@@ -106,6 +106,7 @@ from scripts.e2b.scenarios.k_avo_evolution import (  # noqa: E402
     k2_meta_skill_protection,
     k3_pattern_append_compact,
     k4_git_commit_revert_cycle,
+    k5_evolution_contract_validation,
 )
 from scripts.e2b.scenarios.l_report_quality import (  # noqa: E402
     l1_fast_mode_report,
@@ -259,6 +260,7 @@ ALL_SCENARIOS = [
     ("K2", "K", k2_meta_skill_protection),
     ("K3", "K", k3_pattern_append_compact),
     ("K4", "K", k4_git_commit_revert_cycle),
+    ("K5", "K", k5_evolution_contract_validation),
     # ── Report Quality ───────────────────────────────────────────────────────
     ("L1", "L", l1_fast_mode_report),
     ("L2", "L", l2_deep_mode_loop_report),

@@ -1,4 +1,4 @@
-"""Scenarios K1-K4: AVO evolution in E2B sandbox — git-based skill modification cycle."""
+"""Scenarios K1-K5: AVO evolution in E2B sandbox — auditable skill evolution cycle."""
 
 from __future__ import annotations
 
@@ -362,5 +362,90 @@ print(json.dumps({'ok': reverted, 'reverted': reverted}))
         passed=full_ok,
         details=details,
         error="" if full_ok else (revert_err or commit_err or verify.get("error", ""))[:300],
+        duration_s=dur,
+    )
+
+
+async def k5_evolution_contract_validation(sandbox_id: str, env: dict) -> ScenarioResult:
+    """K5: Validate that AVO trial reports include native Codex and git evidence."""
+    t0 = time.monotonic()
+    install_error = await _install_or_fail(sandbox_id, "K5", "evolution_contract_validation", t0)
+    if install_error:
+        return install_error
+
+    result, _ = await run_python(
+        sandbox_id,
+        """
+import os, json
+os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
+
+from autosearch.quality.evolution_contract import (
+    EvolutionTrial,
+    NativeCodexComparison,
+    validate_evolution_trial,
+)
+
+comparison = NativeCodexComparison(
+    result_count_by_type={'docs': 2, 'community': 1},
+    conceptual_framework_depth=2,
+    coverage_gaps=('native Codex missed community-specific examples',),
+)
+
+passing = validate_evolution_trial(EvolutionTrial(
+    baseline_score=0.40,
+    revised_score=0.62,
+    skill_modified=True,
+    committed=True,
+    reverted=False,
+    pattern_written=True,
+    native_codex_baseline=comparison,
+))
+missing_native = validate_evolution_trial(EvolutionTrial(
+    baseline_score=0.40,
+    revised_score=0.62,
+    skill_modified=True,
+    committed=True,
+    reverted=False,
+    pattern_written=True,
+    native_codex_baseline=None,
+))
+missing_revert = validate_evolution_trial(EvolutionTrial(
+    baseline_score=0.62,
+    revised_score=0.40,
+    skill_modified=True,
+    committed=False,
+    reverted=False,
+    pattern_written=True,
+    native_codex_baseline=comparison,
+))
+
+ok = (
+    passing.ok
+    and not missing_native.ok
+    and not missing_revert.ok
+    and 'native Codex baseline comparison is required' in missing_native.failures
+    and 'non-improving trials must be reverted' in missing_revert.failures
+)
+print(json.dumps({
+    'ok': ok,
+    'passing_verdict': passing.verdict,
+    'passing_delta': passing.improvement_delta,
+    'missing_native_failures': list(missing_native.failures),
+    'missing_revert_failures': list(missing_revert.failures),
+}))
+""",
+        env=_clean_env(env),
+        timeout=30,
+    )
+    dur = time.monotonic() - t0
+    ok = result.get("ok", False)
+    return ScenarioResult(
+        "K5",
+        "K",
+        "evolution_contract_validation",
+        score=100 if ok else 0,
+        passed=ok,
+        details=result,
+        error=result.get("error", "") if not ok else "",
         duration_s=dur,
     )
