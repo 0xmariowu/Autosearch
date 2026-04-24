@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026.04.24.7 — 2026-04-24
+
+The "second-pass diagnostic" release — six follow-up bugs the v6 audit caught
+that the original fix-plan missed.
+
+- **Channels stop lying about success.** A 401 / 403 / 429 / schema change used to come back from `run_channel` as `status="no_results"`, indistinguishable from "nothing matched your query". New typed exceptions (`ChannelAuthError`, plus the existing `RateLimited`) propagate from channel adapters to the MCP boundary, where `run_channel` now surfaces `status="auth_failed"` / `"rate_limited"` / `"channel_error"` distinctly. github channel piloted; remaining 30+ adapters migrate in follow-up PRs. (#353)
+- **`autosearch configure --replace KEY` actually reaches the running MCP.** Previously the file was rewritten but the long-running process kept the stale `os.environ[KEY]` it had injected on first load, because `inject_into_env()` skipped any key already in env. New `force=True` mode wipes file-injected values on every fingerprint-triggered runtime rebuild; user-explicit `KEY=… autosearch …` overrides still win. (#351)
+- **`autosearch configure` and `autosearch login` honour `AUTOSEARCH_SECRETS_FILE`.** Both used to write to the hardcoded `~/.config/ai-secrets.env` while the runtime read from `secrets_path()` — containers, CI, and multi-user installs ended up writing to A and reading from B. Both call sites now use `secrets_path()`. (#351)
+- **Cookie writes don't ride bare in shell history.** `autosearch login --stdin` added (pipe the cookie in); `--from-string` kept for back-compat but emits a deprecation warning + recommends `--stdin`. `_write_cookie_to_secrets` now `chmod(0o600)` after write so cookies aren't world-readable on shared boxes. (#351)
+- **`npx autosearch-ai` works on Windows.** The wrapper used to hardcode `bash -c "curl … | bash"`. It now picks an installer based on `process.platform`: pipx → `py -3.12 -m pip --user` → `python -m pip --user` on Windows; the existing curl path on macOS / Linux. `--help` and `--version` short-circuit before the install probe so users can inspect without triggering a y/N prompt. (#352)
+- **`scripts/validate/check_mcp_tools.py` and the perf test follow the v6 contract.** Both still expected the deprecated `research` tool in the default registration list (which v5 made opt-in). The validate script now asserts research is NOT in the default list AND reappears under `AUTOSEARCH_LEGACY_RESEARCH=1`; the perf test sets the env before constructing the server. (#350)
+
 ## 2026.04.24.6 — 2026-04-24
 
 The "six bugs caught by the product diagnostic" release. All 6 items in
