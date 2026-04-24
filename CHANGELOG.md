@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026.04.24.4 — 2026-04-24
+
+The "smaller wheel, honest docs" release.
+
+- **Wheel surface shrinks ~600 lines.** The legacy v1 modules `autosearch/synthesis/` (citation + outline + report-rendering helpers) and the empty `autosearch/server/` shell are gone from the runtime package. Two new gates in `tests/unit/test_package_contents.py` (`test_legacy_v1_modules_not_in_source_tree`, `test_built_wheel_does_not_ship_legacy_v1_modules`) prevent them from sneaking back in. No production caller depended on them; v2 host agents synthesize their own answers.
+- **Docs no longer lie about the contract** while leaving the product narrative untouched per owner directive:
+  - `README.md` / `README.zh.md` doctor sample updated from the stale `Always-on (21/21) / Env-gated (0/1) / Login (0/15)` to the real tiers (`27/27 / API-key 0/11 / Login 0/2`).
+  - `docs/install.md` channel count `39 → 40`; the npx note now says it prompts before running install (matching the consent step added in `2026.04.24.3`).
+  - `docs/mcp-clients.md` rewritten around the v2 tool-supplier toolkit (10 required tools listed, `run_channel` schema documented, verification script switched from `call_tool("research", …)` to a `tools/list` check + free-channel smoke). The deprecated `research` tool is no longer the documented happy path.
+
 ## 2026.04.24.3 — 2026-04-24
 
 The "tighten the install path and the release gate" release. Closes the
