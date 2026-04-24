@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parents[2]))
 from autosearch.core.experience_compact import compact
 from autosearch.skills.experience import append_event, should_compact
 
-CHANNEL = "test-experience-channel"
+CHANNEL = "github"
 N_EVENTS = 10
 
 
