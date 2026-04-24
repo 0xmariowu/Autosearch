@@ -223,15 +223,13 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
         if spec.name == "github":
             methods = {method.id: method for method in metadata.methods}
 
+            # Only the no-token public-repo search ships with an impl. The
+            # token-gated search_repositories/issues/code declarations were
+            # removed because their impl files never existed (see plan §P0-2).
             assert [method.id for method in metadata.available_methods()] == ["search_public_repos"]
             assert methods["search_public_repos"].available is True
             assert methods["search_public_repos"].unmet_requires == []
-            assert methods["search_repositories"].available is False
-            assert methods["search_repositories"].unmet_requires == ["impl_missing"]
-            assert methods["search_issues"].available is False
-            assert methods["search_issues"].unmet_requires == ["impl_missing"]
-            assert methods["search_code"].available is False
-            assert methods["search_code"].unmet_requires == ["impl_missing"]
+            assert set(methods.keys()) == {"search_public_repos"}
             continue
         if spec.name == "devto":
             assert len(metadata.methods) == 1
@@ -259,23 +257,16 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
             assert metadata.available_methods() == []
             assert methods["via_tikhub"].available is False
             assert methods["via_tikhub"].unmet_requires == ["env:TIKHUB_API_KEY"]
-            assert methods["api_search"].available is False
-            assert methods["api_search"].unmet_requires == ["impl_missing"]
-            assert methods["api_answer_detail"].available is False
-            assert methods["api_answer_detail"].unmet_requires == ["impl_missing"]
+            assert set(methods.keys()) == {"via_tikhub"}
             continue
         if spec.name == "xiaohongshu":
             methods = {method.id: method for method in metadata.methods}
 
             assert metadata.available_methods() == []
-            # via_signsrv requires 3 env vars — none set in test env
             assert methods["via_signsrv"].available is False
             assert methods["via_tikhub"].available is False
             assert methods["via_tikhub"].unmet_requires == ["env:TIKHUB_API_KEY"]
-            assert methods["via_mcporter"].available is False
-            assert methods["via_mcporter"].unmet_requires == ["impl_missing"]
-            assert methods["via_xhs_cli"].available is False
-            assert methods["via_xhs_cli"].unmet_requires == ["impl_missing"]
+            assert set(methods.keys()) == {"via_signsrv", "via_tikhub"}
             continue
         if spec.name == "twitter":
             methods = {method.id: method for method in metadata.methods}
@@ -283,8 +274,7 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
             assert metadata.available_methods() == []
             assert methods["via_tikhub"].available is False
             assert methods["via_tikhub"].unmet_requires == ["env:TIKHUB_API_KEY"]
-            assert methods["api_search"].available is False
-            assert methods["api_search"].unmet_requires == ["impl_missing"]
+            assert set(methods.keys()) == {"via_tikhub"}
             continue
         if spec.name == "tiktok":
             methods = {method.id: method for method in metadata.methods}
