@@ -51,8 +51,17 @@ def test_login_from_string_still_works_with_deprecation_warning(tmp_secrets) -> 
 
 
 def test_login_help_recommends_stdin_over_from_string() -> None:
+    """Check the help text mentions stdin + deprecation. Strip ANSI/box-draw
+    chars + collapse whitespace so the assertion survives Rich's variable
+    line-wrapping in CI's narrow terminal."""
+    import re
+
     runner = CliRunner()
-    result = runner.invoke(app, ["login", "--help"])
+    result = runner.invoke(app, ["login", "--help"], env={"NO_COLOR": "1", "TERM": "dumb"})
     assert result.exit_code == 0
-    assert "--stdin" in result.output
-    assert "DEPRECATED" in result.output or "deprecated" in result.output.lower()
+    # Drop ANSI escapes and Unicode box-draw chars, then collapse whitespace.
+    raw = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", result.output)
+    raw = re.sub(r"[│─╭╮╰╯┌┐└┘┃━]", " ", raw)
+    cleaned = re.sub(r"\s+", " ", raw).lower()
+    assert "stdin" in cleaned, f"--help should mention stdin; cleaned text: {cleaned[:300]}"
+    assert "deprecated" in cleaned
