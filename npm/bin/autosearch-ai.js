@@ -195,6 +195,10 @@ async function main() {
     return;
   }
   if (popFlag("--version", "-V")) {
+    const installedVersion = getInstalledAutosearchVersion();
+    if (installedVersion !== null) {
+      checkVersionAlignment(installedVersion);
+    }
     printVersion();
     return;
   }
