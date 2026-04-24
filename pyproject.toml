@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "autosearch"
-version = "2026.04.24.2"
+version = "2026.04.24.3"
 description = "MCP research tool supplier for coding agents, with 39 academic, web, developer, and Chinese-source channels"
 readme = "README.md"
 requires-python = ">=3.12"

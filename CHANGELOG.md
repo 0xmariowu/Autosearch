@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026.04.24.3 — 2026-04-24
+
+The "tighten the install path and the release gate" release. Closes the
+remaining million-user-readiness items where the v2 contract was correct in
+code but not enforced at the install / release boundary.
+
+- **`npm install -g autosearch-ai` no longer silently downloads and runs a remote install script.** The `postinstall` hook is removed. `npx autosearch-ai` (the recommended one-line install) still works, but now prints the URL it's about to fetch and waits for `y` to confirm — pass `--yes` (or `-y`) for non-interactive automation. In a non-TTY environment without `--yes`, it refuses rather than installing silently.
+- **Release gate now runs named contract checks even in `--quick` mode.** `scripts/release-gate.sh` adds an explicit "contract gates" step that lists each plan §Gate A-G (plus the P0-5/6 invariants) by name. A regression in secrets visibility, MCP redaction, channel availability, runtime health persistence, rate-limit enforcement, or wheel content now produces a contract-named failure banner instead of blending into the 800-test default suite. Gate E (docs contract) deferred pending the narrative refresh.
+- **E2B matrix contract test scans every `tests/e2b/*.yaml`**, not just the main matrix. Cleaned residual v1 expectations in `matrix-extensions.yaml`: `stdout_contains: "References"` → topic-surface check, "Use the research tool" prompt → list_skills + run_channel flow.
+- **New `tests/unit/test_package_contents.py` gate** — fails the release if runtime dependencies pull in `pytest` / `ruff` / etc., if the setuptools package-data glob would ship `*.jsonl`, if the cross-file version pins drift, or if a built wheel ships runtime `patterns.jsonl`.
+
 ## 2026.04.24.2 — 2026-04-24
 
 The "runtime actually does what doctor says" release. Fixes audit findings
