@@ -45,6 +45,7 @@ def _setup_skill_dir(tmp_path: Path, channel: str, monkeypatch) -> Path:
     skill_dir = tmp_path / "channels" / channel
     skill_dir.mkdir(parents=True)
     monkeypatch.setattr(exp_mod, "_SKILLS_ROOT", tmp_path)
+    monkeypatch.setenv("AUTOSEARCH_EXPERIENCE_DIR", str(tmp_path))
     return skill_dir
 
 

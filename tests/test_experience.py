@@ -7,10 +7,17 @@ from autosearch.skills import experience
 
 
 def _make_skill_root(tmp_path, monkeypatch, skill_name: str = "demo"):
+    """Set up both bundled (read-only) skill_dir and runtime experience root.
+
+    Bundled root is needed so `_find_skill_dir` can derive the skill group;
+    runtime root is where `append_event` / `compact` actually write.
+    Pointing both at the same path keeps test assertions straightforward.
+    """
     root = tmp_path / "skills"
     skill_dir = root / "channels" / skill_name
     skill_dir.mkdir(parents=True)
     monkeypatch.setattr(experience, "_SKILLS_ROOT", root)
+    monkeypatch.setenv("AUTOSEARCH_EXPERIENCE_DIR", str(root))
     return skill_dir
 
 
