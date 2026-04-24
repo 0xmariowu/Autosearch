@@ -18,6 +18,7 @@ import argparse
 import asyncio
 import json
 import os
+import subprocess
 import sys
 import time
 from datetime import datetime
@@ -192,6 +193,44 @@ from scripts.e2b.scenarios.x_tikhub_pathfinding import (  # noqa: E402
     x7_tiktok_english_tech,
     x8_tikhub_cross_platform,
 )
+
+
+def _git_output(*args: str) -> str:
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), *args],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def _https_remote_url(remote_url: str) -> str:
+    if remote_url.startswith("git@github.com:"):
+        return "https://github.com/" + remote_url.removeprefix("git@github.com:")
+    return remote_url
+
+
+def _collect_source_ref_env() -> dict[str, str]:
+    """Expose the current checkout to E2B scenarios that must validate this ref."""
+
+    source: dict[str, str] = {}
+    repo_url = os.environ.get("AUTOSEARCH_E2B_REPO_URL", "").strip()
+    if not repo_url:
+        repo_url = _https_remote_url(_git_output("config", "--get", "remote.origin.url"))
+    if repo_url:
+        source["AUTOSEARCH_E2B_REPO_URL"] = repo_url
+
+    source_ref = os.environ.get("AUTOSEARCH_E2B_REF", "").strip()
+    if not source_ref:
+        source_ref = os.environ.get("GITHUB_HEAD_REF", "").strip()
+    if not source_ref:
+        source_ref = _git_output("branch", "--show-current") or _git_output("rev-parse", "HEAD")
+    if source_ref:
+        source["AUTOSEARCH_E2B_REF"] = source_ref
+    return source
+
+
 from scripts.e2b.scenarios.v_cross_platform import (  # noqa: E402
     v1_musl_libc_mock,
     v2_python310_version_check,
@@ -438,11 +477,15 @@ async def main(argv: list[str] | None = None) -> int:
         print("error: E2B_API_KEY not set", file=sys.stderr)
         return 1
 
-    # Collect env keys from local environment
+    # Collect env keys and current source ref from local environment.
     env = _collect_keys()
+    for key, value in _collect_source_ref_env().items():
+        env.setdefault(key, value)
     if not env.get("OPENROUTER_API_KEY"):
         print(
-            "warning: OPENROUTER_API_KEY not set — G2/G3 synthesis will be skipped", file=sys.stderr
+            "warning: OPENROUTER_API_KEY not set — G2/G3 synthesis and K5 real judge will fail "
+            "unless --no-llm is used",
+            file=sys.stderr,
         )
     if not env.get("TIKHUB_API_KEY"):
         print(
@@ -457,7 +500,7 @@ async def main(argv: list[str] | None = None) -> int:
         cats = set(args.categories.upper().split(","))
         scenarios = [s for s in scenarios if s[1] in cats]
     if args.no_llm:
-        scenarios = [s for s in scenarios if s[0] not in ("G2", "G3")]
+        scenarios = [s for s in scenarios if s[0] not in ("G2", "G3", "K5")]
 
     print("\nAutoSearch E2B Comprehensive Tests")
     print(f"  scenarios: {len(scenarios)}")

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 EvolutionVerdict = Literal["improved", "regressed", "unchanged", "invalid"]
@@ -14,9 +14,13 @@ EvolutionVerdict = Literal["improved", "regressed", "unchanged", "invalid"]
 class NativeCodexComparison:
     """Evidence from running the same task with native Codex before AutoSearch."""
 
+    query: str
+    raw_output: str
     result_count_by_type: Mapping[str, int]
     conceptual_framework_depth: int
     coverage_gaps: Sequence[str]
+    provider: str = "native_codex"
+    artifact_path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -30,6 +34,7 @@ class EvolutionTrial:
     reverted: bool
     pattern_written: bool
     native_codex_baseline: NativeCodexComparison | None
+    evidence_refs: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -49,9 +54,13 @@ def trial_from_mapping(payload: Mapping[str, Any]) -> EvolutionTrial:
     native_baseline = None
     if isinstance(native_payload, Mapping):
         native_baseline = NativeCodexComparison(
+            query=str(native_payload.get("query") or ""),
+            raw_output=str(native_payload.get("raw_output") or ""),
             result_count_by_type=_coerce_result_counts(native_payload.get("result_count_by_type")),
             conceptual_framework_depth=int(native_payload.get("conceptual_framework_depth", -1)),
             coverage_gaps=tuple(str(gap) for gap in native_payload.get("coverage_gaps", ())),
+            provider=str(native_payload.get("provider") or "native_codex"),
+            artifact_path=_optional_string(native_payload.get("artifact_path")),
         )
 
     return EvolutionTrial(
@@ -62,6 +71,7 @@ def trial_from_mapping(payload: Mapping[str, Any]) -> EvolutionTrial:
         reverted=bool(payload.get("reverted", False)),
         pattern_written=bool(payload.get("pattern_written", False)),
         native_codex_baseline=native_baseline,
+        evidence_refs=_coerce_evidence_refs(payload.get("evidence_refs")),
     )
 
 
@@ -140,10 +150,20 @@ def _validate_native_codex_baseline(
     if comparison is None:
         failures.append("native Codex baseline comparison is required")
         return
+    if not comparison.query.strip():
+        failures.append("native Codex baseline must include the same query")
+    if not comparison.raw_output.strip() and not (comparison.artifact_path or "").strip():
+        failures.append("native Codex baseline must include raw output or an artifact path")
     if not comparison.result_count_by_type:
         failures.append("native Codex baseline must include result counts by type")
+    elif any(count < 0 for count in comparison.result_count_by_type.values()):
+        failures.append("native Codex baseline result counts must be non-negative")
     if comparison.conceptual_framework_depth < 0:
         failures.append("native Codex baseline must include conceptual framework depth")
+    elif comparison.conceptual_framework_depth == 0:
+        failures.append("native Codex baseline conceptual framework depth must be positive")
+    if not any(gap.strip() for gap in comparison.coverage_gaps):
+        failures.append("native Codex baseline must include at least one coverage gap")
 
 
 def _coerce_result_counts(value: Any) -> Mapping[str, int]:
@@ -155,6 +175,19 @@ def _coerce_result_counts(value: Any) -> Mapping[str, int]:
             continue
         result[str(key)] = int(count)
     return result
+
+
+def _coerce_evidence_refs(value: Any) -> Mapping[str, str]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {str(key): str(ref) for key, ref in value.items() if ref is not None}
+
+
+def _optional_string(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value)
+    return text if text else None
 
 
 __all__ = [

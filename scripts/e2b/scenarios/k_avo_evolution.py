@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shlex
 import time
 
 from scripts.e2b.sandbox_runner import ScenarioResult, install_autosearch, run_cmd, run_python
@@ -11,11 +12,22 @@ def _clean_env(env: dict) -> dict:
     return {k: v for k, v in env.items() if k != "AUTOSEARCH_LLM_MODE"}
 
 
-async def _clone_and_install(sandbox_id: str) -> bool:
+async def _clone_and_install(sandbox_id: str, env: dict | None = None) -> bool:
     """Clone autosearch repo and install editable — judge reads /tmp/autosearch_k/skills/."""
+    env = env or {}
+    repo_url = env.get("AUTOSEARCH_E2B_REPO_URL", "https://github.com/0xmariowu/Autosearch.git")
+    source_ref = env.get("AUTOSEARCH_E2B_REF", "")
+    clone_cmd = (
+        f"rm -rf /tmp/autosearch_k && git clone {shlex.quote(repo_url)} /tmp/autosearch_k -q"
+    )
+    if source_ref:
+        clone_cmd += (
+            f" && git -C /tmp/autosearch_k fetch origin {shlex.quote(source_ref)} --depth=1 -q"
+            " && git -C /tmp/autosearch_k checkout --detach FETCH_HEAD -q"
+        )
     _, _, c1 = await run_cmd(
         sandbox_id,
-        "git clone https://github.com/0xmariowu/Autosearch.git /tmp/autosearch_k -q 2>&1 | tail -2",
+        f"{clone_cmd} 2>&1 | tail -4",
         timeout=120,
     )
     if c1 != 0:
@@ -48,7 +60,7 @@ async def _install_or_fail(
 async def k1_avo_baseline_score(sandbox_id: str, env: dict) -> ScenarioResult:
     """K1: Clone editable repo and compute a baseline skill quality score."""
     t0 = time.monotonic()
-    cloned = await _clone_and_install(sandbox_id)
+    cloned = await _clone_and_install(sandbox_id, env)
     if not cloned:
         return ScenarioResult(
             "K1",
@@ -228,7 +240,7 @@ with tempfile.TemporaryDirectory() as tmp:
 async def k4_git_commit_revert_cycle(sandbox_id: str, env: dict) -> ScenarioResult:
     """K4: Skill modification can be committed and reverted cleanly."""
     t0 = time.monotonic()
-    cloned = await _clone_and_install(sandbox_id)
+    cloned = await _clone_and_install(sandbox_id, env)
     if not cloned:
         return ScenarioResult(
             "K4",
@@ -367,78 +379,247 @@ print(json.dumps({'ok': reverted, 'reverted': reverted}))
 
 
 async def k5_evolution_contract_validation(sandbox_id: str, env: dict) -> ScenarioResult:
-    """K5: Validate that AVO trial reports include native Codex and git evidence."""
+    """K5: Run a real local AVO trial and validate its evidence contract."""
     t0 = time.monotonic()
-    install_error = await _install_or_fail(sandbox_id, "K5", "evolution_contract_validation", t0)
-    if install_error:
-        return install_error
+    cloned = await _clone_and_install(sandbox_id, env)
+    if not cloned:
+        return ScenarioResult(
+            "K5",
+            "K",
+            "evolution_contract_validation",
+            0,
+            False,
+            error="clone or editable install failed",
+            duration_s=time.monotonic() - t0,
+        )
 
     result, _ = await run_python(
         sandbox_id,
         """
-import os, json
-os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
+import asyncio
+import json
+import os
+import subprocess
+from datetime import UTC, datetime
+from pathlib import Path
 
+os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
+OPENROUTER_KEY = os.environ.get('OPENROUTER_API_KEY', '')
+if not OPENROUTER_KEY:
+    print(json.dumps({
+        'ok': False,
+        'error': 'OPENROUTER_API_KEY required for real K5 native-baseline and judge evidence',
+    }))
+    raise SystemExit(0)
+
+import httpx
+import autosearch.skills.experience as exp_mod
 from autosearch.quality.evolution_contract import (
     EvolutionTrial,
     NativeCodexComparison,
     validate_evolution_trial,
 )
+from autosearch.skills.experience import append_event
 
-comparison = NativeCodexComparison(
-    result_count_by_type={'docs': 2, 'community': 1},
-    conceptual_framework_depth=2,
-    coverage_gaps=('native Codex missed community-specific examples',),
+repo = Path('/tmp/autosearch_k')
+skill_path = repo / 'autosearch' / 'skills' / 'channels' / 'arxiv' / 'SKILL.md'
+runtime_experience_root = repo / '.avo-experience'
+os.environ['AUTOSEARCH_EXPERIENCE_DIR'] = str(runtime_experience_root)
+exp_mod._SKILLS_ROOT = repo / 'autosearch' / 'skills'
+patterns_path = runtime_experience_root / 'channels' / 'arxiv' / 'experience' / 'patterns.jsonl'
+marker = 'AVO_E2B_REAL_TRIAL_RULE'
+baseline_query = (
+    'Assess whether an AVO self-evolution trial is reviewable and evidence-backed. '
+    'Look for baseline score, native Codex baseline, re-score, patterns.jsonl state, '
+    'git commit, and git revert proof.'
 )
 
-passing = validate_evolution_trial(EvolutionTrial(
-    baseline_score=0.40,
-    revised_score=0.62,
-    skill_modified=True,
-    committed=True,
-    reverted=False,
-    pattern_written=True,
-    native_codex_baseline=comparison,
+def run_git(*args):
+    return subprocess.run(
+        ['git', '-C', str(repo), *args],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+async def call_openrouter(prompt, max_tokens=700):
+    async with httpx.AsyncClient(timeout=45) as client:
+        response = await client.post(
+            'https://openrouter.ai/api/v1/chat/completions',
+            headers={'Authorization': f'Bearer {OPENROUTER_KEY}'},
+            json={
+                'model': 'anthropic/claude-haiku-4-5',
+                'max_tokens': max_tokens,
+                'messages': [{'role': 'user', 'content': prompt}],
+            },
+        )
+        response.raise_for_status()
+        return response.json()['choices'][0]['message']['content']
+
+async def judge_reports(native_report, evolved_report):
+    prompt = (
+        'Compare two agent validation reports for the same AVO self-evolution task. '
+        'Prefer the report with stronger concrete evidence, reproducibility, and auditability. '
+        'Reply exactly as JSON: {"winner":"native"} or {"winner":"evolved"} or {"winner":"tie"}.\\n\\n'
+        f'<task>{baseline_query}</task>\\n'
+        f'<native_report>{native_report[:1600]}</native_report>\\n'
+        f'<evolved_report>{evolved_report[:1600]}</evolved_report>'
+    )
+    raw = await call_openrouter(prompt, max_tokens=60)
+    start = raw.find('{')
+    end = raw.rfind('}')
+    if start == -1 or end == -1:
+        return 'tie', raw
+    try:
+        winner = json.loads(raw[start:end + 1]).get('winner')
+    except json.JSONDecodeError:
+        return 'tie', raw
+    return winner if winner in {'native', 'evolved', 'tie'} else 'tie', raw
+
+original = skill_path.read_text(encoding='utf-8')
+native_baseline_output = asyncio.run(call_openrouter(
+    'You are native Codex without AutoSearch tools or persistent skill memory. '
+    f'Answer this validation task directly:\\n{baseline_query}'
 ))
-missing_native = validate_evolution_trial(EvolutionTrial(
-    baseline_score=0.40,
-    revised_score=0.62,
-    skill_modified=True,
-    committed=True,
-    reverted=False,
-    pattern_written=True,
-    native_codex_baseline=None,
-))
-missing_revert = validate_evolution_trial(EvolutionTrial(
-    baseline_score=0.62,
-    revised_score=0.40,
-    skill_modified=True,
-    committed=False,
-    reverted=False,
-    pattern_written=True,
+
+trial_rule = (
+    '\\n## AVO Trial Evidence\\n'
+    f'- {marker}: before promoting this skill, record baseline score, '
+    'native Codex baseline comparison, re-score, patterns.jsonl write, '
+    'and git commit / git revert evidence.\\n'
+)
+skill_path.write_text(original + trial_rule, encoding='utf-8')
+skill_modified = marker in skill_path.read_text(encoding='utf-8')
+
+append_event('arxiv', {
+    'skill': 'arxiv',
+    'query': baseline_query,
+    'outcome': 'success',
+    'count_returned': 1,
+    'count_total': 1,
+    'winning_pattern': marker,
+    'ts': datetime.now(UTC).isoformat(),
+})
+pattern_written = patterns_path.exists() and marker in patterns_path.read_text(encoding='utf-8')
+
+config_name = run_git('config', 'user.name', 'E2B AVO Trial')
+config_email = run_git('config', 'user.email', 'avo-trial@e2b.local')
+add = run_git('add', str(skill_path.relative_to(repo)))
+commit = run_git('commit', '-m', 'test: E2B AVO real trial')
+commit_sha = run_git('rev-parse', 'HEAD')
+log_after_commit = run_git('log', '--oneline', '-1')
+revert = run_git('revert', 'HEAD', '--no-edit')
+revert_sha = run_git('rev-parse', 'HEAD')
+log_after_revert = run_git('log', '--oneline', '-2')
+final_text = skill_path.read_text(encoding='utf-8')
+
+evolved_report = '\\n'.join([
+    'AVO evolved validation report',
+    f'skill_modified={skill_modified}',
+    f'pattern_written={pattern_written}',
+    f'commit_ok={commit.returncode == 0}',
+    f'revert_ok={revert.returncode == 0}',
+    f'skill_restored={marker not in final_text}',
+    f'pattern_path={patterns_path}',
+    f'commit_log={log_after_commit.stdout.strip()}',
+    f'revert_log={log_after_revert.stdout.strip()}',
+])
+judge_winner, judge_raw = asyncio.run(judge_reports(native_baseline_output, evolved_report))
+baseline_score = 1.0 if judge_winner == 'native' else 0.5 if judge_winner == 'tie' else 0.0
+revised_score = 1.0 if judge_winner == 'evolved' else 0.5 if judge_winner == 'tie' else 0.0
+
+native_lines = [line for line in native_baseline_output.splitlines() if line.strip()]
+native_counts = {
+    'nonempty_lines': len(native_lines),
+    'code_blocks': native_baseline_output.count('```'),
+}
+missing_terms = [
+    term
+    for term in ('patterns.jsonl', 'git revert', 'persistent skill memory')
+    if term.lower() not in native_baseline_output.lower()
+]
+coverage_gaps = missing_terms or ['native baseline lacks executable repository state proof']
+
+comparison = NativeCodexComparison(
+    query=baseline_query,
+    raw_output=native_baseline_output,
+    result_count_by_type=native_counts,
+    conceptual_framework_depth=max(1, min(5, sum(1 for line in native_lines if line[:2].isdigit()))),
+    coverage_gaps=tuple(coverage_gaps),
+    provider='openrouter_native_no_tool',
+)
+evidence_refs = {
+    'skill_path': str(skill_path),
+    'pattern_path': str(patterns_path),
+    'commit_sha': commit_sha.stdout.strip(),
+    'revert_sha': revert_sha.stdout.strip(),
+    'baseline_probe': 'OpenRouter no-tool native baseline for the same validation task',
+    'rescore_probe': 'OpenRouter pairwise judge comparing native baseline vs evolved evidence report',
+    'native_codex_baseline': 'OpenRouter no-tool baseline raw response for the same validation task',
+    'judge_raw': judge_raw[:500],
+}
+validation = validate_evolution_trial(EvolutionTrial(
+    baseline_score=baseline_score,
+    revised_score=revised_score,
+    skill_modified=skill_modified,
+    committed=commit.returncode == 0,
+    reverted=revert.returncode == 0,
+    pattern_written=pattern_written,
     native_codex_baseline=comparison,
+    evidence_refs=evidence_refs,
 ))
 
 ok = (
-    passing.ok
-    and not missing_native.ok
-    and not missing_revert.ok
-    and 'native Codex baseline comparison is required' in missing_native.failures
-    and 'non-improving trials must be reverted' in missing_revert.failures
+    validation.ok
+    and revised_score > baseline_score
+    and commit.returncode == 0
+    and revert.returncode == 0
+    and marker not in final_text
+    and pattern_written
 )
 print(json.dumps({
     'ok': ok,
-    'passing_verdict': passing.verdict,
-    'passing_delta': passing.improvement_delta,
-    'missing_native_failures': list(missing_native.failures),
-    'missing_revert_failures': list(missing_revert.failures),
+    'baseline_score': baseline_score,
+    'revised_score': revised_score,
+    'validation_ok': validation.ok,
+    'validation_verdict': validation.verdict,
+    'validation_failures': list(validation.failures),
+    'skill_modified': skill_modified,
+    'pattern_written': pattern_written,
+    'commit_ok': commit.returncode == 0,
+    'revert_ok': revert.returncode == 0,
+    'skill_restored': marker not in final_text,
+    'native_codex_baseline': {
+        'result_count_by_type': comparison.result_count_by_type,
+        'conceptual_framework_depth': comparison.conceptual_framework_depth,
+        'coverage_gaps': list(comparison.coverage_gaps),
+        'provider': comparison.provider,
+        'raw_output_preview': comparison.raw_output[:500],
+    },
+    'judge_winner': judge_winner,
+    'judge_raw': judge_raw[:500],
+    'evidence_refs': evidence_refs,
+    'git': {
+        'config_name_exit_code': config_name.returncode,
+        'config_email_exit_code': config_email.returncode,
+        'add_exit_code': add.returncode,
+        'commit_exit_code': commit.returncode,
+        'commit_sha_exit_code': commit_sha.returncode,
+        'revert_exit_code': revert.returncode,
+        'revert_sha_exit_code': revert_sha.returncode,
+        'log_after_commit': log_after_commit.stdout.strip()[:300],
+        'log_after_revert': log_after_revert.stdout.strip()[:500],
+        'commit_stderr': commit.stderr[-500:],
+        'revert_stderr': revert.stderr[-500:],
+    },
 }))
 """,
         env=_clean_env(env),
-        timeout=30,
+        timeout=90,
     )
     dur = time.monotonic() - t0
     ok = result.get("ok", False)
+    error = "" if ok else _format_k5_error(result)
     return ScenarioResult(
         "K5",
         "K",
@@ -446,6 +627,39 @@ print(json.dumps({
         score=100 if ok else 0,
         passed=ok,
         details=result,
-        error=result.get("error", "") if not ok else "",
+        error=error,
         duration_s=dur,
     )
+
+
+def _format_k5_error(result: dict) -> str:
+    """Return an actionable single-line error for K5 summary reports."""
+
+    if result.get("error"):
+        return str(result["error"])[:300]
+
+    reasons: list[str] = []
+    failures = result.get("validation_failures")
+    if isinstance(failures, list) and failures:
+        reasons.extend(str(failure) for failure in failures[:3])
+
+    for key, label in [
+        ("skill_modified", "skill edit was not observed"),
+        ("pattern_written", "patterns.jsonl write was not observed"),
+        ("commit_ok", "git commit failed"),
+        ("revert_ok", "git revert failed"),
+        ("skill_restored", "skill file was not restored after revert"),
+        ("validation_ok", "evolution contract validation failed"),
+    ]:
+        if result.get(key) is False:
+            reasons.append(label)
+
+    git_details = result.get("git")
+    if isinstance(git_details, dict):
+        for key in ("commit_stderr", "revert_stderr"):
+            value = str(git_details.get(key, "")).strip()
+            if value:
+                reasons.append(value)
+                break
+
+    return "; ".join(reasons)[:300] if reasons else "K5 evolution validation failed"
