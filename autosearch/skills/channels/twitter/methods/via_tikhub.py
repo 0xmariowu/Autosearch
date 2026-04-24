@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 import structlog
 
+from autosearch.channels.base import PermanentError
 from autosearch.core.models import Evidence, SubQuery
 from autosearch.lib.tikhub_client import TikhubClient, TikhubError, to_channel_error
 
@@ -35,10 +36,10 @@ def _extract_tweets(payload: Mapping[str, object]) -> list[Mapping[str, object]]
     """Extract tweet objects — TikHub returns a flat list at data.timeline."""
     data = payload.get("data")
     if not isinstance(data, Mapping):
-        return []
+        raise PermanentError("twitter via_tikhub: unexpected payload shape (schema drift?)")
     timeline = data.get("timeline")
     if not isinstance(timeline, list):
-        return []
+        raise PermanentError("twitter via_tikhub: unexpected payload shape (schema drift?)")
     return [t for t in timeline if isinstance(t, Mapping)]
 
 

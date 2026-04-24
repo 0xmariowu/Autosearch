@@ -183,6 +183,24 @@ async def test_search_returns_empty_on_tikhub_error(
 
 
 @pytest.mark.asyncio
+async def test_search_raises_on_invalid_payload_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from autosearch.channels.base import PermanentError
+
+    logger = _Logger()
+    monkeypatch.setattr(MODULE, "LOGGER", logger)
+    client = _FakeTikhubClient({"data": {"data": {"items": {"unexpected": "shape"}}}})
+
+    with pytest.raises(PermanentError):
+        await search(_query(), client=cast(TikhubClient, client))
+
+    assert logger.events == [
+        ("xiaohongshu_tikhub_search_failed", {"reason": "invalid_payload_shape"})
+    ]
+
+
+@pytest.mark.asyncio
 async def test_search_truncates_desc_to_snippet_on_word_boundary() -> None:
     long_desc = ("word " * 59) + "splitpoint continues after the limit"
     client = _FakeTikhubClient(

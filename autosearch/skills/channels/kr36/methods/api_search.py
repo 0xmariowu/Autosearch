@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 import httpx
 import structlog
 
+from autosearch.channels.base import raise_as_channel_error
 from autosearch.core.models import Evidence, SubQuery
 from autosearch.lib.html_scraper import HtmlFetchError, fetch_html, fetch_page
 
@@ -182,10 +183,10 @@ async def search(
         )
     except HtmlFetchError as exc:
         LOGGER.warning("kr36_search_failed", reason=str(exc))
-        return []
+        raise_as_channel_error(exc)
     except Exception as exc:
         LOGGER.warning("kr36_search_failed", reason=str(exc))
-        return []
+        raise_as_channel_error(exc)
 
     return await asyncio.gather(
         *[_enrich_evidence(evidence, http_client=http_client) for evidence in evidences]

@@ -193,6 +193,8 @@ async def test_search_falls_back_to_content_excerpt_when_title_empty() -> None:
 
 @pytest.mark.asyncio
 async def test_search_returns_empty_on_http_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    from autosearch.channels.base import TransientError
+
     logger = _Logger()
     monkeypatch.setattr(MODULE, "LOGGER", logger)
 
@@ -200,9 +202,9 @@ async def test_search_returns_empty_on_http_error(monkeypatch: pytest.MonkeyPatc
         return httpx.Response(500, json={"error": "server error"}, request=request)
 
     async with _client(handler) as http_client:
-        results = await search(_query(), http_client=http_client)
+        with pytest.raises(TransientError):
+            await search(_query(), http_client=http_client)
 
-    assert results == []
     assert logger.events
     assert logger.events[0][0] == "v2ex_search_failed"
     assert "500" in str(logger.events[0][1]["reason"])
