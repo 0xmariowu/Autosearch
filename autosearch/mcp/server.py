@@ -680,13 +680,18 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
             )
             if should_compact(channel_name):
                 compact(channel_name)
+            from autosearch.channels.base import RateLimited
             from autosearch.core.redact import redact
 
+            # Rate limit is a recoverable failure category — surface it as its
+            # own status so the host agent can backoff/retry instead of
+            # treating it like a hard channel error.
+            status = "rate_limited" if isinstance(exc, RateLimited) else "channel_error"
             return RunChannelResponse(
                 channel=channel_name,
                 ok=False,
-                status="channel_error",
-                reason=redact(f"channel_error: {type(exc).__name__}: {exc}"),
+                status=status,
+                reason=redact(f"{status}: {type(exc).__name__}: {exc}"),
             )
 
         # Quality pipeline: URL dedup → SimHash near-dedup → BM25 relevance rerank

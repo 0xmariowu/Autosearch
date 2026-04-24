@@ -19,15 +19,19 @@ import threading
 from dataclasses import dataclass
 
 from autosearch.channels.base import Channel, ChannelRegistry
+from autosearch.core.rate_limiter import RateLimiter
 from autosearch.observability.channel_health import ChannelHealth
 
 
 @dataclass
 class ChannelRuntime:
-    """Process-lifecycle container for the compiled channel registry + health."""
+    """Process-lifecycle container for the compiled channel registry + health
+    + rate limiter — all the per-process state that needs to outlive a single
+    MCP tool call so cooldowns and rate limits actually accumulate."""
 
     registry: ChannelRegistry | None
     health: ChannelHealth
+    limiter: RateLimiter
     # Channels exposed for the v2 happy-path tools (filtered by `available()`)
     channels: list[Channel]
 
@@ -64,7 +68,10 @@ def install_test_runtime(channels: list[Channel], registry: ChannelRegistry | No
     global _runtime
     with _runtime_lock:
         _runtime = ChannelRuntime(
-            registry=registry, health=ChannelHealth(), channels=list(channels)
+            registry=registry,
+            health=ChannelHealth(),
+            limiter=RateLimiter(),
+            channels=list(channels),
         )
 
 
@@ -91,9 +98,11 @@ def _build() -> ChannelRuntime:
         from autosearch.core.channel_bootstrap import _build_channels as build_channels_fn
 
     health = ChannelHealth()
+    limiter = RateLimiter()
     registry = _build_registry()
     if registry is not None:
         registry.attach_health(health)
+        registry.attach_limiter(limiter)
 
     channels = build_channels_fn()
     # When the registry exists in production, prefer its filtered list so
@@ -102,4 +111,4 @@ def _build() -> ChannelRuntime:
     if registry is not None and build_channels_fn.__module__ == "autosearch.core.channel_bootstrap":
         channels = registry.available() or [DemoChannel()]
 
-    return ChannelRuntime(registry=registry, health=health, channels=channels)
+    return ChannelRuntime(registry=registry, health=health, limiter=limiter, channels=channels)
