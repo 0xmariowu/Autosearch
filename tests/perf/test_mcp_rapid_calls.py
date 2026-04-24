@@ -45,6 +45,10 @@ class _ImmediatePipeline:
 async def test_research_tool_handles_twenty_rapid_calls(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Plan §P1-4 / Bug 6: research tool is opt-in since 2026.04.24.5.
+    # The perf test still measures rapid-call throughput against the legacy
+    # tool, so it must enable the opt-in flag before constructing the server.
+    monkeypatch.setenv("AUTOSEARCH_LEGACY_RESEARCH", "1")
     pipeline = _ImmediatePipeline(result=_ok_result())
     monkeypatch.setattr(mcp_server, "_default_pipeline_factory", lambda: pipeline)
     server = mcp_server.create_server()

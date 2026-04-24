@@ -16,12 +16,14 @@ sys.path.insert(0, str(__import__("pathlib").Path(__file__).parents[2]))
 
 from autosearch.mcp.server import create_server  # noqa: E402
 
+# `research` is opt-in since 2026.04.24.5 (plan §P1-4); it must NOT be in the
+# default expected list and must reappear when AUTOSEARCH_LEGACY_RESEARCH=1.
 EXPECTED_TOOLS = [
-    "research",
     "health",
     "run_clarify",
     "run_channel",
     "list_skills",
+    "list_channels",
     "loop_init",
     "loop_update",
     "loop_get_gaps",
@@ -51,7 +53,7 @@ def main() -> int:
     total = len(EXPECTED_TOOLS)
     found = total - len(missing)
 
-    print(f"MCP tool check: {found}/{total} expected tools registered")
+    print(f"MCP tool check (default): {found}/{total} expected tools registered")
 
     if missing:
         print(f"  MISSING: {missing}")
@@ -60,6 +62,22 @@ def main() -> int:
 
     if missing:
         print("FAIL")
+        return 1
+
+    if "research" in registered:
+        print("FAIL: deprecated `research` tool registered by default (plan §P1-4)")
+        return 1
+
+    # Legacy opt-in check: with the env var set, research must come back.
+    os.environ["AUTOSEARCH_LEGACY_RESEARCH"] = "1"
+    try:
+        from autosearch.mcp.server import create_server as _create  # noqa: PLC0415
+
+        opt_in_tools = {t.name for t in _create()._tool_manager.list_tools()}
+    finally:
+        os.environ.pop("AUTOSEARCH_LEGACY_RESEARCH", None)
+    if "research" not in opt_in_tools:
+        print("FAIL: AUTOSEARCH_LEGACY_RESEARCH=1 did not restore `research`")
         return 1
 
     print("PASS")
