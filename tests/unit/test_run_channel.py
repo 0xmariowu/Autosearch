@@ -79,7 +79,9 @@ async def test_run_channel_unknown_channel_returns_structured_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake_channels = [_FakeChannel(name="bilibili"), _FakeChannel(name="arxiv")]
-    monkeypatch.setattr("autosearch.mcp.server._build_channels", lambda: fake_channels)
+    from autosearch.core.channel_runtime import install_test_runtime
+
+    install_test_runtime(fake_channels)
 
     server = create_server(pipeline_factory=lambda: None)  # type: ignore[arg-type]
     tools = await server.list_tools()
@@ -115,7 +117,9 @@ async def test_run_channel_happy_path_returns_evidence(
             ],
         ),
     ]
-    monkeypatch.setattr("autosearch.mcp.server._build_channels", lambda: fake_channels)
+    from autosearch.core.channel_runtime import install_test_runtime
+
+    install_test_runtime(fake_channels)
 
     server = create_server(pipeline_factory=lambda: None)  # type: ignore[arg-type]
     tm = server._tool_manager  # noqa: SLF001
@@ -138,7 +142,9 @@ async def test_run_channel_search_exception_returns_structured_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake_channels = [_FakeChannel(name="flaky", results=RuntimeError("net down"))]
-    monkeypatch.setattr("autosearch.mcp.server._build_channels", lambda: fake_channels)
+    from autosearch.core.channel_runtime import install_test_runtime
+
+    install_test_runtime(fake_channels)
 
     server = create_server(pipeline_factory=lambda: None)  # type: ignore[arg-type]
     tm = server._tool_manager  # noqa: SLF001
