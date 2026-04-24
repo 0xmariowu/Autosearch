@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026.04.24.6 — 2026-04-24
+
+The "six bugs caught by the product diagnostic" release. All 6 items in
+`docs/exec-plans/active/autosearch-0424-product-diagnostic-fix-plan.md`
+are fixed; each landed as a separate minimal-change PR with regression tests.
+
+- **Long-running MCP processes pick up `autosearch configure NEW_KEY` without restart.** The shared `ChannelRuntime` now computes a cheap fingerprint (secrets-file mtime + presence of 20 channel-relevant env keys) on every `get_channel_runtime()` call. When the user adds a new key while Claude Code / Cursor is open, the runtime rebuilds and re-injects secrets into the env, so `run_channel("youtube")` no longer disagrees with `doctor` in the same process. (#348)
+- **`autosearch doctor` and `autosearch init --check-channels` agree on the count.** They used to report 37/40 vs 38/40 because they ran two independent availability pipelines; init now delegates to `doctor.scan_channels` as the single source of truth. (#346)
+- **`consolidate_research` no longer marks every item as `unknown source`.** `Evidence.to_context_dict()` writes the channel name under `source`; the compressor now reads either `source` or `source_channel`. Cross-channel grouping and citation tools work again. (#344)
+- **`recent_signal_fusion` actually ranks by date.** `Evidence` carries an optional `published_at` field; `to_context_dict()` emits it as ISO 8601; `arxiv` channel pilots the field by parsing the feed's `<published>` tag. Other channels can opt in incrementally. (#345)
+- **`citation_*` and `loop_*` MCP tools return structured errors on invalid IDs.** Previously a bad `index_id` / `state_id` raised a FastMCP `ToolError` and crashed the host agent's workflow. Now agents get `{"ok": false, "reason": "invalid_index_id" | "invalid_state_id"}` and can recover. (#347)
+- **Smoke test asserts the v2 default tool list, not the deprecated `research` tool.** v2026.04.24.5 hid `research` by default but the stdio smoke test still expected it; CI red on every push. Fixed. (#343)
+
 ## 2026.04.24.5 — 2026-04-24
 
 The "trim, gate, and stop tempting LLMs" release.
