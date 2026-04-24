@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026.04.24.2 — 2026-04-24
+
+The "runtime actually does what doctor says" release. Fixes audit findings
+against `2026.04.24.1` — configured keys now reach the actual channel call,
+doctor stops reporting ghost methods as available, `run_channel` returns a
+precise `not_configured` (with fix hint) instead of `unknown_channel`, MCP
+responses don't leak secret-shaped strings, circuit-breaker / rate-limit state
+persists across calls, and `health()` returns a useful snapshot.
+
+- **`autosearch configure KEY value` is now visible to the actual runtime.** Previously `configure` wrote `~/.config/ai-secrets.env` but channel methods (youtube `data_api_v3.py`, `tikhub_client.py`) and LLM providers (openai / anthropic / gemini) still called `os.getenv()` directly — `doctor` saw the key and reported `ok`, but `run_channel` ran with no key and returned empty. Now the secrets file is injected into `os.environ` at MCP-server and CLI startup; explicit env overrides still win.
+- **`autosearch doctor` rejects channels whose impl file doesn't exist.** Ten methods across `bilibili / douyin / github / twitter / xiaohongshu / zhihu` were declared in SKILL.md without ever shipping their `.py` file — doctor still reported them ready. Those ghost methods were removed and doctor now counts `impl_missing` as unmet so a half-scaffolded method can't report `ok`.
+- **`run_channel` for a known-but-unconfigured channel returns `not_configured` with `unmet_requires` + `fix_hint`** — not `unknown_channel`. Agents can now ask the user for the missing key instead of falling back to the wrong channel. New response fields: `status` (`ok | no_results | not_configured | unknown_channel | channel_error | rate_limited`), `unmet_requires`, `fix_hint`.
+- **MCP error responses redact secrets.** An upstream library or accidental traceback carrying `Bearer sk-...` no longer leaks into the `reason` field of `run_channel` / `run_clarify`. Shared `autosearch.core.redact.redact()` now guards every CLI/MCP boundary; runtime experience events (`~/.autosearch/experience/.../patterns.jsonl`) also redact `query` before write.
+- **`autosearch configure` no longer requires the secret on the command line.** Default flow prompts with hidden input (no leak to shell history or `ps`). New flags: `--stdin` (automation), `--replace` (overwrite existing key). Secrets file is chmod'd to `0600` after write.
+- **Circuit breaker + rate limits actually fire at runtime.** Previously `ChannelHealth` was recreated on every `run_channel` call so cooldown state evaporated. Now a process-lifetime `ChannelRuntime` owns the shared `ChannelHealth` and `RateLimiter`. Declared `rate_limit: {per_min, per_hour}` in SKILL.md is enforced per-`(channel, method)` via sliding-window counter; exceeded requests surface as `status="rate_limited"` with `retry_after` guidance.
+- **MCP `health()` returns a structured snapshot** instead of the literal string `"ok"` — version, tool count, required-v2-tool present/missing, channel counts by status, secrets-file presence (key NAMES only, never values), and the shared `ChannelHealth.snapshot()`.
+
 ## 2026.04.24.1 — 2026-04-24
 
 The "make a fresh install actually work" release. After running `autosearch init`,
