@@ -11,10 +11,13 @@ from autosearch.cli.main import app
 runner = CliRunner()
 
 
-def test_configure_non_tty_rejected():
+def test_configure_non_tty_with_inline_value_succeeds(tmp_path, monkeypatch):
+    """Updated for v2: passing the value inline is allowed (it's what install
+    scripts do); only "no value AND no --stdin AND not a TTY" is rejected.
+    See tests/unit/test_cli_configure.py for the broader contract."""
+    monkeypatch.setenv("HOME", str(tmp_path))
     result = runner.invoke(app, ["configure", "MY_KEY", "myvalue"])
-    assert result.exit_code == 1
-    assert "TTY" in result.output
+    assert result.exit_code == 0, result.output
 
 
 def _tty_mock():
@@ -57,15 +60,13 @@ def test_configure_skips_existing_key(tmp_path):
     assert "old" in secrets.read_text(encoding="utf-8")
 
 
-def test_configure_aborted_on_no_confirm(tmp_path):
-    with (
-        patch("autosearch.cli.main._is_tty", return_value=True),
-        patch("pathlib.Path.home", return_value=tmp_path),
-        patch("typer.confirm", return_value=False),
-    ):
-        result = runner.invoke(app, ["configure", "NEW_KEY", "val"])
-
-    assert result.exit_code == 0
-    assert "Aborted" in result.output
-    secrets = tmp_path / ".config" / "ai-secrets.env"
-    assert not secrets.exists()
+def test_configure_no_value_no_stdin_in_non_tty_errors(tmp_path, monkeypatch):
+    """Replaces the old "abort on no-confirm" test — v2 has no confirmation
+    prompt because inline-value/--stdin/hidden-prompt cover the legitimate
+    cases. The remaining failure mode is "no value, no --stdin, no TTY"."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    with patch("autosearch.cli.main._is_tty", return_value=False):
+        result = runner.invoke(app, ["configure", "NEW_KEY"])
+    assert result.exit_code != 0
+    combined = result.output + (result.stderr or "")
+    assert "no value" in combined.lower() or "stdin" in combined.lower()
