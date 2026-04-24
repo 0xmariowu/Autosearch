@@ -37,16 +37,84 @@ class ChannelRuntime:
 
 
 _runtime: ChannelRuntime | None = None
+_runtime_fingerprint: tuple | None = None
 _runtime_lock = threading.Lock()
+
+# Channel-relevant env keys whose presence/absence flips channel availability.
+# When any of these appears or disappears (or the secrets file mtime changes),
+# the runtime must rebuild so `doctor` and `run_channel` agree in the same MCP
+# process (Bug 1 / fix-plan).
+_CHANNEL_ENV_KEYS: tuple[str, ...] = (
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
+    "GOOGLE_API_KEY",
+    "CLAUDE_API_KEY",
+    "YOUTUBE_API_KEY",
+    "TIKHUB_API_KEY",
+    "FIRECRAWL_API_KEY",
+    "OPENROUTER_API_KEY",
+    "SEARXNG_URL",
+    "AUTOSEARCH_SIGNSRV_URL",
+    "AUTOSEARCH_SERVICE_TOKEN",
+    "XHS_A1_COOKIE",
+    "XHS_COOKIES",
+    "XIAOHONGSHU_COOKIES",
+    "TWITTER_COOKIES",
+    "BILIBILI_COOKIES",
+    "WEIBO_COOKIES",
+    "DOUYIN_COOKIES",
+    "ZHIHU_COOKIES",
+    "XUEQIU_COOKIES",
+)
+
+
+def _current_fingerprint() -> tuple:
+    """Build a fingerprint that flips when secrets-file mtime or any
+    channel-relevant env-key presence changes.
+
+    Cheap to compute (one `stat` + a small set membership) so it can run on
+    every `get_channel_runtime()` call.
+    """
+    import os  # noqa: PLC0415
+
+    from autosearch.core.secrets_store import secrets_path  # noqa: PLC0415
+
+    try:
+        path = secrets_path()
+        mtime = path.stat().st_mtime if path.exists() else None
+    except OSError:
+        mtime = None
+    env_presence = tuple(sorted(k for k in _CHANNEL_ENV_KEYS if os.environ.get(k)))
+    return (mtime, env_presence)
 
 
 def get_channel_runtime() -> ChannelRuntime:
-    """Return the shared runtime, building it on first access. Thread-safe."""
-    global _runtime
-    if _runtime is None:
+    """Return the shared runtime, rebuilding when secrets/env fingerprint changes.
+
+    Thread-safe. Bug 1 (fix-plan): a long-running MCP process used to keep its
+    first-load runtime forever, so `autosearch configure NEW_KEY` written by
+    the user *while the MCP host was open* never reached `run_channel` — even
+    though `doctor` (which re-scans every call) saw it. Now both agree.
+    """
+    global _runtime, _runtime_fingerprint
+    fp = _current_fingerprint()
+    if _runtime is None or _runtime_fingerprint != fp:
         with _runtime_lock:
-            if _runtime is None:
+            fp = _current_fingerprint()
+            if _runtime is None or _runtime_fingerprint != fp:
+                # Re-inject secrets-file values into env BEFORE rebuilding the
+                # registry so newly added keys are visible to availability checks.
+                try:
+                    from autosearch.core.secrets_store import (  # noqa: PLC0415
+                        inject_into_env,
+                    )
+
+                    inject_into_env()
+                except Exception:  # noqa: BLE001
+                    pass
+                fp = _current_fingerprint()
                 _runtime = _build()
+                _runtime_fingerprint = fp
     return _runtime
 
 
@@ -54,18 +122,20 @@ def reset_channel_runtime() -> None:
     """Drop the cached runtime so the next `get_channel_runtime()` rebuilds.
 
     Tests use this between scenarios that monkeypatch channel sources or env
-    state. Production code never calls it.
+    state. Production code does not need to call it — the fingerprint check
+    above handles legitimate secrets-file changes.
     """
-    global _runtime
+    global _runtime, _runtime_fingerprint
     with _runtime_lock:
         _runtime = None
+        _runtime_fingerprint = None
 
 
 def install_test_runtime(channels: list[Channel], registry: ChannelRegistry | None = None) -> None:
     """Install a pre-built runtime for tests that need to inject specific
     channels (replacing the discovery-from-skills path). Pairs with
     `reset_channel_runtime()` in autouse fixtures."""
-    global _runtime
+    global _runtime, _runtime_fingerprint
     with _runtime_lock:
         _runtime = ChannelRuntime(
             registry=registry,
@@ -73,6 +143,9 @@ def install_test_runtime(channels: list[Channel], registry: ChannelRegistry | No
             limiter=RateLimiter(),
             channels=list(channels),
         )
+        # Pin the fingerprint so the next get_channel_runtime() doesn't
+        # rebuild over the test's injected channels.
+        _runtime_fingerprint = _current_fingerprint()
 
 
 def _build() -> ChannelRuntime:
