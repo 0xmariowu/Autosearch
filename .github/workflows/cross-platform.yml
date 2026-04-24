@@ -67,34 +67,37 @@ jobs:
         env:
           AUTOSEARCH_LLM_MODE: dummy
 
-      - name: Experience layer write/read
+      - name: Experience runtime layer (writes under AUTOSEARCH_EXPERIENCE_DIR, not package tree)
         run: |
           python -c "
-          import os, tempfile, json
+          import os, json, tempfile
           from pathlib import Path
           from datetime import datetime, UTC
 
+          # Set the runtime experience dir BEFORE importing the experience
+          # module so any module-level path resolution sees it (plan §P1-10).
+          # The previous version mutated _SKILLS_ROOT directly — that targeted
+          # the v1 bundled-seed path, not the v2 runtime path users actually
+          # write to.
+          tmp = tempfile.mkdtemp()
+          os.environ['AUTOSEARCH_EXPERIENCE_DIR'] = tmp
           os.environ['AUTOSEARCH_LLM_MODE'] = 'dummy'
-          import autosearch.skills.experience as exp_mod
+
           from autosearch.skills.experience import append_event
 
-          with tempfile.TemporaryDirectory() as tmp:
-              exp_mod._SKILLS_ROOT = Path(tmp)
-              (Path(tmp) / 'channels' / 'arxiv').mkdir(parents=True)
+          append_event('arxiv', {
+              'skill': 'arxiv',
+              'query': 'windows path test',
+              'outcome': 'success',
+              'count_returned': 5,
+              'ts': datetime.now(UTC).isoformat(),
+          })
 
-              append_event('arxiv', {
-                  'skill': 'arxiv',
-                  'query': 'windows path test',
-                  'outcome': 'success',
-                  'count_returned': 5,
-                  'ts': datetime.now(UTC).isoformat(),
-              })
-
-              pf = Path(tmp) / 'channels' / 'arxiv' / 'experience' / 'patterns.jsonl'
-              assert pf.exists(), 'patterns.jsonl not created'
-              line = json.loads(pf.read_text().strip())
-              assert line['query'] == 'windows path test'
-              print('Experience layer works on Windows:', pf)
+          runtime_path = Path(tmp) / 'channels' / 'arxiv' / 'experience' / 'patterns.jsonl'
+          assert runtime_path.exists(), f'patterns.jsonl missing at runtime path: {runtime_path}'
+          line = json.loads(runtime_path.read_text().strip())
+          assert line['query'] == 'windows path test'
+          print('Experience runtime layer works on Windows:', runtime_path)
           "
 
       - name: Windows path separator handling
