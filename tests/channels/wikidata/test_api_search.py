@@ -191,6 +191,14 @@ async def test_search_sends_user_agent_with_contact_info() -> None:
 async def test_search_returns_empty_on_http_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Bug 1 (fix-plan): typed exception now propagates instead of [].
+    from autosearch.channels.base import (
+        ChannelAuthError,
+        PermanentError,
+        RateLimited,
+        TransientError,
+    )
+
     logger = _Logger()
     monkeypatch.setattr(MODULE, "LOGGER", logger)
 
@@ -198,9 +206,8 @@ async def test_search_returns_empty_on_http_error(
         return httpx.Response(500, json={"error": "boom"}, request=request)
 
     async with _client(handler) as http_client:
-        results = await search(_query(), http_client=http_client)
-
-    assert results == []
+        with pytest.raises((TransientError, PermanentError, RateLimited, ChannelAuthError)):
+            await search(_query(), http_client=http_client)
     assert logger.events
     assert logger.events[0][0] == "wikidata_search_failed"
     assert "500" in str(logger.events[0][1]["reason"])
@@ -210,6 +217,14 @@ async def test_search_returns_empty_on_http_error(
 async def test_search_returns_empty_on_malformed_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Bug 1 (fix-plan): typed exception now propagates instead of [].
+    from autosearch.channels.base import (
+        ChannelAuthError,
+        PermanentError,
+        RateLimited,
+        TransientError,
+    )
+
     logger = _Logger()
     monkeypatch.setattr(MODULE, "LOGGER", logger)
 
@@ -217,7 +232,6 @@ async def test_search_returns_empty_on_malformed_payload(
         return httpx.Response(200, json={"success": 1}, request=request)
 
     async with _client(handler) as http_client:
-        results = await search(_query(), http_client=http_client)
-
-    assert results == []
+        with pytest.raises((TransientError, PermanentError, RateLimited, ChannelAuthError)):
+            await search(_query(), http_client=http_client)
     assert logger.events == [("wikidata_search_failed", {"reason": "invalid search payload"})]

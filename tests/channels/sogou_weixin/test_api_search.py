@@ -297,6 +297,14 @@ async def test_search_falls_back_to_listing_snippet_on_fetch_page_error(
 async def test_search_returns_empty_on_http_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Bug 1 (fix-plan): typed exception now propagates instead of [].
+    from autosearch.channels.base import (
+        ChannelAuthError,
+        PermanentError,
+        RateLimited,
+        TransientError,
+    )
+
     logger = _Logger()
     monkeypatch.setattr(MODULE, "LOGGER", logger)
 
@@ -304,9 +312,8 @@ async def test_search_returns_empty_on_http_error(
         return httpx.Response(403, text="forbidden", request=request)
 
     async with _client(handler) as http_client:
-        results = await search(_query(), http_client=http_client)
-
-    assert results == []
+        with pytest.raises((TransientError, PermanentError, RateLimited, ChannelAuthError)):
+            await search(_query(), http_client=http_client)
     assert logger.events == [
         (
             "sogou_weixin_search_failed",
@@ -322,6 +329,7 @@ async def test_search_returns_empty_on_http_error(
 
 @pytest.mark.asyncio
 async def test_search_returns_empty_on_empty_html() -> None:
+    # Empty HTML is a legit "no matches" — channel returns [] without raising.
     async def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, text="<html><body>no results</body></html>", request=request)
 

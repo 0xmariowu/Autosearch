@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 import httpx
 import structlog
 
+from autosearch.channels.base import raise_as_channel_error
 from autosearch.core.models import Evidence, SubQuery
 
 LOGGER = structlog.get_logger(__name__).bind(component="channel", channel="dockerhub")
@@ -21,7 +22,7 @@ async def search(query: SubQuery) -> list[Evidence]:
         return await _search_images(query.text)
     except Exception as exc:
         LOGGER.warning("dockerhub_search_failed", reason=str(exc))
-        return []
+        raise_as_channel_error(exc)
 
 
 async def _search_images(query: str) -> list[Evidence]:

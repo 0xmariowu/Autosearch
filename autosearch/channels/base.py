@@ -6,7 +6,7 @@ import inspect
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Awaitable, Callable, Protocol, Self
+from typing import TYPE_CHECKING, Awaitable, Callable, NoReturn, Protocol, Self
 
 import structlog
 
@@ -46,6 +46,42 @@ class ChannelAuthError(PermanentError):
     channel forgot to declare). Distinct from a quiet `[]` result so the
     host agent can surface "your key looks invalid" instead of
     "no matches" (Bug 1 / fix-plan)."""
+
+
+def raise_as_channel_error(exc: BaseException) -> NoReturn:
+    """Translate a generic transport/parsing exception into the typed
+    channels.base error the MCP boundary expects.
+
+    Bug 1 (fix-plan): channel methods used to swallow errors with
+    `except Exception: return []`. That conflates "search returned nothing"
+    with "401" / "429" / "schema changed" / "network died". This helper is
+    the standard adapter — call it from a channel's broad except block to
+    propagate the failure as a typed exception the MCP layer can route to
+    the right `run_channel` status (auth_failed / rate_limited / channel_error).
+    """
+    if isinstance(exc, (ChannelAuthError, RateLimited, TransientError, PermanentError)):
+        raise exc
+
+    try:
+        import httpx  # noqa: PLC0415
+
+        if isinstance(exc, httpx.HTTPStatusError) and exc.response is not None:
+            status = exc.response.status_code
+            if status in (401, 403):
+                raise ChannelAuthError(str(exc)) from exc
+            if status == 429:
+                raise RateLimited(str(exc)) from exc
+            if 500 <= status < 600:
+                raise TransientError(str(exc)) from exc
+            raise PermanentError(str(exc)) from exc
+        if isinstance(exc, httpx.HTTPError):  # network / timeout / connect
+            raise TransientError(str(exc)) from exc
+    except ImportError:  # pragma: no cover — httpx is a runtime dep
+        pass
+
+    if isinstance(exc, ValueError):
+        raise PermanentError(str(exc)) from exc
+    raise TransientError(str(exc)) from exc
 
 
 @dataclass(slots=True)

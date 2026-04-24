@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 import httpx
 import structlog
 
+from autosearch.channels.base import raise_as_channel_error
 from autosearch.core.models import Evidence, SubQuery
 
 LOGGER = structlog.get_logger(__name__).bind(component="channel", channel="youtube")
@@ -63,7 +64,7 @@ async def search(query: SubQuery) -> list[Evidence]:
         return []
     except Exception as exc:
         LOGGER.warning("youtube_search_failed", reason=str(exc))
-        return []
+        raise_as_channel_error(exc)
 
 
 def _to_evidence(item: Mapping[str, object], *, fetched_at: datetime) -> Evidence:

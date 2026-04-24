@@ -163,6 +163,14 @@ async def test_search_decodes_html_entities_in_title() -> None:
 async def test_search_returns_empty_on_http_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Bug 1 (fix-plan): typed exception now propagates instead of [].
+    from autosearch.channels.base import (
+        ChannelAuthError,
+        PermanentError,
+        RateLimited,
+        TransientError,
+    )
+
     logger = _Logger()
     monkeypatch.setattr(MODULE, "LOGGER", logger)
 
@@ -170,9 +178,8 @@ async def test_search_returns_empty_on_http_error(
         return httpx.Response(502, json={"error": "bad gateway"}, request=request)
 
     async with _client(handler) as http_client:
-        results = await search(_query(), http_client=http_client)
-
-    assert results == []
+        with pytest.raises((TransientError, PermanentError, RateLimited, ChannelAuthError)):
+            await search(_query(), http_client=http_client)
     assert logger.events
     assert logger.events[0][0] == "stackoverflow_search_failed"
     assert "502" in str(logger.events[0][1]["reason"])
@@ -182,6 +189,14 @@ async def test_search_returns_empty_on_http_error(
 async def test_search_returns_empty_on_malformed_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Bug 1 (fix-plan): typed exception now propagates instead of [].
+    from autosearch.channels.base import (
+        ChannelAuthError,
+        PermanentError,
+        RateLimited,
+        TransientError,
+    )
+
     logger = _Logger()
     monkeypatch.setattr(MODULE, "LOGGER", logger)
 
@@ -189,9 +204,8 @@ async def test_search_returns_empty_on_malformed_payload(
         return httpx.Response(200, json={}, request=request)
 
     async with _client(handler) as http_client:
-        results = await search(_query(), http_client=http_client)
-
-    assert results == []
+        with pytest.raises((TransientError, PermanentError, RateLimited, ChannelAuthError)):
+            await search(_query(), http_client=http_client)
     assert logger.events == [
         (
             "stackoverflow_search_failed",

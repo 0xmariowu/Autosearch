@@ -71,11 +71,18 @@ async def test_search_returns_evidence(search, subquery):
 
 @pytest.mark.asyncio()
 async def test_search_returns_empty_on_network_error(search, subquery):
+    # Bug 1 (fix-plan): typed exception now propagates instead of [].
+    from autosearch.channels.base import (
+        ChannelAuthError,
+        PermanentError,
+        RateLimited,
+        TransientError,
+    )
+
     with patch(
         "httpx.AsyncClient.get",
         new_callable=AsyncMock,
         side_effect=httpx.ConnectError("refused"),
     ):
-        results = await search(subquery)
-
-    assert results == []
+        with pytest.raises((TransientError, PermanentError, RateLimited, ChannelAuthError)):
+            await search(subquery)

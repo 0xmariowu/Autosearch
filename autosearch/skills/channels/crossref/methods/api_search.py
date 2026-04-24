@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 import httpx
 import structlog
 
+from autosearch.channels.base import raise_as_channel_error
 from autosearch.core.models import Evidence, SubQuery
 
 LOGGER = structlog.get_logger(__name__).bind(component="channel", channel="crossref")
@@ -204,7 +205,7 @@ async def search(
             raise ValueError("invalid items payload")
     except Exception as exc:
         LOGGER.warning("crossref_search_failed", reason=str(exc))
-        return []
+        raise_as_channel_error(exc)
 
     fetched_at = datetime.now(UTC)
     evidences: list[Evidence] = []
