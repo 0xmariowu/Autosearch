@@ -57,6 +57,9 @@ class RunChannelResponse(BaseModel):
         instead of letting it look like "no matches" (Bug 1 / fix-plan).
       - `rate_limited`: upstream returned 429 / explicit rate-limit signal —
         agent should backoff and retry rather than treating as a hard error.
+      - `budget_exhausted`: paid quota / wallet is empty (TikHub 402, etc).
+        Distinct from rate_limited because the fix is "top up balance",
+        not "wait and retry" (Bug 3 / fix-plan v8 follow-up).
       - `channel_error`: any other unexpected failure.
     """
 
@@ -696,13 +699,22 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
             )
             if should_compact(channel_name):
                 compact(channel_name)
-            from autosearch.channels.base import ChannelAuthError, RateLimited
+            from autosearch.channels.base import (
+                BudgetExhausted,
+                ChannelAuthError,
+                RateLimited,
+            )
             from autosearch.core.redact import redact
 
             # Bug 1 (fix-plan): map known typed channel errors to distinct
             # status values so an authentication failure / rate limit doesn't
             # masquerade as "channel_error" or — worse — empty results.
-            if isinstance(exc, ChannelAuthError):
+            # Bug 3 (fix-plan v8 follow-up): split budget_exhausted from
+            # rate_limited so the agent can tell the user "top up" rather
+            # than "wait and retry".
+            if isinstance(exc, BudgetExhausted):
+                status = "budget_exhausted"
+            elif isinstance(exc, ChannelAuthError):
                 status = "auth_failed"
             elif isinstance(exc, RateLimited):
                 status = "rate_limited"

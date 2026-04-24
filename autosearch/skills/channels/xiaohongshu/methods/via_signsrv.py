@@ -131,12 +131,19 @@ async def search(query: SubQuery, client: httpx.AsyncClient | None = None) -> li
             sign_resp.raise_for_status()
             sign_data = sign_resp.json()
         except Exception as exc:
+            # Bug 2 (fix-plan v8 follow-up): swallowing as [] hid signsrv
+            # outages AND prevented base.py's fallback chain from trying
+            # via_tikhub. Raise a typed error so the registry's fallback runs.
+            from autosearch.channels.base import raise_as_channel_error
+
             LOGGER.warning("xhs_signsrv_failed", reason=str(exc))
-            return []
+            raise_as_channel_error(exc)
 
         if not sign_data.get("ok"):
+            from autosearch.channels.base import TransientError
+
             LOGGER.warning("xhs_signsrv_error", error=sign_data.get("error"))
-            return []
+            raise TransientError(f"xhs signsrv error: {sign_data.get('error')}")
 
         # Step 2: Call XHS native API with signed headers
         xhs_headers = {
@@ -164,19 +171,30 @@ async def search(query: SubQuery, client: httpx.AsyncClient | None = None) -> li
             )
             xhs_resp.raise_for_status()
         except Exception as exc:
+            # Bug 2: native XHS API failure → typed error so the fallback chain
+            # tries via_tikhub instead of returning a fake empty result.
+            from autosearch.channels.base import raise_as_channel_error
+
             LOGGER.warning("xhs_native_api_failed", reason=str(exc))
-            return []
+            raise_as_channel_error(exc)
 
         payload = xhs_resp.json()
         xhs_code = payload.get("code", 0)
 
-        # code=300011: account flagged by XHS — silently returns empty instead of error
+        # code=300011: XHS account flagged. Surface as ChannelAuthError so the
+        # user sees "your XHS account is restricted, run autosearch login xhs"
+        # rather than a confusing empty result.
         if xhs_code == 300011:
+            from autosearch.channels.base import ChannelAuthError
+
             LOGGER.warning(
                 "xhs_account_restricted",
                 reason="XHS account flagged (code=300011). Run 'autosearch login xhs' with a normal account.",
             )
-            return []
+            raise ChannelAuthError(
+                "XHS account flagged (code=300011). "
+                "Run 'autosearch login xhs' with a normal account."
+            )
 
         outer = payload.get("data", {})
         inner = outer.get("data", {}) if isinstance(outer, Mapping) else {}

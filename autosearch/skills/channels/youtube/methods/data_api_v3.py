@@ -59,9 +59,17 @@ async def search(query: SubQuery) -> list[Evidence]:
             _to_evidence(item, fetched_at=fetched_at) for item in items if isinstance(item, Mapping)
         ]
     except httpx.HTTPStatusError as exc:
-        reason = "auth_failed" if exc.response.status_code in {401, 403} else str(exc)
-        LOGGER.warning("youtube_search_failed", reason=reason)
-        return []
+        # Bug 1 (fix-plan v8 follow-up): the previous handler logged "auth_failed"
+        # but still returned [] — so a bad key, exhausted quota, or 429 looked
+        # identical to "no matching videos" in the MCP response. Hand the typed
+        # error to the shared classifier so 401/403 → ChannelAuthError,
+        # 429 → RateLimited, 5xx → TransientError, etc.
+        status = exc.response.status_code if exc.response is not None else None
+        LOGGER.warning(
+            "youtube_search_failed",
+            reason="auth_failed" if status in {401, 403} else str(exc),
+        )
+        raise_as_channel_error(exc)
     except Exception as exc:
         LOGGER.warning("youtube_search_failed", reason=str(exc))
         raise_as_channel_error(exc)

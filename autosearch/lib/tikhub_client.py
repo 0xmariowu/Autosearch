@@ -291,7 +291,10 @@ class TikhubClient:
             return TikhubBudgetExhausted(message, status_code=status_code, detail=detail)
         if status_code == 429:
             return TikhubRateLimited(message, status_code=status_code, detail=detail)
-        if status_code in {400, 403, 422}:
+        # Bug 3 (fix-plan v8 follow-up): 401 was missing from the auth bucket,
+        # so a stale TIKHUB_API_KEY surfaced as channel_error instead of
+        # auth_failed. Add it explicitly.
+        if status_code in {400, 401, 403, 422}:
             return TikhubUpstreamError(message, status_code=status_code, detail=detail)
 
         return TikhubError(message, status_code=status_code, detail=detail)
@@ -307,13 +310,19 @@ def to_channel_error(exc: TikhubError) -> Exception:
     `status="no_results"` — indistinguishable from a real empty search.
     """
     from autosearch.channels.base import (  # noqa: PLC0415 — break import cycle
+        BudgetExhausted,
         ChannelAuthError,
         PermanentError,
         RateLimited,
         TransientError,
     )
 
-    if isinstance(exc, (TikhubRateLimited, TikhubBudgetExhausted)):
+    # Bug 3 (fix-plan v8 follow-up): 402 means "top up your TikHub balance",
+    # not "wait and retry" — distinct typed error so the MCP boundary can
+    # tell the user to refill instead of silently looping.
+    if isinstance(exc, TikhubBudgetExhausted):
+        return BudgetExhausted(str(exc))
+    if isinstance(exc, TikhubRateLimited):
         return RateLimited(str(exc))
     if isinstance(exc, TikhubUpstreamError) and exc.status_code in (401, 403):
         return ChannelAuthError(str(exc))

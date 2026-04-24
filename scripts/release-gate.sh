@@ -76,6 +76,21 @@ else
   fail "version files drifted (see output above)"
 fi
 
+# ── Gate 1b: uv lockfile freshness (Bug 5 / fix-plan v8 follow-up) ──────────
+# Without this gate, uv.lock can lag behind pyproject for days; any `uv run`
+# silently rewrites it and pollutes the working tree, and CI agents pick up
+# resolutions from a stale lockfile that may not match the published version.
+if command -v uv >/dev/null 2>&1; then
+  step "uv lockfile freshness"
+  if uv lock --check >/dev/null 2>&1; then
+    pass "uv.lock matches pyproject.toml"
+  else
+    fail "uv.lock is stale — run \`uv lock\` and commit"
+  fi
+else
+  echo "skip: uv not on PATH (install with: curl -LsSf https://astral.sh/uv/install.sh | sh)"
+fi
+
 # ── Gate 2: lint + format ────────────────────────────────────────────────────
 step "lint + format"
 if [ -x "$RUFF" ]; then

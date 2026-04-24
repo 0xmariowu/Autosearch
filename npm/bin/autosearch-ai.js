@@ -36,12 +36,44 @@ function hasOnPath(cmd) {
   }
 }
 
-function hasAutosearch() {
+function getInstalledAutosearchVersion() {
   try {
-    execSync("autosearch --version", { stdio: "ignore" });
-    return true;
+    return execSync("autosearch --version", { encoding: "utf8" }).trim();
   } catch {
-    return false;
+    return null;
+  }
+}
+
+function hasAutosearch() {
+  return getInstalledAutosearchVersion() !== null;
+}
+
+// Bug 6 (fix-plan v8 follow-up): compare the wrapper's expected Python CLI
+// version against what's actually installed. The npm package version
+// `YYYY.M.DD` derives from pyproject `YYYY.MM.DD.N` (N is the daily counter
+// that doesn't ride into npm). So a wrapper at `2026.4.24` expects a Python
+// CLI tagged `2026.4.24.X` for some X. If the installed version's
+// year.month.day prefix doesn't match, surface a warning so users know
+// to upgrade the Python package, not just the npm wrapper.
+function checkVersionAlignment(installedVersion) {
+  let wrapperVersion = "";
+  try {
+    wrapperVersion = require("../package.json").version || "";
+  } catch {
+    return;
+  }
+  if (!wrapperVersion || !installedVersion) return;
+  // Compare year.month.day prefix
+  const wrapperPrefix = wrapperVersion.split(".").slice(0, 3).join(".");
+  const installedPrefix = installedVersion.split(".").slice(0, 3).join(".");
+  if (wrapperPrefix !== installedPrefix) {
+    process.stderr.write(
+      `\nwarning: npm wrapper expects autosearch ${wrapperPrefix}.* but the ` +
+        `installed Python CLI is ${installedVersion}.\n` +
+        `Upgrade the Python package to match:\n` +
+        `  pipx upgrade autosearch\n` +
+        `  pip install --upgrade autosearch\n\n`,
+    );
   }
 }
 
@@ -169,7 +201,8 @@ async function main() {
 
   const yes = popFlag("--yes", "-y");
 
-  if (!hasAutosearch()) {
+  const installedVersion = getInstalledAutosearchVersion();
+  if (installedVersion === null) {
     const installCmd = describeInstallStep();
     if (!yes) {
       const ok = await confirm(
@@ -192,6 +225,8 @@ async function main() {
     if ((result.status ?? 0) !== 0) {
       process.exit(result.status ?? 1);
     }
+  } else {
+    checkVersionAlignment(installedVersion);
   }
 
   const cmd = args.length > 0 ? args : ["init"];

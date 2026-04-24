@@ -215,8 +215,13 @@ async def search(query: SubQuery, client: httpx.AsyncClient | None = None) -> li
             try:
                 salt = await _get_wbi_salt(_client)
             except Exception as exc:
+                # Bug 2 (fix-plan v8 follow-up): typed transient so the
+                # registry fallback chain tries via_tikhub instead of
+                # treating salt failure as "no results".
+                from autosearch.channels.base import raise_as_channel_error
+
                 LOGGER.warning("bilibili_wbi_salt_failed", reason=str(exc))
-                return []
+                raise_as_channel_error(exc)
             params = _sign_params(
                 {
                     "keyword": query.text,
@@ -232,8 +237,11 @@ async def search(query: SubQuery, client: httpx.AsyncClient | None = None) -> li
             r = await _client.get(_SEARCH_URL, params=params, headers=_HEADERS, timeout=15)
             r.raise_for_status()
         except Exception as exc:
+            # Bug 2: same — typed error so fallback runs.
+            from autosearch.channels.base import raise_as_channel_error
+
             LOGGER.warning("bilibili_direct_search_failed", reason=str(exc))
-            return []
+            raise_as_channel_error(exc)
 
         fetched_at = datetime.now(UTC)
         results = r.json().get("data", {}).get("result", [])

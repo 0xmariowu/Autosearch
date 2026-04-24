@@ -48,6 +48,13 @@ class ChannelAuthError(PermanentError):
     "no matches" (Bug 1 / fix-plan)."""
 
 
+class BudgetExhausted(PermanentError):
+    """Raised when an upstream rejects the request because the caller's paid
+    quota / wallet is empty (TikHub 402, OpenAI insufficient_quota, etc).
+    Distinct from RateLimited because the fix is "top up balance", not
+    "wait and retry" (Bug 3 / fix-plan v8 follow-up)."""
+
+
 def raise_as_channel_error(exc: BaseException) -> NoReturn:
     """Translate a generic transport/parsing exception into the typed
     channels.base error the MCP boundary expects.
