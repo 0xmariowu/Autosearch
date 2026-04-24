@@ -75,6 +75,11 @@ def scan_channels(channels_root: Path | None = None) -> list[ChannelStatus]:
         available_methods = 0
         for method in spec.methods:
             unmet = [token for token in method.requires if not _token_satisfied(token, env_keys)]
+            # A method whose impl file does not exist on disk cannot run, no
+            # matter how many env keys are satisfied. Treat it as unmet so a
+            # half-scaffolded channel never reports as available.
+            if not (spec.skill_dir / method.impl).is_file():
+                unmet.append(f"impl_missing:{method.impl}")
             if not unmet:
                 available_methods += 1
             else:
