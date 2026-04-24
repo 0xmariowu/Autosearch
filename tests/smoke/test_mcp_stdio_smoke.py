@@ -72,11 +72,17 @@ def test_mcp_stdio_smoke() -> None:
 
         assert tools_response["jsonrpc"] == "2.0"
         tool_names = {tool["name"] for tool in tools_response["result"]["tools"]}
-        assert {"research", "health"} <= tool_names
-        # Core v2 tools must be registered
+        # v2 contract: `research` is opt-in (set AUTOSEARCH_LEGACY_RESEARCH=1).
+        # Default surface must include health + the v2 required tools.
+        assert "health" in tool_names
         assert "list_skills" in tool_names
         assert "doctor" in tool_names
         assert "list_channels" in tool_names
+        assert "run_clarify" in tool_names
+        assert "run_channel" in tool_names
+        assert "research" not in tool_names, (
+            "deprecated `research` must not appear by default (plan §P1-4)"
+        )
 
         if process.stdin is not None:
             process.stdin.close()
