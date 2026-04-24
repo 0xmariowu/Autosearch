@@ -227,10 +227,14 @@ def shipped_method_requires(payload: dict[str, Any], skill_dir: Path) -> list[li
 
 
 def _resolve_doc_tier(declared_tier: object, requires_by_method: list[list[str]]) -> str:
-    if isinstance(declared_tier, int):
-        return {0: "t0", 1: "t1", 2: "t2"}.get(
-            declared_tier, infer_tier_from_requires(requires_by_method)
-        )
+    if declared_tier is None:
+        return infer_tier_from_requires(requires_by_method)
+    if isinstance(declared_tier, bool) or not isinstance(declared_tier, int):
+        raise ValueError(f"tier must be an int in 0..2, got {declared_tier!r}")
+    if declared_tier not in (0, 1, 2):
+        raise ValueError(f"tier must be in 0..2, got {declared_tier}")
+    if declared_tier in (0, 1, 2):
+        return {0: "t0", 1: "t1", 2: "t2"}[declared_tier]
     return infer_tier_from_requires(requires_by_method)
 
 

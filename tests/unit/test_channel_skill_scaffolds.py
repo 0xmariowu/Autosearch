@@ -81,7 +81,7 @@ def test_fallback_chain_matches_methods() -> None:
         assert set(spec.fallback_chain).issubset(method_ids)
 
 
-def test_chinese_native_channels_cover_11() -> None:
+def test_chinese_native_channels_cover_expected_set() -> None:
     chinese_native = {
         spec.name
         for spec in _load_specs()

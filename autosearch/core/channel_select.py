@@ -188,6 +188,9 @@ def _channel_aliases(name: str) -> tuple[str, ...]:
         _normalize_text(name.replace("_", "")),
     }
     for alias in _CHANNEL_ALIASES.get(name, ()):
+        normalized_alias = _normalize_channel_name(alias)
+        if normalized_alias:
+            variants.add(normalized_alias)
         variants.update(_keyword_variants(alias))
 
     return tuple(sorted(variant for variant in variants if variant))
@@ -290,12 +293,30 @@ def _has_cjk(value: str) -> bool:
     return bool(_CJK_PATTERN.search(value))
 
 
-def _channel_match_score(spec: ChannelRouteSpec, query_lower: str) -> int:
-    alias_score = sum(3 for alias in spec.aliases if alias and alias in query_lower)
+def _query_tokens(query_lower: str) -> set[str]:
+    return set(_WORD_PATTERN.findall(query_lower))
+
+
+def _matches_query(term: str, query_lower: str, query_tokens: set[str]) -> bool:
+    if len(term) < 3 and term.isascii():
+        return term in query_tokens
+    return term in query_lower
+
+
+def _channel_match_score(
+    spec: ChannelRouteSpec,
+    query_lower: str,
+    query_tokens: set[str],
+) -> int:
+    alias_score = sum(
+        3 for alias in spec.aliases if alias and _matches_query(alias, query_lower, query_tokens)
+    )
     keyword_score = sum(
         1
         for keyword in spec.keywords
-        if keyword and keyword not in spec.aliases and keyword in query_lower
+        if keyword
+        and keyword not in spec.aliases
+        and _matches_query(keyword, query_lower, query_tokens)
     )
     return alias_score + keyword_score
 
@@ -311,11 +332,12 @@ def _domain_score(
     domain: str,
     *,
     query_lower: str,
+    query_tokens: set[str],
     channels: tuple[ChannelRouteSpec, ...],
 ) -> int:
     keyword_score = sum(1 for keyword in _DOMAIN_KEYWORDS.get(domain, ()) if keyword in query_lower)
     channel_scores = sorted(
-        (_channel_match_score(spec, query_lower) for spec in channels),
+        (_channel_match_score(spec, query_lower, query_tokens) for spec in channels),
         reverse=True,
     )
     metadata_score = sum(score for score in channel_scores[:2] if score > 0)
@@ -338,13 +360,19 @@ def select_channels(
     limit = min(_MODE_LIMITS.get(mode, 5), max_channels)
 
     query_lower = _normalize_text(query)
+    query_tokens = _query_tokens(query_lower)
     has_cjk = _has_cjk(query)
     catalog = _load_channel_route_catalog()
     channels_by_domain = _channels_by_domain(catalog)
 
     scores: dict[str, int] = {}
     for domain, specs in channels_by_domain.items():
-        score = _domain_score(domain, query_lower=query_lower, channels=specs)
+        score = _domain_score(
+            domain,
+            query_lower=query_lower,
+            query_tokens=query_tokens,
+            channels=specs,
+        )
         if score > 0:
             scores[domain] = score
 
@@ -365,7 +393,7 @@ def select_channels(
             for spec in sorted(
                 channels_by_domain.get(group, ()),
                 key=lambda spec: (
-                    -_channel_match_score(spec, query_lower),
+                    -_channel_match_score(spec, query_lower, query_tokens),
                     -_language_affinity(spec, has_cjk=has_cjk),
                     spec.name,
                 ),

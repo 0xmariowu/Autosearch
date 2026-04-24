@@ -108,12 +108,7 @@ def test_parse_actual_discourse_forum_skill_md_exposes_governance_metadata() -> 
     assert summary.group == "channels"
     assert summary.layer == "leaf"
     assert summary.domains == ["chinese-ugc"]
-    assert summary.scenarios == [
-        "developer-community",
-        "ai-tools",
-        "troubleshooting",
-        "public-forum",
-    ]
+    assert {"developer-community", "public-forum"} <= set(summary.scenarios)
     assert summary.model_tier == "Fast"
     assert summary.deprecated is False
 

@@ -224,7 +224,11 @@ async def test_search_uses_slug_canonical_topic_url_for_enrichment() -> None:
 async def test_search_returns_empty_on_http_error(monkeypatch: pytest.MonkeyPatch) -> None:
     logger = _Logger()
     monkeypatch.setattr(MODULE, "LOGGER", logger)
-    monkeypatch.setattr(MODULE, "DDGS", lambda: (_ for _ in ()).throw(Exception("ddgs blocked")))
+
+    def _ddgs_blocked() -> object:
+        raise Exception("ddgs blocked")
+
+    monkeypatch.setattr(MODULE, "DDGS", _ddgs_blocked)
 
     async def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(403, json={"error": "forbidden"}, request=request)
@@ -245,7 +249,11 @@ async def test_search_returns_empty_on_malformed_payload(
 ) -> None:
     logger = _Logger()
     monkeypatch.setattr(MODULE, "LOGGER", logger)
-    monkeypatch.setattr(MODULE, "DDGS", lambda: (_ for _ in ()).throw(Exception("ddgs blocked")))
+
+    def _ddgs_blocked() -> object:
+        raise Exception("ddgs blocked")
+
+    monkeypatch.setattr(MODULE, "DDGS", _ddgs_blocked)
 
     async def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"topics": []}, request=request)
@@ -275,6 +283,11 @@ async def test_search_falls_back_to_site_search_when_api_is_blocked(
                     "title": "LINUX DO - 新的理想型社区",
                     "href": "https://linux.do/latest",
                     "body": "This is only a topic list page and should be ignored.",
+                },
+                {
+                    "title": "Hostile mirror should be ignored",
+                    "href": "https://linux.do.evil.example/t/topic/999999",
+                    "body": "This should never be accepted as Linux DO evidence.",
                 },
                 {
                     "title": "Claude Code 入门 - 开发调优 - LINUX DO",

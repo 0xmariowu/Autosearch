@@ -2,16 +2,7 @@
 
 from __future__ import annotations
 
-import importlib
-from pathlib import Path
-
-import pytest
-
-_MODULE_PATH = Path(__file__).resolve().parents[1] / "autosearch" / "core" / "channel_select.py"
-if not _MODULE_PATH.is_file():
-    pytest.skip("legacy channel_select runtime removed from workspace", allow_module_level=True)
-
-select_channels = importlib.import_module("autosearch.core.channel_select").select_channels
+from autosearch.core.channel_select import select_channels
 
 
 def test_chinese_query_selects_chinese_ugc():
