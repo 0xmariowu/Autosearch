@@ -20,11 +20,8 @@ dependencies = [
   "markdownify>=0.11",
   "paper-search-mcp",
   "pydantic",
-  "pytest",
-  "pytest-asyncio",
   "pyyaml",
   "rank-bm25",
-  "ruff",
   "simhash",
   "structlog",
   "tiktoken",
@@ -41,6 +38,11 @@ browser = [
 embeddings = [
   "sentence-transformers>=2.5",
   "scikit-learn>=1.4",
+]
+dev = [
+  "pytest",
+  "pytest-asyncio",
+  "ruff",
 ]
 
 [project.scripts]

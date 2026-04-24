@@ -31,7 +31,7 @@ jobs:
           cache: pip
 
       - name: Install autosearch
-        run: pip install -e . --quiet
+        run: pip install -e ".[dev]" --quiet
 
       - name: Verify import
         run: python -c "import autosearch; print('version:', autosearch.__version__)"
@@ -143,7 +143,7 @@ jobs:
           cache: pip
 
       - name: Install autosearch
-        run: pip install -e . --quiet
+        run: pip install -e ".[dev]" --quiet
 
       - name: Verify import
         run: python -c "import autosearch; print('version:', autosearch.__version__)"
