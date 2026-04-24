@@ -406,7 +406,6 @@ def configure(
     """
     import shlex
     import sys
-    from pathlib import Path
 
     if from_stdin:
         value = sys.stdin.read().rstrip("\n")
@@ -424,7 +423,12 @@ def configure(
         typer.echo("error: value must not be empty.", err=True)
         raise typer.Exit(code=2)
 
-    secrets_path = Path.home() / ".config" / "ai-secrets.env"
+    # Bug 3 (fix-plan): write target must follow AUTOSEARCH_SECRETS_FILE so
+    # containers / CI / multi-user installs don't end up writing to A while
+    # the runtime reads B.
+    from autosearch.core.secrets_store import secrets_path as _secrets_path  # noqa: PLC0415
+
+    secrets_path = _secrets_path()
     existing: dict[str, str] = {}
     if secrets_path.exists():
         for line in secrets_path.read_text(encoding="utf-8").splitlines():
@@ -476,20 +480,32 @@ def login(
         str | None,
         typer.Option(
             "--from-string",
-            help="Paste a cookie string directly instead of reading from browser.",
+            help=(
+                "DEPRECATED: leaks the cookie into shell history and the "
+                "process list. Prefer --stdin (pipe the cookie in) or omit "
+                "to read from the browser."
+            ),
         ),
     ] = None,
+    from_stdin: Annotated[
+        bool,
+        typer.Option(
+            "--stdin",
+            help="Read the cookie string from stdin (avoids shell-history leak).",
+        ),
+    ] = False,
 ) -> None:
     """Import cookies from your local browser — no copy-paste needed.
 
-    You must already be logged in to the platform in the specified browser.
-    Alternatively, use Cookie-Editor browser extension → Export → Header String,
-    then pass with --from-string.
+    Three input modes (preferred → discouraged):
+      1. Default: read cookies straight from the browser session.
+      2. --stdin: pipe the cookie string in (no shell-history leak).
+      3. --from-string: cookie on the command line (DEPRECATED — leaks).
 
     Examples:
         autosearch login xhs
         autosearch login twitter --browser firefox
-        autosearch login bilibili --from-string "SESSDATA=xxx; bili_jct=yyy"
+        printf 'SESSDATA=xxx; bili_jct=yyy' | autosearch login bilibili --stdin
 
     Supported platforms: xhs, twitter, bilibili, weibo, douyin, zhihu, xueqiu
     """
@@ -514,8 +530,27 @@ def login(
 
     domains, env_key = _PLATFORM_SPECS[platform]
 
-    # Fast path: cookie string provided directly (from Cookie-Editor export)
+    if from_stdin and from_string:
+        typer.echo("error: --stdin and --from-string are mutually exclusive.", err=True)
+        raise typer.Exit(code=2)
+
+    # Bug 4 (fix-plan): preferred non-leaking input — pipe the cookie in.
+    if from_stdin:
+        cookie_input = sys.stdin.read().strip()
+        if not cookie_input:
+            typer.echo("error: --stdin received empty cookie string.", err=True)
+            raise typer.Exit(code=2)
+        _write_cookie_to_secrets(env_key, cookie_input, platform)
+        typer.echo(f"Done. {env_key} written from stdin.")
+        return
+
+    # Deprecated path: cookie on the command line.
     if from_string:
+        typer.echo(
+            "warning: --from-string puts the cookie in your shell history and "
+            "process list. Prefer --stdin (pipe it in) for new automation.",
+            err=True,
+        )
         _write_cookie_to_secrets(env_key, from_string.strip(), platform)
         typer.echo(f"Done. {env_key} written from --from-string.")
         return
@@ -568,11 +603,17 @@ def login(
 def _write_cookie_to_secrets(
     env_key: str, cookie_str: str, platform: str, n_cookies: int = 0
 ) -> None:
-    """Write or update a cookie env var in ~/.config/ai-secrets.env."""
-    import shlex
-    from pathlib import Path
+    """Write or update a cookie env var in the secrets file.
 
-    secrets_path = Path.home() / ".config" / "ai-secrets.env"
+    Bug 3 (fix-plan): respects AUTOSEARCH_SECRETS_FILE so the runtime reads
+    the same file we just wrote. Bug 4: chmods the file 0o600 after write
+    so cookies aren't world-readable on shared boxes.
+    """
+    import shlex
+
+    from autosearch.core.secrets_store import secrets_path as _secrets_path
+
+    secrets_path = _secrets_path()
     secrets_path.parent.mkdir(parents=True, exist_ok=True)
 
     existing_keys: set[str] = set()
@@ -597,6 +638,11 @@ def _write_cookie_to_secrets(
         with secrets_path.open("a", encoding="utf-8") as fh:
             fh.write(f"\n{env_key}={shlex.quote(cookie_str)}\n")
         typer.echo(f"Written {env_key} ({label}) → {secrets_path}")
+
+    try:
+        secrets_path.chmod(0o600)
+    except OSError:
+        pass
 
 
 def _stderr_event_writer(event: dict[str, object]) -> None:
