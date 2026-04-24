@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import asyncio
+from importlib import import_module
 import re
 from collections.abc import Mapping
 from datetime import UTC, datetime
@@ -14,8 +15,8 @@ from autosearch.core.models import Evidence, FetchedPage, SubQuery
 
 try:
     from ddgs import DDGS
-except ImportError:  # pragma: no cover - compatibility fallback
-    from duckduckgo_search import DDGS  # type: ignore[import-not-found]
+except ImportError:
+    DDGS = import_module("duckduckgo_search").DDGS
 
 LOGGER = structlog.get_logger(__name__).bind(component="channel", channel="discourse_forum")
 
@@ -33,6 +34,7 @@ SITE_PRESETS: dict[str, dict[str, str]] = {
         "base_url": "https://linux.do",
         "search_endpoint": "/search.json",
         "source_channel": "discourse_forum:linux_do",
+        "title_suffix": " - LINUX DO",
     }
 }
 
@@ -60,10 +62,11 @@ def _truncate_on_word_boundary(text: str, *, max_length: int) -> str:
     return f"{candidate.rstrip()}…"
 
 
-def _clean_site_search_title(title: str) -> str:
+def _clean_site_search_title(title: str, *, site: Mapping[str, str]) -> str:
     cleaned = title.strip()
-    if cleaned.endswith(" - LINUX DO"):
-        cleaned = cleaned[: -len(" - LINUX DO")].strip()
+    title_suffix = site.get("title_suffix", "").strip()
+    if title_suffix and cleaned.endswith(title_suffix):
+        cleaned = cleaned[: -len(title_suffix)].strip()
     return cleaned
 
 
@@ -140,7 +143,7 @@ def _to_site_search_evidence(
     if "/t/" not in parsed.path:
         return None
 
-    title = _clean_site_search_title(str(result.get("title") or "").strip())
+    title = _clean_site_search_title(str(result.get("title") or "").strip(), site=site)
     if not title:
         return None
 
@@ -245,24 +248,19 @@ async def search(
     http_client: httpx.AsyncClient | None = None,
     site_key: str = DEFAULT_SITE_KEY,
 ) -> list[Evidence]:
+    if http_client is None:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, follow_redirects=True) as client:
+            return await search(query, http_client=client, site_key=site_key)
+
     site = SITE_PRESETS[site_key]
     try:
         params = {"q": query.text}
         url = f"{site['base_url']}{site['search_endpoint']}"
-
-        if http_client is not None:
-            response = await http_client.get(
-                url,
-                params=params,
-                headers={"User-Agent": USER_AGENT},
-            )
-        else:
-            async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, follow_redirects=True) as client:
-                response = await client.get(
-                    url,
-                    params=params,
-                    headers={"User-Agent": USER_AGENT},
-                )
+        response = await http_client.get(
+            url,
+            params=params,
+            headers={"User-Agent": USER_AGENT},
+        )
 
         response.raise_for_status()
         payload = response.json()

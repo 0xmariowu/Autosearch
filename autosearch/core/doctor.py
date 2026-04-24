@@ -11,8 +11,12 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from autosearch.skills import SkillLoadError, load_all
+
+if TYPE_CHECKING:
+    from autosearch.skills.loader import SkillSpec
 
 # Maps unmet env var names → actionable fix commands (1:1 from Agent-Reach cookie_extract.py)
 _ENV_FIX_HINTS: dict[str, str] = {
@@ -181,7 +185,7 @@ def format_report(results: list[ChannelStatus]) -> str:
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 
-def _resolve_tier(spec: object, all_requires: list[str]) -> int:
+def _resolve_tier(spec: SkillSpec, all_requires: list[str]) -> int:
     """Resolve doctor tier from declared metadata first, then infer as fallback."""
     declared_tier = getattr(spec, "tier", None)
     if declared_tier is not None:
@@ -211,7 +215,7 @@ def _compute_tier(all_requires: list[str]) -> int:
     return 0
 
 
-def _resolve_fix_hint(spec: object, unmet_requires: list[str]) -> str:
+def _resolve_fix_hint(spec: SkillSpec, unmet_requires: list[str]) -> str:
     """Resolve fix hint from declared metadata first, then infer as fallback."""
     declared_fix_hint = getattr(spec, "fix_hint", None)
     if isinstance(declared_fix_hint, str) and declared_fix_hint.strip():

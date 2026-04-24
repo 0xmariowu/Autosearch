@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 import autosearch.skills.loader as loader_module
-from autosearch.skills import SkillLoadError, load_all, load_skill
+from autosearch.skills import SkillLoadError, load_all, load_frontmatter, load_skill
 
 
 def _fixture_root() -> Path:
@@ -41,6 +41,13 @@ def test_load_valid_channel_skill() -> None:
     assert spec.tier == 1
     assert spec.fix_hint == "autosearch configure ARXIV_TOKEN <value>"
     assert spec.skill_dir.name == "valid_channel"
+
+
+def test_load_frontmatter_returns_mapping() -> None:
+    payload = load_frontmatter(_fixture_root() / "valid_channel" / "SKILL.md")
+
+    assert payload["name"] == "valid_channel"
+    assert payload["tier"] == 1
 
 
 def test_load_valid_tool_skill() -> None:
