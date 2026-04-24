@@ -105,7 +105,7 @@ async def synthesize(ev_summary, query):
             'https://openrouter.ai/api/v1/chat/completions',
             headers={'Authorization': f'Bearer {OPENROUTER_KEY}', 'Content-Type': 'application/json'},
             json={
-                'model': 'anthropic/claude-haiku-4-5',
+                'model': 'anthropic/claude-haiku-4.5',
                 'max_tokens': 800,
                 'messages': [
                     {'role': 'system', 'content': 'Research assistant. Write a concise Markdown report with [1][2] citations.'},
@@ -214,7 +214,7 @@ async def synthesize(ev_list, query, refs_md):
             'https://openrouter.ai/api/v1/chat/completions',
             headers={'Authorization': f'Bearer {OPENROUTER_KEY}', 'Content-Type': 'application/json'},
             json={
-                'model': 'anthropic/claude-haiku-4-5',
+                'model': 'anthropic/claude-haiku-4.5',
                 'max_tokens': 1000,
                 'messages': [
                     {'role': 'system', 'content': 'Research assistant. Write a 300+ word Markdown report with [1][2] citations, specific numbers and examples.'},

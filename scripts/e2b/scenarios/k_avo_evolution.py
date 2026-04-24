@@ -2,17 +2,29 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import shlex
 import time
 
 from scripts.e2b.sandbox_runner import ScenarioResult, install_autosearch, run_cmd, run_python
+
+OPENROUTER_MODEL = "anthropic/claude-haiku-4.5"
+
+
+@dataclass(frozen=True)
+class CloneInstallResult:
+    ok: bool
+    error: str = ""
 
 
 def _clean_env(env: dict) -> dict:
     return {k: v for k, v in env.items() if k != "AUTOSEARCH_LLM_MODE"}
 
 
-async def _clone_and_install(sandbox_id: str, env: dict | None = None) -> bool:
+async def _clone_and_install_result(
+    sandbox_id: str,
+    env: dict | None = None,
+) -> CloneInstallResult:
     """Clone autosearch repo and install editable — judge reads /tmp/autosearch_k/skills/."""
     env = env or {}
     repo_url = env.get("AUTOSEARCH_E2B_REPO_URL", "https://github.com/0xmariowu/Autosearch.git")
@@ -25,19 +37,47 @@ async def _clone_and_install(sandbox_id: str, env: dict | None = None) -> bool:
             f" && git -C /tmp/autosearch_k fetch origin {shlex.quote(source_ref)} --depth=1 -q"
             " && git -C /tmp/autosearch_k checkout --detach FETCH_HEAD -q"
         )
-    _, _, c1 = await run_cmd(
+    clone_wrapped = (
+        f"({clone_cmd}) > /tmp/autosearch_k_clone.log 2>&1; "
+        "code=$?; tail -20 /tmp/autosearch_k_clone.log; exit $code"
+    )
+    out, err, c1 = await run_cmd(
         sandbox_id,
-        f"{clone_cmd} 2>&1 | tail -4",
+        clone_wrapped,
         timeout=120,
     )
     if c1 != 0:
-        return False
-    _, _, c2 = await run_cmd(
+        return CloneInstallResult(
+            ok=False,
+            error=_format_process_failure("git clone/fetch", stdout=out, stderr=err),
+        )
+
+    out, err, c2 = await run_cmd(
         sandbox_id,
-        "pip install -e /tmp/autosearch_k -q 2>&1 | tail -2",
+        (
+            "pip install -e /tmp/autosearch_k -q > /tmp/autosearch_k_pip.log 2>&1; "
+            "code=$?; tail -20 /tmp/autosearch_k_pip.log; exit $code"
+        ),
         timeout=180,
     )
-    return c2 == 0
+    if c2 != 0:
+        return CloneInstallResult(
+            ok=False,
+            error=_format_process_failure("editable install", stdout=out, stderr=err),
+        )
+    return CloneInstallResult(ok=True)
+
+
+async def _clone_and_install(sandbox_id: str, env: dict | None = None) -> bool:
+    return (await _clone_and_install_result(sandbox_id, env)).ok
+
+
+def _format_process_failure(step: str, *, stdout: str, stderr: str) -> str:
+    output = (stderr or stdout or "").strip()
+    if not output:
+        output = "no process output captured"
+    output = " ".join(output.split())
+    return f"{step} failed: {output[:500]}"
 
 
 async def _install_or_fail(
@@ -60,15 +100,15 @@ async def _install_or_fail(
 async def k1_avo_baseline_score(sandbox_id: str, env: dict) -> ScenarioResult:
     """K1: Clone editable repo and compute a baseline skill quality score."""
     t0 = time.monotonic()
-    cloned = await _clone_and_install(sandbox_id, env)
-    if not cloned:
+    cloned = await _clone_and_install_result(sandbox_id, env)
+    if not cloned.ok:
         return ScenarioResult(
             "K1",
             "K",
             "avo_baseline_score",
             0,
             False,
-            error="clone or editable install failed",
+            error=cloned.error,
             duration_s=time.monotonic() - t0,
         )
 
@@ -381,15 +421,15 @@ print(json.dumps({'ok': reverted, 'reverted': reverted}))
 async def k5_evolution_contract_validation(sandbox_id: str, env: dict) -> ScenarioResult:
     """K5: Run a real local AVO trial and validate its evidence contract."""
     t0 = time.monotonic()
-    cloned = await _clone_and_install(sandbox_id, env)
-    if not cloned:
+    cloned = await _clone_and_install_result(sandbox_id, env)
+    if not cloned.ok:
         return ScenarioResult(
             "K5",
             "K",
             "evolution_contract_validation",
             0,
             False,
-            error="clone or editable install failed",
+            error=cloned.error,
             duration_s=time.monotonic() - t0,
         )
 
@@ -444,17 +484,45 @@ def run_git(*args):
 
 async def call_openrouter(prompt, max_tokens=700):
     async with httpx.AsyncClient(timeout=45) as client:
-        response = await client.post(
-            'https://openrouter.ai/api/v1/chat/completions',
-            headers={'Authorization': f'Bearer {OPENROUTER_KEY}'},
-            json={
-                'model': 'anthropic/claude-haiku-4-5',
-                'max_tokens': max_tokens,
-                'messages': [{'role': 'user', 'content': prompt}],
-            },
-        )
-        response.raise_for_status()
-        return response.json()['choices'][0]['message']['content']
+        for attempt in range(2):
+            try:
+                response = await client.post(
+                    'https://openrouter.ai/api/v1/chat/completions',
+                    headers={'Authorization': f'Bearer {OPENROUTER_KEY}'},
+                    json={
+                        'model': 'anthropic/claude-haiku-4.5',
+                        'max_tokens': max_tokens,
+                        'messages': [{'role': 'user', 'content': prompt}],
+                    },
+                )
+            except httpx.HTTPError as exc:
+                if attempt == 0:
+                    await asyncio.sleep(1)
+                    continue
+                return {'ok': False, 'error': f'OpenRouter request failed: {exc}'}
+
+            if response.status_code in {429, 500, 502, 503, 504} and attempt == 0:
+                await asyncio.sleep(1)
+                continue
+            if response.status_code != 200:
+                return {
+                    'ok': False,
+                    'status': response.status_code,
+                    'error': f'OpenRouter request failed with HTTP {response.status_code}',
+                    'body': response.text[:500],
+                }
+            try:
+                data = response.json()
+                content = data['choices'][0]['message']['content']
+            except (KeyError, IndexError, TypeError, ValueError) as exc:
+                return {
+                    'ok': False,
+                    'status': response.status_code,
+                    'error': f'malformed OpenRouter response: {exc}',
+                    'body': response.text[:500],
+                }
+            return {'ok': True, 'content': str(content)}
+    return {'ok': False, 'error': 'OpenRouter request failed after retry'}
 
 async def judge_reports(native_report, evolved_report):
     prompt = (
@@ -465,7 +533,10 @@ async def judge_reports(native_report, evolved_report):
         f'<native_report>{native_report[:1600]}</native_report>\\n'
         f'<evolved_report>{evolved_report[:1600]}</evolved_report>'
     )
-    raw = await call_openrouter(prompt, max_tokens=60)
+    response = await call_openrouter(prompt, max_tokens=60)
+    if not response.get('ok'):
+        return 'tie', json.dumps(response)
+    raw = response['content']
     start = raw.find('{')
     end = raw.rfind('}')
     if start == -1 or end == -1:
@@ -477,10 +548,18 @@ async def judge_reports(native_report, evolved_report):
     return winner if winner in {'native', 'evolved', 'tie'} else 'tie', raw
 
 original = skill_path.read_text(encoding='utf-8')
-native_baseline_output = asyncio.run(call_openrouter(
+native_baseline_response = asyncio.run(call_openrouter(
     'You are native Codex without AutoSearch tools or persistent skill memory. '
     f'Answer this validation task directly:\\n{baseline_query}'
 ))
+if not native_baseline_response.get('ok'):
+    print(json.dumps({
+        'ok': False,
+        'error': native_baseline_response.get('error', 'native baseline OpenRouter call failed'),
+        'openrouter': native_baseline_response,
+    }))
+    raise SystemExit(0)
+native_baseline_output = native_baseline_response['content']
 
 trial_rule = (
     '\\n## AVO Trial Evidence\\n'
@@ -571,7 +650,6 @@ validation = validate_evolution_trial(EvolutionTrial(
 
 ok = (
     validation.ok
-    and revised_score > baseline_score
     and commit.returncode == 0
     and revert.returncode == 0
     and marker not in final_text

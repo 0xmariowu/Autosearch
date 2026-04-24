@@ -57,7 +57,9 @@ def trial_from_mapping(payload: Mapping[str, Any]) -> EvolutionTrial:
             query=str(native_payload.get("query") or ""),
             raw_output=str(native_payload.get("raw_output") or ""),
             result_count_by_type=_coerce_result_counts(native_payload.get("result_count_by_type")),
-            conceptual_framework_depth=int(native_payload.get("conceptual_framework_depth", -1)),
+            conceptual_framework_depth=_coerce_framework_depth(
+                native_payload.get("conceptual_framework_depth")
+            ),
             coverage_gaps=tuple(str(gap) for gap in native_payload.get("coverage_gaps", ())),
             provider=str(native_payload.get("provider") or "native_codex"),
             artifact_path=_optional_string(native_payload.get("artifact_path")),
@@ -66,10 +68,10 @@ def trial_from_mapping(payload: Mapping[str, Any]) -> EvolutionTrial:
     return EvolutionTrial(
         baseline_score=_optional_score(payload.get("baseline_score")),
         revised_score=_optional_score(payload.get("revised_score")),
-        skill_modified=bool(payload.get("skill_modified", False)),
-        committed=bool(payload.get("committed", False)),
-        reverted=bool(payload.get("reverted", False)),
-        pattern_written=bool(payload.get("pattern_written", False)),
+        skill_modified=_coerce_bool(payload.get("skill_modified")),
+        committed=_coerce_bool(payload.get("committed")),
+        reverted=_coerce_bool(payload.get("reverted")),
+        pattern_written=_coerce_bool(payload.get("pattern_written")),
         native_codex_baseline=native_baseline,
         evidence_refs=_coerce_evidence_refs(payload.get("evidence_refs")),
     )
@@ -175,6 +177,40 @@ def _coerce_result_counts(value: Any) -> Mapping[str, int]:
             continue
         result[str(key)] = int(count)
     return result
+
+
+def _coerce_framework_depth(value: Any) -> int:
+    if isinstance(value, bool) or value is None:
+        return -1
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        if math.isfinite(value) and value >= 0 and value.is_integer():
+            return int(value)
+        return -1
+    if isinstance(value, str):
+        text = value.strip()
+        try:
+            parsed = float(text)
+        except ValueError:
+            return -1
+        if math.isfinite(parsed) and parsed >= 0 and parsed.is_integer():
+            return int(parsed)
+    return -1
+
+
+def _coerce_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return value != 0
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "y", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "n", "off", ""}:
+            return False
+    return False
 
 
 def _coerce_evidence_refs(value: Any) -> Mapping[str, str]:

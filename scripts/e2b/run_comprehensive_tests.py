@@ -7,7 +7,7 @@ Each sandbox: create → install autosearch → run scenario → collect result 
 Usage:
   python scripts/e2b/run_comprehensive_tests.py [--categories A,B,C] [--parallel 20]
   python scripts/e2b/run_comprehensive_tests.py --smoke-only   # just A1-A3
-  python scripts/e2b/run_comprehensive_tests.py --no-llm       # skip G2/G3 synthesis
+  python scripts/e2b/run_comprehensive_tests.py --no-llm       # skip G2/G3 and K5 OpenRouter judge
 
 Requires: E2B_API_KEY, OPENROUTER_API_KEY, TIKHUB_API_KEY (from ~/.config/ai-secrets.env)
 """
@@ -196,19 +196,37 @@ from scripts.e2b.scenarios.x_tikhub_pathfinding import (  # noqa: E402
 
 
 def _git_output(*args: str) -> str:
-    result = subprocess.run(
+    result = _git_result(*args)
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def _git_result(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
         ["git", "-C", str(ROOT), *args],
         capture_output=True,
         text=True,
         check=False,
     )
-    return result.stdout.strip() if result.returncode == 0 else ""
 
 
 def _https_remote_url(remote_url: str) -> str:
     if remote_url.startswith("git@github.com:"):
         return "https://github.com/" + remote_url.removeprefix("git@github.com:")
+    if remote_url.startswith("ssh://git@github.com/"):
+        return "https://github.com/" + remote_url.removeprefix("ssh://git@github.com/")
     return remote_url
+
+
+def _warn_if_source_ref_missing_on_origin(source_ref: str) -> None:
+    if not source_ref:
+        return
+    result = _git_result("ls-remote", "--exit-code", "origin", source_ref)
+    if result.returncode != 0:
+        print(
+            f"warning: AUTOSEARCH_E2B_REF={source_ref!r} was not found on origin; "
+            "K5 sandbox fetch may fail if the branch or ref is not pushed",
+            file=sys.stderr,
+        )
 
 
 def _collect_source_ref_env() -> dict[str, str]:
@@ -228,6 +246,7 @@ def _collect_source_ref_env() -> dict[str, str]:
         source_ref = _git_output("branch", "--show-current") or _git_output("rev-parse", "HEAD")
     if source_ref:
         source["AUTOSEARCH_E2B_REF"] = source_ref
+        _warn_if_source_ref_missing_on_origin(source_ref)
     return source
 
 
@@ -459,7 +478,11 @@ async def main(argv: list[str] | None = None) -> int:
         "--parallel", type=int, default=10, help="Max parallel sandboxes (default: 10)"
     )
     parser.add_argument("--smoke-only", action="store_true", help="Run only A1-A3")
-    parser.add_argument("--no-llm", action="store_true", help="Skip G2/G3 (require OpenRouter)")
+    parser.add_argument(
+        "--no-llm",
+        action="store_true",
+        help="Skip G2/G3 and K5 (require OpenRouter)",
+    )
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument(
         "--list-scenarios",

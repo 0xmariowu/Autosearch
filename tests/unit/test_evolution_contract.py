@@ -106,6 +106,78 @@ def test_mapping_loader_accepts_json_report_shape() -> None:
     assert "ignored_none" not in trial.evidence_refs
 
 
+def test_mapping_loader_does_not_treat_false_strings_as_true() -> None:
+    trial = trial_from_mapping(
+        {
+            "baseline_score": 12,
+            "revised_score": 18,
+            "skill_modified": "false",
+            "committed": "false",
+            "reverted": "false",
+            "pattern_written": "false",
+            "native_codex_baseline": {
+                "query": "same query",
+                "raw_output": "raw native baseline output",
+                "result_count_by_type": {"answer": 1},
+                "conceptual_framework_depth": 1,
+                "coverage_gaps": ["missing persistent skill lineage"],
+            },
+        }
+    )
+
+    assert trial.skill_modified is False
+    assert trial.committed is False
+    assert trial.reverted is False
+    assert trial.pattern_written is False
+
+
+def test_mapping_loader_rejects_invalid_framework_depth_without_raising() -> None:
+    trial = trial_from_mapping(
+        {
+            "baseline_score": 12,
+            "revised_score": 18,
+            "skill_modified": True,
+            "committed": True,
+            "pattern_written": True,
+            "native_codex_baseline": {
+                "query": "same query",
+                "raw_output": "raw native baseline output",
+                "result_count_by_type": {"answer": 1},
+                "conceptual_framework_depth": "deep",
+                "coverage_gaps": ["missing persistent skill lineage"],
+            },
+        }
+    )
+
+    result = validate_evolution_trial(trial)
+
+    assert not result.ok
+    assert "native Codex baseline must include conceptual framework depth" in result.failures
+
+
+def test_mapping_loader_accepts_integer_like_framework_depth_values() -> None:
+    for depth in (3.0, "+3", "3.0"):
+        trial = trial_from_mapping(
+            {
+                "baseline_score": 12,
+                "revised_score": 18,
+                "skill_modified": True,
+                "committed": True,
+                "pattern_written": True,
+                "native_codex_baseline": {
+                    "query": "same query",
+                    "raw_output": "raw native baseline output",
+                    "result_count_by_type": {"answer": 1},
+                    "conceptual_framework_depth": depth,
+                    "coverage_gaps": ["missing persistent skill lineage"],
+                },
+            }
+        )
+
+        assert trial.native_codex_baseline is not None
+        assert trial.native_codex_baseline.conceptual_framework_depth == 3
+
+
 def test_weak_native_baseline_evidence_is_rejected() -> None:
     result = validate_evolution_trial(
         EvolutionTrial(

@@ -14,7 +14,7 @@ from scripts.e2b.sandbox_runner import ScenarioResult, install_autosearch, run_p
 async def _bare_claude(
     query: str,
     openrouter_key: str,
-    model: str = "anthropic/claude-haiku-4-5",
+    model: str = "anthropic/claude-haiku-4.5",
 ) -> str:
     """Get bare Claude response with no AutoSearch context."""
     if not openrouter_key:
@@ -61,7 +61,7 @@ Reply EXACTLY with one of: {{"winner":"A"}} or {{"winner":"B"}} or {{"winner":"t
             "https://openrouter.ai/api/v1/chat/completions",
             headers={"Authorization": f"Bearer {openrouter_key}"},
             json={
-                "model": "anthropic/claude-haiku-4-5",
+                "model": "anthropic/claude-haiku-4.5",
                 "max_tokens": 30,
                 "messages": [{"role": "user", "content": prompt}],
             },
