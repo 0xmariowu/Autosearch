@@ -40,3 +40,22 @@ def _build_channels(
     if not channels:
         return [DemoChannel()]
     return channels
+
+
+def _build_registry(
+    *,
+    channels_root: Path | None = None,
+    env: Environment | None = None,
+) -> ChannelRegistry | None:
+    """Same as `_build_channels` but exposes the full ChannelRegistry so
+    callers can ask about KNOWN-but-unavailable channels (for `not_configured`
+    semantics in `run_channel`). Returns None in dummy/demo mode where there
+    is no real registry to introspect."""
+    if os.getenv("AUTOSEARCH_LLM_MODE") == "dummy":
+        return None
+    root = channels_root or _default_channels_root()
+    if not root.is_dir():
+        return None
+    registry = ChannelRegistry.compile_from_skills(root, env or probe_environment())
+    registry.attach_health(ChannelHealth())
+    return registry
