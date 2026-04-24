@@ -54,10 +54,15 @@ def test_health_state_survives_multiple_run_channel_calls(monkeypatch):
     from autosearch.core import channel_runtime as runtime_mod
 
     def fake_build():
+        from autosearch.core.rate_limiter import RateLimiter
         from autosearch.observability.channel_health import ChannelHealth
 
-        health = ChannelHealth()
-        return runtime_mod.ChannelRuntime(registry=None, health=health, channels=[FlakyChannel()])
+        return runtime_mod.ChannelRuntime(
+            registry=None,
+            health=ChannelHealth(),
+            limiter=RateLimiter(),
+            channels=[FlakyChannel()],
+        )
 
     monkeypatch.setattr(runtime_mod, "_build", fake_build)
     reset_channel_runtime()
