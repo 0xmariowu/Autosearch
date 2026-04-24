@@ -43,12 +43,25 @@ class ResearchResponse(BaseModel):
 
 
 class RunChannelResponse(BaseModel):
-    """Structured MCP tool response for the run_channel tool."""
+    """Structured MCP tool response for the run_channel tool.
+
+    `status` discriminates the four meaningful outcomes a host agent must
+    distinguish:
+      - `ok`: results returned (may be empty list)
+      - `not_configured`: channel exists but its requirements (env keys,
+        cookies, etc.) are not met. `unmet_requires` and `fix_hint` tell
+        the agent exactly what to ask the user for.
+      - `unknown_channel`: the requested name is not registered at all.
+      - `channel_error`: known and configured, but the call raised.
+    """
 
     channel: str
     ok: bool
+    status: str = "ok"
     evidence: list[dict[str, object]] = Field(default_factory=list)
     reason: str | None = None
+    unmet_requires: list[str] = Field(default_factory=list)
+    fix_hint: str | None = None
     count_total: int = 0
     count_returned: int = 0
 
@@ -304,6 +317,13 @@ def _scan_skill_catalog(
 
 
 def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
+    # Push ~/.config/ai-secrets.env keys into process env BEFORE any channel
+    # method or LLM provider is constructed — otherwise their `os.getenv()`
+    # calls miss keys the user configured via `autosearch configure`.
+    from autosearch.core.secrets_store import inject_into_env
+
+    inject_into_env()
+
     factory = pipeline_factory or _default_pipeline_factory
     server = FastMCP(
         name="autosearch",
@@ -526,13 +546,39 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
             (up to k items; each evidence is already source_page-slimmed),
             `reason` populated on failure, and `count_total / count_returned`.
         """
+        from autosearch.core.channel_bootstrap import _build_registry
+
         channels = _build_channels()
         matched = next((c for c in channels if c.name == channel_name), None)
         if matched is None:
+            # Differentiate "channel name typo" (unknown_channel) from "channel
+            # exists but its requirements aren't met" (not_configured). The
+            # latter must surface fix_hint + unmet_requires so the host agent
+            # can ask the user for the missing key instead of falling back.
+            registry = _build_registry()
+            if registry is not None and channel_name in registry._metadata:  # noqa: SLF001
+                meta = registry.metadata(channel_name)
+                unmet: list[str] = []
+                for method in meta.methods:
+                    unmet.extend(method.unmet_requires)
+                # Stable order, unique
+                unmet = list(dict.fromkeys(unmet))
+                from autosearch.core.doctor import _resolve_fix_hint
+
+                fix = _resolve_fix_hint(meta, unmet)
+                return RunChannelResponse(
+                    channel=channel_name,
+                    ok=False,
+                    status="not_configured",
+                    reason=f"not_configured: {channel_name} known but requirements unmet",
+                    unmet_requires=unmet,
+                    fix_hint=fix or None,
+                )
             available = ", ".join(sorted(c.name for c in channels))[:500]
             return RunChannelResponse(
                 channel=channel_name,
                 ok=False,
+                status="unknown_channel",
                 reason=f"unknown_channel. available: {available}",
             )
 
@@ -569,6 +615,7 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
             return RunChannelResponse(
                 channel=channel_name,
                 ok=False,
+                status="channel_error",
                 reason=f"channel_error: {type(exc).__name__}: {exc}",
             )
 
@@ -596,6 +643,7 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
         return RunChannelResponse(
             channel=channel_name,
             ok=True,
+            status="ok" if returned else "no_results",
             evidence=returned,
             count_total=total,
             count_returned=len(returned),

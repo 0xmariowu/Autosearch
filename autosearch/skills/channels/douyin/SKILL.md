@@ -11,11 +11,7 @@ methods:
     impl: methods/via_tikhub.py
     requires: [env:TIKHUB_API_KEY]
     rate_limit: {per_min: 60, per_hour: 1000}
-  - id: via_douyin_mcp
-    impl: methods/via_douyin_mcp.py
-    requires: [mcp:douyin-mcp-server, cookie:douyin]
-    rate_limit: {per_min: 10, per_hour: 120}
-fallback_chain: [via_tikhub, via_douyin_mcp]
+fallback_chain: [via_tikhub]
 when_to_use:
   query_languages: [zh]
   query_types: [trending, short-form, product-launch, consumer-commentary, lifestyle]

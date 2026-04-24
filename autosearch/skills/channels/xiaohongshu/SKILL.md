@@ -15,15 +15,7 @@ methods:
     impl: methods/via_tikhub.py
     requires: [env:TIKHUB_API_KEY]
     rate_limit: {per_min: 60, per_hour: 1000}
-  - id: via_mcporter
-    impl: methods/via_mcporter.py
-    requires: [mcp:mcporter, cookie:xiaohongshu]
-    rate_limit: {per_min: 5, per_hour: 60}
-  - id: via_xhs_cli
-    impl: methods/via_xhs_cli.py
-    requires: [binary:xhs-cli, cookie:xiaohongshu]
-    rate_limit: {per_min: 5, per_hour: 60}
-fallback_chain: [via_signsrv, via_tikhub, via_mcporter, via_xhs_cli]
+fallback_chain: [via_signsrv, via_tikhub]
 when_to_use:
   query_languages: [zh, mixed]
   query_types: [product-review, experience-report, lifestyle, consumer, travel]

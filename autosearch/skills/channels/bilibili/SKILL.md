@@ -15,11 +15,7 @@ methods:
     impl: methods/api_search.py
     requires: []
     rate_limit: {per_min: 30, per_hour: 500}
-  - id: api_video_detail
-    impl: methods/api_video_detail.py
-    requires: [cookie:bilibili]
-    rate_limit: {per_min: 20, per_hour: 300}
-fallback_chain: [api_search, via_tikhub, api_video_detail]
+fallback_chain: [api_search, via_tikhub]
 when_to_use:
   query_languages: [zh, mixed]
   query_types: [tutorial-video, comparison, breakdown, tech-opinion]

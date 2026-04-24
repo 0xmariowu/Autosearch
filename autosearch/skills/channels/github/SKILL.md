@@ -7,23 +7,11 @@ description: Use for code-level, issue-level, and repository discovery when quer
 version: 1
 languages: [en]
 methods:
-  - id: search_repositories
-    impl: methods/search_repos.py
-    requires: [env:GITHUB_TOKEN]
-    rate_limit: {per_min: 30, per_hour: 5000}
-  - id: search_issues
-    impl: methods/search_issues.py
-    requires: [env:GITHUB_TOKEN]
-    rate_limit: {per_min: 30, per_hour: 5000}
-  - id: search_code
-    impl: methods/search_code.py
-    requires: [env:GITHUB_TOKEN]
-    rate_limit: {per_min: 10, per_hour: 5000}
   - id: search_public_repos
     impl: methods/search_public_repos.py
     requires: []
     rate_limit: {per_min: 10, per_hour: 60}
-fallback_chain: [search_repositories, search_issues, search_code, search_public_repos]
+fallback_chain: [search_public_repos]
 when_to_use:
   query_languages: [en, mixed]
   query_types: [code, library, implementation, debugging, tooling]
