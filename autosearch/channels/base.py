@@ -130,6 +130,16 @@ class _CompiledChannel:
                 )
                 last_retryable = exc
                 continue
+            except PermanentError as exc:
+                # Must come before the bare-Exception clause below; previously this
+                # handler was unreachable because Exception caught it first.
+                self._record_health(
+                    method=method.id,
+                    success=False,
+                    started_at=started_at,
+                    error=type(exc).__name__,
+                )
+                raise
             except Exception as _budget_exc:  # noqa: BLE001
                 # Check if it's TikhubBudgetExhausted — treat as rate-limited, fall through
                 if type(_budget_exc).__name__ == "TikhubBudgetExhausted":
@@ -152,14 +162,6 @@ class _CompiledChannel:
                     success=False,
                     started_at=started_at,
                     error=type(_budget_exc).__name__,
-                )
-                raise
-            except PermanentError as exc:
-                self._record_health(
-                    method=method.id,
-                    success=False,
-                    started_at=started_at,
-                    error=type(exc).__name__,
                 )
                 raise
 
