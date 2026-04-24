@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # scripts/release-gate.sh — single command to verify v2 install contract before cutting a release.
 #
-# Composes the four checks that prove a fresh user install will work:
+# Composes the checks that prove a fresh user install will work:
 #   1. version files agree (pyproject / plugin.json / marketplace.json / CHANGELOG / npm)
 #   2. lint + format clean
-#   3. unit + smoke test suite green
+#   3a. contract gates (plan §Gate A-G + P0 invariants) — always runs, even in --quick
+#   3b. full unit + smoke test suite (skipped in --quick)
 #   4. CLI surface honest:
 #        - `autosearch doctor --json` returns the expected channel count
 #        - `autosearch mcp-check` reports all 10 required v2 tools registered
@@ -13,8 +14,8 @@
 # first failure and reports which gate blocked. No network access required.
 #
 # Usage:
-#   scripts/release-gate.sh                # run all gates
-#   scripts/release-gate.sh --quick        # skip the full pytest run (lint + version + CLI only)
+#   scripts/release-gate.sh                # run all gates including full suite
+#   scripts/release-gate.sh --quick        # skip the full default suite; contract gates still run
 
 set -euo pipefail
 
@@ -85,7 +86,50 @@ else
   echo "skip: ruff not found at $RUFF (install with .venv pip install ruff)"
 fi
 
-# ── Gate 3: tests ────────────────────────────────────────────────────────────
+# ── Gate 3a: contract gates (per docs/million-user-product-readiness-plan.md) ─
+# Always runs (even in --quick mode) — these are the named contracts that prove
+# the v2 install promise hasn't silently regressed. Listing them explicitly
+# (rather than letting them blend into the default suite) makes a contract
+# breakage produce a contract-named failure banner.
+#
+# Gate names follow plan §"Release Gate Upgrades":
+#   A — secrets file → runtime visibility
+#   B — missing-impl integrity (covered by test_doctor_impl_availability.py;
+#       plan named it test_channel_impl_integrity.py but real coverage is the
+#       static integrity check inside doctor_impl_availability)
+#   C — MCP error redaction
+#   D — known-off vs unknown channel semantics
+#   E — docs contract DEFERRED: README / install.md / mcp-clients.md still
+#       describe v1 happy path per owner directive ("叙事不改"). Re-enable when
+#       the narrative hold lifts.
+#   F — e2b matrix contract PARTIAL: only matrix.yaml + matrix-release-gate.yaml
+#       scanned today; matrix-extensions.yaml + matrix-w1w4-bench.yaml cleanup
+#       pending separate PR.
+#   G — published package contents (runtime dep isolation, no jsonl in wheel,
+#       version sync)
+# Plus two P0-era invariants surfaced as named gates:
+#   P0-5 — ChannelRuntime singleton persists health across MCP tool calls
+#   P0-6 — declared rate_limit metadata is enforced at runtime
+step "contract gates (plan §Gate A-G + P0 invariants)"
+if [ -x "$PYTEST" ]; then
+  CONTRACT_TESTS=(
+    "tests/unit/test_runtime_secrets_contract.py"        # Gate A
+    "tests/unit/test_doctor_impl_availability.py"        # Gate B (see banner)
+    "tests/unit/test_mcp_error_redaction.py"             # Gate C
+    "tests/unit/test_mcp_run_channel_not_configured.py"  # Gate D
+    # Gate E deferred (see banner)
+    "tests/unit/test_e2b_matrix_contract.py"             # Gate F (partial, see banner)
+    "tests/unit/test_package_contents.py"                # Gate G
+    "tests/unit/test_mcp_runtime_health_persistence.py"  # P0-5 invariant
+    "tests/unit/test_channel_rate_limit.py"              # P0-6 invariant
+  )
+  "$PYTEST" -x -q "${CONTRACT_TESTS[@]}" || fail "contract gates"
+  pass "all contract gates green"
+else
+  echo "skip: pytest not found at $PYTEST"
+fi
+
+# ── Gate 3b: full unit + smoke suite ─────────────────────────────────────────
 if [ "$QUICK" = false ]; then
   step "unit + smoke tests"
   if [ -x "$PYTEST" ]; then
