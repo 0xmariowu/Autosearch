@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026.04.24.1 — 2026-04-24
+
+The "make a fresh install actually work" release. After running `autosearch init`,
+the v2 contract is now honest end-to-end: configured keys take effect, the MCP
+client really sees the tools, runtime writes don't pollute the installed
+package, and one command tells you what's wrong.
+
+- **`autosearch doctor` and `autosearch mcp-check` are first-class CLI commands** — `doctor` tier-groups channels and tells you the exact one-liner to fix each blocked one; `mcp-check` proves all 10 required v2 MCP tools are registered. `--json` emits machine-readable output. Unknown subcommands now error instead of silently routing to the deprecated `query` path.
+- **`autosearch configure KEY value` actually takes effect** — runtime now reads `~/.config/ai-secrets.env` (the file `configure` writes to), so a fresh `doctor` run reflects keys you just added without a shell restart. Process env still overrides the file.
+- **`autosearch init` writes the right MCP config shape per client** — Claude Code and Cursor get `mcpServers.autosearch`, Zed gets `context_servers.autosearch` (and the writer respects Zed's JSONC so your existing font/theme settings survive). `init --dry-run` previews writes without touching files. Backs up corrupt JSON instead of silently overwriting.
+- **`autosearch mcp-check --client claude|cursor|zed`** — verifies the named client's config file is shaped correctly, in addition to the server-side tool registry.
+- **`autosearch diagnostics --redact`** — copy-pasteable JSON support bundle (version, install method, MCP config presence, tool count, doctor summary). Refuses to run without `--redact`; scrubs API keys, Bearer tokens, cookies, and secret values before printing.
+- **Runtime writes leave the installed package alone** — channel experience and compaction now write to `~/.autosearch/experience/` (or `$XDG_DATA_HOME/autosearch/experience` if set), never to `site-packages`. Bundled `experience.md` files remain read-only seeds.
+- **Discourse forum search added (linux.do channel)** — bringing the channel count from 39 to 40.
+- **Channel routing + doctor tier/fix-hint now driven by `SKILL.md` metadata** — `tier:` and `fix_hint:` declared in a channel's frontmatter take precedence over inferred defaults; selectors and channels-table generator share the same source of truth.
+- **Circuit breaker is wired into runtime** — `_build_channels` now attaches `ChannelHealth`, so cooldown / failure-rate tracking actually fires and `available()` filters out cooled-down channels. `PermanentError` propagates correctly (was unreachable due to exception ordering).
+- **OpenAI provider honors `OPENAI_BASE_URL`** — point any OpenAI-compatible backend at the provider without code changes.
+- **One-command release gate** — `scripts/release-gate.sh` runs version consistency + lint/format + tests + CLI surface in one shot; release.yml uses it before publishing, and pyproject↔npm version mapping comes from a single shared helper.
+- **`pytest` / `ruff` moved out of runtime dependencies** — installed wheels no longer pull in dev tools. CI installs with `pip install -e ".[dev]"`.
+
 ## 2026.04.23.9 — 2026-04-24
 
 - `npx autosearch-ai` is now the one-command installer — auto-installs and shows init screen on any machine

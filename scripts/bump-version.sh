@@ -59,7 +59,7 @@ import json, sys
 path, new_version = sys.argv[1], sys.argv[2]
 with open(path) as f: d = json.load(f)
 d['version'] = new_version
-with open(path, 'w') as f: json.dump(d, f, indent=2); f.write('\n')
+with open(path, 'w') as f: json.dump(d, f, indent=2, ensure_ascii=False); f.write('\n')
 PY
   echo "  updated $path"
 }
@@ -97,7 +97,7 @@ with open(path) as f: d = json.load(f)
 if d.get('version') == npm_version:
     raise SystemExit(0)
 d['version'] = npm_version
-with open(path, 'w') as f: json.dump(d, f, indent=2); f.write('\n')
+with open(path, 'w') as f: json.dump(d, f, indent=2, ensure_ascii=False); f.write('\n')
 print(npm_version)
 PY
   echo "  updated $path (derived from $new_version)"

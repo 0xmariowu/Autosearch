@@ -1,8 +1,14 @@
 {
   "name": "autosearch-ai",
-  "version": "2026.4.23",
+  "version": "2026.4.24",
   "description": "AutoSearch — deep research MCP server for AI developers",
-  "keywords": ["autosearch", "mcp", "ai", "research", "claude"],
+  "keywords": [
+    "autosearch",
+    "mcp",
+    "ai",
+    "research",
+    "claude"
+  ],
   "homepage": "https://github.com/0xmariowu/Autosearch",
   "repository": {
     "type": "git",
@@ -13,7 +19,9 @@
   "bin": {
     "autosearch-ai": "./bin/autosearch-ai.js"
   },
-  "files": ["bin"],
+  "files": [
+    "bin"
+  ],
   "engines": {
     "node": ">=18"
   },
