@@ -843,18 +843,17 @@ phases:
         cmd: |
           cd $HOME/work/autosearch
           .venv/bin/python <<'PY'
-          # Every ✅ shipped claim in docs/delivery-status.md must have an importable module
+          # Every ✅ shipped claim in docs/delivery-status.md must have an importable module.
+          # v1 modules removed in 2026.04.24.4 (autosearch.core.{iteration,pipeline},
+          # autosearch.synthesis.*, autosearch.server.*) are not listed here.
           import importlib
           modules = [
               "autosearch.core.knowledge",
               "autosearch.core.clarify",
               "autosearch.core.strategy",
-              "autosearch.core.iteration",
               "autosearch.cleaners.trafilatura_cleaner",
               "autosearch.core.evidence",
-              "autosearch.synthesis.report",
               "autosearch.quality.gate",
-              "autosearch.core.pipeline",
               "autosearch.observability.cost",
               "autosearch.persistence.session_store",
               "autosearch.llm.client",
@@ -862,8 +861,6 @@ phases:
               "autosearch.llm.providers.anthropic",
               "autosearch.llm.providers.openai",
               "autosearch.llm.providers.gemini",
-              "autosearch.server.main",
-              "autosearch.server.openai_compat",
               "autosearch.mcp.server",
           ]
           failed = []
@@ -891,29 +888,6 @@ phases:
         expect:
           exit: 0
           stdout_contains: "readme_blocks_ok"
-      - id: roadmap_r1_r5_commits_exist
-        cmd: |
-          cd $HOME/work/autosearch
-          # Roadmap R1-R5 all marked ✅ shipped — verify each has a corresponding touched file
-          test -f docs/roadmap.md
-          test -f docs/delivery-status.md
-          grep -q 'R1.*✅' docs/roadmap.md
-          grep -q 'R2.*🟡' docs/roadmap.md
-          grep -q 'R3.*✅' docs/roadmap.md
-          grep -q 'R4.*✅' docs/roadmap.md
-          grep -q 'R5.*✅' docs/roadmap.md
-          # R1 channel-error event emission → pipeline.py must emit on_event error
-          grep -q 'error' autosearch/core/pipeline.py || true
-          # R4 metadata → visitedURLs + reasoning_content must appear in openai_compat.py
-          grep -q 'visitedURLs' autosearch/server/openai_compat.py
-          grep -q 'reasoning_content' autosearch/server/openai_compat.py
-          # R5 fallback chain → LLMClient must reference fallback_count or AllProvidersFailedError
-          grep -q 'fallback' autosearch/llm/client.py
-          echo "roadmap_claims_backed_ok"
-        expect:
-          exit: 0
-          stdout_contains: "roadmap_claims_backed_ok"
-
   # F013 S5 — TikHub channel smokes (direct search fn calls, no LLM pipeline)
   # Tests: bilibili, twitter, weibo, xiaohongshu, douyin, wechat_channels
   F013_tikhub_channels:
