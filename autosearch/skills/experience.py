@@ -24,15 +24,16 @@ def _runtime_root() -> Path:
 
     Resolution order:
       1. `$AUTOSEARCH_EXPERIENCE_DIR` (test/CI override)
-      2. `$XDG_DATA_HOME/autosearch/experience`
-      3. `~/.local/share/autosearch/experience`
+      2. `$XDG_DATA_HOME/autosearch/experience` (XDG users opt in explicitly)
+      3. `~/.autosearch/experience` (matches existing `~/.autosearch/cookies` namespace)
     """
     override = os.environ.get("AUTOSEARCH_EXPERIENCE_DIR")
     if override:
         return Path(override).expanduser()
     xdg = os.environ.get("XDG_DATA_HOME")
-    base = Path(xdg).expanduser() if xdg else Path.home() / ".local" / "share"
-    return base / "autosearch" / "experience"
+    if xdg:
+        return Path(xdg).expanduser() / "autosearch" / "experience"
+    return Path.home() / ".autosearch" / "experience"
 
 
 def _runtime_skill_dir(skill_name: str) -> Path | None:
