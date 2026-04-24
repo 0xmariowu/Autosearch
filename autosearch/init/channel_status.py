@@ -75,9 +75,50 @@ def summarize_registry(registry: ChannelRegistry) -> list[ChannelStatus]:
     return rows
 
 
-def compile_channel_statuses(channels_root: Path, env: Environment) -> list[ChannelStatus]:
-    registry = ChannelRegistry.compile_from_skills(channels_root, env, log_missing_impls=False)
-    return summarize_registry(registry)
+def compile_channel_statuses(
+    channels_root: Path, env: Environment | None = None
+) -> list[ChannelStatus]:
+    """Bug 2 (fix-plan): one source of truth for channel status.
+
+    Previously this scanned the registry independently from `doctor.scan_channels`,
+    which produced diverging counts (e.g. doctor 37/40 vs init 38/40). Now it
+    delegates to doctor and only translates the row shape into init's
+    presentation-layer enum (tier label, available/blocked/scaffold-only).
+
+    The `env` argument is kept for backward compatibility but no longer used —
+    doctor reads the live process environment itself.
+    """
+    # Lazy-import to avoid a top-level cycle and to keep doctor as the canonical
+    # availability owner.
+    from autosearch.core.doctor import scan_channels as _doctor_scan
+
+    return [_doctor_status_to_init_status(row) for row in _doctor_scan(channels_root)]
+
+
+_DOCTOR_TIER_TO_INIT_TIER: dict[int, Tier] = {0: "t0", 1: "t1", 2: "t2"}
+
+
+def _doctor_status_to_init_status(row: object) -> ChannelStatus:
+    """Translate a doctor row into the init-CLI ChannelStatus presentation."""
+    tier: Tier = _DOCTOR_TIER_TO_INIT_TIER.get(row.tier, "t0")
+    unmet = list(row.unmet_requires)
+    impl_missing = [u for u in unmet if u.startswith("impl_missing")]
+    real_unmet = [u for u in unmet if not u.startswith("impl_missing")]
+
+    if row.status == "ok":
+        status: Status = "available"
+        return ChannelStatus(channel=row.channel, tier=tier, status=status, unmet_requires=[])
+
+    # status in ("warn", "off"). `warn` means "some methods work, some don't" —
+    # match doctor's strict headline counting where only `ok` counts as
+    # "available". Surface real blockers in unmet_requires so the user can fix.
+    if impl_missing and not real_unmet:
+        return ChannelStatus(
+            channel=row.channel, tier="scaffold", status="scaffold-only", unmet_requires=[]
+        )
+    return ChannelStatus(
+        channel=row.channel, tier=tier, status="blocked", unmet_requires=real_unmet
+    )
 
 
 def blocked_requires(metadata: ChannelMetadata) -> list[str]:
