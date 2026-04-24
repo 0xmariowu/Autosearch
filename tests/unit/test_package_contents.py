@@ -94,3 +94,44 @@ def test_built_wheel_does_not_ship_runtime_patterns_jsonl() -> None:
         f"{latest.name} ships runtime patterns.jsonl files (must be excluded "
         "from package-data):\n" + "\n".join(f"  {n}" for n in leaked)
     )
+
+
+def test_legacy_v1_modules_not_in_source_tree() -> None:
+    """Plan §P2-1: the v1 high-level pipeline / FastAPI server / report
+    synthesis modules were removed from the runtime package. Re-introducing
+    them silently would expand the public API surface to include code that
+    cannot satisfy the v2 contract."""
+    forbidden = [
+        ROOT / "autosearch" / "core" / "pipeline.py",
+        ROOT / "autosearch" / "server",
+        ROOT / "autosearch" / "synthesis",
+    ]
+    present = [p for p in forbidden if p.exists()]
+    assert not present, (
+        "legacy v1 modules reappeared in the source tree (plan §P2-1):\n"
+        + "\n".join(f"  {p.relative_to(ROOT)}" for p in present)
+        + "\nIf bringing one back, gate it behind an [project.optional-dependencies] "
+        "extra and update this test to allowlist the path."
+    )
+
+
+def test_built_wheel_does_not_ship_legacy_v1_modules() -> None:
+    """Companion to the source-tree check: catch a future PR that puts the
+    legacy modules behind a build-time include glob without removing them
+    from the source tree first."""
+    dist = ROOT / "dist"
+    wheels = sorted(dist.glob("autosearch-*.whl"))
+    if not wheels:
+        pytest.skip("no built wheel in dist/ — run `uv build --wheel` first")
+    latest = wheels[-1]
+    with zipfile.ZipFile(latest) as zf:
+        names = zf.namelist()
+    forbidden_prefixes = (
+        "autosearch/core/pipeline",
+        "autosearch/server/",
+        "autosearch/synthesis/",
+    )
+    leaked = [n for n in names if n.startswith(forbidden_prefixes)]
+    assert not leaked, f"{latest.name} still ships legacy v1 modules (plan §P2-1):\n" + "\n".join(
+        f"  {n}" for n in leaked
+    )
