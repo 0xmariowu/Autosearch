@@ -1,13 +1,13 @@
 # Self-written, plan autosearch-0418-channels-and-skills.md § F003
 from __future__ import annotations
 
-import os
 from collections.abc import Iterable
 from pathlib import Path
 
 import structlog
 
 from autosearch.channels.base import Environment
+from autosearch.core.secrets_store import available_env_keys
 from autosearch.skills import SkillLoadError, load_all
 
 LOGGER = structlog.get_logger(__name__).bind(component="environment_probe")
@@ -63,7 +63,8 @@ def probe_environment(
         if env_keys_to_check is not None
         else _discover_env_keys_from_skills(_default_channels_root()) | KNOWN_ENV_KEYS
     )
-    env_keys = {key for key in keys_to_check if os.environ.get(key)}
+    available = available_env_keys()
+    env_keys = keys_to_check & available
 
     root = (cookies_dir or Path("~/.autosearch/cookies")).expanduser()
     cookies = {path.stem for path in root.glob("*.json")} if root.is_dir() else set()

@@ -8,7 +8,6 @@ Tier system (1:1 from Agent-Reach doctor.py):
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -263,7 +262,9 @@ def _token_satisfied(token: str, env_keys: set[str]) -> bool:
 
 
 def _current_env_keys() -> set[str]:
-    return {key for key, val in os.environ.items() if val}
+    from autosearch.core.secrets_store import available_env_keys
+
+    return available_env_keys()
 
 
 def _default_channels_root() -> Path:
