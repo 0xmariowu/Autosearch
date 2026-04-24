@@ -76,26 +76,35 @@ def resolve_env_value(key: str, path: Path | None = None) -> str | None:
     return load_secrets(path).get(key) or None
 
 
-def inject_into_env(path: Path | None = None) -> set[str]:
-    """Push secrets-file values into `os.environ` for any key that isn't
-    already set. Returns the set of keys that were newly injected.
+def inject_into_env(path: Path | None = None, *, force: bool = False) -> set[str]:
+    """Push secrets-file values into `os.environ`. Returns the keys that were
+    newly written or replaced.
 
     This is what makes the v2 contract true end-to-end: `autosearch configure`
-    writes to `~/.config/ai-secrets.env`, but channel methods, LLM providers,
-    and external libraries (yt-dlp, firecrawl, tikhub) all read process env
-    via `os.getenv()`. Without this push, doctor sees the file but the actual
+    writes to the secrets file, but channel methods, LLM providers, and
+    external libraries (yt-dlp, firecrawl, tikhub) all read process env via
+    `os.getenv()`. Without this push, doctor sees the file but the actual
     runtime call sees nothing.
 
-    Process env always wins — we only fill in MISSING keys, never overwrite a
-    user's explicit env var. The function is idempotent and cheap; safe to call
-    on every CLI/MCP entrypoint.
+    `force=False` (default): user's explicit `KEY=…` env vars override the
+    file — used by every CLI / MCP entrypoint at startup.
+
+    `force=True`: file values overwrite env values that previously came from
+    the file itself. Bug 2 (fix-plan): when ChannelRuntime detects a
+    secrets-file mtime change and rebuilds, it must call this with
+    `force=True` so `autosearch configure --replace KEY new` is actually
+    seen by the next `run_channel`. Without it the long-running MCP process
+    keeps the stale `os.environ[KEY]` injected by an earlier inject pass.
     """
     injected: set[str] = set()
     for key, value in load_secrets(path).items():
         if not value:
             continue
-        if os.environ.get(key):
-            continue  # explicit env override stays in effect
+        current = os.environ.get(key)
+        if current and not force:
+            continue
+        if current == value:
+            continue
         os.environ[key] = value
         injected.add(key)
     return injected

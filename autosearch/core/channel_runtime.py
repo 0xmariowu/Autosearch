@@ -103,13 +103,17 @@ def get_channel_runtime() -> ChannelRuntime:
             fp = _current_fingerprint()
             if _runtime is None or _runtime_fingerprint != fp:
                 # Re-inject secrets-file values into env BEFORE rebuilding the
-                # registry so newly added keys are visible to availability checks.
+                # registry so newly added keys are visible to availability
+                # checks. Bug 2 (fix-plan): force=True so `configure --replace`
+                # actually overwrites the value previously injected from the
+                # file — without this the long-running MCP process keeps the
+                # stale value even though mtime / fingerprint did flip.
                 try:
                     from autosearch.core.secrets_store import (  # noqa: PLC0415
                         inject_into_env,
                     )
 
-                    inject_into_env()
+                    inject_into_env(force=True)
                 except Exception:  # noqa: BLE001
                     pass
                 fp = _current_fingerprint()
