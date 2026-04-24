@@ -14,45 +14,15 @@ Two design rules:
 from __future__ import annotations
 
 import platform
-import re
 import shutil
 import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-# Patterns that look like secrets and must never appear in the redacted bundle.
-# Conservative: match common API-key prefixes and Bearer/Cookie headers.
-_SECRET_PATTERNS = [
-    re.compile(r"sk-[A-Za-z0-9_-]{16,}"),
-    re.compile(r"sk-ant-[A-Za-z0-9_-]{16,}"),
-    re.compile(r"sk-or-[A-Za-z0-9_-]{16,}"),
-    re.compile(r"gho_[A-Za-z0-9]{20,}"),
-    re.compile(r"github_pat_[A-Za-z0-9_]{20,}"),
-    re.compile(r"AIzaSy[A-Za-z0-9_-]{20,}"),
-    re.compile(r"tvly-[A-Za-z0-9_-]{16,}"),
-    re.compile(r"exa-[A-Za-z0-9_-]{16,}"),
-    re.compile(r"(?i)Bearer\s+[A-Za-z0-9._\-]+"),
-    re.compile(r"(?i)Cookie:\s*[^\n]+"),
-    # Generic catch for KEY=value where value looks token-shaped (>=20 chars,
-    # mix of letters/digits/dashes); prevents accidental leaks from env dumps.
-    re.compile(r"([A-Z][A-Z0-9_]+_(KEY|TOKEN|SECRET|COOKIES?))=([^\s\"']{8,})"),
-]
+from autosearch.core.redact import redact
 
-
-def redact(text: str) -> str:
-    """Replace anything matching `_SECRET_PATTERNS` with a `[REDACTED]` marker."""
-    out = text
-    for pat in _SECRET_PATTERNS:
-        out = pat.sub(_redaction_replacer, out)
-    return out
-
-
-def _redaction_replacer(match: re.Match) -> str:
-    # If the match captured a KEY=value, preserve the key name and the `=` so
-    # the reader can see "I have OPENAI_API_KEY set" without the value.
-    if match.lastindex and match.lastindex >= 1 and match.group(1):
-        return f"{match.group(1)}=[REDACTED]"
-    return "[REDACTED]"
+# Re-export for backwards compatibility — the canonical home is core.redact.
+__all__ = ["build_bundle", "render_bundle", "redact", "DiagnosticsBundle"]
 
 
 @dataclass

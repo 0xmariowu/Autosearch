@@ -114,10 +114,12 @@ async def _invoke_clarifier(
             channels=used_channels,
         )
     except Exception as exc:  # noqa: BLE001 — boundary; return structured error
+        from autosearch.core.redact import redact
+
         return ClarifyToolResponse(
             query=query,
             ok=False,
-            reason=f"clarify_error: {type(exc).__name__}: {exc}",
+            reason=redact(f"clarify_error: {type(exc).__name__}: {exc}"),
         )
 
     return ClarifyToolResponse(
@@ -612,11 +614,13 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
             )
             if should_compact(channel_name):
                 compact(channel_name)
+            from autosearch.core.redact import redact
+
             return RunChannelResponse(
                 channel=channel_name,
                 ok=False,
                 status="channel_error",
-                reason=f"channel_error: {type(exc).__name__}: {exc}",
+                reason=redact(f"channel_error: {type(exc).__name__}: {exc}"),
             )
 
         # Quality pipeline: URL dedup → SimHash near-dedup → BM25 relevance rerank

@@ -374,39 +374,89 @@ def _channel_status_symbol(row: ChannelStatus) -> str:
 @app.command()
 def configure(
     key: Annotated[str, typer.Argument(help="Environment variable name, e.g. OPENAI_API_KEY.")],
-    value: Annotated[str, typer.Argument(help="Value to store.")],
+    value: Annotated[
+        str | None,
+        typer.Argument(
+            help=(
+                "Value to store. If omitted, you will be prompted with hidden "
+                "input — preferred to avoid leaking the secret to shell history "
+                "and the process list."
+            ),
+        ),
+    ] = None,
+    from_stdin: Annotated[
+        bool,
+        typer.Option(
+            "--stdin",
+            help="Read value from stdin (for automation pipelines, e.g. `pass | autosearch configure KEY --stdin`).",
+        ),
+    ] = False,
+    replace: Annotated[
+        bool,
+        typer.Option(
+            "--replace",
+            help="Replace an existing key in place. Without this flag, an existing key is left untouched.",
+        ),
+    ] = False,
 ) -> None:
-    """Write a key=value pair to ~/.config/ai-secrets.env (append-only, TTY required)."""
+    """Write a key=value pair to ~/.config/ai-secrets.env.
+
+    Default flow: prompts for the value with hidden input so the secret never
+    appears on the command line, in shell history, or in `ps`.
+    """
     import shlex
+    import sys
     from pathlib import Path
 
-    if not _is_tty():
-        typer.echo("error: configure requires an interactive TTY", err=True)
-        raise typer.Exit(code=1)
+    if from_stdin:
+        value = sys.stdin.read().rstrip("\n")
+    elif value is None:
+        if not _is_tty():
+            typer.echo(
+                "error: no value provided and stdin is not a TTY. "
+                "Pass the value as an argument or use --stdin.",
+                err=True,
+            )
+            raise typer.Exit(code=2)
+        value = typer.prompt(f"Value for {key}", hide_input=True, confirmation_prompt=False)
+
+    if not value:
+        typer.echo("error: value must not be empty.", err=True)
+        raise typer.Exit(code=2)
 
     secrets_path = Path.home() / ".config" / "ai-secrets.env"
-
-    existing_keys: set[str] = set()
+    existing: dict[str, str] = {}
     if secrets_path.exists():
         for line in secrets_path.read_text(encoding="utf-8").splitlines():
             stripped = line.strip()
             if stripped and not stripped.startswith("#") and "=" in stripped:
-                existing_keys.add(stripped.split("=", 1)[0].strip())
+                k, _, v = stripped.partition("=")
+                existing[k.strip()] = v
 
-    if key in existing_keys:
-        typer.echo(f"{key} already exists in {secrets_path}. Edit the file manually to change it.")
-        raise typer.Exit(code=0)
-
-    typer.echo(f"Will append to {secrets_path}:")
-    typer.echo(f"  {key}=***")
-    confirmed = typer.confirm("Confirm?", default=False)
-    if not confirmed:
-        typer.echo("Aborted.")
+    if key in existing and not replace:
+        typer.echo(
+            f"{key} already exists in {secrets_path}. "
+            f"Pass --replace to overwrite, or edit the file manually."
+        )
         raise typer.Exit(code=0)
 
     secrets_path.parent.mkdir(parents=True, exist_ok=True)
-    with secrets_path.open("a", encoding="utf-8") as fh:
-        fh.write(f"\n{key}={shlex.quote(value)}\n")
+    if key in existing and replace:
+        # Rewrite the file in place with the new value, preserve all others.
+        existing[key] = shlex.quote(value)
+        secrets_path.write_text(
+            "\n".join(f"{k}={v}" for k, v in existing.items()) + "\n",
+            encoding="utf-8",
+        )
+    else:
+        with secrets_path.open("a", encoding="utf-8") as fh:
+            fh.write(f"\n{key}={shlex.quote(value)}\n")
+
+    # Restrict file permissions so other users on the box can't read the secrets.
+    try:
+        secrets_path.chmod(0o600)
+    except OSError:
+        pass
 
     typer.echo(f"Written: {key} -> {secrets_path}")
 
