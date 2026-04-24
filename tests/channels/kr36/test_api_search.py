@@ -254,6 +254,8 @@ async def test_search_falls_back_to_listing_snippet_on_fetch_page_error(
 async def test_search_returns_empty_on_http_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from autosearch.channels.base import TransientError
+
     logger = _Logger()
     monkeypatch.setattr(MODULE, "LOGGER", logger)
 
@@ -261,9 +263,9 @@ async def test_search_returns_empty_on_http_error(
         return httpx.Response(502, text="bad gateway", request=request)
 
     async with _client(handler) as http_client:
-        results = await search(_query(), http_client=http_client)
+        with pytest.raises(TransientError):
+            await search(_query(), http_client=http_client)
 
-    assert results == []
     assert logger.events == [
         (
             "kr36_search_failed",

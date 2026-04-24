@@ -173,11 +173,13 @@ async def test_search_returns_empty_on_tikhub_error(
 async def test_search_handles_unexpected_payload_shape(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from autosearch.channels.base import PermanentError
+
     logger = _Logger()
     monkeypatch.setattr(MODULE, "LOGGER", logger)
     client = _FakeTikhubClient({"data": {"unexpected": "shape"}})
 
-    results = await search(_query(), client=cast(TikhubClient, client))
+    with pytest.raises(PermanentError):
+        await search(_query(), client=cast(TikhubClient, client))
 
-    assert results == []
     assert logger.events == []
