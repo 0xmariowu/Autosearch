@@ -63,6 +63,17 @@ def _build_source_channel(result_type: str, author_name: str) -> str:
     return f"{base}:{author_slug}" if author_slug else base
 
 
+def _parse_pubdate(value: object) -> datetime | None:
+    if value is None or value == "":
+        return None
+
+    try:
+        timestamp = float(value)
+        return datetime.fromtimestamp(timestamp, UTC).astimezone(UTC)
+    except (TypeError, ValueError, OSError, OverflowError):
+        return None
+
+
 def _extract_result_groups(
     payload: Mapping[str, object],
 ) -> list[tuple[str, list[Mapping[str, object]]]] | None:
@@ -178,6 +189,7 @@ def _to_video_evidence(item: Mapping[str, object], *, fetched_at: datetime) -> E
         content=description or snippet,
         source_channel=_build_source_channel("video", author_name),
         fetched_at=fetched_at,
+        published_at=_parse_pubdate(item.get("pubdate")),
     )
 
 
@@ -199,6 +211,7 @@ def _to_article_evidence(item: Mapping[str, object], *, fetched_at: datetime) ->
         content=content or snippet,
         source_channel=_build_source_channel("article", author_name),
         fetched_at=fetched_at,
+        published_at=_parse_pubdate(item.get("pubdate")),
     )
 
 
