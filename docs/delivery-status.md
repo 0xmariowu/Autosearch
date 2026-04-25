@@ -5,7 +5,7 @@ description: "Module-by-module status of the v2 rewrite"
 
 # v2 Delivery Status
 
-Snapshot of which modules from `plan v2.3 § 13.5` have landed. All shipped modules have unit or integration tests and a 1:1 source comment on each file.
+Snapshot of which v2 modules have landed. All shipped modules have unit or integration tests and a 1:1 source comment on each file.
 
 ## Pipeline (M0–M8)
 
@@ -49,7 +49,7 @@ Snapshot of which modules from `plan v2.3 § 13.5` have landed. All shipped modu
 
 Deferred — real adapters will land after the channel layer unpauses. `DemoChannel` ships today as a placeholder implementing the `Channel` Protocol so the pipeline runs end-to-end.
 
-Planned roadmap (plan § 5):
+Planned roadmap:
 
 - Overseas P0 (12–15): arxiv / DDGS / GitHub repos+issues / Reddit / HackerNews / StackOverflow / YouTube / ProductHunt / Semantic Scholar / HuggingFace / npm / PyPI
 - Chinese P0 (6): 小红书 / B 站 / 微信公众号 / 知乎 / 抖音 / 微博
@@ -57,9 +57,8 @@ Planned roadmap (plan § 5):
 
 ## Known Deferred Items
 
-- `autosearch init` dependency orchestrator (plan § 4.5) — channel-dep-heavy, deferred until channel layer unpauses
-- Per-source HTML cleaners for specific Chinese sites — deferred (channel layer owns the fetch path)
-- Plan v2.3 itself — spike 2 findings suggested the plan initially tested the wrong fetch paths (HTML direct scrape for zhihu/csdn/juejin where the plan always intended API + cookie per § 5 中文 P0). No structural plan revision needed; the spike retrospectively validated plan § 5's path choices.
+- `autosearch init` dependency orchestrator — channel-dep-heavy, deferred until channel layer unpauses.
+- Per-source HTML cleaners for specific Chinese sites — deferred (channel layer owns the fetch path).
 
 ## Test Coverage
 
@@ -71,6 +70,6 @@ Planned roadmap (plan § 5):
 
 ## Related Docs
 
-- Plan: `~/.claude/plans/autosearch-v2-dev.md` (v2.3)
-- Research mapping: `~/.claude/plans/research/module-map-*.md`
-- Spike results: `docs/spikes/`
+- Test pyramid: [`docs/testing/TEST_PLAN.md`](testing/TEST_PLAN.md)
+- Channel matrix: [`docs/channels.mdx`](channels.mdx)
+- Migration guide: [`docs/migration/legacy-research-to-tool-supplier.md`](migration/legacy-research-to-tool-supplier.md)
