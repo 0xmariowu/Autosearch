@@ -29,6 +29,6 @@ Opinions, experiences, product reviews, and discussions from Chinese social plat
 
 ## Routing notes
 
-- Chinese-language tasks should keep **at least 2 channels from this group**, regardless of historical yield (boss rule).
+- Chinese-language tasks should keep **at least 2 channels from this group**, regardless of historical yield. Native-language coverage is a non-negotiable contract for Chinese tasks; routing must not shrink it on win-rate alone.
 - For hard anti-bot platforms (Xiaohongshu / Douyin / Zhihu), TikHub is the paid fallback; `mcporter` gives the free alternative if user has no TikHub key.
 - Podcast-style queries should also check `channels-video-audio` for `search-xiaoyuzhou` + transcription skills.
