@@ -45,14 +45,16 @@ evidence/comparison/
 delivery/*.md
 delivery/*.html
 
-# Internal dev artifacts
+# Internal dev artifacts — never tracked, never published
 docs/exec-plans/
+docs/plans/
+docs/proposals/
+docs/spikes/
+docs/channel-hunt/
 HANDOFF.md
 experience/
-!autosearch/skills/channels/xiaohongshu/experience/
-!autosearch/skills/channels/xiaohongshu/experience/patterns.jsonl
-!autosearch/skills/meta/channel-selection/experience/
-!autosearch/skills/meta/channel-selection/experience/patterns.jsonl
+*.private.md
+*.handoff.md
 
 # Test artifacts
 .pytest_cache/
