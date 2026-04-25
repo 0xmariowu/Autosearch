@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026.04.25.9 — 2026-04-25
+
+Hotfix on top of `.25.8`. PR #387 wired `pre_release_check.py` into
+the release workflow as a blocking step, but the checklist bundles
+dev-sanity checks (channel experience/patterns.jsonl bootstrap state,
+Gate 12 bench results) that fail when those artifacts haven't been
+generated for a given commit. `.25.8` release blocked at this step
+before any real release work happened.
+
+Removed the workflow step. `pre_release_check.py` remains as a local
+developer tool — run `python scripts/validate/pre_release_check.py`
+before tagging. The checklist itself is fine; just shouldn't be a
+release-pipeline gate without separating release-blocking from
+dev-sanity tiers.
+
+`.25.9` ships the full `.25.8` content (Gate 12 commit binding +
+label-based open-PR gating from #387) plus this workflow unwire.
+
 ## 2026.04.25.8 — 2026-04-25
 
 Ships PR #387 — the Gate 12 / pre-release-check / open-PR-label
