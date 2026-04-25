@@ -54,3 +54,37 @@ async def test_search_raises_on_invalid_payload_shape() -> None:
             SubQuery(text="新能源", rationale="Need WeChat Channels coverage"),
             client=cast(TikhubClient, client),
         )
+
+
+@pytest.mark.asyncio
+async def test_search_raises_permanent_error_when_items_present_but_none_parse() -> None:
+    client = _FakeTikhubClient(
+        {
+            "data": {
+                "feeds": [
+                    {
+                        "docID": "",
+                        "title": "Looks like a result but lacks a usable video identifier.",
+                    }
+                ]
+            }
+        }
+    )
+
+    with pytest.raises(PermanentError, match="items present but none parsed"):
+        await search(
+            SubQuery(text="新能源", rationale="Need WeChat Channels coverage"),
+            client=cast(TikhubClient, client),
+        )
+
+
+@pytest.mark.asyncio
+async def test_search_allows_legitimate_empty_items_list() -> None:
+    client = _FakeTikhubClient({"data": {"feeds": []}})
+
+    results = await search(
+        SubQuery(text="新能源", rationale="Need WeChat Channels coverage"),
+        client=cast(TikhubClient, client),
+    )
+
+    assert results == []

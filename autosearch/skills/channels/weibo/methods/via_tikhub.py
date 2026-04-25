@@ -131,9 +131,18 @@ async def search(query: SubQuery, client: TikhubClient | None = None) -> list[Ev
 
     fetched_at = datetime.now(UTC)
     results: list[Evidence] = []
-    for mblog in _extract_mblogs(cards):
+    mblogs = _extract_mblogs(cards)
+    if cards and not mblogs:
+        LOGGER.warning("weibo_tikhub_search_failed", reason="item_schema_drift")
+        raise PermanentError("weibo via_tikhub: items present but none parsed (item schema drift?)")
+
+    for mblog in mblogs:
         evidence = _to_evidence(mblog, fetched_at=fetched_at)
         if evidence is not None:
             results.append(evidence)
+
+    if mblogs and not results:
+        LOGGER.warning("weibo_tikhub_search_failed", reason="item_schema_drift")
+        raise PermanentError("weibo via_tikhub: items present but none parsed (item schema drift?)")
 
     return results

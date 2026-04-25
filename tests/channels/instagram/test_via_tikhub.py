@@ -43,6 +43,30 @@ class _FakeTikhubClient:
 
 
 @pytest.mark.asyncio
+async def test_search_raises_permanent_error_when_items_present_but_none_parse() -> None:
+    client = _FakeTikhubClient(
+        {
+            "data": {
+                "data": {
+                    "items": [
+                        {
+                            "shortcode": "ABC123",
+                            "caption": {"text": "Looks valid except code was renamed."},
+                        }
+                    ]
+                }
+            }
+        }
+    )
+
+    with pytest.raises(PermanentError, match="items present but none parsed"):
+        await search(
+            SubQuery(text="camera", rationale="Need Instagram post coverage"),
+            client=cast(TikhubClient, client),
+        )
+
+
+@pytest.mark.asyncio
 async def test_search_raises_on_invalid_payload_shape() -> None:
     client = _FakeTikhubClient({"data": {"data": {"items": {"unexpected": []}}}})
 

@@ -124,6 +124,31 @@ async def test_search_raises_permanent_error_on_malformed_payload() -> None:
 
 
 @pytest.mark.asyncio
+async def test_search_raises_permanent_error_when_items_present_but_none_parse() -> None:
+    client = _FakeTikhubClient(
+        {
+            "data": {
+                "data": [
+                    {
+                        "article": {
+                            "id": "123456",
+                            "title": "Renamed object field",
+                            "excerpt": "Looks valid except the item field drifted.",
+                        }
+                    }
+                ]
+            }
+        }
+    )
+
+    with pytest.raises(PermanentError, match="items present but none parsed"):
+        await search(
+            SubQuery(text="LLM agent", rationale="Need Zhihu article coverage"),
+            client=cast(TikhubClient, client),
+        )
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("payload"),
     [

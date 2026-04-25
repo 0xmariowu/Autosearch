@@ -105,4 +105,10 @@ async def search(query: SubQuery, client: TikhubClient | None = None) -> list[Ev
         if ev is not None:
             results.append(ev)
 
+    if items and not results:
+        LOGGER.warning("instagram_tikhub_search_failed", reason="item_schema_drift")
+        raise PermanentError(
+            "instagram via_tikhub: items present but none parsed (item schema drift?)"
+        )
+
     return results
