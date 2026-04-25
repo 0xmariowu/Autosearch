@@ -78,7 +78,9 @@ def test_url_happy_path_returns_text_srt_metadata(
         "backend": "openai",
     }
     assert result["audio_path"] == str(fake_mp3)
-    assert result["source"] == "https://www.youtube.com/watch?v=example"
+    # P0-2: source URL is sanitized via redact_url — query string stripped
+    # to avoid leaking signed-URL credentials (access_token, X-Amz-Signature, …).
+    assert result["source"] == "https://www.youtube.com/watch"
 
 
 def test_local_audio_happy_path_skips_yt_dlp(
