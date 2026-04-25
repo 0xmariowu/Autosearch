@@ -59,6 +59,7 @@ markers = [
     "perf: concurrency / load tests (local only, on-demand)",
     "slow: tests that take > 5s",
     "live: live network integration tests (real API calls, run in nightly CI)",
+    "flaky_live: anti-scrape-prone live tests excluded from the default live suite",
     "e2e: end-to-end research flow tests (all mock, no real API needed)",
     "avo: AVO self-evolution cycle tests (slow, run before release)",
 ]

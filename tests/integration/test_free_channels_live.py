@@ -2,8 +2,10 @@
 
 These tests make real network calls. They are marked @pytest.mark.live @pytest.mark.slow
 and run in the nightly CI workflow, not on every PR.
+Anti-scrape-prone channels are also marked @pytest.mark.flaky_live and are
+excluded from the default live suite; run them separately on demand.
 
-Run manually: pytest tests/integration/test_free_channels_live.py -m live -v
+Run manually: pytest tests/integration/test_free_channels_live.py -m "live and not flaky_live" -v
 """
 
 from __future__ import annotations
@@ -39,6 +41,12 @@ def _assert_valid_evidence(results, channel_name: str, min_count: int = 1) -> No
         assert ev.source_channel.startswith(channel_name), (
             f"{channel_name}: expected source_channel to start with '{channel_name}', got '{ev.source_channel}'"
         )
+
+
+def _assert_any_url_contains(results, channel_name: str, *needles: str) -> None:
+    assert any(any(needle in ev.url for needle in needles) for ev in results), (
+        f"{channel_name}: expected at least one url containing one of {needles}"
+    )
 
 
 # ── Free channels (no API key) ───────────────────────────────────────────────
@@ -106,8 +114,77 @@ async def test_ddgs_live():
 @pytest.mark.live
 @pytest.mark.slow
 @pytest.mark.asyncio
+async def test_package_search_live():
+    ch = _get_channel("package_search")
+    results = await ch.search(_subquery("httpx"))
+    _assert_valid_evidence(results, "package_search", min_count=1)
+    _assert_any_url_contains(results, "package_search", "pypi.org/project/", "npmjs.com/package/")
+
+
+@pytest.mark.live
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_openalex_live():
+    ch = _get_channel("openalex")
+    results = await ch.search(_subquery("transformers attention"))
+    _assert_valid_evidence(results, "openalex", min_count=1)
+    _assert_any_url_contains(results, "openalex", "openalex.org", "doi.org")
+
+
+@pytest.mark.live
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_crossref_live():
+    ch = _get_channel("crossref")
+    results = await ch.search(_subquery("BERT pretraining"))
+    _assert_valid_evidence(results, "crossref", min_count=1)
+    _assert_any_url_contains(results, "crossref", "doi.org")
+
+
+@pytest.mark.live
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_dblp_live():
+    ch = _get_channel("dblp")
+    results = await ch.search(_subquery("Yann LeCun"))
+    _assert_valid_evidence(results, "dblp", min_count=1)
+
+
+@pytest.mark.live
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_reddit_live():
+    ch = _get_channel("reddit")
+    results = await ch.search(_subquery("python async"))
+    _assert_valid_evidence(results, "reddit", min_count=1)
+    _assert_any_url_contains(results, "reddit", "reddit.com")
+
+
+@pytest.mark.live
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_google_news_live():
+    ch = _get_channel("google_news")
+    results = await ch.search(_subquery("OpenAI"))
+    _assert_valid_evidence(results, "google_news", min_count=1)
+
+
+@pytest.mark.live
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_discourse_forum_live():
+    ch = _get_channel("discourse_forum")
+    results = await ch.search(_subquery("python plugin"))
+    _assert_valid_evidence(results, "discourse_forum", min_count=1)
+    _assert_any_url_contains(results, "discourse_forum", "linux.do")
+
+
+@pytest.mark.live
+@pytest.mark.slow
+@pytest.mark.flaky_live
+@pytest.mark.asyncio
 async def test_tieba_live():
-    """百度贴吧 live test — may be slow or rate-limited from non-CN IPs."""
+    """百度贴吧 live test — high captcha/rate-limit risk; run outside default live."""
     ch = _get_channel("tieba")
     results = await ch.search(_subquery("AI 编程助手"))
     _assert_valid_evidence(results, "tieba", min_count=1)
