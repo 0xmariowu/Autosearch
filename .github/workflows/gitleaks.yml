@@ -10,7 +10,27 @@ permissions:
   pull-requests: write
 
 jobs:
-  scan:
+  # Per public-repo-hygiene-plan F010 S3 — PR runs are scoped to the PR's
+  # own commits (gitleaks-action default behavior on `pull_request` events),
+  # so PR failures are about *this PR's* changes, not historical artifacts.
+  pr-diff-scan:
+    if: github.event_name == 'pull_request'
+    name: PR diff scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7  # v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Per public-repo-hygiene-plan F010 S3 — pushes to main scan the new
+  # commits introduced by the push (gitleaks-action default on `push`).
+  # This separates "did this push add a leak" from "is the PR diff clean".
+  main-push-scan:
+    if: github.event_name == 'push'
+    name: Main push scan
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
