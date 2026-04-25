@@ -18,6 +18,8 @@ if TYPE_CHECKING:
     from autosearch.observability.channel_health import ChannelHealth
 
 LOGGER = structlog.get_logger(__name__).bind(component="channel_registry")
+_TIKHUB_API_KEY_TOKEN = "env:TIKHUB_API_KEY"
+_TIKHUB_PROXY_FALLBACK = {"AUTOSEARCH_PROXY_URL", "AUTOSEARCH_PROXY_TOKEN"}
 
 
 class ChannelRegistryError(ValueError):
@@ -417,6 +419,8 @@ class ChannelRegistry:
             elif kind == "mcp" and value not in env.mcp_servers:
                 unmet.append(token)
             elif kind == "env" and value not in env.env_keys:
+                if token == _TIKHUB_API_KEY_TOKEN and _TIKHUB_PROXY_FALLBACK.issubset(env.env_keys):
+                    continue
                 unmet.append(token)
             elif kind == "binary" and value not in env.binaries:
                 unmet.append(token)
