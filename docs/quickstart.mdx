@@ -7,9 +7,16 @@ description: "First search in 5 minutes"
 
 ```bash
 npm install -g autosearch-ai
+npx autosearch-ai --yes        # explicit one-shot install + init
+# OR
+autosearch init                # if you have the Python CLI on PATH
 ```
 
-`init` runs automatically after install and configures the MCP server. You should see:
+`init` is an explicit step, not an npm postinstall hook. AutoSearch avoids
+running lifecycle scripts during npm install because automatic install-time
+execution is a known supply-chain risk.
+
+The explicit init step configures the MCP server. You should see:
 
 ```
 ✅ Python 3.12+              [OK]

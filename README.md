@@ -34,12 +34,16 @@ You ask your AI to research something. It answers from training data cutoff —
 **AutoSearch fixes this in one line.**
 
 ```bash
-npx autosearch-ai
+npx autosearch-ai --yes
 ```
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/0xmariowu/Autosearch/main/scripts/install.sh | bash
 ```
+
+The npm wrapper runs install/init only when you invoke it explicitly. Plain
+`npm install -g autosearch-ai` does not auto-run `init`; avoiding npm
+install-time scripts is intentional supply-chain hardening.
 
 Or paste into your AI Agent (Claude Code, Cursor, etc.):
 
