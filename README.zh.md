@@ -51,6 +51,8 @@ Help me install AutoSearch: https://raw.githubusercontent.com/0xmariowu/Autosear
 curl -fsSL https://raw.githubusercontent.com/0xmariowu/Autosearch/main/scripts/install.sh | bash
 ```
 
+需要卸载？看 [docs/install.md#uninstall](docs/install.md#uninstall)。
+
 安装后你的 Agent 能同时搜 40 个渠道——学术论文、开发者社区、中文社媒、Linux DO 论坛帖子，结果去重排序，每条结果都有来源链接。
 
 ---

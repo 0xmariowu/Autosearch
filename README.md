@@ -55,6 +55,8 @@ The npm wrapper runs install/init only when you invoke it explicitly. Plain
 `npm install -g autosearch-ai` does not auto-run `init`; avoiding npm
 install-time scripts is intentional supply-chain hardening.
 
+Need to uninstall? See [docs/install.md#uninstall](docs/install.md#uninstall).
+
 After install, your Agent searches 40 channels simultaneously — academic papers, developer communities, Chinese social media, and Linux DO forum threads — results deduplicated and ranked, every result includes a source URL.
 
 ---

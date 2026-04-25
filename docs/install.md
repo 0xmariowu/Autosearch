@@ -175,6 +175,24 @@ pip install --upgrade autosearch  # pip
 
 ---
 
+### Uninstall
+
+| Installed via | Uninstall command |
+|---|---|
+| `npx autosearch-ai`, `curl install.sh`, or unsure | `uv tool uninstall autosearch \|\| pipx uninstall autosearch \|\| pip uninstall -y autosearch` |
+| `pipx install autosearch` | `pipx uninstall autosearch` |
+| `pip install autosearch` | `pip uninstall -y autosearch` |
+| Also used npm wrapper | additionally `npm uninstall -g autosearch-ai` |
+
+Then clean up config + MCP entry:
+
+```bash
+rm -rf ~/.autosearch/
+claude mcp remove autosearch     # Claude Code; for Cursor/Zed edit MCP config manually
+```
+
+---
+
 ### Troubleshooting
 
 **Channel returns empty results?**
