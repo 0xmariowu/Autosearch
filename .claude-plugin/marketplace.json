@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Self-evolving deep research. Gets smarter every time you use it.",
-    "version": "2026.04.25.6"
+    "version": "2026.04.25.7"
   },
   "plugins": [
     {
       "name": "autosearch",
       "source": "./",
       "description": "Self-evolving deep research. Gets smarter every time you use it. Searches across channels, synthesizes cited reports, and learns which queries and platforms work best.",
-      "version": "2026.04.25.6",
+      "version": "2026.04.25.7",
       "author": {
         "name": "0xmariowu"
       },
@@ -30,5 +30,5 @@
       "category": "research"
     }
   ],
-  "version": "2026.04.25.6"
+  "version": "2026.04.25.7"
 }

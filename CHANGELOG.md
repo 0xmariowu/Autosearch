@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026.04.25.7 — 2026-04-25
+
+GitHub Release auto-creation hotfix on top of `.25.6`. The
+`.25.6` workflow successfully published to PyPI and npm using the
+PyPA action, but the `create-github-release` job lacked
+`actions/checkout` — `gh release create` failed with "fatal: not a
+git repository" because the runner had no `.git` context. The GH
+Release was created manually for `.25.6`. This release adds the
+missing checkout step so future releases auto-create the GH Release
+end-to-end.
+
+`.25.6` content (already on PyPI / npm):
+- All `.25.3`–`.25.5` rollup (twelve PRs from the production-critical
+  sweep audit)
+- License metadata + `setuptools>=80` / `twine>=6.1` / PyPA action
+
 ## 2026.04.25.6 — 2026-04-25
 
 Third (and hopefully final) release-pipeline hotfix. `.25.4` and `.25.5`
