@@ -11,6 +11,7 @@ class SubtaskResult:
     evidence_by_channel: dict[str, list[dict]] = field(default_factory=dict)
     summary: str = ""
     failed_channels: list[str] = field(default_factory=list)
+    failed_channel_details: list[dict] = field(default_factory=list)
     budget_used: dict[str, int] = field(default_factory=dict)
 
 
@@ -50,7 +51,19 @@ async def run_subtask(
 
     for name, outcome in outcomes:
         if isinstance(outcome, Exception):
+            from autosearch.core.channel_status import exception_to_channel_status  # noqa: PLC0415
+
+            failure = exception_to_channel_status(outcome)
             result.failed_channels.append(name)
+            result.failed_channel_details.append(
+                {
+                    "channel": name,
+                    "status": failure.status,
+                    "reason": failure.reason,
+                    "fix_hint": failure.fix_hint,
+                    "unmet_requires": failure.unmet_requires,
+                }
+            )
         else:
             result.evidence_by_channel[name] = outcome
             result.budget_used[name] = len(outcome)
