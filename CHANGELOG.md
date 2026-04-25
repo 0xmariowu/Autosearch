@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026.04.25.8 — 2026-04-25
+
+Ships PR #387 — the Gate 12 / pre-release-check / open-PR-label
+work that was open while the `.25.4`–`.25.7` release-pipeline
+hotfixes landed.
+
+- `scripts/bench/judge.py`: Gate 12 stats now include `commit_sha`,
+  `version`, `generated_at`, `test_config` provenance.
+- `scripts/validate/pre_release_check.py`: requires Gate 12
+  `commit_sha == HEAD`; supports `--allow-stale-gate12` override;
+  open PR gate switched from "any open PR blocks" to
+  "PR labeled `release-blocker` blocks".
+- `.github/workflows/release.yml`: pre-release check is now a
+  release-job step.
+
 ## 2026.04.25.7 — 2026-04-25
 
 GitHub Release auto-creation hotfix on top of `.25.6`. The
