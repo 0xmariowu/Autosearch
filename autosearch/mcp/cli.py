@@ -1,8 +1,15 @@
 # Self-written, plan v2.3 § 13.5
-from autosearch.mcp.server import create_server
+import sys
+
+import structlog
 
 
 def main() -> None:
+    structlog.configure(
+        logger_factory=structlog.WriteLoggerFactory(file=sys.stderr),
+    )
+    from autosearch.mcp.server import create_server
+
     create_server().run(transport="stdio")
 
 
