@@ -346,3 +346,32 @@ def test_compile_from_skills_marks_shipped_channels_available_without_keys() -> 
         assert len(metadata.methods) == len(spec.methods)
         assert all(method.available is False for method in metadata.methods)
         assert all(method.unmet_requires == ["impl_missing"] for method in metadata.methods)
+
+
+def test_xiaohongshu_signsrv_available_with_login_cookie_secret_names() -> None:
+    env = Environment(
+        env_keys={
+            "AUTOSEARCH_SIGNSRV_URL",
+            "AUTOSEARCH_SERVICE_TOKEN",
+            "XHS_COOKIES",
+        }
+    )
+    registry = ChannelRegistry.compile_from_skills(_channels_root(), env)
+    methods = {method.id: method for method in registry.metadata("xiaohongshu").methods}
+
+    assert methods["via_signsrv"].available is True
+    assert methods["via_signsrv"].unmet_requires == []
+
+
+def test_xiaohongshu_signsrv_unavailable_without_login_cookie_secret() -> None:
+    env = Environment(
+        env_keys={
+            "AUTOSEARCH_SIGNSRV_URL",
+            "AUTOSEARCH_SERVICE_TOKEN",
+        }
+    )
+    registry = ChannelRegistry.compile_from_skills(_channels_root(), env)
+    methods = {method.id: method for method in registry.metadata("xiaohongshu").methods}
+
+    assert methods["via_signsrv"].available is False
+    assert methods["via_signsrv"].unmet_requires == ["env:XHS_COOKIES"]

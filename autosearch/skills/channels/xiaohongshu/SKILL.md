@@ -9,7 +9,7 @@ languages: [zh, mixed]
 methods:
   - id: via_signsrv
     impl: methods/via_signsrv.py
-    requires: [env:AUTOSEARCH_SIGNSRV_URL, env:AUTOSEARCH_SERVICE_TOKEN, env:XHS_A1_COOKIE]
+    requires: [env:AUTOSEARCH_SIGNSRV_URL, env:AUTOSEARCH_SERVICE_TOKEN, env:XHS_COOKIES]
     rate_limit: {per_min: 60, per_hour: 1000}
   - id: via_tikhub
     impl: methods/via_tikhub.py
