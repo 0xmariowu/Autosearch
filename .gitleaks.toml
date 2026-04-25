@@ -44,6 +44,36 @@ regex = '''\b(Armory|AIMD|atoms|kalami2?|alaya[_\-]os)\b'''
 tags = ["pii", "internal-codename"]
 keywords = ["Armory", "AIMD", "atoms", "kalami", "alaya"]
 
+# ── Public-repo-hygiene rules (per public-repo-hygiene-plan F010) ────────────
+
+[[rules]]
+id = "dangerous-permission-flag"
+description = "Use of `dangerously-skip-permissions` (Claude Code permission bypass)"
+regex = '''dangerously-skip-permissions'''
+tags = ["hygiene", "internal-flag"]
+keywords = ["dangerously"]
+
+[[rules]]
+id = "handoff-file"
+description = "Reference to HANDOFF.md (internal session-handoff state)"
+regex = '''\bHANDOFF\.md\b'''
+tags = ["hygiene", "handoff"]
+keywords = ["HANDOFF"]
+
+[[rules]]
+id = "internal-plan-dir"
+description = "Reference to internal plan / proposal / spike / channel-hunt / exec-plan directory paths"
+regex = '''docs/(plans|proposals|spikes|channel-hunt|exec-plans)/'''
+tags = ["hygiene", "internal-plan"]
+keywords = ["docs/plans", "docs/proposals", "docs/spikes", "docs/channel-hunt", "docs/exec-plans"]
+
+[[rules]]
+id = "runtime-experience-jsonl"
+description = "Runtime experience JSONL files should never be tracked (patterns-jsonl)"
+regex = '''experience/patterns\.jsonl'''
+tags = ["hygiene", "runtime-experience"]
+keywords = ["patterns.jsonl"]
+
 # ── Allowlist ────────────────────────────────────────────────────────────────
 
 [allowlist]
