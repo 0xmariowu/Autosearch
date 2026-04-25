@@ -117,8 +117,14 @@ async def search(query: SubQuery, client: TikhubClient | None = None) -> list[Ev
         return []
 
     data = payload.get("data")
-    nested_data = data.get("data") if isinstance(data, Mapping) else {}
-    cards = nested_data.get("cards") if isinstance(nested_data, Mapping) else []
+    if not isinstance(data, Mapping):
+        LOGGER.warning("weibo_tikhub_search_failed", reason="invalid_payload_shape")
+        raise PermanentError("weibo via_tikhub: invalid payload shape (schema drift?)")
+    nested_data = data.get("data")
+    if not isinstance(nested_data, Mapping):
+        LOGGER.warning("weibo_tikhub_search_failed", reason="invalid_payload_shape")
+        raise PermanentError("weibo via_tikhub: invalid payload shape (schema drift?)")
+    cards = nested_data.get("cards")
     if not isinstance(cards, list):
         LOGGER.warning("weibo_tikhub_search_failed", reason="invalid_payload_shape")
         raise PermanentError("weibo via_tikhub: invalid payload shape (schema drift?)")

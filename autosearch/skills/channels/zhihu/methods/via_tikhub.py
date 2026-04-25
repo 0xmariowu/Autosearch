@@ -89,8 +89,11 @@ async def search(query: SubQuery, client: TikhubClient | None = None) -> list[Ev
         LOGGER.warning("zhihu_tikhub_search_failed", reason=str(exc))
         return []
 
-    data = payload.get("data", {})
-    items = data.get("data", []) if isinstance(data, Mapping) else []
+    data = payload.get("data")
+    if not isinstance(data, Mapping):
+        LOGGER.warning("zhihu_tikhub_search_failed", reason="invalid_payload_shape")
+        raise PermanentError("zhihu via_tikhub: invalid payload shape (schema drift?)")
+    items = data.get("data")
     if not isinstance(items, list):
         LOGGER.warning("zhihu_tikhub_search_failed", reason="invalid_payload_shape")
         raise PermanentError("zhihu via_tikhub: invalid payload shape (schema drift?)")

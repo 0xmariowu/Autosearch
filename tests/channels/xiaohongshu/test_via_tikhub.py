@@ -201,6 +201,35 @@ async def test_search_raises_on_invalid_payload_shape(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("payload"),
+    [
+        {},
+        {"data": []},
+        {"data": {"data": []}},
+    ],
+)
+async def test_search_raises_on_missing_or_invalid_nested_data_shape(
+    payload: dict[str, object],
+) -> None:
+    from autosearch.channels.base import PermanentError
+
+    client = _FakeTikhubClient(payload)
+
+    with pytest.raises(PermanentError, match="invalid payload shape"):
+        await search(_query(), client=cast(TikhubClient, client))
+
+
+@pytest.mark.asyncio
+async def test_search_allows_legitimate_empty_items_list() -> None:
+    client = _FakeTikhubClient(_search_payload([]))
+
+    results = await search(_query(), client=cast(TikhubClient, client))
+
+    assert results == []
+
+
+@pytest.mark.asyncio
 async def test_search_truncates_desc_to_snippet_on_word_boundary() -> None:
     long_desc = ("word " * 59) + "splitpoint continues after the limit"
     client = _FakeTikhubClient(

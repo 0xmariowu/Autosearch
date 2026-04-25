@@ -83,10 +83,15 @@ async def search(query: SubQuery, client: TikhubClient | None = None) -> list[Ev
         return []
 
     # payload.data.data.items
-    outer = payload.get("data", {})
-    inner = outer.get("data", {}) if isinstance(outer, Mapping) else {}
-    items = inner.get("items", []) if isinstance(inner, Mapping) else []
-
+    outer = payload.get("data")
+    if not isinstance(outer, Mapping):
+        LOGGER.warning("instagram_tikhub_search_failed", reason="invalid_payload_shape")
+        raise PermanentError("instagram via_tikhub: invalid payload shape (schema drift?)")
+    inner = outer.get("data")
+    if not isinstance(inner, Mapping):
+        LOGGER.warning("instagram_tikhub_search_failed", reason="invalid_payload_shape")
+        raise PermanentError("instagram via_tikhub: invalid payload shape (schema drift?)")
+    items = inner.get("items")
     if not isinstance(items, list):
         LOGGER.warning("instagram_tikhub_search_failed", reason="invalid_payload_shape")
         raise PermanentError("instagram via_tikhub: invalid payload shape (schema drift?)")
