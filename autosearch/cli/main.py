@@ -156,18 +156,42 @@ def query(
     if not normalized_query:
         _exit_query_failure("Query must not be empty.", exit_code=2, json_output=json_output)
 
-    # v2: legacy pipeline removed. Direct CLI query is deprecated.
-    _exit_query_failure(
-        "autosearch query is deprecated in v2.\n"
-        "Use the MCP tools instead: list_skills / run_clarify / run_channel.\n"
-        "See docs/migration/legacy-research-to-tool-supplier.md",
-        exit_code=1,
-        json_output=json_output,
-    )
+    # v2 P1-7: thin orchestration over MCP tools. Autosearch does NOT synthesize a
+    # report — output is structured evidence + citations the user pastes into a
+    # runtime AI (Claude / ChatGPT / Cursor) for synthesis.
+    import asyncio
 
-    # Dead code below — kept as reference until full pipeline removal is complete.
-    # The deprecation exit above prevents any of this from running.
-    _ = normalized_query  # suppress unused variable warning
+    from autosearch.cli.query_pipeline import render_json, render_markdown, run_query
+
+    # `mode` is the clarifier hint (fast/deep/comprehensive). `depth` is the
+    # legacy CLI alias; map it to a SearchMode if it matches a known value.
+    effective_mode: SearchMode | None = mode
+    if effective_mode is None and depth is not None:
+        depth_value = depth.value if hasattr(depth, "value") else str(depth)
+        try:
+            effective_mode = SearchMode(depth_value)
+        except ValueError:
+            effective_mode = None
+
+    try:
+        result = asyncio.run(
+            run_query(
+                normalized_query, mode_hint=effective_mode, top_k_channels=3, per_channel_k=top_k
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 — boundary; surface a structured error
+        _exit_query_failure(
+            f"query pipeline failed: {type(exc).__name__}: {exc}",
+            exit_code=1,
+            json_output=json_output,
+        )
+
+    if json_output:
+        typer.echo(render_json(result))
+    else:
+        typer.echo(render_markdown(result))
+
+    raise typer.Exit(code=0)
 
 
 @app.command()

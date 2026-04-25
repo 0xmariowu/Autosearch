@@ -11,11 +11,18 @@ from autosearch.cli import main as cli_main
 runner = CliRunner()
 
 
-def test_cli_exits_nonzero_with_deprecation_message() -> None:
+def test_cli_query_smoke_renders_brief(monkeypatch) -> None:
+    """The v2 `query` command runs the thin orchestrator and renders an
+    evidence brief. Stub the pipeline so this test stays offline."""
+    from autosearch.cli.query_pipeline import QueryResult
+
+    async def _fake_run_query(query: str, **_kwargs: object) -> QueryResult:
+        return QueryResult(query=query, channels_used=["arxiv"], evidence=[])
+
+    monkeypatch.setattr("autosearch.cli.query_pipeline.run_query", _fake_run_query)
     result = runner.invoke(cli_main.app, ["query", "test", "--no-stream"])
-    assert result.exit_code != 0
-    combined = (result.output or "") + (result.stderr or "")
-    assert "deprecated" in combined.lower() or "list_skills" in combined
+    assert result.exit_code == 0
+    assert "No evidence found" in result.stdout or "evidence brief" in result.stdout.lower()
 
 
 def test_cli_rejects_empty_query() -> None:
