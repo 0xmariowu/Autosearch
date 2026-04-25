@@ -67,7 +67,7 @@ def test_init_dry_run_shows_writes_without_touching_filesystem(tmp_path, monkeyp
     (tmp_path / ".claude").mkdir()
     (tmp_path / ".cursor").mkdir()
 
-    result = runner.invoke(cli_main.app, ["init", "--dry-run"])
+    result = runner.invoke(cli_main.app, ["init", "--dry-run", "--scope", "project"])
     assert result.exit_code == 0, result.stdout + (result.stderr or "")
     assert "Dry-run" in result.stdout
     assert "claude" in result.stdout and "cursor" in result.stdout
@@ -81,8 +81,9 @@ def test_mcp_check_with_client_passes_when_writer_was_run(tmp_path, monkeypatch)
     from autosearch.cli.mcp_config_writers import ClaudeCodeWriter
 
     monkeypatch.setenv("HOME", str(tmp_path))
-    (tmp_path / ".claude").mkdir()
-    ClaudeCodeWriter().write()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("autosearch.cli.mcp_config_writers.shutil.which", lambda command: None)
+    ClaudeCodeWriter().write(scope="project")
 
     result = runner.invoke(cli_main.app, ["mcp-check", "--client", "claude"])
     assert result.exit_code == 0, result.stdout + (result.stderr or "")
@@ -92,6 +93,8 @@ def test_mcp_check_with_client_passes_when_writer_was_run(tmp_path, monkeypatch)
 
 def test_mcp_check_with_client_fails_when_entry_missing(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("autosearch.cli.mcp_config_writers.shutil.which", lambda command: None)
     (tmp_path / ".claude").mkdir()
     # Write a config that has the WRONG shape (entry at root, like the old bug)
     (tmp_path / ".claude" / "mcp.json").write_text(
@@ -101,10 +104,7 @@ def test_mcp_check_with_client_fails_when_entry_missing(tmp_path, monkeypatch) -
     result = runner.invoke(cli_main.app, ["mcp-check", "--client", "claude"])
     assert result.exit_code != 0
     output = result.stdout + (result.stderr or "")
-    # Either "missing `mcpServers` object" (when namespace absent) or
-    # "missing `mcpServers.autosearch` entry" (when namespace present but no entry)
-    # — both prove verify() rejected the broken config.
-    assert "mcpServers" in output and "missing" in output
+    assert "Claude Code MCP not configured" in output
 
 
 def test_mcp_check_rejects_unknown_client(tmp_path, monkeypatch) -> None:

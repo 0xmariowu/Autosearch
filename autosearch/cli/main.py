@@ -1,13 +1,14 @@
 # Source: gpt-researcher/cli.py:L28-L216 (adapted)
 import json
 import sys
-from typing import Annotated
+from typing import Annotated, Literal
 
 import httpx
 import typer
 from pydantic import ValidationError
 
 from autosearch import __version__
+from autosearch.cli.mcp_config_writers import MCPConfigWriteError
 from autosearch.core.environment_probe import probe_environment
 from autosearch.core.models import SearchMode
 from autosearch.core.scope_clarifier import ScopeClarifier
@@ -178,6 +179,20 @@ def mcp() -> None:
 
 @app.command()
 def init(
+    client: Annotated[
+        str | None,
+        typer.Option(
+            "--client",
+            help="Limit MCP client config writes to one client (claude/cursor/zed).",
+        ),
+    ] = None,
+    scope: Annotated[
+        Literal["project"] | None,
+        typer.Option(
+            "--scope",
+            help="MCP config scope. Currently only `project` is used for Claude Code fallback.",
+        ),
+    ] = None,
     check_channels: Annotated[
         bool,
         typer.Option(
@@ -206,7 +221,15 @@ def init(
 
     if dry_run:
         typer.echo("Dry-run: showing MCP client writes only (no files will be modified).\n")
-        for line in _auto_configure_mcp(dry_run=True).split("; "):
+        try:
+            mcp_status = _auto_configure_mcp(dry_run=True, client=client, scope=scope)
+        except ValueError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=2) from exc
+        except MCPConfigWriteError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1) from exc
+        for line in mcp_status.split("; "):
             typer.echo(f"  {line}")
         return
 
@@ -254,7 +277,14 @@ def init(
             typer.echo(f"  ○  {provider:<24} [Not found]")
 
     # ── Auto-write MCP config ─────────────────────────────────────────────────
-    mcp_status = _auto_configure_mcp()
+    try:
+        mcp_status = _auto_configure_mcp(client=client, scope=scope)
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=2) from exc
+    except MCPConfigWriteError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
     typer.echo(f"  ✅ MCP server                   [{mcp_status}]")
 
     # ── Channel summary ───────────────────────────────────────────────────────
@@ -289,7 +319,12 @@ def init(
     typer.echo("")
 
 
-def _auto_configure_mcp(dry_run: bool = False) -> str:
+def _auto_configure_mcp(
+    dry_run: bool = False,
+    *,
+    client: str | None = None,
+    scope: Literal["project"] | None = None,
+) -> str:
     """Write the autosearch MCP entry to every supported client's config file.
 
     Each client gets its own writer (Claude Code, Cursor, Zed) so the entry
@@ -297,9 +332,22 @@ def _auto_configure_mcp(dry_run: bool = False) -> str:
     client cannot load. Skips clients whose config dir doesn't exist (i.e. the
     user hasn't installed them).
     """
-    from autosearch.cli.mcp_config_writers import write_for_clients
+    from autosearch.cli.mcp_config_writers import WRITERS, write_for_clients
 
-    results = write_for_clients(dry_run=dry_run)
+    if client is not None and client not in WRITERS:
+        raise ValueError(f"unknown client {client!r}. Known: {', '.join(sorted(WRITERS))}")
+    if client == "claude" and scope is None:
+        writer = WRITERS["claude"]
+        has_claude_cli = getattr(writer, "has_claude_cli", lambda: False)
+        if not has_claude_cli():
+            raise MCPConfigWriteError(
+                "Claude Code MCP is not configured: `claude` CLI is not on PATH, and "
+                "AutoSearch will not write the stale ~/.claude/mcp.json path. Run "
+                "`claude mcp add --transport stdio autosearch -- autosearch-mcp` or "
+                "`autosearch init --client claude --scope project` to write ./.mcp.json."
+            )
+
+    results = write_for_clients(clients=[client] if client else None, dry_run=dry_run, scope=scope)
 
     parts: list[str] = []
     for r in results:

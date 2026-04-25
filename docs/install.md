@@ -45,7 +45,8 @@ pipx install autosearch && autosearch init
 This will:
 - Detect available LLM providers (Anthropic, OpenAI, Gemini, claude CLI)
 - Create `~/.autosearch/config.yaml`
-- Auto-write MCP server config to `~/.claude/mcp.json` and `~/.cursor/mcp.json`
+- Auto-configure MCP clients. Claude Code uses `claude mcp add` when available;
+  `autosearch init --client claude --scope project` writes project-bound `.mcp.json`.
 
 ### Step 3: Check status
 
@@ -118,17 +119,18 @@ autosearch configure YOUTUBE_API_KEY <your-key>
 
 AutoSearch writes this automatically during `init`. For manual setup:
 
-**Claude Code** (`~/.claude/mcp.json`):
-```json
-{
-  "mcpServers": {
-    "autosearch": {
-      "command": "autosearch-mcp",
-      "type": "stdio"
-    }
-  }
-}
+**Claude Code**:
+```bash
+claude mcp add --transport stdio autosearch -- autosearch-mcp
 ```
+
+For project-bound config without the `claude` CLI, run:
+
+```bash
+autosearch init --client claude --scope project
+```
+
+That writes `<project>/.mcp.json`.
 
 **Cursor** (`~/.cursor/mcp.json`):
 ```json
