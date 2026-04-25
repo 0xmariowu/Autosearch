@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026.04.25.2 — 2026-04-25
+
+The "sixth-pass channel-error" release — two more bugs from the
+post-`.25.1` audit round.
+
+- **TikHub hosted-proxy mode now actually works.** PR #364 taught
+  `TikhubClient` to run in proxy mode (`AUTOSEARCH_PROXY_URL` +
+  `AUTOSEARCH_PROXY_TOKEN` instead of `TIKHUB_API_KEY`), but every
+  TikHub channel's `SKILL.md` still hardcodes
+  `requires: [env:TIKHUB_API_KEY]`, so the MCP boundary's requires
+  check returned `unmet_requires=["env:TIKHUB_API_KEY"]` and every
+  TikHub channel surfaced `status=not_configured` for proxy users.
+  `ChannelRegistry._resolve_requires` now treats `env:TIKHUB_API_KEY`
+  as satisfied when both proxy vars are present. TikHub-specific shim,
+  documented inline; other `env:` tokens unaffected.
+- **Schema drift no longer hides at intermediate dict levels.** The
+  earlier audits closed the `invalid_payload_shape` hole at the final
+  `items` / `cards` level, but the navigation above it still used
+  `payload.get("data", {})` with dict defaults. When `data` was
+  missing or the wrong type, the default `{}` silently fell through,
+  the next `.get()` returned `[]`, and the final shape check saw a
+  valid (empty) list and skipped the raise — schema drift masqueraded
+  as a legitimate empty result. Four channels (`zhihu`, `xiaohongshu`,
+  `instagram`, `weibo`) now check `isinstance(d, Mapping)` at every
+  nesting level and raise `PermanentError` on mismatch.
+
 ## 2026.04.25.1 — 2026-04-25
 
 The "fifth-pass channel-error" release — three more audit rounds on
