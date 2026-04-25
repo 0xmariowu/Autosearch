@@ -41,6 +41,11 @@ This is a **maturity mismatch**: we have high test count but low test honesty.
 **Smoke (process-level)**
 
 - `autosearch --version` subprocess exits 0 with correct version string
+- Release version truth uses two local entrypoints before publish:
+  `.venv/bin/autosearch --version` and
+  `python -m autosearch.cli.main --version` must both match
+  `pyproject.toml`. A fresh-install smoke remains the final source of truth for
+  the packaged console script.
 - `autosearch query "..."` subprocess with `DemoChannel` + mocked LLM env → exits 0, stdout contains `## References` and `## Sources`
 - `autosearch serve --port ...` starts, `GET /health` returns 200, `GET /v1/models` returns expected JSON, then shuts down cleanly
 - `autosearch-mcp` JSON-RPC handshake: `initialize` → `tools/list` → `tools/call research` works

@@ -76,6 +76,57 @@ else
   fail "version files drifted (see output above)"
 fi
 
+# ── Gate 1a: CLI version entrypoints ─────────────────────────────────────────
+step "CLI version entrypoints"
+EXPECTED_VERSION=$("$PYTHON" - <<'PY'
+import tomllib
+
+with open("pyproject.toml", "rb") as f:
+    print(tomllib.load(f)["project"]["version"])
+PY
+)
+
+_check_version_output() {
+  local label="$1"
+  shift
+  local output
+  output=$("$@" --version) || fail "$label --version exited non-zero"
+  output=$(printf '%s\n' "$output" | tr -d '\r' | tail -n 1)
+  "$PYTHON" - "$EXPECTED_VERSION" "$output" "$label" <<'PY' || fail "$label --version mismatch"
+import sys
+
+from packaging.version import Version
+
+expected_raw, actual_raw, label = sys.argv[1:4]
+actual_token = actual_raw.split()[-1] if actual_raw.split() else ""
+
+try:
+    expected = Version(expected_raw)
+    actual = Version(actual_token)
+except Exception as exc:
+    print(
+        f"FAIL: {label} --version could not be parsed: {actual_raw!r} "
+        f"(expected {expected_raw!r}): {exc}",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+if actual != expected:
+    print(
+        f"FAIL: {label} --version reported {actual_raw}, expected {expected_raw}",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+PY
+  pass "$label --version matches pyproject.toml"
+}
+
+if [ ! -x "$AUTOSEARCH" ]; then
+  fail "autosearch CLI not installed in $REPO_ROOT/.venv (run: uv pip install -e .)"
+fi
+_check_version_output "$AUTOSEARCH" "$AUTOSEARCH"
+_check_version_output "python -m autosearch.cli.main" "$PYTHON" -m autosearch.cli.main
+
 # ── Gate 1b: uv lockfile freshness (Bug 5 / fix-plan v8 follow-up) ──────────
 # Without this gate, uv.lock can lag behind pyproject for days; any `uv run`
 # silently rewrites it and pollutes the working tree, and CI agents pick up
