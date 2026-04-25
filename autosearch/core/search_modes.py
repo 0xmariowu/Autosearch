@@ -16,10 +16,30 @@ Usage:
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 # ── Built-in modes ────────────────────────────────────────────────────────────
+
+_CJK_PATTERN = re.compile(r"[\u3400-\u9FFF]")
+_CHINESE_UGC_KEYWORDS = {
+    "体验",
+    "吐槽",
+    "真实",
+    "口碑",
+    "评价",
+    "分享",
+    "评测",
+    "用户反馈",
+    "网友",
+    "讨论",
+    "推荐",
+    "避雷",
+    "种草",
+    "拔草",
+    "真心话",
+}
 
 
 @dataclass
@@ -47,9 +67,10 @@ _BUILTIN_MODES: list[SearchModeConfig] = [
         label_en="Academic",
         keywords=[
             "论文",
-            "研究",
             "文献",
             "综述",
+            "期刊",
+            "学术",
             "paper",
             "research",
             "survey",
@@ -143,6 +164,8 @@ _BUILTIN_MODES: list[SearchModeConfig] = [
             "框架",
             "bug",
             "debug",
+            "python",
+            "async",
             "code",
             "implement",
             "library",
@@ -176,6 +199,7 @@ _BUILTIN_MODES: list[SearchModeConfig] = [
         keywords=[
             "产品",
             "竞品",
+            "公司信息",
             "用户反馈",
             "体验",
             "对比",
@@ -261,16 +285,37 @@ def get_mode(key: str) -> SearchModeConfig | None:
     return _get_all_modes().get(key)
 
 
+def _has_cjk(value: str) -> bool:
+    return bool(_CJK_PATTERN.search(value))
+
+
+def has_chinese_ugc_intent(query: str) -> bool:
+    """True when a CJK query asks for native user/community sentiment."""
+    if not _has_cjk(query):
+        return False
+    return any(keyword in query for keyword in _CHINESE_UGC_KEYWORDS)
+
+
 def detect_mode(query: str) -> SearchModeConfig | None:
     """Auto-detect the best mode for a query using keyword matching.
 
     Returns None if no mode matches (caller uses default behavior).
-    Priority: user custom > academic > developer > news > chinese_ugc > product
+    Priority: user custom > Chinese UGC override > academic > developer > news > chinese_ugc > product
     """
     # Custom modes checked first
     all_modes = _get_all_modes()
     custom_keys = [k for k, m in all_modes.items() if not m.is_system and m.enabled]
-    priority_keys = custom_keys + ["academic", "developer", "news", "chinese_ugc", "product"]
+    for key in custom_keys:
+        mode = all_modes.get(key)
+        if mode and mode.enabled and mode.matches_query(query):
+            return mode
+
+    if has_chinese_ugc_intent(query):
+        mode = all_modes.get("chinese_ugc")
+        if mode and mode.enabled:
+            return mode
+
+    priority_keys = ["academic", "developer", "news", "chinese_ugc", "product"]
 
     for key in priority_keys:
         mode = all_modes.get(key)
