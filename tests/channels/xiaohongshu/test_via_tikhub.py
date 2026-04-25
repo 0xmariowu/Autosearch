@@ -6,6 +6,7 @@ from typing import cast
 
 import pytest
 
+from autosearch.channels.base import PermanentError
 from autosearch.core.models import SubQuery
 from autosearch.lib.tikhub_client import TikhubClient, TikhubError
 
@@ -149,20 +150,20 @@ async def test_search_uses_id_without_xsec_when_token_missing() -> None:
 
 
 @pytest.mark.asyncio
-async def test_search_skips_item_without_id() -> None:
+async def test_search_raises_permanent_error_when_items_present_but_none_parse() -> None:
     client = _FakeTikhubClient(
         _search_payload(
             [
                 {
+                    "note_id": "note-renamed",
                     "noteCard": {"displayTitle": "No ID note", "desc": "Should be skipped."},
                 }
             ]
         )
     )
 
-    results = await search(_query(), client=cast(TikhubClient, client))
-
-    assert results == []
+    with pytest.raises(PermanentError, match="items present but none parsed"):
+        await search(_query(), client=cast(TikhubClient, client))
 
 
 @pytest.mark.asyncio
@@ -186,8 +187,6 @@ async def test_search_returns_empty_on_tikhub_error(
 async def test_search_raises_on_invalid_payload_shape(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from autosearch.channels.base import PermanentError
-
     logger = _Logger()
     monkeypatch.setattr(MODULE, "LOGGER", logger)
     client = _FakeTikhubClient({"data": {"data": {"items": {"unexpected": "shape"}}}})
@@ -212,8 +211,6 @@ async def test_search_raises_on_invalid_payload_shape(
 async def test_search_raises_on_missing_or_invalid_nested_data_shape(
     payload: dict[str, object],
 ) -> None:
-    from autosearch.channels.base import PermanentError
-
     client = _FakeTikhubClient(payload)
 
     with pytest.raises(PermanentError, match="invalid payload shape"):

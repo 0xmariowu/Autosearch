@@ -272,7 +272,7 @@ async def test_search_falls_back_to_mid_url_when_bid_missing() -> None:
 
 
 @pytest.mark.asyncio
-async def test_search_skips_item_with_no_usable_id() -> None:
+async def test_search_raises_permanent_error_when_mblogs_present_but_none_parse() -> None:
     client = _FakeTikhubClient(
         {
             "data": {
@@ -292,9 +292,35 @@ async def test_search_skips_item_with_no_usable_id() -> None:
         }
     )
 
-    results = await search(_query(), client=cast(TikhubClient, client))
+    with pytest.raises(PermanentError, match="items present but none parsed"):
+        await search(_query(), client=cast(TikhubClient, client))
 
-    assert results == []
+
+@pytest.mark.asyncio
+async def test_search_raises_permanent_error_when_cards_present_but_no_mblogs_parse() -> None:
+    client = _FakeTikhubClient(
+        {
+            "data": {
+                "data": {
+                    "cards": [
+                        {
+                            "card_type": 9,
+                            "blog": {
+                                "id": 909,
+                                "mid": 909,
+                                "bid": "QBpHNjc3x",
+                                "text": "mblog field was renamed.",
+                                "user": {"id": 112244, "screen_name": "SchemaDrift"},
+                            },
+                        }
+                    ]
+                }
+            }
+        }
+    )
+
+    with pytest.raises(PermanentError, match="items present but none parsed"):
+        await search(_query(), client=cast(TikhubClient, client))
 
 
 @pytest.mark.asyncio

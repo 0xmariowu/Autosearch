@@ -120,4 +120,10 @@ async def search(query: SubQuery, client: TikhubClient | None = None) -> list[Ev
         if evidence is not None:
             results.append(evidence)
 
+    if items and not results:
+        LOGGER.warning("xiaohongshu_tikhub_search_failed", reason="item_schema_drift")
+        raise PermanentError(
+            "xiaohongshu via_tikhub: items present but none parsed (item schema drift?)"
+        )
+
     return results
