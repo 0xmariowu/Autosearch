@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import asyncio
+from importlib import import_module
 import re
 from collections.abc import Mapping
 from datetime import UTC, datetime
@@ -14,8 +15,8 @@ from autosearch.core.models import Evidence, FetchedPage, SubQuery
 
 try:
     from ddgs import DDGS
-except ImportError:  # pragma: no cover - compatibility fallback
-    from duckduckgo_search import DDGS  # type: ignore[import-not-found]
+except ImportError:
+    DDGS = import_module("duckduckgo_search").DDGS
 
 LOGGER = structlog.get_logger(__name__).bind(component="channel", channel="discourse_forum")
 
@@ -33,6 +34,7 @@ SITE_PRESETS: dict[str, dict[str, str]] = {
         "base_url": "https://linux.do",
         "search_endpoint": "/search.json",
         "source_channel": "discourse_forum:linux_do",
+        "title_suffix": " - LINUX DO",
     }
 }
 
@@ -60,10 +62,12 @@ def _truncate_on_word_boundary(text: str, *, max_length: int) -> str:
     return f"{candidate.rstrip()}…"
 
 
-def _clean_site_search_title(title: str) -> str:
+def _clean_site_search_title(title: str, *, site: Mapping[str, str]) -> str:
+    """Strip a site-specific forum suffix from fallback search result titles."""
     cleaned = title.strip()
-    if cleaned.endswith(" - LINUX DO"):
-        cleaned = cleaned[: -len(" - LINUX DO")].strip()
+    title_suffix = site.get("title_suffix", "")
+    if title_suffix and cleaned.endswith(title_suffix):
+        cleaned = cleaned[: -len(title_suffix)].rstrip()
     return cleaned
 
 
@@ -122,6 +126,7 @@ def _site_search_query(site: Mapping[str, str], query: str) -> str:
 
 
 def _same_origin(url: str, base_url: str) -> bool:
+    """Require exact scheme and host equality before trusting a fallback result URL."""
     parsed_url = urlparse(url)
     parsed_base = urlparse(base_url)
     return parsed_url.scheme == parsed_base.scheme and parsed_url.netloc == parsed_base.netloc
@@ -140,7 +145,7 @@ def _to_site_search_evidence(
     if "/t/" not in parsed.path:
         return None
 
-    title = _clean_site_search_title(str(result.get("title") or "").strip())
+    title = _clean_site_search_title(str(result.get("title") or "").strip(), site=site)
     if not title:
         return None
 
@@ -173,6 +178,7 @@ async def _fetch_topic_markdown(
     *,
     http_client: httpx.AsyncClient | None = None,
 ) -> str | None:
+    """Fetch topic markdown via the Jina reader and normalize the payload."""
     reader_url = _reader_url(url)
     try:
         if http_client is not None:
@@ -193,6 +199,7 @@ async def _enrich_evidence(
     *,
     http_client: httpx.AsyncClient | None = None,
 ) -> Evidence:
+    """Hydrate one evidence item with full topic markdown when available."""
     markdown = await _fetch_topic_markdown(evidence.url, http_client=http_client)
     if not markdown:
         return evidence
@@ -218,6 +225,7 @@ async def _enrich_evidence(
 
 
 async def _search_site(query: SubQuery, *, site: Mapping[str, str]) -> list[Evidence]:
+    """Fallback to site-limited DDGS search when the forum API is blocked."""
     results = await asyncio.to_thread(
         lambda: list(DDGS().text(_site_search_query(site, query.text), max_results=MAX_RESULTS))
     )
@@ -245,24 +253,30 @@ async def search(
     http_client: httpx.AsyncClient | None = None,
     site_key: str = DEFAULT_SITE_KEY,
 ) -> list[Evidence]:
+    """Search a public Discourse forum and enrich matched topics with full text."""
+    if http_client is None:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, follow_redirects=True) as client:
+            return await _search_with_client(query, http_client=client, site_key=site_key)
+
+    return await _search_with_client(query, http_client=http_client, site_key=site_key)
+
+
+async def _search_with_client(
+    query: SubQuery,
+    *,
+    http_client: httpx.AsyncClient,
+    site_key: str,
+) -> list[Evidence]:
+    """Run Discourse search using a caller-owned async HTTP client."""
     site = SITE_PRESETS[site_key]
     try:
         params = {"q": query.text}
         url = f"{site['base_url']}{site['search_endpoint']}"
-
-        if http_client is not None:
-            response = await http_client.get(
-                url,
-                params=params,
-                headers={"User-Agent": USER_AGENT},
-            )
-        else:
-            async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, follow_redirects=True) as client:
-                response = await client.get(
-                    url,
-                    params=params,
-                    headers={"User-Agent": USER_AGENT},
-                )
+        response = await http_client.get(
+            url,
+            params=params,
+            headers={"User-Agent": USER_AGENT},
+        )
 
         response.raise_for_status()
         payload = response.json()
