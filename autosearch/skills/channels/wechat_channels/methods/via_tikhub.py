@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 import structlog
 
+from autosearch.channels.base import PermanentError
 from autosearch.core.models import Evidence, SubQuery
 from autosearch.lib.tikhub_client import TikhubClient, TikhubError, to_channel_error
 
@@ -96,7 +97,8 @@ async def search(query: SubQuery, client: TikhubClient | None = None) -> list[Ev
     # Navigate to video items
     data = payload.get("data", {})
     if not isinstance(data, Mapping):
-        return []
+        LOGGER.warning("wechat_channels_tikhub_search_failed", reason="invalid_payload_shape")
+        raise PermanentError("wechat_channels via_tikhub: invalid payload shape (schema drift?)")
 
     items: list[Mapping[str, object]] = []
 

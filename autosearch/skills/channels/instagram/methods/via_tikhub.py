@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 import structlog
 
+from autosearch.channels.base import PermanentError
 from autosearch.core.models import Evidence, SubQuery
 from autosearch.lib.tikhub_client import TikhubClient, TikhubError, to_channel_error
 
@@ -88,7 +89,7 @@ async def search(query: SubQuery, client: TikhubClient | None = None) -> list[Ev
 
     if not isinstance(items, list):
         LOGGER.warning("instagram_tikhub_search_failed", reason="invalid_payload_shape")
-        return []
+        raise PermanentError("instagram via_tikhub: invalid payload shape (schema drift?)")
 
     fetched_at = datetime.now(UTC)
     results: list[Evidence] = []
