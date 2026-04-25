@@ -29,4 +29,4 @@ After channels return results: normalize, dedupe, rerank by relevance, score, an
 - `normalize-results` → `extract-dates` → `rerank-evidence` is the standard pipeline order after raw channel output.
 - `anti-cheat` should run before any scoring that affects routing, to prevent self-reinforcing bias.
 - Rubrics (`generate-rubrics` + `check-rubrics`) are optional — use only when task has clear must-have criteria, not for every session.
-- Do not invent N-dim × 0/3/5 rubrics — boss feedback. Use pairwise A/B preference for judgment; rubrics only for binary must-have checks.
+- Do not invent N-dimensional × 0/3/5 numeric rubrics. Use pairwise A/B preference for judgment; rubrics only for binary must-have checks.

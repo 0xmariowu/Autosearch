@@ -26,5 +26,5 @@ Turn evidence into knowledge and a delivered report. Highest-value, highest-tier
 ## Routing notes
 
 - Autosearch v2 **does not own the final LLM synthesis pass** — the runtime AI synthesizes using the transcripts, snippets, and structured context autosearch provides. These skills exist to prepare material, not replace Claude's judgment.
-- `synthesize-knowledge` and `evaluate-delivery` are the Best-tier "key 1-2 steps" the boss called out — they shape the whole deliverable, so use the best model.
+- `synthesize-knowledge` and `evaluate-delivery` are the Best-tier "key 1–2 steps" — they shape the whole deliverable, so they should use the best model available.
 - `knowledge-map` is the cross-session memory layer — load before a session to see what's already known on the topic, save at session end.

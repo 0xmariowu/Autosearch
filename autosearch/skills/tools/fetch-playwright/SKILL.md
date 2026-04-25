@@ -24,7 +24,7 @@ This skill is **documentation-only**. The runtime AI calls `playwright-mcp` tool
 
 ## Install
 
-Add to your MCP client config (Claude Code: `~/.claude/settings.json` or project `.mcp.json`; Cursor: `~/.cursor/mcp.json`; Zed: project `.zed/mcp.json`):
+Register with your MCP client. For Claude Code, prefer `claude mcp add` (writes to `~/.claude.json`); for project-scoped config use `<project>/.mcp.json`. Cursor reads `~/.cursor/mcp.json`; Zed reads `<project>/.zed/mcp.json`. Schema for any of them:
 
 ```json
 {
