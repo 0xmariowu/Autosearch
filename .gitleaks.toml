@@ -53,12 +53,20 @@ regex = '''dangerously-skip-permissions'''
 tags = ["hygiene", "internal-flag"]
 keywords = ["dangerously"]
 
+  [[rules.allowlists]]
+  description = "Test fixtures may legitimately reference the flag for negative-test scenarios"
+  paths = ['''tests/e2b/.*\.yaml$''', '''tests/.*\.py$''']
+
 [[rules]]
 id = "handoff-file"
 description = "Reference to HANDOFF.md (internal session-handoff state)"
 regex = '''\bHANDOFF\.md\b'''
 tags = ["hygiene", "handoff"]
 keywords = ["HANDOFF"]
+
+  [[rules.allowlists]]
+  description = "Hygiene tooling files legitimately reference HANDOFF.md to enforce ignore rules"
+  paths = ['''^\.gitignore$''', '''^scripts/committer$''', '''^\.husky/pre-commit$''']
 
 [[rules]]
 id = "internal-plan-dir"
@@ -67,12 +75,28 @@ regex = '''docs/(plans|proposals|spikes|channel-hunt|exec-plans)/'''
 tags = ["hygiene", "internal-plan"]
 keywords = ["docs/plans", "docs/proposals", "docs/spikes", "docs/channel-hunt", "docs/exec-plans"]
 
+  [[rules.allowlists]]
+  description = "Hygiene tooling files reference internal-plan dirs to enforce ignore rules"
+  paths = ['''^\.gitignore$''', '''^scripts/committer$''', '''^\.husky/pre-commit$''']
+
+  [[rules.allowlists]]
+  description = "Release notes / migration docs may mention paths in historical context (batch 3 will rewrite migration doc)"
+  paths = ['''^CHANGELOG\.md$''', '''docs/migration/.*\.md$''', '''docs/testing/TEST_PLAN\.md$''', '''docs/delivery-status\.md$''']
+
 [[rules]]
 id = "runtime-experience-jsonl"
 description = "Runtime experience JSONL files should never be tracked (patterns-jsonl)"
 regex = '''experience/patterns\.jsonl'''
 tags = ["hygiene", "runtime-experience"]
 keywords = ["patterns.jsonl"]
+
+  [[rules.allowlists]]
+  description = "Skill docs / __init__ legitimately explain the patterns.jsonl mechanism as a system feature"
+  paths = ['''autosearch/skills/.*/SKILL\.md$''', '''autosearch/skills/.*/__init__\.py$''', '''autosearch/skills/router/references/.*\.md$''']
+
+  [[rules.allowlists]]
+  description = "Release notes / migration / bench docs reference patterns.jsonl in product context"
+  paths = ['''^CHANGELOG\.md$''', '''docs/migration/.*\.md$''', '''docs/bench/.*\.md$''']
 
 # ── Allowlist ────────────────────────────────────────────────────────────────
 
