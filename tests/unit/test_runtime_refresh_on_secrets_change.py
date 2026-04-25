@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 
 from autosearch.core import channel_runtime as cr_mod
+from autosearch.core import secrets_store
 
 
 @pytest.fixture(autouse=True)
@@ -24,12 +25,14 @@ def _isolate_secrets(tmp_path, monkeypatch):
     secrets_file = tmp_path / "ai-secrets.env"
     secrets_file.write_text("# empty\n", encoding="utf-8")
     monkeypatch.setenv("AUTOSEARCH_SECRETS_FILE", str(secrets_file))
+    secrets_store._FILE_INJECTED_VALUES.clear()
     # Drop any inherited keys so the fingerprint is deterministic.
     for key in cr_mod._CHANNEL_ENV_KEYS:
         monkeypatch.delenv(key, raising=False)
     cr_mod.reset_channel_runtime()
     yield secrets_file
     cr_mod.reset_channel_runtime()
+    secrets_store._FILE_INJECTED_VALUES.clear()
 
 
 def test_runtime_rebuilds_when_env_key_appears(monkeypatch) -> None:
@@ -73,3 +76,29 @@ def test_fingerprint_includes_secrets_mtime_and_env_presence() -> None:
     assert isinstance(env_presence, tuple)
     # mtime can be a float or None depending on whether the file exists
     assert mtime is None or isinstance(mtime, float)
+
+
+def test_secrets_file_refresh_does_not_clobber_explicit_process_env(
+    _isolate_secrets, monkeypatch
+) -> None:
+    secrets_file: Path = _isolate_secrets
+    monkeypatch.setenv("TIKHUB_API_KEY", "from-process")
+    secrets_file.write_text(
+        "TIKHUB_API_KEY=from-file-v1\nYOUTUBE_API_KEY=file-owned-v1\n",
+        encoding="utf-8",
+    )
+
+    cr_mod.get_channel_runtime()
+    assert os.environ["TIKHUB_API_KEY"] == "from-process"
+    assert os.environ["YOUTUBE_API_KEY"] == "file-owned-v1"
+
+    secrets_file.write_text(
+        "TIKHUB_API_KEY=from-file-v2\nYOUTUBE_API_KEY=file-owned-v2\n",
+        encoding="utf-8",
+    )
+    later = time.time() + 5
+    os.utime(secrets_file, (later, later))
+
+    cr_mod.get_channel_runtime()
+    assert os.environ["TIKHUB_API_KEY"] == "from-process"
+    assert os.environ["YOUTUBE_API_KEY"] == "file-owned-v2"

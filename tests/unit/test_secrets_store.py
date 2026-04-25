@@ -2,14 +2,26 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
+import pytest
+
+from autosearch.core import secrets_store as secrets_store_mod
 from autosearch.core.secrets_store import (
     available_env_keys,
+    inject_into_env,
     load_secrets,
     resolve_env_value,
     secrets_path,
 )
+
+
+@pytest.fixture(autouse=True)
+def _reset_file_injection_tracking():
+    secrets_store_mod._FILE_INJECTED_VALUES.clear()
+    yield
+    secrets_store_mod._FILE_INJECTED_VALUES.clear()
 
 
 def _write(path: Path, content: str) -> None:
@@ -98,6 +110,35 @@ def test_resolve_env_value_returns_none_when_absent(monkeypatch, tmp_path):
     monkeypatch.setenv("AUTOSEARCH_SECRETS_FILE", str(tmp_path / "missing.env"))
     monkeypatch.delenv("DEFINITELY_NOT_SET", raising=False)
     assert resolve_env_value("DEFINITELY_NOT_SET") is None
+
+
+def test_force_inject_does_not_overwrite_preexisting_process_env(monkeypatch, tmp_path):
+    f = tmp_path / "ai-secrets.env"
+    _write(f, "TIKHUB_API_KEY=from-file\n")
+    monkeypatch.setenv("AUTOSEARCH_SECRETS_FILE", str(f))
+    monkeypatch.setenv("TIKHUB_API_KEY", "from-process")
+
+    injected = inject_into_env(force=True)
+
+    assert "TIKHUB_API_KEY" not in injected
+    assert os.environ["TIKHUB_API_KEY"] == "from-process"
+
+
+def test_force_inject_refreshes_key_previously_injected_from_file(monkeypatch, tmp_path):
+    f = tmp_path / "ai-secrets.env"
+    _write(f, "TIKHUB_API_KEY=v1\n")
+    monkeypatch.setenv("AUTOSEARCH_SECRETS_FILE", str(f))
+    monkeypatch.delenv("TIKHUB_API_KEY", raising=False)
+
+    first = inject_into_env()
+    assert "TIKHUB_API_KEY" in first
+    assert os.environ["TIKHUB_API_KEY"] == "v1"
+
+    _write(f, "TIKHUB_API_KEY=v2\n")
+    second = inject_into_env(force=True)
+
+    assert "TIKHUB_API_KEY" in second
+    assert os.environ["TIKHUB_API_KEY"] == "v2"
 
 
 def test_doctor_picks_up_key_from_secrets_file(monkeypatch, tmp_path):
