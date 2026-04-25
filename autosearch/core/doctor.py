@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from autosearch.core.requires import resolve_requires
 from autosearch.skills import SkillLoadError, load_all
 
 # Maps unmet env var names → actionable fix commands (1:1 from Agent-Reach cookie_extract.py)
@@ -74,7 +75,7 @@ def scan_channels(channels_root: Path | None = None) -> list[ChannelStatus]:
         all_unmet: list[str] = []
         available_methods = 0
         for method in spec.methods:
-            unmet = [token for token in method.requires if not _token_satisfied(token, env_keys)]
+            unmet = resolve_requires(method.requires, env_keys=env_keys)
             # A method whose impl file does not exist on disk cannot run, no
             # matter how many env keys are satisfied. Treat it as unmet so a
             # half-scaffolded channel never reports as available.
@@ -256,14 +257,6 @@ def _fix_hint(unmet_requires: list[str]) -> str:
     if configure_hints:
         return configure_hints[0]
     return ""
-
-
-def _token_satisfied(token: str, env_keys: set[str]) -> bool:
-    kind, _, value = token.partition(":")
-    if kind == "env":
-        return value in env_keys
-    # cookie / mcp / binary: treat as unsatisfied unless env override exists
-    return False
 
 
 def _current_env_keys() -> set[str]:

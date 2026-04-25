@@ -12,14 +12,13 @@ import structlog
 
 from autosearch.core.models import Evidence, SubQuery
 from autosearch.core.rate_limiter import RateLimiter
+from autosearch.core.requires import resolve_requires
 from autosearch.skills.loader import MethodSpec, QualityHint, WhenToUse, load_all
 
 if TYPE_CHECKING:
     from autosearch.observability.channel_health import ChannelHealth
 
 LOGGER = structlog.get_logger(__name__).bind(component="channel_registry")
-_TIKHUB_API_KEY_TOKEN = "env:TIKHUB_API_KEY"
-_TIKHUB_PROXY_FALLBACK = {"AUTOSEARCH_PROXY_URL", "AUTOSEARCH_PROXY_TOKEN"}
 
 
 class ChannelRegistryError(ValueError):
@@ -411,21 +410,13 @@ class ChannelRegistry:
 
     @staticmethod
     def _resolve_requires(requires: list[str], env: Environment) -> list[str]:
-        unmet: list[str] = []
-        for token in requires:
-            kind, value = token.split(":", maxsplit=1)
-            if kind == "cookie" and value not in env.cookies:
-                unmet.append(token)
-            elif kind == "mcp" and value not in env.mcp_servers:
-                unmet.append(token)
-            elif kind == "env" and value not in env.env_keys:
-                if token == _TIKHUB_API_KEY_TOKEN and _TIKHUB_PROXY_FALLBACK.issubset(env.env_keys):
-                    continue
-                unmet.append(token)
-            elif kind == "binary" and value not in env.binaries:
-                unmet.append(token)
-
-        return unmet
+        return resolve_requires(
+            requires,
+            env_keys=env.env_keys,
+            cookies=env.cookies,
+            mcp_servers=env.mcp_servers,
+            binaries=env.binaries,
+        )
 
     def register(self, channel: Channel) -> None:
         self._channels[channel.name] = channel
