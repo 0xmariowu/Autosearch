@@ -1,5 +1,105 @@
 # Changelog
 
+## 2026.04.25.3 — 2026-04-25
+
+The "production-critical sweep" release — twelve PRs landing 21
+features from a 5-agent audit. Two security P0s, one supply-chain
+P0, three secrets-hygiene P0s, plus channel reliability, release
+plumbing, docs alignment, report quality, and observability.
+
+**Security**
+- `scripts/install.sh --version` now validates against a PEP 440
+  allowlist and runs install commands as argv arrays — the previous
+  `eval` path was a real command-injection vector via the
+  `curl | bash` install URL.
+- Bearer-token redaction now covers the full token character set
+  (`+/=._-~` plus base64url and JWT). Earlier regex stopped at the
+  first special char and leaked the tail of the token.
+- `secrets_store.inject_into_env()` no longer overwrites a key the
+  parent process / orchestrator set explicitly. Tracks file-injected
+  keys and only refreshes those it already owns.
+- `ClaudeCodeProvider` subprocess gets a minimal allowlisted `env`
+  (PATH/HOME/SHELL/TERM/USER/LANG/LC_*/TMPDIR plus
+  ANTHROPIC_*/CLAUDE_CODE_*/XDG_*) instead of inheriting the full
+  parent environment with unrelated secrets like `TIKHUB_API_KEY`.
+
+**Channel reliability**
+- `package_search` / `xueqiu` / `discourse_forum` no longer return
+  `[]` when upstream fails — typed errors propagate. Aggregated
+  channels distinguish "all sources failed" from "partial failure".
+- All TikHub channels now raise `PermanentError` on item-level
+  schema drift (`zhihu` / `xiaohongshu` / `instagram` / `weibo` /
+  `wechat_channels`) instead of silently returning `[]` when items
+  are present but every one fails to parse — caught field renames
+  TikHub deploys without warning.
+- `tieba` Baidu safety-verification (captcha) page is now classified
+  as `TransientError`, not `ChannelAuthError`. Users no longer told
+  to "fix your auth" for platform-side anti-scrape.
+- `xiaohongshu/SKILL.md` `via_signsrv.requires` now matches the env
+  name `autosearch login xhs` actually writes (`XHS_COOKIES`).
+  Login worked, runtime worked, but the requires gate referenced a
+  legacy name nothing wrote.
+- TikHub hosted-proxy mode actually works end-to-end now.
+  PR #366 added the requires shim; this release adds the
+  corresponding `KNOWN_ENV_KEYS` entries so `probe_environment()`
+  reports the proxy vars and the shim can fire.
+
+**MCP runtime**
+- `run_channel` now distinguishes `transient_error`,
+  `channel_unavailable`, and `channel_error` (was all
+  `channel_error`). Host agents can backoff vs. retry vs. give up
+  with the right strategy.
+- `delegate_subtask` returns `failed_channel_details` per failed
+  channel (status / reason / fix_hint / unmet_requires) instead of
+  squashing into a flat name list. Legacy `failed_channels` field
+  retained for compat.
+- Channel health cooldown distinguishes auth/permanent failures
+  (long cooldown — waiting won't help) from transient/rate-limited
+  (short cooldown — try again later).
+- Experience layer no longer writes raw user query strings to
+  `~/.autosearch/experience/.../patterns.jsonl`. Replaced with
+  `query_shape` (length bucket, language detection) so summaries
+  capture pattern info without leaking PII.
+
+**Report quality**
+- `consolidate_research` preserves `published_at` when rebuilding
+  Evidence (was dropped, breaking time-sensitive reports). Heading
+  renamed from "Top findings" to "Top evidence snippets" — these
+  are raw excerpts, not synthesized findings.
+- `citation_index` canonicalizes URLs before dedupe (strip utm_*,
+  fbclid, gclid, fragment, trailing slash, arXiv version suffix).
+  Same source no longer gets multiple citation numbers.
+
+**Release plumbing**
+- `.claude-plugin/marketplace.json` `metadata.version` and
+  `plugins[0].version` are now synced by `bump-version.sh` and
+  validated by `check_version_consistency.py`. Official Claude
+  plugin tag gates would have failed on the drift.
+- `release.yml` requires PyPI publish success before npm publish —
+  no more npm-only releases when `PYPI_API_TOKEN` is missing.
+  `npx autosearch-ai` users always have a matching Python package.
+- `release-gate.sh` now verifies `.venv/bin/autosearch --version`
+  and `python -m autosearch.cli.main --version` match
+  `pyproject.toml` via PEP 440 normalization. Catches stale
+  editable-install console scripts that previously slipped past.
+
+**Docs**
+- `docs/install.md` Claude Code + Cursor config examples use the
+  correct `mcpServers.autosearch` shape (was a top-level
+  `"autosearch"` key that doesn't work).
+- `docs/mcp-clients.md` required-tools table matches
+  `_REQUIRED_MCP_TOOLS`; `delegate_subtask` listed as required;
+  `health` clarified as helper. `run_channel` schema dropped
+  non-existent `method_id`, added `rationale`. `research` correctly
+  documented as opt-in via `AUTOSEARCH_LEGACY_RESEARCH=1`.
+
+**Testing**
+- Live coverage extended to seven free production-critical channels
+  (`package_search` / `openalex` / `crossref` / `dblp` / `reddit` /
+  `google_news` / `discourse_forum`). Added `flaky_live` marker for
+  anti-scrape-prone channels (currently `tieba`); nightly default
+  excludes them so platform-side captcha doesn't gate CI.
+
 ## 2026.04.25.2 — 2026-04-25
 
 The "sixth-pass channel-error" release — two more bugs from the
