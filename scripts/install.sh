@@ -48,12 +48,18 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -n "$VERSION" ]]; then
+  if ! [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+){0,3}((a|b|rc)[0-9]+|\.post[0-9]+|\.dev[0-9]+|\+[A-Za-z0-9.]+)?$ ]]; then
+    die "--version must be a PEP 440-style version (e.g. 2026.04.25.1)"
+  fi
+fi
+
 # Wrapper: in dry-run mode, print the command instead of running it.
 run() {
   if [[ "$DRY_RUN" == true ]]; then
     printf "  [dry-run] %s\n" "$*"
   else
-    eval "$@"
+    "$@"
   fi
 }
 
@@ -86,21 +92,21 @@ install_autosearch() {
   # uv tool install (best: isolated, cross-platform, fast)
   if command -v uv &>/dev/null; then
     info "Installing via uv..."
-    run "uv tool install '$PKG_SPEC' --quiet" && success "Installed via uv ($PKG_SPEC)" && return 0
+    run uv tool install "$PKG_SPEC" --quiet && success "Installed via uv ($PKG_SPEC)" && return 0
   fi
 
   # pipx (also isolated, widely available)
   if command -v pipx &>/dev/null; then
     info "Installing via pipx..."
-    run "pipx install '$PKG_SPEC'" && success "Installed via pipx ($PKG_SPEC)" && return 0
+    run pipx install "$PKG_SPEC" && success "Installed via pipx ($PKG_SPEC)" && return 0
   fi
 
   # pip with Python 3.12+
   PYTHON=$(find_python || true)
   if [ -n "$PYTHON" ]; then
     info "Installing via pip ($PYTHON)..."
-    run "'$PYTHON' -m pip install --quiet --upgrade --break-system-packages '$PKG_SPEC' 2>/dev/null \
-      || '$PYTHON' -m pip install --quiet --upgrade '$PKG_SPEC'"
+    run "$PYTHON" -m pip install --quiet --upgrade --break-system-packages "$PKG_SPEC" \
+      || run "$PYTHON" -m pip install --quiet --upgrade "$PKG_SPEC"
     success "Installed via pip ($PKG_SPEC)" && return 0
   fi
 
