@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026.04.25.5 — 2026-04-25
+
+Second hotfix attempt for the `.25.3`/`.25.4` PyPI publish failure.
+`.25.4` pinned `twine>=6.1` in the **build** job but missed the
+**publish-pypi** job which had its own separate `pip install twine`
+without the pin — so the upload step grabbed older twine and rejected
+metadata-2.4 license-file/license-expression fields. Both `.25.3` and
+`.25.4` tags exist on GitHub but neither shipped to PyPI / npm / 
+GitHub Release.
+
+This release pins `twine>=6.1` in the publish-pypi job too. Same
+content as `.25.4` (which had all `.25.3` content + license metadata
+hotfix) — just the second half of the workflow fix.
+
 ## 2026.04.25.4 — 2026-04-25
 
 The "release plumbing hotfix" release — `2026.04.25.3` was tagged and
