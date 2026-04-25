@@ -5,6 +5,8 @@ Files checked:
   - pyproject.toml                     [project] version  → canonical (CalVer YYYY.MM.DD.N)
   - .claude-plugin/plugin.json         version            → must equal pyproject
   - .claude-plugin/marketplace.json    version            → must equal pyproject
+  - .claude-plugin/marketplace.json    metadata.version   → must equal pyproject
+  - .claude-plugin/marketplace.json    plugins[0].version → must equal pyproject
   - CHANGELOG.md                       first ## heading   → must equal pyproject
   - npm/package.json                   version            → must equal `derive_npm_version(pyproject)`
 
@@ -44,6 +46,24 @@ def _read_json_version(path: Path) -> str:
     return str(v)
 
 
+def _read_marketplace_versions(path: Path) -> dict[str, str]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    versions = {
+        "marketplace.json version": data.get("version"),
+        "marketplace.json metadata.version": data.get("metadata", {}).get("version"),
+    }
+    plugins = data.get("plugins")
+    if isinstance(plugins, list) and plugins:
+        versions["marketplace.json plugins[0].version"] = plugins[0].get("version")
+    else:
+        versions["marketplace.json plugins[0].version"] = None
+
+    missing = [label for label, value in versions.items() if not value]
+    if missing:
+        raise ValueError(f"version not found in {path}: {', '.join(missing)}")
+    return {label: str(value) for label, value in versions.items()}
+
+
 def _read_changelog() -> str:
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     m = re.search(r"^## (\S+)", text, re.MULTILINE)
@@ -74,13 +94,18 @@ def main() -> int:
     for label, fn in [
         ("pyproject.toml", _read_pyproject),
         ("plugin.json", lambda: _read_json_version(ROOT / ".claude-plugin/plugin.json")),
-        ("marketplace.json", lambda: _read_json_version(ROOT / ".claude-plugin/marketplace.json")),
         ("CHANGELOG.md", _read_changelog),
     ]:
         try:
             sources[label] = fn()
         except Exception as exc:
             errors.append(f"  {label}: {exc}")
+
+    marketplace_path = ROOT / ".claude-plugin/marketplace.json"
+    try:
+        sources.update(_read_marketplace_versions(marketplace_path))
+    except Exception as exc:
+        errors.append(f"  marketplace.json: {exc}")
 
     npm_path = ROOT / "npm" / "package.json"
     npm_version: str | None = None
