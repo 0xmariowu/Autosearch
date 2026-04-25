@@ -91,10 +91,10 @@ De-escalate when:
 
 Autosearch cannot force the runtime to change models. The `model_tier` field is a **suggestion** to help the runtime AI choose a provider/model route that matches the quality bar of the step. The runtime AI may ignore the advisory if it has better information (e.g. user specified a fixed model).
 
-## Boss Rules
+## Hard Rules
 
-- Cost: run the cheapest model that clears the quality bar; reserve best model for the 1-2 steps that shape the whole session outcome.
-- Judge: keep LLM-as-judge (pairwise A/B preference, open_deep_research pattern). Do **not** invent N-dim × 0/3/5 rubrics.
+- Cost: run the cheapest model that clears the quality bar; reserve the best model for the 1–2 steps that shape the whole session outcome.
+- Judge: keep LLM-as-judge (pairwise A/B preference, open_deep_research pattern). Do **not** invent N-dimensional × 0/3/5 numeric rubrics.
 - AVO: any `Best`-tier skill that modifies SKILL.md (like `auto-evolve`) must commit via `scripts/committer` and be reversible via `git revert`.
 
 # Quality Bar
