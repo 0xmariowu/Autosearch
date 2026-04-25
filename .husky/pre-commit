@@ -53,7 +53,9 @@ fi
 
 # Public-repo hygiene content check — flag dangerous flags / unsafe shortcuts
 # (Markdown docs included — these strings should never appear in published docs)
-HYGIENE_CONTENT_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -v -E '(\.gitleaks\.toml$|\.husky/|\.github/workflows/|docs/exec-plans/)' || true)
+# Allowlist must mirror scripts/validate/public_repo_hygiene.py CONTENT_RULES
+# allowlist_paths: files that legitimately describe the rule by literal name.
+HYGIENE_CONTENT_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -v -E '(\.gitleaks\.toml$|\.husky/|\.github/workflows/|docs/exec-plans/|^tests/.*\.(py|yaml|yml)$|^scripts/validate/public_repo_hygiene\.py$|^docs/internal-docs\.md$|^docs/public-repo-policy\.md$|^docs/security/hygiene-verify\.md$)' || true)
 if [ -n "$HYGIENE_CONTENT_FILES" ]; then
   HYGIENE_MATCHES=$(echo "$HYGIENE_CONTENT_FILES" | while IFS= read -r f; do grep -nEH 'dangerously-skip-permissions' "$f" 2>/dev/null; done || true)
   if [ -n "$HYGIENE_MATCHES" ]; then

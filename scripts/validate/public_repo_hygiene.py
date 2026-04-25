@@ -82,6 +82,10 @@ CONTENT_RULES: tuple[Rule, ...] = (
             re.compile(r"^\.husky/"),
             re.compile(r"^\.github/workflows/"),
             re.compile(r"^scripts/validate/public_repo_hygiene\.py$"),
+            # Hygiene docs that legitimately describe the rule by literal name.
+            re.compile(r"^docs/internal-docs\.md$"),
+            re.compile(r"^docs/public-repo-policy\.md$"),
+            re.compile(r"^docs/security/hygiene-verify\.md$"),
         ),
     ),
 )
