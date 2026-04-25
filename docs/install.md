@@ -27,11 +27,10 @@ Install AutoSearch and configure the MCP server so the user's agent has access t
 ### Step 1: Install AutoSearch
 
 ```bash
-# Option 1: npm wrapper — explicit install + init, no npm postinstall hook
-npm install -g autosearch-ai
-npx autosearch-ai --yes
+# Option 1: npm wrapper — one-shot install + init (cross-platform)
+npx autosearch-ai
 
-# Option 2: curl install script
+# Option 2: curl install script (macOS / Linux only)
 curl -fsSL https://raw.githubusercontent.com/0xmariowu/Autosearch/main/scripts/install.sh | bash
 
 # Option 3: pip
@@ -43,13 +42,14 @@ pipx install autosearch && autosearch init
 
 > The npm package does not run `init` automatically during `npm install`.
 > That is intentional: npm lifecycle scripts can execute code at install time,
-> which is a known supply-chain risk. Run `npx autosearch-ai --yes` for an
-> explicit one-shot install + init, or run `autosearch init` if the Python CLI
-> is already on PATH.
+> which is a known supply-chain risk. `npx autosearch-ai` triggers an explicit
+> install + init flow with a y/N confirmation before fetching anything; the CI
+> escape hatch is `npx autosearch-ai --yes` (do not put `--yes` in user-facing
+> docs). Plain `npm install -g autosearch-ai` installs the wrapper but does
+> not run `init` — use `npx autosearch-ai` for the one-shot flow, or run
+> `autosearch init` if the Python CLI is already on PATH.
 >
-> The curl option runs `autosearch init` automatically. Without `--yes`, the
-> npx option prints the install URL it's about to fetch and waits for `y` to
-> confirm.
+> The curl option runs `autosearch init` automatically.
 
 This will:
 - Detect available LLM providers (Anthropic, OpenAI, Gemini, claude CLI)

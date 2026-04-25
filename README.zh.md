@@ -31,20 +31,24 @@
 - "帮我整理一下推特上对这个技术的讨论" → **看不到**，Twitter 没有公开 API
 - "这个话题在知乎和 Reddit 上分别是什么观点" → 要跑两个平台，结果还得手动汇总
 
-**AutoSearch 把这件事变成一句话：**
+**AutoSearch 把这件事变成一句话。** 挑一条适合你的：
+
+**机器有 Node？**（最常见——macOS / Linux / Windows 都行）
 
 ```bash
 npx autosearch-ai
 ```
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/0xmariowu/Autosearch/main/scripts/install.sh | bash
-```
-
-或者复制给你的 AI Agent（Claude Code、Cursor 等）：
+**在用 Claude Code / Cursor / Zed？** 把这一行粘给你的 AI Agent：
 
 ```
 Help me install AutoSearch: https://raw.githubusercontent.com/0xmariowu/Autosearch/main/docs/install.md
+```
+
+**macOS / Linux shell 老用户？**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/0xmariowu/Autosearch/main/scripts/install.sh | bash
 ```
 
 安装后你的 Agent 能同时搜 40 个渠道——学术论文、开发者社区、中文社媒、Linux DO 论坛帖子，结果去重排序，每条结果都有来源链接。
