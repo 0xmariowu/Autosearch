@@ -56,3 +56,48 @@ def test_merge_combines_and_deduplicates():
     assert result["skipped_duplicates"] == 1
     urls = [e["url"] for e in ci._CITATION_INDEXES[target_id]._entries]
     assert "https://example.com/new" in urls
+
+
+def test_add_tracking_param_variants_return_same_number():
+    index_id = ci.create_index()
+    num1 = ci.add_citation(index_id, "https://example.com/a?utm_source=newsletter")
+    num2 = ci.add_citation(index_id, "https://example.com/a?utm_campaign=launch")
+
+    assert num1 == num2
+    assert len(ci._CITATION_INDEXES[index_id]._entries) == 1
+
+
+def test_add_fragment_variant_returns_same_number():
+    index_id = ci.create_index()
+    num1 = ci.add_citation(index_id, "https://example.com/a#section")
+    num2 = ci.add_citation(index_id, "https://example.com/a")
+
+    assert num1 == num2
+    assert len(ci._CITATION_INDEXES[index_id]._entries) == 1
+
+
+def test_add_trailing_slash_variant_returns_same_number():
+    index_id = ci.create_index()
+    num1 = ci.add_citation(index_id, "https://example.com/a/")
+    num2 = ci.add_citation(index_id, "https://example.com/a")
+
+    assert num1 == num2
+    assert len(ci._CITATION_INDEXES[index_id]._entries) == 1
+
+
+def test_add_arxiv_version_variant_returns_same_number():
+    index_id = ci.create_index()
+    num1 = ci.add_citation(index_id, "https://arxiv.org/abs/1234.5678v2")
+    num2 = ci.add_citation(index_id, "https://arxiv.org/abs/1234.5678")
+
+    assert num1 == num2
+    assert len(ci._CITATION_INDEXES[index_id]._entries) == 1
+
+
+def test_add_genuinely_different_paths_return_different_numbers():
+    index_id = ci.create_index()
+    num1 = ci.add_citation(index_id, "https://example.com/a")
+    num2 = ci.add_citation(index_id, "https://example.com/b")
+
+    assert num1 != num2
+    assert len(ci._CITATION_INDEXES[index_id]._entries) == 2

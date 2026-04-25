@@ -5,7 +5,57 @@ In-memory, per server process (lost on restart — intentional).
 
 from __future__ import annotations
 
+import re
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 import uuid
+
+
+_TRACKING_QUERY_PARAMS = {
+    "fbclid",
+    "gclid",
+    "ref",
+    "source",
+    "mc_cid",
+    "mc_eid",
+    "_ga",
+    "_gl",
+}
+_ARXIV_ABS_VERSION_RE = re.compile(r"^(/abs/.+?)v\d+$")
+
+
+def _canonicalize_url(url: str) -> str:
+    """Return a dedupe-only canonical URL while preserving display URLs elsewhere."""
+    parsed = urlsplit(url)
+
+    netloc = parsed.netloc
+    if parsed.hostname:
+        host_start = netloc.lower().rfind(parsed.hostname.lower())
+        if host_start >= 0:
+            netloc = (
+                netloc[:host_start]
+                + netloc[host_start : host_start + len(parsed.hostname)].lower()
+                + netloc[host_start + len(parsed.hostname) :]
+            )
+
+    path = re.sub(r"/{2,}", "/", parsed.path)
+    if path != "/":
+        path = path.rstrip("/")
+    if parsed.hostname and parsed.hostname.lower() == "arxiv.org":
+        path = _ARXIV_ABS_VERSION_RE.sub(r"\1", path)
+
+    query_items = [
+        (name, value)
+        for name, value in parse_qsl(parsed.query, keep_blank_values=True)
+        if not _is_tracking_query_param(name)
+    ]
+    query = urlencode(query_items, doseq=True)
+
+    return urlunsplit((parsed.scheme, netloc, path, query, ""))
+
+
+def _is_tracking_query_param(name: str) -> bool:
+    normalized = name.lower()
+    return normalized.startswith("utm_") or normalized in _TRACKING_QUERY_PARAMS
 
 
 class CitationIndex:
@@ -35,11 +85,12 @@ def add_citation(index_id: str, url: str, title: str = "", source: str = "") -> 
     Returns the citation number assigned to the URL.
     """
     idx = _CITATION_INDEXES[index_id]
-    if url in idx._url_to_num:
-        return idx._url_to_num[url]
+    canonical_url = _canonicalize_url(url)
+    if canonical_url in idx._url_to_num:
+        return idx._url_to_num[canonical_url]
     num = idx._next_num
     idx._next_num += 1
-    idx._url_to_num[url] = num
+    idx._url_to_num[canonical_url] = num
     idx._entries.append({"num": num, "url": url, "title": title, "source": source})
     return num
 
@@ -77,7 +128,7 @@ def merge_index(target_id: str, source_id: str) -> dict:
     skipped = 0
     for entry in source._entries:
         url = entry["url"]
-        if url in target._url_to_num:
+        if _canonicalize_url(url) in target._url_to_num:
             skipped += 1
         else:
             add_citation(target_id, url, title=entry["title"], source=entry["source"])
