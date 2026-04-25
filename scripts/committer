@@ -43,6 +43,19 @@ for file in "${FILES[@]}"; do
   [[ "$file" == *__pycache__* ]]  && die "refusing to stage '$file' — __pycache__ blocked"
   [[ "$file" == *.pyc ]]          && die "refusing to stage '$file' — .pyc files blocked"
   [[ "$(basename "$file")" == .env* ]] && die "refusing to stage '$file' — .env files blocked"
+
+  # Public-repo-hygiene paths (per public-repo-hygiene-plan F009)
+  [[ "$file" == "HANDOFF.md" ]]        && die "refusing to stage '$file' — internal handoff state blocked"
+  [[ "$file" == docs/plans/* ]]        && die "refusing to stage '$file' — internal plans blocked"
+  [[ "$file" == docs/proposals/* ]]    && die "refusing to stage '$file' — internal proposals blocked"
+  [[ "$file" == docs/spikes/* ]]       && die "refusing to stage '$file' — spike write-ups blocked"
+  [[ "$file" == docs/channel-hunt/* ]] && die "refusing to stage '$file' — channel reconnaissance logs blocked"
+  [[ "$file" == docs/exec-plans/* ]]   && die "refusing to stage '$file' — internal exec plans blocked"
+  [[ "$file" == reports/* ]]           && die "refusing to stage '$file' — local report artifacts blocked"
+  [[ "$(basename "$file")" == ".DS_Store" ]]   && die "refusing to stage '$file' — macOS metadata blocked"
+  [[ "$(basename "$file")" == *.private.md ]]  && die "refusing to stage '$file' — explicitly private docs blocked"
+  [[ "$(basename "$file")" == *.handoff.md ]]  && die "refusing to stage '$file' — handoff drafts blocked"
+
   if [[ ! -e "$file" ]] && ! git ls-files --error-unmatch "$file" &>/dev/null; then
     die "file not found: $file"
   fi
