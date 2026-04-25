@@ -41,7 +41,10 @@ def test_redact_strips_bearer_header() -> None:
 
 def test_redact_strips_cookie_header() -> None:
     out = redact("Cookie: SESSDATA=xxx; bili_jct=yyy")
-    assert "SESSDATA" not in out
+    assert "SESSDATA" in out
+    assert "bili_jct" in out
+    assert "xxx" not in out
+    assert "yyy" not in out
     assert "REDACTED" in out
 
 
