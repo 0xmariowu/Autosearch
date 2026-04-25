@@ -188,6 +188,37 @@ def test_summarize_counts_wins_and_ties() -> None:
     assert stats["b_win_rate"] == pytest.approx(0.25)
 
 
+def test_add_report_metadata_records_generation_context(monkeypatch) -> None:
+    monkeypatch.setattr(JUDGE, "current_commit_sha", lambda: "head-sha")
+    monkeypatch.setattr(JUDGE, "current_version", lambda: "2026.04.25.3")
+    stats = JUDGE.summarize(
+        [JUDGE.PairVerdict(name="1", winner="a", reason="x", swapped=False)],
+        "augmented",
+        "bare",
+    )
+
+    enriched = JUDGE.add_report_metadata(
+        stats,
+        model="claude-sonnet-4-6",
+        parallel=8,
+        a_dir=Path("reports/a"),
+        b_dir=Path("reports/b"),
+    )
+
+    assert enriched["commit_sha"] == "head-sha"
+    assert enriched["version"] == "2026.04.25.3"
+    assert isinstance(enriched["generated_at"], str)
+    assert enriched["test_config"] == {
+        "model": "claude-sonnet-4-6",
+        "parallel": 8,
+        "sample_size": 1,
+        "a_label": "augmented",
+        "b_label": "bare",
+        "a_dir": "reports/a",
+        "b_dir": "reports/b",
+    }
+
+
 def test_render_summary_markdown_contains_labels_and_counts() -> None:
     verdicts = [
         JUDGE.PairVerdict(name="pair1.md", winner="a", reason="A has specifics", swapped=False),
