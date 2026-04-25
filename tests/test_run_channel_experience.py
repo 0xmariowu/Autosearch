@@ -99,7 +99,7 @@ async def test_run_channel_appends_to_patterns_jsonl_after_execution(
     tm = server._tool_manager  # noqa: SLF001
     response = await tm.call_tool(
         "run_channel",
-        {"channel_name": "bilibili", "query": "test query", "k": 1},
+        {"channel_name": "bilibili", "query": "private launch question", "k": 1},
     )
 
     assert isinstance(response, RunChannelResponse)
@@ -108,13 +108,56 @@ async def test_run_channel_appends_to_patterns_jsonl_after_execution(
     patterns_path = skill_dir / "experience" / "patterns.jsonl"
     lines = patterns_path.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 1
+    assert "private launch question" not in lines[0]
     payload = json.loads(lines[0])
     assert payload["skill"] == "bilibili"
-    assert payload["query"] == "test query"
+    assert "query" not in payload
+    assert payload["channel"] == "bilibili"
+    assert payload["query_shape"] == {
+        "length_bucket": "medium",
+        "language": "latin",
+        "channel": "bilibili",
+        "outcome": "success",
+    }
     assert payload["outcome"] == "success"
     assert payload["count_total"] == 2
     assert payload["count_returned"] == 1
     assert datetime.fromisoformat(payload["ts"]).tzinfo is not None
+
+
+@pytest.mark.asyncio
+async def test_experience_compact_uses_query_shape_without_raw_query(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from autosearch.core.experience_compact import compact
+
+    skill_dir = _make_skill_dir(tmp_path, monkeypatch)
+    channel = _CapturingChannel(
+        "bilibili",
+        [_make_evidence("https://example.com/a", "Item A", "bilibili")],
+    )
+    monkeypatch.setattr("autosearch.mcp.server._build_channels", lambda: [channel])
+
+    server = create_server(pipeline_factory=lambda: None)  # type: ignore[arg-type]
+    tm = server._tool_manager  # noqa: SLF001
+    raw_query = "sensitive account launch details"
+    for _ in range(3):
+        response = await tm.call_tool(
+            "run_channel",
+            {"channel_name": "bilibili", "query": raw_query, "k": 1},
+        )
+        assert response.ok is True
+
+    patterns_path = skill_dir / "experience" / "patterns.jsonl"
+    body = patterns_path.read_text(encoding="utf-8")
+    assert raw_query not in body
+    assert '"query_shape"' in body
+
+    assert compact("bilibili") is True
+    digest = skill_dir.joinpath("experience.md").read_text(encoding="utf-8")
+    assert raw_query not in digest
+    assert "bilibili:success:medium:latin" in digest
 
 
 @pytest.mark.asyncio

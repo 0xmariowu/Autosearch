@@ -60,6 +60,9 @@ class RunChannelResponse(BaseModel):
       - `budget_exhausted`: paid quota / wallet is empty (TikHub 402, etc).
         Distinct from rate_limited because the fix is "top up balance",
         not "wait and retry" (Bug 3 / fix-plan v8 follow-up).
+      - `transient_error`: retryable transport or upstream failure.
+      - `channel_unavailable`: channel is configured, but no method is usable
+        right now.
       - `channel_error`: any other unexpected failure.
     """
 
@@ -671,7 +674,9 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
 
         from datetime import UTC, datetime
 
+        from autosearch.core.channel_status import exception_to_channel_status
         from autosearch.core.experience_compact import compact
+        from autosearch.core.experience_privacy import query_shape
         from autosearch.skills.experience import (
             append_event,
             load_experience_digest,
@@ -690,7 +695,8 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
                 channel_name,
                 {
                     "skill": channel_name,
-                    "query": query,
+                    "channel": channel_name,
+                    "query_shape": query_shape(query, channel=channel_name, outcome="error"),
                     "outcome": "error",
                     "count_returned": 0,
                     "count_total": 0,
@@ -699,32 +705,14 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
             )
             if should_compact(channel_name):
                 compact(channel_name)
-            from autosearch.channels.base import (
-                BudgetExhausted,
-                ChannelAuthError,
-                RateLimited,
-            )
-            from autosearch.core.redact import redact
-
-            # Bug 1 (fix-plan): map known typed channel errors to distinct
-            # status values so an authentication failure / rate limit doesn't
-            # masquerade as "channel_error" or — worse — empty results.
-            # Bug 3 (fix-plan v8 follow-up): split budget_exhausted from
-            # rate_limited so the agent can tell the user "top up" rather
-            # than "wait and retry".
-            if isinstance(exc, BudgetExhausted):
-                status = "budget_exhausted"
-            elif isinstance(exc, ChannelAuthError):
-                status = "auth_failed"
-            elif isinstance(exc, RateLimited):
-                status = "rate_limited"
-            else:
-                status = "channel_error"
+            failure = exception_to_channel_status(exc)
             return RunChannelResponse(
                 channel=channel_name,
                 ok=False,
-                status=status,
-                reason=redact(f"{status}: {type(exc).__name__}: {exc}"),
+                status=failure.status,
+                reason=failure.reason,
+                unmet_requires=failure.unmet_requires,
+                fix_hint=failure.fix_hint,
             )
 
         # Quality pipeline: URL dedup → SimHash near-dedup → BM25 relevance rerank
@@ -739,7 +727,8 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
             channel_name,
             {
                 "skill": channel_name,
-                "query": query,
+                "channel": channel_name,
+                "query_shape": query_shape(query, channel=channel_name, outcome="success"),
                 "outcome": "success",
                 "count_returned": len(returned),
                 "count_total": total,
@@ -902,7 +891,7 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
         """Run a query across multiple channels concurrently.
 
         Use when you want to search several channels in parallel for the same query.
-        Returns {evidence_by_channel, summary, failed_channels, budget_used}.
+        Returns {evidence_by_channel, summary, failed_channels, failed_channel_details, budget_used}.
         """
         from autosearch.core.delegate import run_subtask  # noqa: PLC0415
 
@@ -911,6 +900,7 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
             "evidence_by_channel": result.evidence_by_channel,
             "summary": result.summary,
             "failed_channels": result.failed_channels,
+            "failed_channel_details": result.failed_channel_details,
             "budget_used": result.budget_used,
         }
 

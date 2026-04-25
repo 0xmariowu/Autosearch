@@ -97,6 +97,36 @@ def test_compact_reads_events_and_writes_experience_md_with_structure(
     assert len(digest.splitlines()) <= 120
 
 
+def test_compact_converts_legacy_raw_query_to_shape_without_promoting_text(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    skill_dir = _make_skill_root(tmp_path, monkeypatch)
+    patterns_dir = skill_dir / "experience"
+    patterns_dir.mkdir()
+    patterns_path = patterns_dir / "patterns.jsonl"
+    raw_query = "private customer renewal problem"
+    events = [
+        {
+            "ts": f"2026-04-22T00:0{idx}:00+00:00",
+            "skill": "demo",
+            "outcome": "success",
+            "query": raw_query,
+        }
+        for idx in range(3)
+    ]
+    patterns_path.write_text(
+        "".join(json.dumps(event) + "\n" for event in events),
+        encoding="utf-8",
+    )
+
+    assert compact("demo") is True
+
+    digest = skill_dir.joinpath("experience.md").read_text(encoding="utf-8")
+    assert raw_query not in digest
+    assert "demo:success:medium:latin" in digest
+
+
 def test_should_compact_returns_true_when_event_count_meets_threshold(
     tmp_path,
     monkeypatch,

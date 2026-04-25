@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from autosearch.core.experience_privacy import query_shape_label, shape_from_legacy_query
 from autosearch.skills.experience import _parse_datetime, _runtime_skill_dir
 
 
@@ -56,6 +57,17 @@ def _read_events(patterns_path: Path) -> list[dict[str, Any]]:
             except json.JSONDecodeError:
                 continue
             if isinstance(payload, dict):
+                channel = str(payload.get("channel") or payload.get("skill") or "unknown")
+                outcome = str(payload.get("outcome") or "unknown")
+                if "query_shape" not in payload and "query" in payload:
+                    legacy_shape = shape_from_legacy_query(
+                        payload.get("query"),
+                        channel=channel,
+                        outcome=outcome,
+                    )
+                    if legacy_shape is not None:
+                        payload["query_shape"] = legacy_shape
+                payload.pop("query", None)
                 events.append(payload)
     return events
 
@@ -97,6 +109,8 @@ def compact(skill_name: str) -> bool:
                 )
 
             good_query = _clean_text(event.get("good_query"))
+            if good_query is None:
+                good_query = query_shape_label(event.get("query_shape"))
             if good_query is not None:
                 good_queries[good_query] += 1
                 good_query_last_seen[good_query] = _update_last_verified(
