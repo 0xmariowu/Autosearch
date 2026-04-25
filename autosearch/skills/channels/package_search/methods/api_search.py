@@ -4,10 +4,12 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Mapping
 from datetime import UTC, datetime
+from typing import NamedTuple
 
 import httpx
 import structlog
 
+from autosearch.channels.base import raise_as_channel_error
 from autosearch.core.models import Evidence, SubQuery
 
 LOGGER = structlog.get_logger(__name__).bind(component="channel", channel="package_search")
@@ -22,6 +24,12 @@ REQUEST_HEADERS = {
 MAX_NPM_RESULTS = 10
 MAX_SNIPPET_LENGTH = 300
 PER_SOURCE_TIMEOUT_SECONDS = 5.0
+
+
+class SourceResult(NamedTuple):
+    source: str
+    evidence: list[Evidence]
+    error: Exception | None
 
 
 def _truncate_on_word_boundary(text: str, *, max_length: int) -> str:
@@ -171,22 +179,27 @@ async def _run_pypi_source(
     token: str,
     *,
     fetched_at: datetime,
-) -> list[Evidence]:
+) -> SourceResult:
     source = f"pypi:{token}"
     try:
-        return await asyncio.wait_for(
-            _fetch_pypi_token(client, token, fetched_at=fetched_at),
-            timeout=PER_SOURCE_TIMEOUT_SECONDS,
+        return SourceResult(
+            source=source,
+            evidence=await asyncio.wait_for(
+                _fetch_pypi_token(client, token, fetched_at=fetched_at),
+                timeout=PER_SOURCE_TIMEOUT_SECONDS,
+            ),
+            error=None,
         )
     except TimeoutError:
-        LOGGER.warning("package_search_source_failed", source=source, reason="timeout")
-        return []
+        error = TimeoutError(f"{source} timed out after {PER_SOURCE_TIMEOUT_SECONDS:.1f}s")
+        LOGGER.warning("package_search_source_failed", source=source, reason=str(error))
+        return SourceResult(source=source, evidence=[], error=error)
     except httpx.HTTPError as exc:
         LOGGER.warning("package_search_source_failed", source=source, reason=str(exc))
-        return []
+        return SourceResult(source=source, evidence=[], error=exc)
     except Exception as exc:
         LOGGER.warning("package_search_source_failed", source=source, reason=str(exc))
-        return []
+        return SourceResult(source=source, evidence=[], error=exc)
 
 
 async def _run_npm_source(
@@ -194,21 +207,40 @@ async def _run_npm_source(
     query_text: str,
     *,
     fetched_at: datetime,
-) -> list[Evidence]:
+) -> SourceResult:
+    source = "npm"
     try:
-        return await asyncio.wait_for(
-            _fetch_npm_results(client, query_text, fetched_at=fetched_at),
-            timeout=PER_SOURCE_TIMEOUT_SECONDS,
+        return SourceResult(
+            source=source,
+            evidence=await asyncio.wait_for(
+                _fetch_npm_results(client, query_text, fetched_at=fetched_at),
+                timeout=PER_SOURCE_TIMEOUT_SECONDS,
+            ),
+            error=None,
         )
     except TimeoutError:
-        LOGGER.warning("package_search_source_failed", source="npm", reason="timeout")
-        return []
+        error = TimeoutError(f"{source} timed out after {PER_SOURCE_TIMEOUT_SECONDS:.1f}s")
+        LOGGER.warning("package_search_source_failed", source=source, reason=str(error))
+        return SourceResult(source=source, evidence=[], error=error)
     except httpx.HTTPError as exc:
-        LOGGER.warning("package_search_source_failed", source="npm", reason=str(exc))
-        return []
+        LOGGER.warning("package_search_source_failed", source=source, reason=str(exc))
+        return SourceResult(source=source, evidence=[], error=exc)
     except Exception as exc:
-        LOGGER.warning("package_search_source_failed", source="npm", reason=str(exc))
-        return []
+        LOGGER.warning("package_search_source_failed", source=source, reason=str(exc))
+        return SourceResult(source=source, evidence=[], error=exc)
+
+
+def _most_informative_error(results: list[SourceResult]) -> Exception:
+    errors = [result.error for result in results if result.error is not None]
+    for error in errors:
+        if isinstance(error, httpx.HTTPStatusError):
+            status = error.response.status_code
+            if status in (401, 403, 429) or 400 <= status < 500:
+                return error
+    for error in errors:
+        if isinstance(error, httpx.HTTPStatusError):
+            return error
+    return errors[0]
 
 
 async def _search_with_client(
@@ -219,7 +251,6 @@ async def _search_with_client(
 ) -> list[Evidence]:
     fetched_at = datetime.now(UTC)
     pypi_tokens = _tokenize_pypi_query(query.text, max_pypi_tokens=max_pypi_tokens)
-    source_names = ["npm", *[f"pypi:{token}" for token in pypi_tokens]]
     tasks = [
         _run_npm_source(client, query.text, fetched_at=fetched_at),
         *[_run_pypi_source(client, token, fetched_at=fetched_at) for token in pypi_tokens],
@@ -228,14 +259,23 @@ async def _search_with_client(
 
     npm_results: list[Evidence] = []
     pypi_results: list[Evidence] = []
-    for source, result in zip(source_names, results, strict=True):
+    source_results: list[SourceResult] = []
+    for result in results:
         if isinstance(result, Exception):
+            source = "unknown"
             LOGGER.warning("package_search_source_failed", source=source, reason=str(result))
+            source_results.append(SourceResult(source=source, evidence=[], error=result))
             continue
-        if source == "npm":
-            npm_results.extend(result)
+        source_results.append(result)
+        if result.source == "npm":
+            npm_results.extend(result.evidence)
             continue
-        pypi_results.extend(result)
+        pypi_results.extend(result.evidence)
+
+    if source_results and all(
+        result.error is not None and not result.evidence for result in source_results
+    ):
+        raise_as_channel_error(_most_informative_error(source_results))
 
     return _dedupe_by_url([*npm_results, *pypi_results])
 

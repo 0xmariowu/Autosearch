@@ -251,9 +251,11 @@ async def test_npm_maps_objects_list_to_evidence() -> None:
 
 
 @pytest.mark.asyncio
-async def test_search_returns_empty_on_both_failed(
+async def test_search_raises_when_all_sources_fail(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from autosearch.channels.base import TransientError
+
     logger = _Logger()
     monkeypatch.setattr(MODULE, "LOGGER", logger)
 
@@ -261,9 +263,9 @@ async def test_search_returns_empty_on_both_failed(
         return httpx.Response(500, json={"message": "server error"}, request=request)
 
     async with _client(handler) as http_client:
-        results = await search(_query("fastapi"), http_client=http_client)
+        with pytest.raises(TransientError):
+            await search(_query("fastapi"), http_client=http_client)
 
-    assert results == []
     assert len(logger.events) == 2
     assert {event for event, _ in logger.events} == {"package_search_source_failed"}
 
@@ -273,3 +275,44 @@ async def test_search_returns_empty_on_both_failed(
     assert set(reasons_by_source) == {"npm", "pypi:fastapi"}
     assert "500" in reasons_by_source["npm"]
     assert "500" in reasons_by_source["pypi:fastapi"]
+
+
+@pytest.mark.asyncio
+async def test_search_returns_partial_results_when_one_source_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    logger = _Logger()
+    monkeypatch.setattr(MODULE, "LOGGER", logger)
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "registry.npmjs.org":
+            return httpx.Response(
+                200,
+                json={
+                    "total": 1,
+                    "objects": [
+                        {
+                            "package": {
+                                "name": "fastify",
+                                "description": "Fast and low overhead web framework, for Node.js",
+                                "version": "5.1.0",
+                                "links": {"npm": "https://www.npmjs.com/package/fastify"},
+                            }
+                        }
+                    ],
+                },
+                request=request,
+            )
+
+        return httpx.Response(500, json={"message": "server error"}, request=request)
+
+    async with _client(handler) as http_client:
+        results = await search(_query("fastapi"), http_client=http_client)
+
+    assert len(results) == 1
+    assert results[0].source_channel == "package_search:npm"
+    assert results[0].title == "fastify 5.1.0"
+    assert logger.events
+    assert logger.events[0][0] == "package_search_source_failed"
+    assert logger.events[0][1]["source"] == "pypi:fastapi"
+    assert "500" in str(logger.events[0][1]["reason"])

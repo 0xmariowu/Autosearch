@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 import httpx
 import structlog
 
+from autosearch.channels.base import raise_as_channel_error
 from autosearch.core.models import Evidence, FetchedPage, SubQuery
 
 try:
@@ -278,7 +279,7 @@ async def search(
                 reason=str(exc),
                 fallback_reason=str(fallback_exc),
             )
-            return []
+            raise_as_channel_error(fallback_exc)
         return await asyncio.gather(
             *[_enrich_evidence(evidence, http_client=http_client) for evidence in evidences]
         )

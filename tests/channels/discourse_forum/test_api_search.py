@@ -221,7 +221,11 @@ async def test_search_uses_slug_canonical_topic_url_for_enrichment() -> None:
 
 
 @pytest.mark.asyncio
-async def test_search_returns_empty_on_http_error(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_search_raises_when_api_and_fallback_are_blocked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from autosearch.channels.base import TransientError
+
     logger = _Logger()
     monkeypatch.setattr(MODULE, "LOGGER", logger)
 
@@ -234,9 +238,9 @@ async def test_search_returns_empty_on_http_error(monkeypatch: pytest.MonkeyPatc
         return httpx.Response(403, json={"error": "forbidden"}, request=request)
 
     async with _client(handler) as http_client:
-        results = await search(_query(), http_client=http_client)
+        with pytest.raises(TransientError):
+            await search(_query(), http_client=http_client)
 
-    assert results == []
     assert logger.events
     assert logger.events[0][0] == "discourse_forum_search_failed"
     assert "403" in str(logger.events[0][1]["reason"])
@@ -244,9 +248,11 @@ async def test_search_returns_empty_on_http_error(monkeypatch: pytest.MonkeyPatc
 
 
 @pytest.mark.asyncio
-async def test_search_returns_empty_on_malformed_payload(
+async def test_search_raises_when_malformed_payload_and_fallback_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from autosearch.channels.base import TransientError
+
     logger = _Logger()
     monkeypatch.setattr(MODULE, "LOGGER", logger)
 
@@ -259,9 +265,9 @@ async def test_search_returns_empty_on_malformed_payload(
         return httpx.Response(200, json={"topics": []}, request=request)
 
     async with _client(handler) as http_client:
-        results = await search(_query(), http_client=http_client)
+        with pytest.raises(TransientError):
+            await search(_query(), http_client=http_client)
 
-    assert results == []
     assert logger.events == [
         (
             "discourse_forum_search_failed",
