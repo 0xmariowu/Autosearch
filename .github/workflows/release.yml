@@ -77,8 +77,8 @@ jobs:
       - name: Install autosearch (for release-gate CLI surface checks)
         run: pip install -e ".[dev]"
 
-      - name: Run release-gate.sh --quick (version + lint + CLI surface)
-        run: bash scripts/release-gate.sh --quick
+      - name: Run release-gate.sh --quick --pypi (version + uniqueness + lint + CLI surface)
+        run: bash scripts/release-gate.sh --quick --pypi
 
       - name: Install build backend
         run: pip install build twine
@@ -147,7 +147,7 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: twine upload --skip-existing dist/*
+        run: twine upload dist/*
 
   create-github-release:
     runs-on: ubuntu-latest
