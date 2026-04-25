@@ -1,4 +1,4 @@
-"""百度贴吧搜索渠道 — 免费，无需 API key。"""
+"""Baidu Tieba search channel; captcha safety pages are anti-scrape blocks."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 import httpx
 import structlog
 
-from autosearch.channels.base import raise_as_channel_error
+from autosearch.channels.base import TransientError, raise_as_channel_error
 from autosearch.core.models import Evidence, SubQuery
 
 LOGGER = structlog.get_logger(__name__).bind(component="channel", channel="tieba")
@@ -16,6 +16,14 @@ LOGGER = structlog.get_logger(__name__).bind(component="channel", channel="tieba
 _SEARCH_URL = "https://tieba.baidu.com/f/search/res"
 _HTTP_TIMEOUT = 15.0
 _MAX_RESULTS = 10
+_SAFETY_VERIFY_MARKERS = (
+    "百度安全验证",
+    "wappass.baidu.com",
+    "safetyverify",
+    "verify.baidu.com",
+    "captcha",
+    "安全验证",
+)
 
 _HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
@@ -43,9 +51,32 @@ async def _search_tieba(query: str) -> list[Evidence]:
         timeout=_HTTP_TIMEOUT, headers=_HEADERS, follow_redirects=True
     ) as client:
         resp = await client.get(_SEARCH_URL, params=params)
+        _raise_if_safety_verification_response(resp)
         resp.raise_for_status()
 
     return _parse_results(resp.text)
+
+
+def _raise_if_safety_verification_response(resp: httpx.Response) -> None:
+    if resp.status_code != 403:
+        return
+    if not _looks_like_safety_verification(resp):
+        return
+    raise TransientError("tieba anti-scrape safety verification returned HTTP 403")
+
+
+def _looks_like_safety_verification(resp: httpx.Response) -> bool:
+    body = resp.text.lower()
+    if any(marker.lower() in body for marker in _SAFETY_VERIFY_MARKERS):
+        return True
+
+    content_type = resp.headers.get("content-type", "").lower()
+    is_html = "html" in content_type or "<html" in body
+    if not is_html:
+        return False
+
+    challenge_terms = ("验证码", "安全验证", "人机", "challenge", "captcha", "verify")
+    return any(term in body for term in challenge_terms)
 
 
 def _parse_results(html: str) -> list[Evidence]:
