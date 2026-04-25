@@ -17,6 +17,18 @@ description: "Full test strategy: current state, gaps, and phased rollout"
 | **Real LLM** (actual provider calls) | — | **0** | — | **No** |
 | **Perf / concurrency** | — | **0** | — | **No** |
 
+### Live and PR gate policy
+
+Default PR gate: `pytest -m "not real_llm and not slow and not network and not live"`.
+
+Live channel tests make real external API calls. They are nightly / on-demand checks,
+not PR gates. The default live command excludes anti-scrape-prone channels:
+`pytest tests/integration/test_free_channels_live.py -m "live and not flaky_live"`.
+
+Anti-scrape-prone channels such as `tieba` are marked `flaky_live` and run only in
+the separate flaky-live pool, for example:
+`pytest tests/integration/test_free_channels_live.py -m "live and flaky_live"`.
+
 **80 tests passing, all green** — but nothing proves the tool actually runs when you type `autosearch query "..."` on a real machine. Every test substitutes `LLMClient.complete` with canned Pydantic returns. There has been zero verification that:
 
 - any of the 4 LLM providers (Claude / Anthropic / OpenAI / Gemini) actually returns valid JSON under our schema
@@ -106,12 +118,16 @@ markers = [
     "smoke: subprocess or live-server tests (slower but no external calls)",
     "perf: concurrency / load tests (local only)",
     "slow: tests that take > 5s",
+    "live: live network integration tests (real API calls, run in nightly CI)",
+    "flaky_live: anti-scrape-prone live tests excluded from the default live suite",
 ]
 ```
 
-Default CI: `pytest -m "not real_llm and not perf and not slow"`
+Default CI / PR gate: `pytest -m "not real_llm and not slow and not network and not live"`
 On-push-to-main workflow: adds `smoke` to the selector
 Nightly (or manual): runs `real_llm` with secrets-based env
+Live channel nightly (or manual): runs `pytest tests/integration/test_free_channels_live.py -m "live and not flaky_live"`
+Flaky live channel pool: runs `pytest tests/integration/test_free_channels_live.py -m "live and flaky_live"` on demand
 
 ## 5. Proposed new test files (concrete)
 
