@@ -24,20 +24,21 @@ If the command is not found, your MCP client won't be able to launch it either â
 
 ## Claude Code
 
-Claude Code reads `~/.claude/mcp.json` globally and `<project>/.mcp.json` per-project. Add an `mcpServers.autosearch` entry:
+Use Claude Code's MCP command to add AutoSearch:
 
-```json
-{
-  "mcpServers": {
-    "autosearch": {
-      "command": "autosearch-mcp",
-      "env": {
-        "ANTHROPIC_API_KEY": "sk-ant-..."
-      }
-    }
-  }
-}
+```bash
+claude mcp add --transport stdio autosearch -- autosearch-mcp
 ```
+
+Claude Code stores local/user scoped MCP config in `~/.claude.json`, and shared
+project config in `<project>/.mcp.json`. If the `claude` CLI is not available
+and you want project-bound config, run:
+
+```bash
+autosearch init --client claude --scope project
+```
+
+That writes `<project>/.mcp.json`.
 
 You can also point the CLI at a specific config for one invocation:
 
