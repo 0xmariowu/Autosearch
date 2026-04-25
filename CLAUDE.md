@@ -1,6 +1,6 @@
 # AutoSearch — Project Rules
 
-> Behavioral rules for AI working in this codebase. Extends global CLAUDE.md.
+> Behavioral rules for AI agents and human contributors working in this codebase.
 
 ## What this is
 
@@ -60,9 +60,9 @@ Fast subset only (~4s). Full suite runs in CI.
 ## Session Protocol — After completing a search session
 
 1. Verify `patterns.jsonl` and `evolution.jsonl` have new entries (Phase 3 ran).
-2. Save any durable findings or analysis in repo-local artifacts, not external personal directories.
+2. Save durable findings or analysis in repo-local artifacts only. Do not write to directories outside the repository tree.
 3. Sync patterns to platform channel SKILL.md files: win_rate ≥ 0.6 across 3+ sessions → add; win_rate = 0 across 3+ sessions → Known Failures.
-4. If this repo maintains an active `experience/` log, write `experience/{YYYY-MM-DD}-{topic}.md` and update its index.
+4. Public-repo hygiene: do not commit `HANDOFF.md`, `docs/plans/`, `docs/proposals/`, `docs/spikes/`, `docs/channel-hunt/`, `docs/exec-plans/`, `reports/`, or any `*.private.md` / `*.handoff.md`. The full list and rationale is in `docs/internal-docs.md`; the rules are enforced by `.gitignore`, `scripts/committer`, `.husky/pre-commit`, and the CI hygiene workflow.
 5. CHANGELOG.md is release-only — update it during release (`bump-version.sh`), not on every PR. GitHub release notes auto-generate from PR titles using `.github/release-notes-instructions.md`.
 
 ## AVO rules (self-evolution)
@@ -117,8 +117,8 @@ Version lives in 3 files (kept in sync by `scripts/bump-version.sh`):
 
 ## Lessons Learned
 
-- Pre-commit hook must verify git author email is noreply and name is 0xmariowu before every commit. Rules in CLAUDE.md alone are not enough — they get forgotten under task pressure. The hook is the enforcement. Because: 2026-04-04 incident — 56 commits with PII (real name + Tailscale email) in public git history, required full history rewrite.
-- Detection config files (.gitleaks.toml) must use generic regex patterns, never literal PII values. `[a-z]+mac` not `vimalamac`. Because: the detection file itself became a PII leak.
-- Don't version-bump in each parallel PR. Bump once after the merge batch on main. Because: 7 PRs each bumped to .8, creating empty CHANGELOG entries and merge noise.
-- Pre-commit hook must grep staged files for internal project codenames (Armory/AIMD/atoms/kalami/alaya-os). Because: internal refs leaked into public docs despite CLAUDE.md rules.
-- bump-version.sh should warn if the previous version section in CHANGELOG.md has no content. Because: empty version entries are user-visible bugs.
+- Pre-commit hook must verify git author email is the project's noreply address and name matches the public maintainer pseudonym before every commit. Rules in this file alone are not enough — they get forgotten under task pressure. The hook is the enforcement. Because: a prior incident leaked maintainer PII (real name + non-public hostname) into public git history and required a history rewrite.
+- Detection config files (`.gitleaks.toml`) must use generic regex patterns, never literal PII values — e.g. `[a-z]+mac` rather than spelling out an actual hostname. Because: the detection file itself can become a PII leak.
+- Don't version-bump in each parallel PR. Bump once after the merge batch on main. Because: parallel bumps create empty CHANGELOG entries and merge noise.
+- Pre-commit hook must grep staged files for internal-project codenames and private knowledge-base names. Maintain that pattern list inside the hook (and `.gitleaks.toml`), not in user-visible documentation. Because: internal references leak into public docs despite written rules — only the scanner reliably catches them.
+- `bump-version.sh` should warn if the previous version section in `CHANGELOG.md` has no content. Because: empty version entries are user-visible bugs.
