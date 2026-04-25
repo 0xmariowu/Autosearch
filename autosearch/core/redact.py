@@ -21,7 +21,7 @@ _SECRET_PATTERNS = [
     re.compile(r"AIzaSy[A-Za-z0-9_-]{20,}"),
     re.compile(r"tvly-[A-Za-z0-9_-]{16,}"),
     re.compile(r"exa-[A-Za-z0-9_-]{16,}"),
-    re.compile(r"(?i)Bearer\s+[A-Za-z0-9._\-]+"),
+    re.compile(r"(?i)Bearer\s+[A-Za-z0-9._\-+/=~]+"),
     re.compile(r"(?i)Cookie:\s*[^\n]+"),
     # Generic KEY=value where value looks token-shaped — preserve key name
     re.compile(r"([A-Z][A-Z0-9_]+_(KEY|TOKEN|SECRET|COOKIES?))=([^\s\"']{8,})"),
