@@ -20,10 +20,13 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import dataclasses
+from datetime import UTC, datetime
 import json
 import os
 import random
+import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from typing import Iterable
 
@@ -32,6 +35,7 @@ import httpx
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 DEFAULT_MODEL = "claude-sonnet-4-6"
 DEFAULT_PARALLEL = 4
+ROOT = Path(__file__).resolve().parents[2]
 PAIRWISE_PROMPT = """You are judging two research reports that answer the same question.
 
 Read both reports carefully. Decide which one answers the question better.
@@ -226,6 +230,47 @@ def summarize(verdicts: Iterable[PairVerdict], a_label: str, b_label: str) -> di
     }
 
 
+def current_commit_sha() -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+        check=True,
+    )
+    return result.stdout.strip()
+
+
+def current_version() -> str:
+    with (ROOT / "pyproject.toml").open("rb") as f:
+        return str(tomllib.load(f)["project"]["version"])
+
+
+def add_report_metadata(
+    stats: dict[str, object],
+    *,
+    model: str,
+    parallel: int,
+    a_dir: Path,
+    b_dir: Path,
+) -> dict[str, object]:
+    return {
+        **stats,
+        "commit_sha": current_commit_sha(),
+        "version": current_version(),
+        "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "test_config": {
+            "model": model,
+            "parallel": parallel,
+            "sample_size": stats["total"],
+            "a_label": stats["a_label"],
+            "b_label": stats["b_label"],
+            "a_dir": str(a_dir),
+            "b_dir": str(b_dir),
+        },
+    }
+
+
 def render_summary_markdown(stats: dict[str, object], verdicts: list[PairVerdict]) -> str:
     lines = [
         f"# Pairwise judge summary — {stats['a_label']} vs {stats['b_label']}",
@@ -312,7 +357,13 @@ def main(argv: list[str] | None = None) -> int:
             encoding="utf-8",
         )
 
-    stats = summarize(verdicts, args.a_label, args.b_label)
+    stats = add_report_metadata(
+        summarize(verdicts, args.a_label, args.b_label),
+        model=args.model,
+        parallel=args.parallel,
+        a_dir=args.a_dir,
+        b_dir=args.b_dir,
+    )
     (args.output_dir / "stats.json").write_text(
         json.dumps(stats, ensure_ascii=False, indent=2),
         encoding="utf-8",

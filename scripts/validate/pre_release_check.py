@@ -7,6 +7,7 @@ Exit 0 = all checks pass. Exit 1 = one or more fail.
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import subprocess
@@ -65,26 +66,104 @@ def _check_mcp_tools() -> tuple[bool, str]:
     return ok, out.splitlines()[0] if out else "error"
 
 
-def _check_gate12_bench() -> tuple[bool, str]:
-    reports = sorted(ROOT.glob("reports/*/judge/stats.json"))
+def _current_head() -> tuple[bool, str]:
+    ok, out = _run("git_head", ["git", "rev-parse", "HEAD"])
+    if not ok:
+        return False, f"could not determine HEAD commit: {out}"
+    return True, out.splitlines()[0].strip()
+
+
+def _stats_sort_key(path: Path, stats: dict[str, object]) -> tuple[str, float]:
+    generated_at = stats.get("generated_at")
+    if not isinstance(generated_at, str):
+        generated_at = ""
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        mtime = 0.0
+    return generated_at, mtime
+
+
+def _read_gate12_reports() -> list[tuple[Path, dict[str, object]]]:
+    reports: list[tuple[Path, dict[str, object]]] = []
+    for path in ROOT.glob("reports/*/judge/stats.json"):
+        stats = json.loads(path.read_text(encoding="utf-8"))
+        reports.append((path, stats))
+    return sorted(reports, key=lambda item: _stats_sort_key(item[0], item[1]))
+
+
+def _check_gate12_bench(*, allow_stale: bool = False) -> tuple[bool, str]:
+    paths = sorted(ROOT.glob("reports/*/judge/stats.json"))
+    if not paths:
+        return (
+            False,
+            "no Gate 12 bench results found (run scripts/bench/bench_augment_vs_bare.py first)",
+        )
+
+    head_ok, head = _current_head()
+    if not head_ok:
+        return False, head
+
+    try:
+        reports = _read_gate12_reports()
+    except Exception as exc:
+        return False, f"could not parse Gate 12 stats: {exc}"
+
     if not reports:
         return (
             False,
             "no Gate 12 bench results found (run scripts/bench/bench_augment_vs_bare.py first)",
         )
-    latest = reports[-1]
+
+    matching = [(path, stats) for path, stats in reports if stats.get("commit_sha") == head]
+    if matching:
+        latest, stats = matching[-1]
+        stale_prefix = ""
+    elif allow_stale:
+        latest, stats = reports[-1]
+        stale_commit = stats.get("commit_sha")
+        stale_prefix = (
+            f"WARNING: Gate 12 stale: stats are from commit {stale_commit or 'unknown'} "
+            f"but HEAD is {head}; "
+        )
+    else:
+        latest, stats = reports[-1]
+        stale_commit = stats.get("commit_sha")
+        if stale_commit:
+            return (
+                False,
+                f"Gate 12 stale: Gate 12 stats are from commit {stale_commit} "
+                f"but HEAD is {head}; rerun gate-12",
+            )
+        return (
+            False,
+            "Gate 12 stale: stats are missing commit_sha; rerun gate-12",
+        )
+
     try:
-        stats = json.loads(latest.read_text(encoding="utf-8"))
         win_rate = stats.get("a_win_rate", stats.get("augmented_win_rate", 0.0))
         ok = float(win_rate) >= 0.50
-        return ok, f"win_rate={float(win_rate):.1%} from {latest.parent.parent.name}"
+        return ok, f"{stale_prefix}win_rate={float(win_rate):.1%} from {latest.parent.parent.name}"
     except Exception as exc:
         return False, f"could not parse {latest}: {exc}"
 
 
+def _label_names(pr: dict[str, object]) -> set[str]:
+    labels = pr.get("labels") or []
+    names: set[str] = set()
+    if not isinstance(labels, list):
+        return names
+    for label in labels:
+        if isinstance(label, dict) and isinstance(label.get("name"), str):
+            names.add(label["name"])
+        elif isinstance(label, str):
+            names.add(label)
+    return names
+
+
 def _check_open_prs() -> tuple[bool, str]:
     result = subprocess.run(
-        ["gh", "pr", "list", "--state", "open", "--json", "number,title"],
+        ["gh", "pr", "list", "--state", "open", "--json", "number,title,labels"],
         capture_output=True,
         text=True,
         cwd=ROOT,
@@ -94,10 +173,12 @@ def _check_open_prs() -> tuple[bool, str]:
         return True, "gh not available — skipping PR check"
     try:
         prs = json.loads(result.stdout)
-        if prs:
-            titles = [f"#{p['number']}" for p in prs[:3]]
-            return False, f"{len(prs)} open PRs: {', '.join(titles)}"
-        return True, "no open PRs"
+        blockers = [p for p in prs if "release-blocker" in _label_names(p)]
+        summary = f"{len(prs)} open PRs ({len(blockers)} release-blockers)"
+        if blockers:
+            titles = [f"#{p['number']}" for p in blockers[:3]]
+            return False, f"{summary}: {', '.join(titles)}"
+        return True, summary
     except Exception:
         return True, "could not parse gh output — skipping"
 
@@ -115,14 +196,22 @@ def _check_git_clean() -> tuple[bool, str]:
     return True, "working tree clean"
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Run fast pre-release checks.")
+    parser.add_argument(
+        "--allow-stale-gate12",
+        action="store_true",
+        help="Allow Gate 12 stats from a different commit for emergency or dry-run checks.",
+    )
+    args = parser.parse_args(argv)
+
     checks = [
         ("Version 4-file consistency", _check_version_consistency),
         ("SKILL.md format compliance", _check_skill_format),
         ("Channel experience dirs", _check_experience_dirs),
         ("MCP tools registered", _check_mcp_tools),
-        ("Gate 12 bench ≥ 50%", _check_gate12_bench),
-        ("Open PRs = 0", _check_open_prs),
+        ("Gate 12 bench ≥ 50%", lambda: _check_gate12_bench(allow_stale=args.allow_stale_gate12)),
+        ("Open PR release blockers", _check_open_prs),
         ("Git working tree clean", _check_git_clean),
     ]
 

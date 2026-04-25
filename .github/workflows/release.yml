@@ -27,6 +27,7 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+      pull-requests: read
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
       version: ${{ steps.tag.outputs.version }}
@@ -76,6 +77,11 @@ jobs:
 
       - name: Install autosearch (for release-gate CLI surface checks)
         run: pip install -e ".[dev]"
+
+      - name: Run pre-release checklist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/validate/pre_release_check.py
 
       - name: Run release-gate.sh --quick --pypi (version + uniqueness + lint + CLI surface)
         run: bash scripts/release-gate.sh --quick --pypi
