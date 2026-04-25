@@ -8,11 +8,25 @@ from functools import lru_cache
 from pathlib import Path
 import re
 
+from autosearch.core.search_modes import detect_mode, has_chinese_ugc_intent
 from autosearch.skills.loader import SkillLoadError, _extract_frontmatter
 
 _SKILLS_ROOT = Path(__file__).resolve().parents[1] / "skills" / "channels"
 _MODE_LIMITS = {"fast": 5, "deep": 8}
 _GENERIC_WEB_DOMAIN = "generic-web"
+_CHINESE_NATIVE_DOMAINS = {"chinese-ugc", "cn-tech"}
+_CHINESE_NATIVE_GUARD_PRIORITY = (
+    "xiaohongshu",
+    "zhihu",
+    "weibo",
+    "tieba",
+    "bilibili",
+    "douyin",
+    "kr36",
+    "infoq_cn",
+    "v2ex",
+    "sogou_weixin",
+)
 _CJK_PATTERN = re.compile(r"[\u3400-\u9FFF]")
 _WORD_PATTERN = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)?", re.IGNORECASE)
 _DOMAIN_ALIASES: dict[str, str] = {
@@ -328,6 +342,120 @@ def _language_affinity(spec: ChannelRouteSpec, *, has_cjk: bool) -> int:
     return 1 if {"en", "mixed"} & query_languages else 0
 
 
+def _is_chinese_native_channel(spec: ChannelRouteSpec) -> bool:
+    return bool(_CHINESE_NATIVE_DOMAINS & set(spec.domains)) and bool(
+        {"zh", "mixed"} & set(spec.query_languages)
+    )
+
+
+def _needs_chinese_native_guard(query: str) -> bool:
+    detected = detect_mode(query)
+    return (detected is not None and detected.key == "chinese_ugc") or has_chinese_ugc_intent(query)
+
+
+def _rank_chinese_native_candidates(
+    catalog: tuple[ChannelRouteSpec, ...],
+    *,
+    query_lower: str,
+    query_tokens: set[str],
+    skip: set[str],
+) -> list[ChannelRouteSpec]:
+    priority_index = {name: index for index, name in enumerate(_CHINESE_NATIVE_GUARD_PRIORITY)}
+    fallback_index = len(priority_index)
+    candidates = [
+        spec for spec in catalog if spec.name not in skip and _is_chinese_native_channel(spec)
+    ]
+    return sorted(
+        candidates,
+        key=lambda spec: (
+            -_channel_match_score(spec, query_lower, query_tokens),
+            priority_index.get(spec.name, fallback_index),
+            spec.name,
+        ),
+    )
+
+
+def _apply_chinese_native_guard(
+    channels: list[str],
+    top_groups: list[str],
+    catalog: tuple[ChannelRouteSpec, ...],
+    *,
+    query_lower: str,
+    query_tokens: set[str],
+    skip: set[str],
+    limit: int,
+) -> tuple[list[str], list[str], bool]:
+    if not channels or limit <= 0:
+        return channels, top_groups, False
+
+    spec_by_name = {spec.name: spec for spec in catalog}
+    native_names = {spec.name for spec in catalog if _is_chinese_native_channel(spec)}
+    candidates = _rank_chinese_native_candidates(
+        catalog,
+        query_lower=query_lower,
+        query_tokens=query_tokens,
+        skip=skip,
+    )
+    changed = False
+
+    def domains_for(channel: str) -> tuple[str, ...]:
+        spec = spec_by_name.get(channel)
+        return spec.domains if spec else ()
+
+    def native_count() -> int:
+        return sum(1 for channel in channels if channel in native_names)
+
+    def academic_count() -> int:
+        return sum(1 for channel in channels if "academic" in domains_for(channel))
+
+    def add_candidate(candidate: str) -> bool:
+        nonlocal changed
+        if candidate in channels:
+            return False
+        if len(channels) < limit:
+            channels.append(candidate)
+            changed = True
+            return True
+
+        replace_index = next(
+            (
+                index
+                for index in range(len(channels) - 1, -1, -1)
+                if channels[index] not in native_names
+            ),
+            None,
+        )
+        if replace_index is None:
+            return False
+
+        channels[replace_index] = candidate
+        changed = True
+        return True
+
+    for spec in candidates:
+        if native_count() >= 2:
+            break
+        add_candidate(spec.name)
+
+    for spec in candidates:
+        if native_count() > academic_count():
+            break
+        add_candidate(spec.name)
+
+    if changed:
+        for domain in ("chinese-ugc", "cn-tech"):
+            if (
+                any(
+                    channel in channels and domain in domains_for(channel)
+                    for channel in native_names
+                )
+                and domain not in top_groups
+            ):
+                top_groups.append(domain)
+
+    return channels, top_groups, changed
+
+
 def _domain_score(
     domain: str,
     *,
@@ -418,6 +546,8 @@ def select_channels(
         if not added:
             break
 
+    channels = channels[:limit]
+
     if not channels:
         for spec in channels_by_domain.get(_GENERIC_WEB_DOMAIN, ()):
             if spec.name in seen or spec.name in skip or len(channels) >= limit:
@@ -426,11 +556,24 @@ def select_channels(
             seen.add(spec.name)
         top_groups = [_GENERIC_WEB_DOMAIN]
 
+    guard_applied = False
+    if _needs_chinese_native_guard(query):
+        channels, top_groups, guard_applied = _apply_chinese_native_guard(
+            channels,
+            top_groups,
+            catalog,
+            query_lower=query_lower,
+            query_tokens=query_tokens,
+            skip=skip,
+            limit=limit,
+        )
+
     rationale = (
         f"Groups: {top_groups or [_GENERIC_WEB_DOMAIN]}. "
         f"Mode: {mode} (limit {limit}). "
         "Selected from channel metadata with query-hint scoring. "
-        f"Selected {len(channels)} channels."
+        + ("Applied Chinese-native guard. " if guard_applied else "")
+        + f"Selected {len(channels)} channels."
     )
 
     return {
