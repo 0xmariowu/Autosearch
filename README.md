@@ -31,11 +31,21 @@ You ask your AI to research something. It answers from training data cutoff —
 - "Summarize the Twitter discussion on this topic" → **blocked**, no public API
 - "Compare opinions on Hacker News vs Chinese tech forums" → two platforms, manual aggregation
 
-**AutoSearch fixes this in one line.**
+**AutoSearch fixes this in one line.** Pick the path that matches you:
+
+**Have Node?** (most common — works on macOS, Linux, Windows)
 
 ```bash
-npx autosearch-ai --yes
+npx autosearch-ai
 ```
+
+**Using Claude Code / Cursor / Zed?** Paste this into your AI agent:
+
+```
+Help me install AutoSearch: https://raw.githubusercontent.com/0xmariowu/Autosearch/main/docs/install.md
+```
+
+**Shell user on macOS / Linux?**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/0xmariowu/Autosearch/main/scripts/install.sh | bash
@@ -44,12 +54,6 @@ curl -fsSL https://raw.githubusercontent.com/0xmariowu/Autosearch/main/scripts/i
 The npm wrapper runs install/init only when you invoke it explicitly. Plain
 `npm install -g autosearch-ai` does not auto-run `init`; avoiding npm
 install-time scripts is intentional supply-chain hardening.
-
-Or paste into your AI Agent (Claude Code, Cursor, etc.):
-
-```
-Help me install AutoSearch: https://raw.githubusercontent.com/0xmariowu/Autosearch/main/docs/install.md
-```
 
 After install, your Agent searches 40 channels simultaneously — academic papers, developer communities, Chinese social media, and Linux DO forum threads — results deduplicated and ranked, every result includes a source URL.
 
