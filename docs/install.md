@@ -83,10 +83,19 @@ Status: 27/40 channels ready
 
 **Ask the user which optional channels they want**, then use these commands:
 
-#### Chinese social media (TikHub key required)
+#### Chinese social media (TikHub auth)
 ```bash
 autosearch configure TIKHUB_API_KEY <your-key>
 # Unlocks: xiaohongshu, douyin, weibo, zhihu, twitter, tiktok, bilibili, and more
+```
+
+If you use an AutoSearch TikHub proxy, configure the proxy URL and token instead.
+Together, `AUTOSEARCH_PROXY_URL` and `AUTOSEARCH_PROXY_TOKEN` satisfy TikHub
+channel availability without `TIKHUB_API_KEY`:
+
+```bash
+autosearch configure AUTOSEARCH_PROXY_URL <proxy-url>
+autosearch configure AUTOSEARCH_PROXY_TOKEN <proxy-token>
 ```
 
 #### Xiaohongshu with your own account (no TikHub fee)
