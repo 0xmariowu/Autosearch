@@ -22,11 +22,15 @@ concurrency:
 permissions: {}
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      contents: write
+      contents: read
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.tag.outputs.version }}
+      npm_version: ${{ steps.npm-version.outputs.npm_version }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
@@ -85,32 +89,83 @@ jobs:
       - name: Check wheel metadata
         run: twine check dist/*
 
-      - name: Check PyPI token availability
-        id: pypi
+      - name: Derive npm version
+        id: npm-version
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          # Single source of truth for the pyproject→npm mapping lives in
+          # scripts/validate/check_version_consistency.py:derive_npm_version
+          # so workflow summaries and publishes cannot drift.
+          NPM_VERSION=$(python - <<'PY'
+          import importlib.util
+          import os
+
+          spec = importlib.util.spec_from_file_location(
+              "cv", "scripts/validate/check_version_consistency.py"
+          )
+          mod = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          print(mod.derive_npm_version(os.environ["VERSION"]))
+          PY
+          )
+          echo "npm_version=$NPM_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Python distributions
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-dist
+          path: dist/*
+          if-no-files-found: error
+
+  publish-pypi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build
+    permissions:
+      contents: read
+    steps:
+      - name: Download Python distributions
+        uses: actions/download-artifact@v7
+        with:
+          name: python-dist
+          path: dist
+
+      - name: Require PyPI token
         env:
           PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         run: |
-          if [ -n "$PYPI_TOKEN" ]; then
-            echo "has_token=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_token=false" >> "$GITHUB_OUTPUT"
+          if [ -z "$PYPI_TOKEN" ]; then
+            echo "::error::PYPI_API_TOKEN secret is required; refusing split npm-only release."
+            exit 1
           fi
 
+      - name: Install twine
+        run: python -m pip install twine
+
       - name: Publish to PyPI
-        if: steps.pypi.outputs.has_token == 'true'
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: twine upload --skip-existing dist/*
 
-      - name: Note PyPI skip
-        if: steps.pypi.outputs.has_token != 'true'
-        run: echo "PYPI_API_TOKEN secret not set — skipping PyPI publish, creating GitHub Release only."
+  create-github-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [build, publish-pypi]
+    permissions:
+      contents: write
+    steps:
+      - name: Download Python distributions
+        uses: actions/download-artifact@v7
+        with:
+          name: python-dist
+          path: dist
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.tag.outputs.tag }}
+          TAG: ${{ needs.build.outputs.tag }}
         run: |
           if gh release view "$TAG" > /dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
@@ -121,6 +176,19 @@ jobs:
               dist/*
           fi
 
+  publish-npm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [build, publish-pypi]
+    if: needs.publish-pypi.result == 'success'
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          ref: ${{ needs.build.outputs.tag }}
+          fetch-depth: 0
+
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
@@ -130,20 +198,9 @@ jobs:
       - name: Publish npm wrapper
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          VERSION: ${{ steps.tag.outputs.version }}
+          VERSION: ${{ needs.build.outputs.version }}
+          NPM_VERSION: ${{ needs.build.outputs.npm_version }}
         run: |
-          # Single source of truth for the pyproject→npm mapping lives in
-          # scripts/validate/check_version_consistency.py:derive_npm_version
-          # so a publish here matches what npm/package.json on disk should hold.
-          NPM_VERSION=$(python -c "
-          import importlib.util
-          spec = importlib.util.spec_from_file_location(
-              'cv', 'scripts/validate/check_version_consistency.py'
-          )
-          mod = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(mod)
-          print(mod.derive_npm_version('$VERSION'))
-          ")
           # Intra-day pyproject bumps (YYYY.MM.DD.1 → YYYY.MM.DD.2) map to the
           # same npm version. The npm tarball only depends on the base date,
           # so if it's already published we skip rather than fail the whole
@@ -158,27 +215,24 @@ jobs:
           npm version "$NPM_VERSION" --no-git-tag-version --allow-same-version
           npm publish --access public
 
+  summary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [build, publish-pypi, create-github-release, publish-npm]
+    if: needs.publish-pypi.result == 'success' && needs.publish-npm.result == 'success' && needs.create-github-release.result == 'success'
+    permissions: {}
+    steps:
       - name: Summary
         env:
-          TAG: ${{ steps.tag.outputs.tag }}
-          VERSION: ${{ steps.tag.outputs.version }}
-          PYPI_TOKEN_SET: ${{ steps.pypi.outputs.has_token }}
+          TAG: ${{ needs.build.outputs.tag }}
+          VERSION: ${{ needs.build.outputs.version }}
+          NPM_VERSION: ${{ needs.build.outputs.npm_version }}
           SERVER_URL: ${{ github.server_url }}
           REPO: ${{ github.repository }}
         run: |
-          YEAR=$(echo "$VERSION" | cut -d. -f1)
-          MONTH=$(echo "$VERSION" | cut -d. -f2 | sed 's/^0*//')
-          DAY=$(echo "$VERSION" | cut -d. -f3 | sed 's/^0*//')
-          SEQ=$(echo "$VERSION" | cut -d. -f4)
-          MMDD=$(( MONTH * 100 + DAY ))
-          NPM_VERSION="$YEAR.$MMDD.$SEQ"
           {
             echo "## Released $VERSION"
             echo "- GitHub Release: $SERVER_URL/$REPO/releases/tag/$TAG"
-            if [ "$PYPI_TOKEN_SET" = "true" ]; then
-              echo "- PyPI: https://pypi.org/project/autosearch/$VERSION/"
-            else
-              echo "- PyPI: skipped (no PYPI_API_TOKEN secret)"
-            fi
+            echo "- PyPI: https://pypi.org/project/autosearch/$VERSION/"
             echo "- npm: https://www.npmjs.com/package/autosearch-ai/v/$NPM_VERSION"
           } >> "$GITHUB_STEP_SUMMARY"

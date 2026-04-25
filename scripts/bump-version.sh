@@ -8,7 +8,7 @@
 # Updates (when files exist):
 #   - pyproject.toml         (version = "...")
 #   - .claude-plugin/plugin.json         (JSON "version")
-#   - .claude-plugin/marketplace.json    (JSON "version")
+#   - .claude-plugin/marketplace.json    (JSON "version", metadata.version, plugins[0].version)
 #   - CHANGELOG.md                        (prepend empty entry if missing)
 #
 # Usage:
@@ -59,6 +59,12 @@ import json, sys
 path, new_version = sys.argv[1], sys.argv[2]
 with open(path) as f: d = json.load(f)
 d['version'] = new_version
+if path == '.claude-plugin/marketplace.json':
+    d.setdefault('metadata', {})['version'] = new_version
+    plugins = d.setdefault('plugins', [])
+    if not plugins:
+        plugins.append({})
+    plugins[0]['version'] = new_version
 with open(path, 'w') as f: json.dump(d, f, indent=2, ensure_ascii=False); f.write('\n')
 PY
   echo "  updated $path"
