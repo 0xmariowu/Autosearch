@@ -136,7 +136,7 @@ The host agent drives a tool-supplier flow: discover skills, optionally clarify 
 | `list_channels` | Per-channel availability (status, methods, language, requires). |
 | `run_clarify` | Optional one-shot clarification turn before search starts. |
 | `select_channels_tool` | Helper that ranks candidate channels for a query. |
-| `run_channel` | Run one channel for one query; returns `status` (`ok` / `no_results` / `not_configured` / `unknown_channel` / `channel_error` / `rate_limited`), `evidence`, `unmet_requires`, `fix_hint`. The core retrieval call. |
+| `run_channel` | Run one channel for one query; returns `status` (`ok` / `no_results` / `not_configured` / `unknown_channel` / `auth_failed` / `rate_limited` / `budget_exhausted` / `channel_error`), `evidence`, `unmet_requires`, `fix_hint`. The core retrieval call. |
 | `citation_create` | Open a citation collection for the current task. |
 | `citation_add` | Append a source URL + supporting evidence. |
 | `citation_export` | Export citations as `[N]`-numbered Markdown references. |
@@ -204,7 +204,9 @@ The same handshake lands under `tests/e2b/matrix.yaml::F004_S4_mcp_stdio` in CI,
 | Client cannot find `autosearch-mcp` | Binary not on PATH for the client's shell | `pipx ensurepath && exec $SHELL`, or use an absolute path in `command` |
 | `tools/list` returns empty | Server started but crashed before registering tools | Check LLM provider env var is set in the `env` block, not just your outer shell |
 | `run_channel` returns `status="not_configured"` | The channel needs a key or login that isn't set yet | Follow the `fix_hint` in the response (e.g. `autosearch configure YOUTUBE_API_KEY <key>` or `autosearch login xhs`) |
-| `run_channel` returns `status="rate_limited"` | The declared per-minute / per-hour limit was exceeded for that channel + method | Wait `retry_after` seconds (in the response) or lower the agent's parallel-channel fan-out |
+| `run_channel` returns `status="auth_failed"` | Upstream rejected the request — 401/403, expired cookie, invalid API key, or a flagged account (XHS `code=300011`) | Follow the `fix_hint` (typically `autosearch login <channel>` with a different account, or `autosearch configure <KEY> <new-value>`) |
+| `run_channel` returns `status="rate_limited"` | The declared per-minute / per-hour limit was exceeded for that channel + method | Lower the agent's parallel-channel fan-out, or wait a minute before retrying |
+| `run_channel` returns `status="budget_exhausted"` | Paid quota / wallet is empty (TikHub 402, OpenAI `insufficient_quota`, etc.) | Top up the provider's balance — retrying without refilling will loop on the same error |
 | `run_channel` returns `status="channel_error"` with a redacted `reason` | Upstream channel hiccup; secret-shaped strings are scrubbed before reaching the response | Retry; if persistent, check `autosearch doctor --json` and the upstream provider's status page |
 
 ## Where to go next
