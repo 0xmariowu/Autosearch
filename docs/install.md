@@ -43,9 +43,10 @@ pipx install autosearch && autosearch init
 > The npm package does not run `init` automatically during `npm install`.
 > That is intentional: npm lifecycle scripts can execute code at install time,
 > which is a known supply-chain risk. `npx autosearch-ai` triggers an explicit
-> install + init flow with a y/N confirmation before fetching anything; the CI
-> escape hatch is `npx autosearch-ai --yes` (do not put `--yes` in user-facing
-> docs). Plain `npm install -g autosearch-ai` installs the wrapper but does
+> install + init flow with a y/N confirmation before fetching anything. There
+> is no `--yes` flag — non-interactive environments (CI, Docker, pipes) should
+> bypass the wrapper and use `pipx install autosearch && autosearch init`
+> directly. Plain `npm install -g autosearch-ai` installs the wrapper but does
 > not run `init` — use `npx autosearch-ai` for the one-shot flow, or run
 > `autosearch init` if the Python CLI is already on PATH.
 >

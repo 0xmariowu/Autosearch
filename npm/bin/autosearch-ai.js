@@ -10,8 +10,10 @@
 // Plan §P1-8 still applies: this launcher must NEVER be triggered by `npm
 // install` (postinstall is removed in package.json). It runs only when the
 // user types `npx autosearch-ai` or invokes the installed binary explicitly.
-// Even then, an unattended install requires explicit confirmation — y/N
-// prompt or `--yes` / `-y` on the command line.
+// Even then, an install requires explicit y/N confirmation. There is no
+// `--yes` escape hatch — non-interactive environments (CI, Docker, pipes)
+// should bypass the wrapper and install AutoSearch directly via
+// `pipx install autosearch && autosearch init`.
 
 const { execSync, spawnSync } = require("child_process");
 const readline = require("readline");
@@ -96,13 +98,13 @@ function printWrapperHelp() {
       `  npx autosearch-ai <args>      Forward args to the installed autosearch CLI\n` +
       `  npx autosearch-ai --help      Show this wrapper help (no install prompt)\n` +
       `  npx autosearch-ai --version   Show wrapper + installed autosearch version\n\n` +
-      `Wrapper-only flags:\n` +
-      `  --yes, -y     Skip the y/N install prompt for non-interactive automation\n\n` +
       `Install paths chosen by platform:\n` +
       `  macOS / Linux: ${INSTALL_SCRIPT} (via curl)\n` +
       `  Windows:       pipx install autosearch  (preferred)\n` +
       `                 or  py -3.12 -m pip install --user autosearch\n` +
-      `                 see ${PYPI_PAGE}\n`,
+      `                 see ${PYPI_PAGE}\n\n` +
+      `In non-interactive environments (CI, Docker, pipes) install AutoSearch\n` +
+      `directly without the wrapper:  pipx install autosearch && autosearch init\n`,
   );
 }
 
@@ -203,27 +205,22 @@ async function main() {
     return;
   }
 
-  const yes = popFlag("--yes", "-y");
-
   const installedVersion = getInstalledAutosearchVersion();
   if (installedVersion === null) {
     const installCmd = describeInstallStep();
-    if (!yes) {
-      const ok = await confirm(
-        `\nautosearch is not installed.\n` +
-          `This will install AutoSearch via:\n` +
-          `  ${installCmd ?? "(no installer detected — see --help)"}\n` +
-          `Proceed? [y/N] `,
+    const ok = await confirm(
+      `\nautosearch is not installed.\n` +
+        `This will install AutoSearch via:\n` +
+        `  ${installCmd ?? "(no installer detected — see --help)"}\n` +
+        `Proceed? [y/N] `,
+    );
+    if (!ok) {
+      console.error(
+        `\nAborted. Install AutoSearch directly via your package manager:\n` +
+          `  pipx install autosearch && autosearch init\n` +
+          `  pip install autosearch && autosearch init`,
       );
-      if (!ok) {
-        console.error(
-          `\nAborted. To install non-interactively re-run with --yes,\n` +
-            `or install AutoSearch directly via your package manager:\n` +
-            `  pip install autosearch && autosearch init\n` +
-            `  pipx install autosearch && autosearch init`,
-        );
-        process.exit(1);
-      }
+      process.exit(1);
     }
     const result = runInstall();
     if ((result.status ?? 0) !== 0) {
