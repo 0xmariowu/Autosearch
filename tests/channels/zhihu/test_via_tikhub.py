@@ -7,6 +7,7 @@ from typing import cast
 
 import pytest
 
+from autosearch.channels.base import PermanentError
 from autosearch.core.models import SubQuery
 from autosearch.lib.tikhub_client import TikhubClient, TikhubError
 
@@ -108,4 +109,15 @@ async def test_search_raises_typed_error_on_tikhub_error() -> None:
         await search(
             SubQuery(text="LLM agent", rationale="Need Zhihu article coverage"),
             client=cast(TikhubClient, _FailingTikhubClient()),
+        )
+
+
+@pytest.mark.asyncio
+async def test_search_raises_permanent_error_on_malformed_payload() -> None:
+    client = _FakeTikhubClient({"data": {"data": {"unexpected": []}}})
+
+    with pytest.raises(PermanentError, match="invalid payload shape"):
+        await search(
+            SubQuery(text="LLM agent", rationale="Need Zhihu article coverage"),
+            client=cast(TikhubClient, client),
         )
