@@ -5,7 +5,7 @@ description: "Schedule the F101 baseline regression on your own machine via macO
 
 # Local Nightly Runner
 
-`scripts/nightly-local.sh` drives the same F101 baseline regression that `.github/workflows/e2b-nightly.yml` runs, but locally — without uploading any keys to GitHub Actions secrets. It reads your LLM / E2B keys directly from `~/.config/ai-secrets.env`.
+`scripts/nightly-local.sh` drives the same F101 baseline regression that `.github/workflows/e2b-nightly.yml` runs, but locally — without uploading any keys to GitHub Actions secrets. It reads your LLM / E2B keys from a local secrets file (default `${XDG_CONFIG_HOME:-$HOME/.config}/autosearch/secrets.env`; override via the `AUTOSEARCH_SECRETS_FILE` env var).
 
 Use this when you want Gate 13 observation-period evidence (3 consecutive nightly greens) but don't want a GitHub Actions footprint.
 
@@ -21,8 +21,8 @@ Override defaults via env vars:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `AUTOSEARCH_PARALLEL` | `15` | Sandbox pool size (cap is 15 per `~/.config/ai-secrets.env` quota) |
-| `AUTOSEARCH_SECRETS_FILE` | `~/.config/ai-secrets.env` | Where the orchestrator reads API keys |
+| `AUTOSEARCH_PARALLEL` | `15` | Sandbox pool size; cap depends on your E2B account tier |
+| `AUTOSEARCH_SECRETS_FILE` | `$XDG_CONFIG_HOME/autosearch/secrets.env` (typically `~/.config/autosearch/secrets.env`) | Where the orchestrator reads API keys |
 
 ## macOS launchd (daily schedule)
 
@@ -119,11 +119,11 @@ systemctl --user list-timers autosearch-nightly.timer
 
 | Concern | Local (launchd / systemd) | GitHub Actions (`e2b-nightly.yml`) |
 |---|---|---|
-| Secret sync | Reads `~/.config/ai-secrets.env` in place | Requires `gh secret set` for each key |
+| Secret sync | Reads your local secrets file in place | Requires `gh secret set` for each key |
 | Keeps running if your machine is off | No — scheduler fires only when the machine is on | Yes — runs on GitHub's runners |
 | Failure notification | stderr log file | Auto-opens a GitHub issue via `peter-evans/create-issue-from-file` |
-| Cost | Just E2B sandbox minutes + LLM calls | Same + GH Actions minutes (free within quota) |
-| Good fit | Solo maintainer, always-on workstation | Team, intermittent developer availability |
+| Cost | E2B sandbox minutes + LLM calls only | Same plus GitHub Actions minutes (free within the public-repo allotment) |
+| Good fit | Always-on workstation | Intermittent developer availability |
 
 They're not mutually exclusive — you can run both.
 
@@ -131,8 +131,8 @@ They're not mutually exclusive — you can run both.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `error: no orchestrator venv found` | `scripts/e2b/` venv never created and shared `~/.claude/scripts/e2b/.venv` is missing | `uv venv scripts/e2b/.venv --python 3.12 && uv pip install --python scripts/e2b/.venv/bin/python e2b e2b-code-interpreter rich pyyaml` |
-| `error: secrets file not readable` | `~/.config/ai-secrets.env` missing or wrong perms | Create the file with `chmod 600`; populate with `E2B_API_KEY=...`, `ANTHROPIC_API_KEY=...` lines |
+| `error: no orchestrator venv found` | `scripts/e2b/.venv` was never created | `uv venv scripts/e2b/.venv --python 3.12 && uv pip install --python scripts/e2b/.venv/bin/python e2b e2b-code-interpreter rich pyyaml` |
+| `error: secrets file not readable` | The secrets file referenced by `AUTOSEARCH_SECRETS_FILE` is missing or has wrong perms | Create the file with `chmod 600`; populate with lines like `E2B_API_KEY=...`, `ANTHROPIC_API_KEY=...` |
 | Script exits 2 with `error: no orchestrator venv found` when launchd fires | `PATH` inside launchd is minimal, so `uv` / `python` from `~/.local/bin` or `/opt/homebrew/bin` is out of reach | Keep the `EnvironmentVariables.PATH` stanza above; adjust for your own `uv` install location if needed |
 | No reports produced, no error | Scheduler fired while machine asleep | launchd uses `StartCalendarInterval`; wake-on-LAN or `caffeinate` around the hour if you suspend the machine at night |
 

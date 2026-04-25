@@ -12,7 +12,7 @@
 
 1. **无 cookie 免费可用**：搜狗微信、open-websearch（4 引擎）、Paper Search MCP（21 学术源）、PullPush（Reddit 历史）、RSS 直读、Jina Reader（部分站）、以及 13 个官方 API。
 2. **硬骨头 8 个中付费打通 5 个**（TikHub）：小红书、微博、知乎、Twitter/X、抖音。剩 3 个（微博上游 flaky、Instagram/LinkedIn 参数未调通）本轮未完全解决。
-3. **最终架构**：AutoSearch 走 BYOK（用户自配 TikHub key），`requires: [env:TIKHUB_API_KEY]` 声明依赖，未来可无缝切换到 hosted proxy 做商业化。
+3. **最终架构**：AutoSearch 走 BYOK（用户自配 TikHub key），`requires: [env:TIKHUB_API_KEY]` 声明依赖。Base URL 从 env var 读，便于在不同环境之间切换。
 
 **成本锚点**：TikHub 实测平均 **$0.0036/请求**。1000 次研究级调用 ≈ $3.6/月。
 
@@ -141,7 +141,7 @@ Threads · TikHub Utilities · 其他
 
 ### 🚨 安全注意：Key 会在错误响应里被回显
 
-**TikHub 的 400 / 403 / 422 响应体会原样回显完整 `Authorization` header（含 Bearer token）**。接入必须：
+**TikHub 的 400 / 403 / 422 响应体会原样回显完整请求头（含认证信息）**。接入必须：
 
 ```python
 # BAD — 直接打印 response body 会泄露 key
@@ -218,11 +218,11 @@ tests/channels/zhihu/test_via_tikhub.py  # method 单测
 base_url = os.getenv("TIKHUB_BASE_URL", "https://api.tikhub.io")
 ```
 
-未来老板上 hosted proxy 做商业化时，用户只需改两个 env var，零代码改动：
+这样如果以后需要换上游（比如自托管代理或镜像），用户只需改两个 env var，零代码改动：
 
 ```bash
-export TIKHUB_BASE_URL=https://api.autosearch.com/tikhub
-export TIKHUB_API_KEY=<AutoSearch 平台发的 token>
+export TIKHUB_BASE_URL=https://your-proxy.example.com/tikhub
+export TIKHUB_API_KEY=<your-proxy-token>
 ```
 
 ### 待接入的 5 个 channel（按优先级）
