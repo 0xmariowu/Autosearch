@@ -22,8 +22,9 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Run path-level hygiene check
-        # `--paths-only` until batch 3 finishes rewriting docs that still
-        # carry internal voice. Once the doc rewrites land, drop the flag
-        # so content rules also gate.
-        run: python scripts/validate/public_repo_hygiene.py --paths-only
+      - name: Run full hygiene check (path + content rules)
+        # Full scan: path rules + content rules. Content rules include the
+        # `dangerously-skip-permissions` regex. Docs that legitimately
+        # describe the rule (3 hygiene docs under docs/) are allowlisted in
+        # `scripts/validate/public_repo_hygiene.py` itself.
+        run: python scripts/validate/public_repo_hygiene.py --tracked
