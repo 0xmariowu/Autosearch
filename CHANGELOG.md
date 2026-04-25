@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026.04.25.10 — 2026-04-25
+
+- **`autosearch query "..." --json` is now parseable.** The CLI was leaking structlog `[info]` lines onto stdout, so piping into `jq` failed with "Extra data". Logs now route to stderr (matching the MCP path), and a fresh-install smoke test (`tests/smoke/test_first_use_flow.py`) locks the contract in: markdown brief + JSON envelope + `--help` all pass without network or LLM keys, closing the P1-7 first-use loop from the production-critical-fix-plan-v2.
+- **Public-repo hygiene rollup.** Bumps in PRs #395–#403 were intentionally deferred per the "bump once after a merge batch" rule; this release ships them: install paths unified to npx / AI-agent / curl with `--yes` removed (#395); internal docs + runtime experience stripped from HEAD (#396); committer / husky / gitleaks tooling layer (#397); `public_repo_hygiene.py` + tests + npm/CI entrypoints (#398); gitleaks split into public/private notes (#399); CLAUDE.md cleanup + stale validation/bench/plan docs removed (#400); 5 user-facing docs rewritten to drop internal voice (#401); "boss" wording removed from skill READMEs + `public-repo-policy.md` added (#402); history-exposure assessment + verification procedure (#403).
+
 ## 2026.04.25.9 — 2026-04-25
 
 Hotfix on top of `.25.8`. PR #387 wired `pre_release_check.py` into
@@ -588,7 +593,7 @@ This is the first production release of AutoSearch v2 tool-supplier architecture
 - W3.3 pipeline-removal multi-PR plan at `docs/proposals/2026-04-22-w3-3-pipeline-removal-plan.md`. Splits the destructive legacy-removal work into 5 sequenced PRs (A freeze research() surface → B delete orphan tests → C delete m3/m7 prompt markdowns → D gut pipeline internals → E delete Pipeline class). Each PR ≤ 1000 lines changed, self-contained, rollbackable. Respects CLAUDE.md "do not take overly destructive actions" by sequencing. Next action after plan merges: boss go for PR A.
 - Migration guide `docs/migration/legacy-research-to-tool-supplier.md` (W3.3 first safe step). Documents how runtime AI moves from the legacy `research()` MCP pipeline to the v2 trio (`list_skills` + `run_clarify` + `run_channel`). Includes minimum migration pattern, quick-research pattern, deep-research composition with wave-3 meta skills, cost comparison, and FAQ.
 - Runtime `DeprecationWarning` on `research()` MCP tool invocation pointing to the migration guide. Legacy pipeline continues to run; the warning surfaces in tool output so integrators notice the v2 path without breaking existing flows. MCP server `instructions` string also updated to steer new integrations toward the trio.
-- 8 new workflow skill candidates landed (W3.6, from v2 proposal §3.7). All docs-only meta skills that codify runtime-AI workflow patterns borrowed from prior art in `~/Armory/Search/` — they do not add Python code, the runtime AI is the implementer:
+- 8 new workflow skill candidates landed (W3.6, from v2 proposal §3.7). All docs-only meta skills that codify runtime-AI workflow patterns borrowed from prior art in external deep-research reference repos — they do not add Python code, the runtime AI is the implementer:
   - `delegate-subtask` (Standard) — execution contract for isolated sub-tasks (input / budget / output / stop-conditions). Sources: MiroThinker + DeepAgents + deer-flow + DeepResearchAgent.
   - `trace-harvest` (Standard) — distills successful session trace into promote-candidate experience events. Sources: MiroThinker collect-trace + DeepResearchAgent memory system.
   - `reflective-search-loop` (Best) — explicit multi-round loop state (gaps / visited / bad_urls / evaluator failures / stop conditions). Sources: WebThinker + node-deepresearch + Scira extreme-search.
