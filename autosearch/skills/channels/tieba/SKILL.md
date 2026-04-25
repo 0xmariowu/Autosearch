@@ -42,3 +42,5 @@ Uses `tieba.baidu.com/f/search/res` search endpoint with HTML parsing via trafil
 - Evidence items have non-empty title and url.
 - No crash on empty or malformed HTML response.
 - Source channel field matches "tieba".
+- Baidu safety verification / captcha pages are anti-scrape blocks; treat them as transient platform blocks, not user auth failures.
+- Production use should treat Tieba as anti-scrape-prone and not rely on it as an always-available channel.

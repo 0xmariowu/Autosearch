@@ -9,6 +9,7 @@ import httpx
 import pytest
 
 _SKILL_DIR = Path(__file__).parents[3] / "autosearch/skills/channels/tieba/methods"
+_FIXTURE_DIR = Path(__file__).parents[3] / "tests/fixtures"
 
 
 def _load_search():
@@ -44,7 +45,9 @@ _TIEBA_HTML = """
 @pytest.mark.asyncio()
 async def test_search_returns_evidence(search, subquery):
     mock_resp = MagicMock(spec=httpx.Response)
+    mock_resp.status_code = 200
     mock_resp.text = _TIEBA_HTML
+    mock_resp.headers = {}
     mock_resp.raise_for_status = MagicMock()
 
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=mock_resp):
@@ -76,6 +79,38 @@ async def test_search_returns_empty_on_http_error(search, subquery):
 
 
 @pytest.mark.asyncio()
+async def test_search_raises_transient_error_on_baidu_safety_verification(search, subquery):
+    from autosearch.channels.base import TransientError
+
+    request = httpx.Request("GET", "https://tieba.baidu.com/f/search/res")
+    body = (_FIXTURE_DIR / "tieba_baidu_safety_verify.html").read_text(encoding="utf-8")
+    response = httpx.Response(
+        403,
+        text=body,
+        headers={"content-type": "text/html; charset=utf-8"},
+        request=request,
+    )
+
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=response):
+        with pytest.raises(TransientError) as excinfo:
+            await search(subquery)
+
+    assert excinfo.type is TransientError
+
+
+@pytest.mark.asyncio()
+async def test_search_still_raises_auth_error_on_plain_403(search, subquery):
+    from autosearch.channels.base import ChannelAuthError
+
+    request = httpx.Request("GET", "https://tieba.baidu.com/f/search/res")
+    response = httpx.Response(403, text="forbidden", request=request)
+
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=response):
+        with pytest.raises(ChannelAuthError):
+            await search(subquery)
+
+
+@pytest.mark.asyncio()
 async def test_search_deduplicates_urls(search, subquery):
     html = """
     <a href="/p/123">贴一</a>
@@ -83,7 +118,9 @@ async def test_search_deduplicates_urls(search, subquery):
     <a href="/p/456">贴二</a>
     """
     mock_resp = MagicMock(spec=httpx.Response)
+    mock_resp.status_code = 200
     mock_resp.text = html
+    mock_resp.headers = {}
     mock_resp.raise_for_status = MagicMock()
 
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=mock_resp):
