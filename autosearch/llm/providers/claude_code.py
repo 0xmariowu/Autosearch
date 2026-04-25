@@ -1,9 +1,35 @@
 # Self-written, plan v2.3 § 1 decision 15
 import asyncio
 import json
+import os
 import shutil
+from collections.abc import Iterable
 
 from pydantic import BaseModel
+
+_SUBPROCESS_ENV_KEYS = frozenset(
+    {
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_BASE_URL",
+        "HOME",
+        "LANG",
+        "PATH",
+        "SHELL",
+        "TERM",
+        "TMPDIR",
+        "USER",
+    }
+)
+_SUBPROCESS_ENV_PREFIXES = ("CLAUDE_CODE_", "LC_", "XDG_")
+
+
+def _minimal_subprocess_env(extra_keep: Iterable[str] = ()) -> dict[str, str]:
+    keep = _SUBPROCESS_ENV_KEYS | frozenset(extra_keep)
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if key in keep or any(key.startswith(prefix) for prefix in _SUBPROCESS_ENV_PREFIXES)
+    }
 
 
 class ClaudeCodeProvider:
@@ -29,6 +55,7 @@ class ClaudeCodeProvider:
             cli_prompt,
             "--output-format",
             "json",
+            env=_minimal_subprocess_env(),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )

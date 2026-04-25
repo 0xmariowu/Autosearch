@@ -21,6 +21,8 @@ import os
 import shlex
 from pathlib import Path
 
+_FILE_INJECTED_VALUES: dict[str, str] = {}
+
 
 def secrets_path() -> Path:
     """Return the configured secrets-file path (env override or default)."""
@@ -89,22 +91,28 @@ def inject_into_env(path: Path | None = None, *, force: bool = False) -> set[str
     `force=False` (default): user's explicit `KEY=…` env vars override the
     file — used by every CLI / MCP entrypoint at startup.
 
-    `force=True`: file values overwrite env values that previously came from
-    the file itself. Bug 2 (fix-plan): when ChannelRuntime detects a
-    secrets-file mtime change and rebuilds, it must call this with
-    `force=True` so `autosearch configure --replace KEY new` is actually
-    seen by the next `run_channel`. Without it the long-running MCP process
-    keeps the stale `os.environ[KEY]` injected by an earlier inject pass.
+    `force=True`: file values overwrite env values only when this module owns
+    the current env value because it injected an earlier file value. Bug 2
+    (fix-plan): when ChannelRuntime detects a secrets-file mtime change and
+    rebuilds, it must call this with `force=True` so `autosearch configure
+    --replace KEY new` is actually seen by the next `run_channel`. Explicit
+    env values provided by the parent process still win.
     """
     injected: set[str] = set()
     for key, value in load_secrets(path).items():
         if not value:
             continue
         current = os.environ.get(key)
-        if current and not force:
+        previous_injected = _FILE_INJECTED_VALUES.get(key)
+        file_owned = previous_injected is not None and current == previous_injected
+        if current and previous_injected is not None and not file_owned:
+            _FILE_INJECTED_VALUES.pop(key, None)
+
+        if current and (not force or not file_owned):
             continue
         if current == value:
             continue
         os.environ[key] = value
+        _FILE_INJECTED_VALUES[key] = value
         injected.add(key)
     return injected
