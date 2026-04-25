@@ -7,6 +7,7 @@ from typing import cast
 import httpx
 import pytest
 
+from autosearch.channels.base import PermanentError
 from autosearch.core.models import SubQuery
 from autosearch.lib.tikhub_client import TikhubClient
 
@@ -175,6 +176,14 @@ async def test_search_skips_items_without_required_fields() -> None:
     results = await search(_query(), client=cast(TikhubClient, client))
 
     assert results == []
+
+
+@pytest.mark.asyncio
+async def test_search_raises_permanent_error_on_malformed_payload() -> None:
+    client = _FakeTikhubClient({"data": {"data": {"unexpected": []}}})
+
+    with pytest.raises(PermanentError, match="invalid payload shape"):
+        await search(_query(), client=cast(TikhubClient, client))
 
 
 @pytest.mark.asyncio

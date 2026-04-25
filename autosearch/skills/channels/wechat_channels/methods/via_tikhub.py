@@ -116,6 +116,10 @@ async def search(query: SubQuery, client: TikhubClient | None = None) -> list[Ev
 
     if not items:
         LOGGER.warning("wechat_channels_tikhub_search_failed", reason="no_items_in_response")
+        # NOTE: ambiguous path — if TikHub renamed the docID key this would
+        # be schema drift (should raise PermanentError), but it's also the
+        # legit "search found zero results" result. Leaving as [] until we
+        # see concrete drift reports.
         return []
 
     fetched_at = datetime.now(UTC)
