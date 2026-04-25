@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=69", "wheel"]
+requires = ["setuptools>=80", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,6 +7,8 @@ name = "autosearch"
 version = "2026.04.25.3"
 description = "MCP research tool supplier for coding agents, with 39 academic, web, developer, and Chinese-source channels"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = [
   "beautifulsoup4>=4.12",

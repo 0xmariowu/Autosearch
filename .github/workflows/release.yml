@@ -81,7 +81,7 @@ jobs:
         run: bash scripts/release-gate.sh --quick
 
       - name: Install build backend
-        run: pip install build twine
+        run: pip install --upgrade "build>=1.2" "twine>=6.1" "setuptools>=80"
 
       - name: Build sdist + wheel
         run: python -m build
