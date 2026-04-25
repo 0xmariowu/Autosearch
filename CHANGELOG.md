@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026.04.25.4 — 2026-04-25
+
+The "release plumbing hotfix" release — `2026.04.25.3` was tagged and
+the GitHub workflow ran, but `twine upload` rejected the wheel with
+`Invalid distribution metadata: unrecognized or malformed field
+'license-file'`. Older setuptools (75-77 range) wrote a metadata 2.4
+field that older twine clients didn't accept. The PyPI / npm /
+GitHub Release for `.25.3` never actually shipped.
+
+This release contains all `.25.3` changes (the "production-critical
+sweep" — see the `.25.3` entry below for the full list of 21 features
+from the 5-agent audit) plus the release-plumbing hotfix:
+
+- `pyproject.toml`: explicit `license = "MIT"` (PEP 639 SPDX) and
+  `license-files = ["LICENSE"]`. `[build-system].requires` bumped to
+  `setuptools>=80` so build environments use a clean metadata-2.4
+  generator.
+- `.github/workflows/release.yml`: pin `--upgrade build>=1.2`,
+  `twine>=6.1`, `setuptools>=80` in the build job. Twine 6.1+ knows
+  about metadata 2.4 license-file fields.
+
+Verified locally with `python -m build` + `twine check dist/*` after
+the fix (both wheel and sdist PASS).
+
 ## 2026.04.25.3 — 2026-04-25
 
 The "production-critical sweep" release — twelve PRs landing 21
