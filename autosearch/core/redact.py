@@ -11,6 +11,7 @@ Conservative match list — must NOT alter ordinary user prose.
 from __future__ import annotations
 
 import re
+from urllib.parse import urlsplit, urlunsplit
 
 _SECRET_KEY_PATTERN = (
     r"(?:"
@@ -84,3 +85,17 @@ def redact(text: str) -> str:
     for pat in _SECRET_PATTERNS:
         out = pat.sub(_replacer, out)
     return out
+
+
+def redact_url(url: str, *, strip_query: bool = True) -> str:
+    """Return `url` with query-string secrets removed."""
+    if not isinstance(url, str):
+        raise TypeError("url must be str")
+
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return url
+
+    query = "" if strip_query else parts.query
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, query, parts.fragment))
