@@ -9,6 +9,7 @@ Used by the consolidate_research MCP tool.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 from autosearch.core.evidence import EvidenceProcessor
@@ -20,11 +21,21 @@ MAX_BRIEF_EVIDENCE = 5  # Include at most 5 top items in brief
 MAX_SNIPPET_CHARS = 120
 
 
+def _parse_published_at(value: Any) -> datetime | None:
+    """Parse optional publish timestamps from run_channel context dicts."""
+    if value is None or isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    return None
+
+
 def _evidence_from_dict(d: dict[str, Any]) -> Evidence | None:
     """Reconstruct Evidence from slim dict (best-effort)."""
     try:
-        from datetime import UTC, datetime
-
         return Evidence(
             url=d.get("url", ""),
             title=d.get("title", ""),
@@ -37,6 +48,7 @@ def _evidence_from_dict(d: dict[str, Any]) -> Evidence | None:
             source_channel=d.get("source_channel") or d.get("source") or "unknown",
             score=float(d.get("score") or 0.0),
             fetched_at=datetime.now(UTC),
+            published_at=_parse_published_at(d.get("published_at")),
         )
     except Exception:
         return None
@@ -91,7 +103,7 @@ def compress_evidence(
     lines = [f"**Research Brief** — `{query}`\n"]
     lines.append(f"Processed {len(evidence_list)} items → kept top {len(evs)} by relevance.\n")
     lines.append(f"Sources: {', '.join(f'{c}({n})' for c, n in sorted(source_coverage.items()))}\n")
-    lines.append("\n**Top findings:**\n")
+    lines.append("\n**Top evidence snippets:**\n")
 
     for i, ev in enumerate(evs, 1):
         snippet = (ev.snippet or ev.content or "")[:MAX_SNIPPET_CHARS]
