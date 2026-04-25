@@ -31,6 +31,7 @@ def test_release_gate_script_supports_quick_and_help_flags() -> None:
     body = help_out.stdout + help_out.stderr
     assert "release-gate.sh" in body
     assert "--quick" in body
+    assert "--pypi" in body
 
     bad = subprocess.run([str(SCRIPT), "--no-such-flag"], capture_output=True, text=True)
     assert bad.returncode != 0
@@ -45,4 +46,10 @@ def test_release_workflow_invokes_release_gate_and_validator() -> None:
     assert "check_version_consistency.py" in workflow, (
         "release workflow no longer runs check_version_consistency.py"
     )
+    assert "check_version_uniqueness.py" in workflow or "--pypi" in workflow, (
+        "release workflow no longer runs version uniqueness checks"
+    )
     assert "release-gate.sh" in workflow, "release workflow no longer runs release-gate.sh"
+    assert "--skip-existing" not in workflow, "PyPI upload must fail loudly on duplicates"
+    assert "needs: [build, publish-pypi]" in workflow
+    assert "if: needs.publish-pypi.result == 'success'" in workflow

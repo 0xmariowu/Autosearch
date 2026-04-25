@@ -16,6 +16,7 @@
 # Usage:
 #   scripts/release-gate.sh                # run all gates including full suite
 #   scripts/release-gate.sh --quick        # skip the full default suite; contract gates still run
+#   scripts/release-gate.sh --quick --pypi # also check PyPI version uniqueness
 
 set -euo pipefail
 
@@ -23,9 +24,11 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 QUICK=false
+CHECK_PYPI=false
 for arg in "$@"; do
   case "$arg" in
     --quick) QUICK=true ;;
+    --pypi) CHECK_PYPI=true ;;
     -h|--help)
       grep -E '^# ' "$0" | sed 's/^# \?//'
       exit 0
@@ -74,6 +77,25 @@ if "$PYTHON" scripts/validate/check_version_consistency.py; then
   pass "version files agree"
 else
   fail "version files drifted (see output above)"
+fi
+
+step "version uniqueness"
+if "$PYTHON" scripts/validate/check_version_uniqueness.py --mode=local; then
+  pass "version is locally unique or tagged at current HEAD"
+else
+  fail "version already claimed by a different local tag"
+fi
+
+if [ "$QUICK" = false ] || [ "$CHECK_PYPI" = true ]; then
+  set +e
+  "$PYTHON" scripts/validate/check_version_uniqueness.py --mode=pypi
+  pypi_uniqueness_status=$?
+  set -e
+  case "$pypi_uniqueness_status" in
+    0) pass "version is not already published on PyPI" ;;
+    2) echo "WARN: PyPI version uniqueness could not be verified; continuing fail-open" ;;
+    *) fail "version already claimed on PyPI" ;;
+  esac
 fi
 
 # ── Gate 1a: CLI version entrypoints ─────────────────────────────────────────

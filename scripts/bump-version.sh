@@ -34,6 +34,19 @@ else
     next_seq=$((${BASH_REMATCH[1]} + 1))
   fi
   new_version="${today}.${next_seq}"
+  head_commit=$(git rev-parse HEAD 2>/dev/null || true)
+  while git show-ref --tags --verify --quiet "refs/tags/v${new_version}"; do
+    tag_commit=$(git rev-list -n 1 "v${new_version}" 2>/dev/null || true)
+    if [ -n "$head_commit" ] && [ "$tag_commit" = "$head_commit" ]; then
+      break
+    fi
+    next_seq=$((next_seq + 1))
+    if [ "$next_seq" -gt 99 ]; then
+      echo "ERROR: no unclaimed ${today}.N version found before ${today}.99" >&2
+      exit 1
+    fi
+    new_version="${today}.${next_seq}"
+  done
 fi
 
 echo "Bumping to $new_version"
