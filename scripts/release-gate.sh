@@ -174,17 +174,15 @@ else
   echo "skip: ruff not found at $RUFF (install with .venv pip install ruff)"
 fi
 
-# ── Gate 3a: contract gates (per docs/million-user-product-readiness-plan.md) ─
+# ── Gate 3a: contract gates ─────────────────────────────────────────────────
 # Always runs (even in --quick mode) — these are the named contracts that prove
 # the v2 install promise hasn't silently regressed. Listing them explicitly
 # (rather than letting them blend into the default suite) makes a contract
 # breakage produce a contract-named failure banner.
 #
-# Gate names follow plan §"Release Gate Upgrades":
+# Gates:
 #   A — secrets file → runtime visibility
-#   B — missing-impl integrity (covered by test_doctor_impl_availability.py;
-#       plan named it test_channel_impl_integrity.py but real coverage is the
-#       static integrity check inside doctor_impl_availability)
+#   B — missing-impl integrity (covered by test_doctor_impl_availability.py)
 #   C — MCP error redaction
 #   D — known-off vs unknown channel semantics
 #   E — docs contract DEFERRED: README / install.md / mcp-clients.md still

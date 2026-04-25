@@ -131,7 +131,4 @@ A: If you want it, compose `reflective-search-loop` meta skill manually. If you 
 
 ## Related Docs
 
-- `docs/proposals/2026-04-21-v2-tool-supplier-architecture.md` — the architecture proposal.
-- `docs/proposals/2026-04-22-wave-2-status-and-wave-3-plan.md` — wave 3 rollout plan.
-- `docs/bench/gate-12-augment-vs-bare.md` — the success metric for this migration.
 - Wave 3 skills under `autosearch/skills/meta/` — the workflow vocabulary for composing research.
