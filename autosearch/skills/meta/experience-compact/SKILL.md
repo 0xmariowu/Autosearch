@@ -86,7 +86,7 @@ Archives are permanent — never delete. They serve as the lineage trail for AVO
 This skill **writes** `experience.md`. That's the promotion layer. It does **not**:
 
 - Modify the skill's `SKILL.md` body (that's `auto-evolve`'s domain, which must commit via `scripts/committer` and be reversible via `git revert`).
-- Modify `judge.py` or `PROTOCOL.md` (boss rule, hard constraint).
+- Modify `judge.py` or `PROTOCOL.md` (project-level fixed contracts; AVO must not change its own evaluation function).
 - Delete or rewrite `patterns.jsonl` (append-only; only rotation is allowed).
 
 ## Invocation Pattern
