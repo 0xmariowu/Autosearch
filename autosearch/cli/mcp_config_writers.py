@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
+import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,6 +35,7 @@ WriteStatus = Literal[
     "skipped",  # parent dir doesn't exist (client not installed)
     "backup-and-replaced",  # existing file was unparseable, backed up + rewritten
 ]
+ConfigScope = Literal["project"]
 
 
 @dataclass(slots=True)
@@ -41,6 +44,10 @@ class WriteResult:
     path: Path
     status: WriteStatus
     backup_path: Path | None = None
+
+
+class MCPConfigWriteError(RuntimeError):
+    """Raised when a client-specific MCP config cannot be written safely."""
 
 
 def _autosearch_entry(server_command: str) -> dict[str, object]:
@@ -87,7 +94,9 @@ class _BaseWriter:
         server_command: str = "autosearch-mcp",
         dry_run: bool = False,
         path_override: Path | None = None,
+        scope: ConfigScope | None = None,
     ) -> WriteResult:
+        _ = scope
         path = path_override or self.default_path()
         if not path.parent.exists():
             return WriteResult(client=self.name, path=path, status="skipped")
@@ -175,7 +184,146 @@ class ClaudeCodeWriter(_BaseWriter):
     namespace_key = "mcpServers"
 
     def default_path(self) -> Path:
-        return Path.home() / ".claude" / "mcp.json"
+        return Path.cwd() / ".mcp.json"
+
+    def _legacy_config_dir(self) -> Path:
+        return Path.home() / ".claude"
+
+    def has_claude_cli(self) -> bool:
+        return shutil.which("claude") is not None
+
+    def _run_claude_mcp_add(
+        self,
+        *,
+        server_command: str,
+        scope: ConfigScope | None = None,
+    ) -> None:
+        command = ["claude", "mcp", "add", "--transport", "stdio"]
+        if scope is not None:
+            command.extend(["--scope", scope])
+        command.extend(["autosearch", "--", server_command])
+        try:
+            subprocess.run(command, check=True, capture_output=True, text=True)
+        except (OSError, subprocess.CalledProcessError) as exc:
+            stderr = getattr(exc, "stderr", "") or str(exc)
+            raise MCPConfigWriteError(
+                f"Failed to configure Claude Code MCP via `claude mcp add`: {stderr.strip()}"
+            ) from exc
+
+    def write(
+        self,
+        *,
+        server_command: str = "autosearch-mcp",
+        dry_run: bool = False,
+        path_override: Path | None = None,
+        scope: ConfigScope | None = None,
+    ) -> WriteResult:
+        if self.has_claude_cli():
+            if not dry_run:
+                self._run_claude_mcp_add(server_command=server_command, scope=scope)
+            return WriteResult(client=self.name, path=Path("claude mcp"), status="written")
+
+        if scope == "project":
+            return super().write(
+                server_command=server_command,
+                dry_run=dry_run,
+                path_override=path_override or self.default_path(),
+                scope=scope,
+            )
+
+        if path_override is None and not self._legacy_config_dir().exists():
+            return WriteResult(
+                client=self.name,
+                path=self.default_path(),
+                status="skipped",
+            )
+
+        raise MCPConfigWriteError(
+            "Claude Code MCP is not configured: `claude` CLI is not on PATH, and "
+            "AutoSearch will not write the stale ~/.claude/mcp.json path. Run "
+            "`claude mcp add --transport stdio autosearch -- autosearch-mcp` or "
+            "`autosearch init --client claude --scope project` to write ./.mcp.json."
+        )
+
+    def _run_claude_mcp_list_json(self) -> object:
+        try:
+            result = subprocess.run(
+                ["claude", "mcp", "list", "--json"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, subprocess.CalledProcessError) as exc:
+            stderr = getattr(exc, "stderr", "") or str(exc)
+            raise MCPConfigWriteError(
+                f"Failed to inspect Claude Code MCP config via `claude mcp list --json`: "
+                f"{stderr.strip()}"
+            ) from exc
+        return json.loads(result.stdout or "null")
+
+    def _entry_has_expected_command(self, entry: object, server_command: str) -> bool:
+        if not isinstance(entry, dict):
+            return False
+        command = entry.get("command")
+        if command == server_command:
+            return True
+        if isinstance(command, list) and command and command[0] == server_command:
+            return True
+        args = entry.get("args")
+        return (
+            command is None and isinstance(args, list) and bool(args) and args[0] == server_command
+        )
+
+    def _claude_list_has_autosearch(self, data: object, server_command: str) -> bool:
+        if isinstance(data, list):
+            return any(self._claude_list_has_autosearch(item, server_command) for item in data)
+        if not isinstance(data, dict):
+            return False
+
+        servers = data.get("mcpServers") or data.get("servers")
+        if isinstance(servers, dict):
+            if self._entry_has_expected_command(servers.get("autosearch"), server_command):
+                return True
+        elif isinstance(servers, list):
+            if any(self._claude_list_has_autosearch(item, server_command) for item in servers):
+                return True
+
+        if data.get("name") == "autosearch":
+            return self._entry_has_expected_command(data, server_command)
+
+        entry = data.get("autosearch")
+        return self._entry_has_expected_command(entry, server_command)
+
+    def verify(
+        self,
+        *,
+        server_command: str = "autosearch-mcp",
+        path_override: Path | None = None,
+    ) -> tuple[bool, str]:
+        if self.has_claude_cli():
+            try:
+                data = self._run_claude_mcp_list_json()
+            except (json.JSONDecodeError, MCPConfigWriteError) as exc:
+                return False, str(exc)
+            if self._claude_list_has_autosearch(data, server_command):
+                return True, "`claude mcp list --json`: autosearch -> autosearch-mcp"
+            return (
+                False,
+                "Claude Code MCP not configured; run `claude mcp add --transport stdio "
+                "autosearch -- autosearch-mcp` or `autosearch init --client claude --scope project`",
+            )
+
+        ok, message = super().verify(
+            server_command=server_command,
+            path_override=path_override or self.default_path(),
+        )
+        if ok:
+            return ok, message
+        return (
+            False,
+            f"{message}. Claude Code MCP not configured; run `claude mcp add --transport stdio "
+            "autosearch -- autosearch-mcp` or `autosearch init --client claude --scope project`",
+        )
 
 
 class CursorWriter(_BaseWriter):
@@ -318,6 +466,7 @@ def write_for_clients(
     *,
     server_command: str = "autosearch-mcp",
     dry_run: bool = False,
+    scope: ConfigScope | None = None,
 ) -> list[WriteResult]:
     """Run the writer for each named client (or all known clients if None)."""
     targets = clients if clients else list(WRITERS.keys())
@@ -326,5 +475,5 @@ def write_for_clients(
         writer = WRITERS.get(client_name)
         if writer is None:
             continue
-        results.append(writer.write(server_command=server_command, dry_run=dry_run))
+        results.append(writer.write(server_command=server_command, dry_run=dry_run, scope=scope))
     return results
