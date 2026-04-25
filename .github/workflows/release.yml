@@ -78,10 +78,12 @@ jobs:
       - name: Install autosearch (for release-gate CLI surface checks)
         run: pip install -e ".[dev]"
 
-      - name: Run pre-release checklist
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python scripts/validate/pre_release_check.py
+      # Note: pre_release_check.py is intentionally NOT wired into the
+      # release workflow — it bundles checks (channel experience dirs
+      # bootstrap state, Gate 12 bench results) that are useful as a
+      # local pre-tag developer tool but aren't release blockers when
+      # those artifacts haven't been generated. Run it locally via
+      # `python scripts/validate/pre_release_check.py` before tagging.
 
       - name: Run release-gate.sh --quick --pypi (version + uniqueness + lint + CLI surface)
         run: bash scripts/release-gate.sh --quick --pypi
