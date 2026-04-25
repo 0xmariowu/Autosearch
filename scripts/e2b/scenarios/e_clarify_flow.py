@@ -1,4 +1,4 @@
-"""Scenarios E1-E2: Clarify / 追问 flow tests."""
+"""Scenarios E1-E2: Clarify / follow-up question flow tests."""
 
 from __future__ import annotations
 
