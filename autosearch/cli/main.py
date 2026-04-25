@@ -72,6 +72,13 @@ def main(
         ),
     ] = None,
 ) -> None:
+    # Route structlog to stderr so `--json` output stays parseable and CLI
+    # users don't see info logs interleaved with the brief on stdout. (MCP
+    # path does the same in autosearch/mcp/cli.py.)
+    import structlog
+
+    structlog.configure(logger_factory=structlog.WriteLoggerFactory(file=sys.stderr))
+
     # Push ~/.config/ai-secrets.env keys into process env so subcommands and
     # any provider/channel that does `os.getenv("FOO_API_KEY")` actually sees
     # what the user configured via `autosearch configure`.
