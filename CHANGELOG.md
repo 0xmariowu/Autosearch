@@ -1,5 +1,55 @@
 # Changelog
 
+## 2026.04.25.1 — 2026-04-25
+
+The "fifth-pass channel-error" release — three more audit rounds on
+top of v8/v9/v10 caught the last remaining paths where upstream
+failures masqueraded as "no results", plus a P0 MCP stdio bug that
+was silently corrupting JSON-RPC for every client.
+
+- **MCP stdio JSON-RPC was being polluted by structlog on stdout.**
+  `autosearch-mcp` runs `transport="stdio"` (stdout = JSON-RPC
+  channel), but structlog's default `PrintLoggerFactory` writes log
+  lines to stdout. Any `LOGGER.warning(...)` inside a channel during a
+  `run_channel` call corrupted the stream — clients silently failed or
+  dropped messages. `autosearch/mcp/cli.py` now configures structlog
+  to `WriteLoggerFactory(file=sys.stderr)` at the start of `main()`.
+  The CLI entry point is unaffected — CLI users still see logs on
+  stdout for their terminal. Regression smoke test spawns a real
+  `autosearch-mcp` subprocess, triggers a log-producing code path, and
+  asserts every non-empty stdout line parses as valid JSON-RPC.
+- **TikHub proxy-token misconfiguration surfaced as `no_results`.**
+  When `AUTOSEARCH_PROXY_URL` was set but `AUTOSEARCH_PROXY_TOKEN` was
+  missing, `TikhubClient()` raised `ValueError` which every channel
+  swallowed as `return []`. The `except ValueError` safety net was
+  labeled "redundant" (because SKILL.md requires catches the
+  `TIKHUB_API_KEY` case) but `PROXY_TOKEN` isn't in any requires list,
+  so the net was the primary handler and silently ate a real auth
+  failure. Now raises `ChannelAuthError` which surfaces as
+  `status="auth_failed"` with a fix hint pointing at
+  `autosearch configure AUTOSEARCH_PROXY_TOKEN`.
+- **Eight more TikHub channels raise on schema drift instead of
+  returning `[]`.** Follow-up audits caught the channels missed by
+  earlier passes — `bilibili` / `zhihu` / `douyin` / `tiktok` /
+  `kuaishou` / `instagram` / `weibo` / `wechat_channels` (the
+  unambiguous `data not a Mapping` branch). When TikHub changes
+  payload shape on any of these, the MCP client now gets
+  `status="channel_error"` with the drift reason instead of a fake
+  empty result. `wechat_channels` keeps a noted-ambiguous path
+  (`if not items: return []`) because the recursive `docID` scanner
+  can't distinguish schema drift from a legit zero-result search — a
+  comment flags this for future revisit.
+- **Docs/code drift cleaned up.** `docs/mcp-clients.md` now lists
+  `auth_failed` and `budget_exhausted` in the `run_channel` status
+  table (they've been emitted since v8 but the doc never caught up)
+  and removes the fictional `retry_after` field from the troubleshooting
+  section — `ChannelToolResponse` has never had that field.
+- **Test-isolation fix.** `tests/unit/test_e2b_orchestrator_imports.py`
+  registered loaded modules under bare stdlib names
+  (`sys.modules["secrets"]`), hijacking stdlib for every later test.
+  This silently broke `tests/channels/ddgs/test_api.py` in the full
+  test run. Prefixed registration name to avoid the collision.
+
 ## 2026.04.24.10 — 2026-04-25
 
 The "fourth-pass fallback" release — seven more paths that masqueraded
