@@ -56,6 +56,28 @@ def test_compile_from_skills_method_unavailable_with_unmet_requires() -> None:
     assert "cookie:stub_cookie" in metadata.methods[0].unmet_requires
 
 
+def test_resolve_requires_accepts_tikhub_proxy_envs_as_api_key_fallback() -> None:
+    env = Environment(env_keys={"AUTOSEARCH_PROXY_URL", "AUTOSEARCH_PROXY_TOKEN"})
+
+    unmet = ChannelRegistry._resolve_requires(["env:TIKHUB_API_KEY"], env)
+
+    assert unmet == []
+
+
+def test_resolve_requires_keeps_tikhub_api_key_unmet_without_proxy_fallback() -> None:
+    unmet = ChannelRegistry._resolve_requires(["env:TIKHUB_API_KEY"], Environment())
+
+    assert unmet == ["env:TIKHUB_API_KEY"]
+
+
+def test_resolve_requires_does_not_apply_tikhub_proxy_shim_to_other_env_tokens() -> None:
+    env = Environment(env_keys={"AUTOSEARCH_PROXY_URL", "AUTOSEARCH_PROXY_TOKEN"})
+
+    unmet = ChannelRegistry._resolve_requires(["env:YOUTUBE_API_KEY"], env)
+
+    assert unmet == ["env:YOUTUBE_API_KEY"]
+
+
 def test_compile_from_skills_preserves_declared_metadata(tmp_path: Path) -> None:
     root = tmp_path / "channels"
     _write_channel_skill(

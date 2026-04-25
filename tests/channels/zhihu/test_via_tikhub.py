@@ -121,3 +121,35 @@ async def test_search_raises_permanent_error_on_malformed_payload() -> None:
             SubQuery(text="LLM agent", rationale="Need Zhihu article coverage"),
             client=cast(TikhubClient, client),
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("payload"),
+    [
+        {},
+        {"data": []},
+    ],
+)
+async def test_search_raises_permanent_error_when_data_container_is_missing_or_invalid(
+    payload: dict[str, object],
+) -> None:
+    client = _FakeTikhubClient(payload)
+
+    with pytest.raises(PermanentError, match="invalid payload shape"):
+        await search(
+            SubQuery(text="LLM agent", rationale="Need Zhihu article coverage"),
+            client=cast(TikhubClient, client),
+        )
+
+
+@pytest.mark.asyncio
+async def test_search_allows_legitimate_empty_article_list() -> None:
+    client = _FakeTikhubClient({"data": {"data": []}})
+
+    results = await search(
+        SubQuery(text="LLM agent", rationale="Need Zhihu article coverage"),
+        client=cast(TikhubClient, client),
+    )
+
+    assert results == []

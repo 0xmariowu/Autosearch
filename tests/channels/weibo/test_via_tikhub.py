@@ -306,6 +306,33 @@ async def test_search_raises_on_invalid_payload_shape() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("payload"),
+    [
+        {},
+        {"data": []},
+        {"data": {"data": []}},
+    ],
+)
+async def test_search_raises_on_missing_or_invalid_nested_data_shape(
+    payload: dict[str, object],
+) -> None:
+    client = _FakeTikhubClient(payload)
+
+    with pytest.raises(PermanentError, match="invalid payload shape"):
+        await search(_query(), client=cast(TikhubClient, client))
+
+
+@pytest.mark.asyncio
+async def test_search_allows_legitimate_empty_cards_list() -> None:
+    client = _FakeTikhubClient({"data": {"data": {"cards": []}}})
+
+    results = await search(_query(), client=cast(TikhubClient, client))
+
+    assert results == []
+
+
+@pytest.mark.asyncio
 async def test_search_returns_empty_on_tikhub_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

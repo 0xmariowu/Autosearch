@@ -51,3 +51,36 @@ async def test_search_raises_on_invalid_payload_shape() -> None:
             SubQuery(text="camera", rationale="Need Instagram post coverage"),
             client=cast(TikhubClient, client),
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("payload"),
+    [
+        {},
+        {"data": "wrong"},
+        {"data": {"data": []}},
+    ],
+)
+async def test_search_raises_when_nested_data_is_missing_or_wrong_type(
+    payload: dict[str, object],
+) -> None:
+    client = _FakeTikhubClient(payload)
+
+    with pytest.raises(PermanentError, match="invalid payload shape"):
+        await search(
+            SubQuery(text="camera", rationale="Need Instagram post coverage"),
+            client=cast(TikhubClient, client),
+        )
+
+
+@pytest.mark.asyncio
+async def test_search_allows_legitimate_empty_items_list() -> None:
+    client = _FakeTikhubClient({"data": {"data": {"items": []}}})
+
+    results = await search(
+        SubQuery(text="camera", rationale="Need Instagram post coverage"),
+        client=cast(TikhubClient, client),
+    )
+
+    assert results == []
