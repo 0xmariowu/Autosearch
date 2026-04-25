@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -97,12 +98,14 @@ async def test_search_maps_rss_items_to_evidence() -> None:
     assert first.snippet == "AI regulation passes EU Reuters"
     assert first.content == "AI regulation passes EU Reuters"
     assert first.source_channel == "google_news:reuters"
+    assert first.published_at == datetime(2024, 4, 15, 10, 0, tzinfo=UTC)
 
     second = results[1]
     assert second.url == "https://news.google.com/rss/articles/def"
     assert second.title == "Chip exports tighten & markets react"
     assert second.snippet == "Chip exports tighten Markets react"
     assert second.source_channel == "google_news:the-new-york-times"
+    assert second.published_at == datetime(2024, 4, 16, 8, 30, tzinfo=UTC)
 
 
 @pytest.mark.asyncio
@@ -128,6 +131,7 @@ async def test_search_strips_html_from_summary() -> None:
 
     assert len(results) == 1
     assert results[0].snippet == "Story Publisher"
+    assert results[0].published_at is None
 
 
 @pytest.mark.asyncio

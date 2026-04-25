@@ -6,6 +6,7 @@ import html
 import re
 from collections.abc import Mapping
 from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 
 import feedparser
 import httpx
@@ -86,6 +87,27 @@ def _publisher_title(entry: object) -> str:
     return ""
 
 
+def _published_at(entry: object) -> datetime | None:
+    for attr in ("published", "pubDate", "pubdate"):
+        raw_value = getattr(entry, attr, None)
+        if raw_value:
+            break
+    else:
+        getter = getattr(entry, "get", None)
+        if not callable(getter):
+            return None
+        raw_value = getter("published") or getter("pubDate") or getter("pubdate")
+
+    try:
+        parsed = parsedate_to_datetime(str(raw_value))
+    except (TypeError, ValueError, IndexError, OverflowError):
+        return None
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
 def _to_evidence(entry: object, *, fetched_at: datetime) -> Evidence | None:
     url = str(getattr(entry, "link", "") or "").strip()
     if not url:
@@ -104,6 +126,7 @@ def _to_evidence(entry: object, *, fetched_at: datetime) -> Evidence | None:
         content=snippet,
         source_channel=source_channel,
         fetched_at=fetched_at,
+        published_at=_published_at(entry),
         score=0.0,
     )
 

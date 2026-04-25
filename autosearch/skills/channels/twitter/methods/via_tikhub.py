@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 from collections.abc import Mapping
 from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 
 import structlog
 
@@ -30,6 +31,24 @@ def _truncate_on_word_boundary(text: str, *, max_length: int) -> str:
         if shortened:
             candidate = shortened
     return f"{candidate.rstrip()}…"
+
+
+def _parse_created_at(value: object) -> datetime | None:
+    if not value:
+        return None
+
+    raw_value = str(value)
+    try:
+        parsed = datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
+    except ValueError:
+        try:
+            parsed = parsedate_to_datetime(raw_value)
+        except (TypeError, ValueError, IndexError, OverflowError):
+            return None
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def _extract_tweets(payload: Mapping[str, object]) -> list[Mapping[str, object]]:
@@ -78,6 +97,7 @@ def _to_evidence(tweet: Mapping[str, object], *, fetched_at: datetime) -> Eviden
         content=content,
         source_channel=f"twitter:{screen_name}",
         fetched_at=fetched_at,
+        published_at=_parse_created_at(tweet.get("created_at")),
     )
 
 

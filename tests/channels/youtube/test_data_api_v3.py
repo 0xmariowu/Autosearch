@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -19,6 +20,15 @@ def _load_search():
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod.search
+
+
+def _load_module():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("yt_search_module", _SKILL_DIR / "data_api_v3.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 @pytest.fixture()
@@ -81,3 +91,19 @@ async def test_search_returns_evidence_with_key(search, subquery):
     assert len(results) >= 1
     assert results[0].source_channel == "youtube"
     assert "youtube.com" in results[0].url or "youtu.be" in results[0].url
+    assert results[0].published_at == datetime(2024, 3, 1, 0, 0, tzinfo=UTC)
+
+
+def test_to_evidence_missing_published_at_is_none() -> None:
+    module = _load_module()
+    item = {
+        "id": {"videoId": "abc123"},
+        "snippet": {
+            "title": "MLX Tutorial for Apple Silicon",
+            "description": "Learn to run LLMs on Apple Silicon with MLX.",
+        },
+    }
+
+    evidence = module._to_evidence(item, fetched_at=datetime(2024, 3, 2, tzinfo=UTC))
+
+    assert evidence.published_at is None

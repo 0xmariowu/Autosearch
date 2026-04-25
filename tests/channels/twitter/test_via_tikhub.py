@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 
@@ -105,11 +106,13 @@ async def test_search_extracts_tweets_from_flat_timeline() -> None:
     assert first.snippet == "OpenAI ships a new API update."
     assert first.content == "OpenAI ships a new API update."
     assert first.source_channel == "twitter:openai"
+    assert first.published_at == datetime(2026, 4, 23, 10, 0, tzinfo=UTC)
 
     second = results[1]
     assert second.url == "https://x.com/sama/status/9876543210"
     assert second.title == "Second launch note with & entity cleanup."
     assert second.source_channel == "twitter:sama"
+    assert second.published_at == datetime(2026, 4, 23, 10, 0, tzinfo=UTC)
 
 
 @pytest.mark.asyncio
@@ -138,6 +141,18 @@ async def test_search_source_channel_includes_screen_name() -> None:
 
     assert len(results) == 1
     assert results[0].source_channel == "twitter:elonmusk"
+
+
+@pytest.mark.asyncio
+async def test_search_missing_created_at_sets_published_at_none() -> None:
+    tweet = _flat_tweet("1234567890", "openai", "Missing created_at.")
+    tweet.pop("created_at")
+    client = _FakeTikhubClient(_timeline_payload([tweet]))
+
+    results = await search(_query(), client=cast(TikhubClient, client))
+
+    assert len(results) == 1
+    assert results[0].published_at is None
 
 
 @pytest.mark.asyncio

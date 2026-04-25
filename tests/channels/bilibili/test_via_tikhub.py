@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 
@@ -161,6 +162,7 @@ async def test_search_extracts_videos_from_result_groups() -> None:
     assert results[1].url == "https://www.bilibili.com/video/BV2xyz456"
     assert results[0].source_channel == "bilibili:video:up-one"
     assert results[1].source_channel == "bilibili:video:up-two"
+    assert results[0].published_at == datetime(2024, 4, 19, 17, 0, tzinfo=UTC)
 
 
 @pytest.mark.asyncio
@@ -188,6 +190,23 @@ async def test_search_extracts_articles_from_result_groups() -> None:
     assert len(results) == 1
     assert results[0].url == "https://www.bilibili.com/read/cv445566/"
     assert results[0].source_channel == "bilibili:article:tech-writer"
+
+
+@pytest.mark.asyncio
+async def test_search_missing_pubdate_sets_published_at_none() -> None:
+    item = _video_item(
+        bvid="BV5missing222",
+        title="Missing pubdate",
+        description="No publish timestamp.",
+        author="No Date",
+    )
+    item.pop("pubdate")
+    client = _FakeTikhubClient(_payload([_group("video", [item])]))
+
+    results = await search(_query(), client=cast(TikhubClient, client))
+
+    assert len(results) == 1
+    assert results[0].published_at is None
 
 
 @pytest.mark.asyncio

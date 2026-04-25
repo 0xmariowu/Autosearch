@@ -26,6 +26,20 @@ def _clean_text(value: object) -> str:
     return _normalize_whitespace(html.unescape(str(value or "")))
 
 
+def _parse_published_at(value: object) -> datetime | None:
+    if not value:
+        return None
+
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
 async def search(query: SubQuery) -> list[Evidence]:
     global _WARNED_NO_API_KEY
 
@@ -84,6 +98,7 @@ def _to_evidence(item: Mapping[str, object], *, fetched_at: datetime) -> Evidenc
     video_id = str(item_id["videoId"]).strip()
     title = _clean_text(snippet["title"])
     description = _clean_text(snippet.get("description"))
+    published_at = _parse_published_at(snippet.get("publishedAt"))
 
     return Evidence(
         url=f"https://www.youtube.com/watch?v={video_id}",
@@ -91,5 +106,6 @@ def _to_evidence(item: Mapping[str, object], *, fetched_at: datetime) -> Evidenc
         snippet=description[:500] or None,
         source_channel="youtube",
         fetched_at=fetched_at,
+        published_at=published_at,
         score=0.0,
     )
