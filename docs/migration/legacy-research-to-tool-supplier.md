@@ -3,6 +3,13 @@
 > Status: wave-3 migration guide.
 > Audience: runtime AI (Claude Code / Cursor / Zed) and their developers.
 > Supersedes: direct use of `research()` MCP tool for new code.
+>
+> CLI status (2026-04-25): `autosearch query "<topic>"` is **back** as a thin
+> orchestrator over the v2 MCP tools (`run_clarify` → top-3 `run_channel`).
+> It returns evidence + citations as a markdown brief, **not** a synthesized
+> report — paste the brief into Claude / ChatGPT / Cursor for synthesis.
+> See `autosearch/cli/query_pipeline.py` for the orchestrator and
+> `tests/unit/test_query_pipeline.py` for behavior coverage.
 
 ## TL;DR
 
