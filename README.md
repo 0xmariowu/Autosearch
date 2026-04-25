@@ -1,25 +1,10 @@
-<h1 align="center">
-  <img src="docs/assets/logo.png" alt="" height="60" align="absmiddle">&nbsp;AutoSearch
-</h1>
+# AutoSearch
 
-<p align="center">
-  Open-source deep research for coding agents. An alternative to OpenAI and Perplexity Deep Research — 40 channels including Chinese sources.
-</p>
+**Open-source Deep Research for AI Agents**
 
-<p align="center">
-  <a href="https://github.com/0xmariowu/Autosearch/releases"><img src="https://img.shields.io/github/v/release/0xmariowu/Autosearch?style=flat-square" alt="Release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/0xmariowu/Autosearch?style=flat-square" alt="License"></a>
-  <a href="https://github.com/0xmariowu/Autosearch/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/0xmariowu/Autosearch/ci.yml?style=flat-square&label=CI" alt="CI"></a>
-  <img src="https://img.shields.io/badge/python-3.12%2B-blue?style=flat-square" alt="Python">
-  <a href="https://www.npmjs.com/package/autosearch-ai"><img src="https://img.shields.io/npm/v/autosearch-ai?style=flat-square" alt="npm"></a>
-</p>
+AutoSearch is open-source deep research infrastructure built for AI agents. Plug Claude Code, Cursor, Cline, GPT-Researcher, LangChain, LlamaIndex, AutoGen, and other hosts into MCP-native access across 40 channels, including 10+ Chinese sources.
 
-<p align="center">
-  <a href="https://docs.autosearch.dev">Docs</a> &bull;
-  <a href="https://docs.autosearch.dev/install">Install</a> &bull;
-  <a href="https://docs.autosearch.dev/channels">Channels</a> &bull;
-  <a href="README.zh.md">中文</a>
-</p>
+The engine returns indexed multi-source results and stays uncoupled from LLM calls, so your agent keeps its own model, prompts, and workflow.
 
 ---
 
