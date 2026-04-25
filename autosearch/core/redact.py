@@ -12,6 +12,13 @@ from __future__ import annotations
 
 import re
 
+_SECRET_KEY_PATTERN = (
+    r"(?:"
+    r"[A-Z][A-Z0-9_]*(?:API_KEY|TOKEN|SECRET|COOKIES?|PASSWORD|PASSWD|AUTH|CREDENTIALS?|SESSION)[A-Z0-9_]*"
+    r"|XHS_COOKIES|SESSDATA|bili_jct|_uuid|buvid3|buvid4|DedeUserID(?:__ckMd5)?"
+    r")"
+)
+
 _SECRET_PATTERNS = [
     re.compile(r"sk-[A-Za-z0-9_-]{16,}"),
     re.compile(r"sk-ant-[A-Za-z0-9_-]{16,}"),
@@ -22,10 +29,21 @@ _SECRET_PATTERNS = [
     re.compile(r"tvly-[A-Za-z0-9_-]{16,}"),
     re.compile(r"exa-[A-Za-z0-9_-]{16,}"),
     re.compile(r"(?i)Bearer\s+[A-Za-z0-9._\-+/=~]+"),
-    re.compile(r"(?i)Cookie:\s*[^\n]+"),
     # Generic KEY=value where value looks token-shaped — preserve key name
     re.compile(r"([A-Z][A-Z0-9_]+_(KEY|TOKEN|SECRET|COOKIES?))=([^\s\"']{8,})"),
 ]
+
+_QUOTED_ENV_PATTERN = re.compile(
+    rf"(?P<prefix>\b{_SECRET_KEY_PATTERN}=)(?P<quote>['\"])(?P<value>[^'\"\r\n]*)(?P=quote)"
+)
+_JSON_SECRET_PATTERN = re.compile(
+    rf'(?P<prefix>"{_SECRET_KEY_PATTERN}"\s*:\s*")(?P<value>[^"\r\n]*)(?P<suffix>")'
+)
+_COOKIE_ASSIGNMENT_PATTERN = re.compile(
+    r"(?P<prefix>\b(?:XHS_COOKIES|SESSDATA|bili_jct|_uuid|buvid3|buvid4|DedeUserID(?:__ckMd5)?)=)(?P<value>[^'\"\s;]+)"
+)
+_COOKIE_HEADER_PATTERN = re.compile(r"(?im)(?P<prefix>\bCookie:\s*)(?P<cookies>[^\r\n]*)")
+_COOKIE_PAIR_PATTERN = re.compile(r"(?P<name>[^=;\s]+)=(?P<value>[^;]*)")
 
 
 def _replacer(match: re.Match) -> str:
@@ -34,11 +52,35 @@ def _replacer(match: re.Match) -> str:
     return "[REDACTED]"
 
 
+def _replace_quoted_env(match: re.Match) -> str:
+    return f"{match.group('prefix')}{match.group('quote')}[REDACTED]{match.group('quote')}"
+
+
+def _replace_json_secret(match: re.Match) -> str:
+    return f"{match.group('prefix')}[REDACTED]{match.group('suffix')}"
+
+
+def _replace_cookie_assignment(match: re.Match) -> str:
+    return f"{match.group('prefix')}[REDACTED]"
+
+
+def _replace_cookie_header(match: re.Match) -> str:
+    cookies = _COOKIE_PAIR_PATTERN.sub(
+        lambda cookie_match: f"{cookie_match.group('name')}=[REDACTED]",
+        match.group("cookies"),
+    )
+    return f"{match.group('prefix')}{cookies}"
+
+
 def redact(text: str) -> str:
     """Replace anything matching `_SECRET_PATTERNS` with `[REDACTED]`."""
     if not text:
         return text
     out = text
+    out = _COOKIE_HEADER_PATTERN.sub(_replace_cookie_header, out)
+    out = _QUOTED_ENV_PATTERN.sub(_replace_quoted_env, out)
+    out = _JSON_SECRET_PATTERN.sub(_replace_json_secret, out)
+    out = _COOKIE_ASSIGNMENT_PATTERN.sub(_replace_cookie_assignment, out)
     for pat in _SECRET_PATTERNS:
         out = pat.sub(_replacer, out)
     return out
