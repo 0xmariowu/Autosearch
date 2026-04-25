@@ -44,4 +44,4 @@ Xueqiu (雪球) is China's leading stock discussion and investment platform. Use
 # Quality Bar
 
 - Evidence has non-empty url and title.
-- Returns empty list without raising when cookies are invalid or expired.
+- Cookie invalid or expired -> ChannelAuthError surfaces auth_failed.
