@@ -4,33 +4,19 @@ import os
 from pathlib import Path
 from typing import Mapping, Sequence
 
+from autosearch.core.secrets_store import load_secrets as _load_runtime_secrets
+
 
 class SecretsError(ValueError):
     """Raised when the secrets env file cannot be parsed."""
 
 
 def load_secrets(path: Path) -> dict[str, str]:
-    """Load a simple KEY=VALUE env file without shell-style parsing."""
+    """Load secrets with the same shell-style parser used by runtime code."""
     if not path.exists():
         raise SecretsError(f"Secrets file not found: {path}")
 
-    secrets: dict[str, str] = {}
-    for line_no, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-        stripped = raw_line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        if "=" not in raw_line:
-            raise SecretsError(f"Invalid secrets line {line_no}: expected KEY=VALUE")
-
-        key, value = raw_line.split("=", 1)
-        key = key.strip()
-        if key.startswith("export "):
-            key = key[len("export ") :].strip()
-        if not key:
-            raise SecretsError(f"Invalid secrets line {line_no}: missing key")
-        secrets[key] = value
-
-    return secrets
+    return _load_runtime_secrets(path)
 
 
 def build_task_env(
