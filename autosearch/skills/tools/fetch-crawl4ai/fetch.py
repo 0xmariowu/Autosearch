@@ -8,6 +8,8 @@ from typing import Any
 
 import structlog
 
+from autosearch.core.redact import redact_url
+
 LOGGER = structlog.get_logger(__name__).bind(component="tool", skill="fetch-crawl4ai")
 
 DEFAULT_TIMEOUT_SECONDS = 30.0
@@ -79,7 +81,7 @@ def fetch(
     except Exception as exc:  # crawl4ai intentionally stays optional at import time.
         elapsed_sec = time.perf_counter() - started
         reason = _classify_exception(exc)
-        LOGGER.warning("fetch_crawl4ai_failed", url=url, reason=reason, error=str(exc))
+        LOGGER.warning("fetch_crawl4ai_failed", url=redact_url(url), reason=reason, error=str(exc))
         return _failure(
             source=url,
             reason=reason,
@@ -134,14 +136,14 @@ def fetch(
         "ok": True,
         "markdown": markdown,
         "title": title,
-        "url": final_url,
+        "url": redact_url(final_url),
         "meta": {
             "status_code": status_code,
             "backend": "crawl4ai",
             "browser": "chromium",
             "elapsed_sec": elapsed_sec,
         },
-        "source": url,
+        "source": redact_url(url),
     }
 
 
@@ -171,7 +173,7 @@ async def _crawl_once(
 
 
 def _failure(*, source: str, reason: str, **extra: object) -> FetchCrawl4AIResult:
-    result: FetchCrawl4AIResult = {"ok": False, "reason": reason, "source": source}
+    result: FetchCrawl4AIResult = {"ok": False, "reason": reason, "source": redact_url(source)}
     result.update({key: value for key, value in extra.items() if value is not None})
     return result
 

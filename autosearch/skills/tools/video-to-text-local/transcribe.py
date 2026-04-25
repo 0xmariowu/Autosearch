@@ -11,6 +11,8 @@ from urllib.parse import urlparse
 
 import structlog
 
+from autosearch.core.redact import redact_url
+
 LOGGER = structlog.get_logger(__name__).bind(component="tool", skill="video-to-text-local")
 
 DEFAULT_MODEL = "mlx-community/whisper-large-v3-turbo"
@@ -86,24 +88,40 @@ def transcribe(
     try:
         audio_path = _prepare_audio(url_or_path)
     except YtDlpError as exc:
-        LOGGER.warning("video_to_text_local_yt_dlp_failed", source=url_or_path, reason=str(exc))
+        LOGGER.warning(
+            "video_to_text_local_yt_dlp_failed",
+            source=redact_url(url_or_path),
+            reason=str(exc),
+        )
         return _failure(source=url_or_path, reason="yt_dlp_failed", stderr_tail=exc.stderr_tail)
     except subprocess.CalledProcessError as exc:
         stderr_tail = _stderr_tail(exc.stderr)
-        LOGGER.warning("video_to_text_local_yt_dlp_failed", source=url_or_path, reason=stderr_tail)
+        LOGGER.warning(
+            "video_to_text_local_yt_dlp_failed",
+            source=redact_url(url_or_path),
+            reason=stderr_tail,
+        )
         return _failure(source=url_or_path, reason="yt_dlp_failed", stderr_tail=stderr_tail)
     except FFmpegMissingError:
-        LOGGER.warning("video_to_text_local_ffmpeg_missing", source=url_or_path)
+        LOGGER.warning("video_to_text_local_ffmpeg_missing", source=redact_url(url_or_path))
         return _failure(source=url_or_path, reason="ffmpeg_missing")
     except FFmpegFailedError as exc:
-        LOGGER.warning("video_to_text_local_ffmpeg_failed", source=url_or_path, reason=str(exc))
+        LOGGER.warning(
+            "video_to_text_local_ffmpeg_failed",
+            source=redact_url(url_or_path),
+            reason=str(exc),
+        )
         return _failure(
             source=url_or_path,
             reason="ffmpeg_failed",
             stderr_tail=exc.stderr_tail,
         )
     except OSError as exc:
-        LOGGER.warning("video_to_text_local_local_file_error", source=url_or_path, reason=str(exc))
+        LOGGER.warning(
+            "video_to_text_local_local_file_error",
+            source=redact_url(url_or_path),
+            reason=str(exc),
+        )
         return _failure(
             source=url_or_path,
             reason="local_file_error",
@@ -114,7 +132,9 @@ def transcribe(
         payload = mlx.transcribe(audio_path, path_or_hf_repo=model)
     except ModelDownloadError as exc:
         LOGGER.warning(
-            "video_to_text_local_model_download_failed", source=url_or_path, reason=str(exc)
+            "video_to_text_local_model_download_failed",
+            source=redact_url(url_or_path),
+            reason=str(exc),
         )
         return _failure(
             source=url_or_path,
@@ -123,7 +143,11 @@ def transcribe(
             suggest="检查网络并重试，或预先下载模型到 ~/.cache/huggingface/hub/",
         )
     except Exception as exc:  # pragma: no cover - defensive boundary for runtime tools
-        LOGGER.warning("video_to_text_local_runtime_error", source=url_or_path, reason=str(exc))
+        LOGGER.warning(
+            "video_to_text_local_runtime_error",
+            source=redact_url(url_or_path),
+            reason=str(exc),
+        )
         return _failure(
             source=url_or_path,
             reason="mlx_whisper_runtime_error",
@@ -143,7 +167,7 @@ def transcribe(
             "backend": LOCAL_BACKEND,
         },
         "audio_path": audio_path,
-        "source": url_or_path,
+        "source": redact_url(url_or_path),
     }
 
 
@@ -300,6 +324,6 @@ def _stderr_tail(stderr: object, *, max_chars: int = 1000) -> str:
 
 
 def _failure(*, source: str, reason: str, **extra: object) -> VideoToTextLocalResult:
-    result: VideoToTextLocalResult = {"ok": False, "source": source, "reason": reason}
+    result: VideoToTextLocalResult = {"ok": False, "source": redact_url(source), "reason": reason}
     result.update(extra)
     return result

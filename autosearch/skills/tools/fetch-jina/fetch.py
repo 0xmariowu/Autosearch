@@ -6,6 +6,8 @@ from urllib.parse import urlparse
 import httpx
 import structlog
 
+from autosearch.core.redact import redact_url
+
 LOGGER = structlog.get_logger(__name__).bind(component="tool", skill="fetch-jina")
 
 DEFAULT_TIMEOUT_SECONDS = 30.0
@@ -45,7 +47,7 @@ async def fetch(
     try:
         response = await _get(reader_url, timeout_seconds=timeout_seconds, http_client=http_client)
     except httpx.TimeoutException as exc:
-        LOGGER.warning("fetch_jina_timeout", url=url, reason=str(exc))
+        LOGGER.warning("fetch_jina_timeout", url=redact_url(url), reason=str(exc))
         return _failure(
             url=url,
             reader_url=reader_url,
@@ -53,7 +55,7 @@ async def fetch(
             message="Jina Reader request timed out",
         )
     except httpx.HTTPError as exc:
-        LOGGER.warning("fetch_jina_http_error", url=url, reason=str(exc))
+        LOGGER.warning("fetch_jina_http_error", url=redact_url(url), reason=str(exc))
         return _failure(
             url=url,
             reader_url=reader_url,
@@ -61,7 +63,7 @@ async def fetch(
             message=str(exc) or exc.__class__.__name__,
         )
     except Exception as exc:  # pragma: no cover - defensive boundary for runtime tools
-        LOGGER.warning("fetch_jina_unexpected_error", url=url, reason=str(exc))
+        LOGGER.warning("fetch_jina_unexpected_error", url=redact_url(url), reason=str(exc))
         return _failure(
             url=url,
             reader_url=reader_url,
@@ -98,8 +100,8 @@ async def fetch(
 
     return {
         "ok": True,
-        "url": url,
-        "reader_url": reader_url,
+        "url": redact_url(url),
+        "reader_url": redact_url(reader_url),
         "markdown": markdown,
         "metadata": _metadata(
             status=status_code,
@@ -139,8 +141,8 @@ def _failure(
 ) -> FetchJinaResult:
     result: FetchJinaResult = {
         "ok": False,
-        "url": url,
-        "reader_url": reader_url,
+        "url": redact_url(url),
+        "reader_url": redact_url(reader_url),
         "markdown": None,
         "reason": reason,
         "message": message,

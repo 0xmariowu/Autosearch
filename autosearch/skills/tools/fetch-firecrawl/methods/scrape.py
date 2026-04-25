@@ -10,6 +10,7 @@ import structlog
 
 from autosearch.channels.base import MethodUnavailable
 from autosearch.core.models import Evidence, SubQuery
+from autosearch.core.redact import redact_url
 
 LOGGER = structlog.get_logger(__name__).bind(component="tool", channel="fetch-firecrawl")
 
@@ -25,7 +26,7 @@ async def search(query: SubQuery) -> list[Evidence]:
 
     url = query.text.strip()
     if not url.startswith(("http://", "https://")):
-        LOGGER.warning("firecrawl_invalid_url", url=url)
+        LOGGER.warning("firecrawl_invalid_url", url=redact_url(url))
         return []
 
     try:
@@ -33,7 +34,7 @@ async def search(query: SubQuery) -> list[Evidence]:
     except MethodUnavailable:
         raise
     except Exception as exc:
-        LOGGER.warning("firecrawl_scrape_failed", url=url, reason=str(exc))
+        LOGGER.warning("firecrawl_scrape_failed", url=redact_url(url), reason=str(exc))
         return []
 
 
@@ -45,7 +46,7 @@ async def _scrape(url: str, api_key: str) -> list[Evidence]:
         resp.raise_for_status()
     data = resp.json()
     markdown = (data.get("data") or {}).get("markdown") or ""
-    title = (data.get("data") or {}).get("metadata", {}).get("title") or url
+    title = (data.get("data") or {}).get("metadata", {}).get("title") or redact_url(url)
 
     if not markdown:
         return []
@@ -53,7 +54,7 @@ async def _scrape(url: str, api_key: str) -> list[Evidence]:
     return [
         Evidence(
             title=title,
-            url=url,
+            url=redact_url(url),
             content=markdown[:4000],
             score=0.9,
             source_channel="fetch-firecrawl",

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from autosearch.core.redact import redact
+import pytest
+
+from autosearch.core.redact import redact, redact_url
 
 
 def test_redact_bearer_token_with_plus_slash_equals_redacts_full_token() -> None:
@@ -73,3 +75,74 @@ def test_redact_common_cookie_env_assignment() -> None:
     out = redact("SESSDATA=xyz; _uuid=abc")
 
     assert out == "SESSDATA=[REDACTED]; _uuid=[REDACTED]"
+
+
+@pytest.mark.parametrize(
+    "query_key",
+    [
+        "access_token",
+        "X-Amz-Signature",
+        "X-Amz-Credential",
+        "sig",
+        "token",
+        "expires",
+    ],
+)
+def test_redact_url_strips_high_risk_query_key_values(query_key: str) -> None:
+    url = f"https://example.com/path?{query_key}=SECRET_VALUE_PLACEHOLDER"
+
+    out = redact_url(url)
+
+    assert "SECRET_VALUE_PLACEHOLDER" not in out
+    assert out == "https://example.com/path"
+
+
+def test_redact_url_without_query_is_unchanged() -> None:
+    url = "https://example.com/path"
+
+    assert redact_url(url) == url
+
+
+def test_redact_url_preserves_fragment_after_stripping_query() -> None:
+    out = redact_url("https://example.com/path?token=SECRET_VALUE_PLACEHOLDER#foo")
+
+    assert out == "https://example.com/path#foo"
+
+
+def test_redact_url_preserves_port_after_stripping_query() -> None:
+    out = redact_url("https://example.com:8080/path?token=SECRET_VALUE_PLACEHOLDER")
+
+    assert out == "https://example.com:8080/path"
+
+
+def test_redact_url_strips_multiple_query_keys() -> None:
+    out = redact_url(
+        "https://example.com/path?token=SECRET_VALUE_PLACEHOLDER&expires=123&safe=value"
+    )
+
+    assert "SECRET_VALUE_PLACEHOLDER" not in out
+    assert "expires=123" not in out
+    assert "safe=value" not in out
+    assert out == "https://example.com/path"
+
+
+@pytest.mark.parametrize("scheme", ["https", "http"])
+def test_redact_url_strips_query_for_http_and_https_variants(scheme: str) -> None:
+    out = redact_url(f"{scheme}://example.com/path?token=SECRET_VALUE_PLACEHOLDER")
+
+    assert out == f"{scheme}://example.com/path"
+
+
+def test_redact_url_empty_string_is_unchanged() -> None:
+    assert redact_url("") == ""
+
+
+def test_redact_url_none_input_raises_type_error() -> None:
+    with pytest.raises(TypeError):
+        redact_url(None)  # type: ignore[arg-type]
+
+
+def test_redact_url_malformed_url_returns_as_is() -> None:
+    url = "http://[::1"
+
+    assert redact_url(url) == url
