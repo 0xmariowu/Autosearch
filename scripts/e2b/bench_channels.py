@@ -26,12 +26,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
+from autosearch.core.redact import redact
 from e2b_code_interpreter import Sandbox
 
 # Default T0 (always-on) channels + T1 youtube (needs key)
@@ -114,6 +117,30 @@ def collect_secrets() -> dict[str, str]:
     return {k: os.environ[k] for k in keys if os.environ.get(k)}
 
 
+def build_single_channel_bench_command(channel: str, query: str, mode: str) -> str:
+    return (
+        f"cd $HOME/work/autosearch && AUTOSEARCH_BENCH_MODE={shlex.quote(mode)} "
+        ".venv/bin/python tests/e2b/bench/single_channel_bench.py "
+        f"{shlex.quote(channel)} {shlex.quote(query)}"
+    )
+
+
+def _redact_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return redact(value)
+    if isinstance(value, dict):
+        return {key: _redact_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_redact_value(item) for item in value]
+    if isinstance(value, tuple):
+        return [_redact_value(item) for item in value]
+    return value
+
+
+def _redacted_tail(text: str | None, limit: int = 500) -> str:
+    return redact(text or "")[-limit:]
+
+
 def run_channel_bench(
     channel: str,
     queries: list[tuple[str, str]],
@@ -136,7 +163,11 @@ def run_channel_bench(
         log("sandbox.create")
         sbx = Sandbox.create("autosearch-py312", timeout=1800, envs=secrets)
     except Exception as exc:
-        return {"channel": channel, "status": "sandbox_create_failed", "error": str(exc)}
+        return {
+            "channel": channel,
+            "status": "sandbox_create_failed",
+            "error": redact(str(exc)),
+        }
 
     try:
         # Upload tarball
@@ -162,7 +193,7 @@ echo install_done
                 "channel": channel,
                 "status": "install_failed",
                 "exit": install_res.exit_code,
-                "stderr_tail": install_res.stderr[-500:],
+                "stderr_tail": _redacted_tail(install_res.stderr),
             }
 
         # Run each query
@@ -170,22 +201,19 @@ echo install_done
         for qid, qtext in queries:
             log(f"query {qid}: {qtext[:40]}...")
             t0 = time.monotonic()
-            cmd = (
-                f"cd $HOME/work/autosearch && AUTOSEARCH_BENCH_MODE={mode} "
-                f'.venv/bin/python tests/e2b/bench/single_channel_bench.py "{channel}" "{qtext}"'
-            )
+            cmd = build_single_channel_bench_command(channel, qtext, mode)
             res = sbx.commands.run(cmd, timeout=1500 if mode == "deep" else 600, envs=secrets)
             wall = time.monotonic() - t0
             stdout = res.stdout.strip()
             try:
-                parsed = json.loads(stdout.splitlines()[-1])
+                parsed = _redact_value(json.loads(stdout.splitlines()[-1]))
             except (json.JSONDecodeError, IndexError):
                 parsed = {
                     "channel": channel,
                     "query": qtext,
                     "status": "output_parse_failed",
-                    "stdout_tail": stdout[-500:],
-                    "stderr_tail": res.stderr[-500:],
+                    "stdout_tail": _redacted_tail(stdout),
+                    "stderr_tail": _redacted_tail(res.stderr),
                     "exit": res.exit_code,
                 }
             parsed["query_id"] = qid
@@ -205,7 +233,7 @@ echo install_done
         result = {
             "channel": channel,
             "status": "exception",
-            "error": f"{type(exc).__name__}: {exc}",
+            "error": redact(f"{type(exc).__name__}: {exc}"),
         }
     finally:
         try:
@@ -217,11 +245,11 @@ echo install_done
     # Persist per-channel card
     card_path = output_dir / "cards" / f"{channel}.json"
     card_path.parent.mkdir(parents=True, exist_ok=True)
-    card_path.write_text(json.dumps(result, indent=2))
+    card_path.write_text(json.dumps(_redact_value(result), indent=2))
 
     log_path = output_dir / "logs" / f"{channel}.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    log_path.write_text("\n".join(log_lines))
+    log_path.write_text(redact("\n".join(log_lines)))
 
     return result
 
@@ -237,7 +265,7 @@ def aggregate(results: list[dict], output_dir: Path) -> None:
                     "channel": r["channel"],
                     "query_id": "*",
                     "status": r.get("status"),
-                    "error": r.get("error") or r.get("stderr_tail") or "",
+                    "error": redact(r.get("error") or r.get("stderr_tail") or ""),
                     "evidence_count": None,
                     "wall_time": None,
                     "cost_usd": None,
@@ -265,11 +293,13 @@ def aggregate(results: list[dict], output_dir: Path) -> None:
     matrix_path = output_dir / "channel-matrix.json"
     matrix_path.write_text(
         json.dumps(
-            {
-                "generated_at": datetime.now(timezone.utc).isoformat(),
-                "row_count": len(rows),
-                "rows": rows,
-            },
+            _redact_value(
+                {
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                    "row_count": len(rows),
+                    "rows": rows,
+                }
+            ),
             indent=2,
         )
     )
@@ -313,7 +343,7 @@ def aggregate(results: list[dict], output_dir: Path) -> None:
         lines.append(f"| {rank} | {ch} | {ev_str} | {w_str} | {empty_str} | {c_str} | {note} |")
 
     leaderboard_path = output_dir / "channel-leaderboard.md"
-    leaderboard_path.write_text("\n".join(lines))
+    leaderboard_path.write_text(redact("\n".join(lines)))
 
     print("\n=== Aggregated ===")
     print(f"Matrix: {matrix_path}")

@@ -12,13 +12,16 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import statistics
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
+from autosearch.core.redact import redact
 from e2b_code_interpreter import Sandbox
 
 
@@ -48,6 +51,30 @@ def collect_secrets() -> dict[str, str]:
     return {k: os.environ[k] for k in keys if os.environ.get(k)}
 
 
+def build_autosearch_query_command(query: str, mode: str) -> str:
+    return (
+        "cd $HOME/work/autosearch && AUTOSEARCH_PROVIDER_CHAIN=anthropic "
+        f".venv/bin/autosearch query {shlex.quote(query)} --mode {shlex.quote(mode)} "
+        "--no-stream --json 2>/tmp/autosearch.stderr"
+    )
+
+
+def _redact_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return redact(value)
+    if isinstance(value, dict):
+        return {key: _redact_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_redact_value(item) for item in value]
+    if isinstance(value, tuple):
+        return [_redact_value(item) for item in value]
+    return value
+
+
+def _redacted_tail(text: str | None, limit: int = 500) -> str:
+    return redact(text or "")[-limit:]
+
+
 def run_one(
     topic_id: str,
     query: str,
@@ -69,7 +96,7 @@ def run_one(
             "topic_id": topic_id,
             "run_idx": run_idx,
             "status": "sandbox_create_failed",
-            "error": str(exc),
+            "error": redact(str(exc)),
         }
 
     try:
@@ -92,16 +119,12 @@ echo install_done
                 "topic_id": topic_id,
                 "run_idx": run_idx,
                 "status": "install_failed",
-                "stderr_tail": res.stderr[-500:],
+                "stderr_tail": _redacted_tail(res.stderr),
             }
 
         t0 = time.monotonic()
         # --json envelope lands on stdout; keep stderr (log noise) separate.
-        cmd = (
-            f"cd $HOME/work/autosearch && AUTOSEARCH_PROVIDER_CHAIN=anthropic "
-            f'.venv/bin/autosearch query "{query}" --mode {mode} --no-stream --json '
-            f"2>/tmp/autosearch.stderr"
-        )
+        cmd = build_autosearch_query_command(query, mode)
         q_res = sbx.commands.run(cmd, timeout=1200, envs=secrets)
         wall = time.monotonic() - t0
 
@@ -118,6 +141,7 @@ echo install_done
                     parsed = json.loads(stdout[idx:])
                 except json.JSONDecodeError:
                     parsed = {}
+        parsed = _redact_value(parsed)
 
         result = {
             "cell_id": cell_id,
@@ -141,7 +165,7 @@ echo install_done
             "topic_id": topic_id,
             "run_idx": run_idx,
             "status": "exception",
-            "error": f"{type(exc).__name__}: {exc}",
+            "error": redact(f"{type(exc).__name__}: {exc}"),
         }
     finally:
         try:
@@ -151,7 +175,7 @@ echo install_done
 
     out = output_dir / "runs" / f"{cell_id}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(result, indent=2, default=str))
+    out.write_text(json.dumps(_redact_value(result), indent=2, default=str))
     return result
 
 
@@ -196,11 +220,13 @@ def summarize(results: list[dict], output_dir: Path) -> None:
 
     (output_dir / "variance-raw.json").write_text(
         json.dumps(
-            {
-                "generated_at": datetime.now(timezone.utc).isoformat(),
-                "total_cells": len(results),
-                "by_topic": {tid: rs for tid, rs in by_topic.items()},
-            },
+            _redact_value(
+                {
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                    "total_cells": len(results),
+                    "by_topic": {tid: rs for tid, rs in by_topic.items()},
+                }
+            ),
             indent=2,
             default=str,
         )

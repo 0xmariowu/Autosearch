@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from autosearch.core.redact import redact
+
 
 MAX_OUTPUT_CHARS = 10_000
 
@@ -14,8 +16,8 @@ def write_task_result(phase_dir: Path, result: Mapping[str, Any]) -> None:
     _write_text(stem.with_suffix(".stderr.log"), result.get("stderr", ""))
 
     payload = dict(result)
-    payload["stdout"] = _truncate(str(payload.get("stdout", "")))
-    payload["stderr"] = _truncate(str(payload.get("stderr", "")))
+    payload["stdout"] = _truncate(redact(str(payload.get("stdout", ""))))
+    payload["stderr"] = _truncate(redact(str(payload.get("stderr", ""))))
     if "wall_seconds" in payload:
         payload["wall_seconds"] = round(float(payload["wall_seconds"]), 3)
     _write_json(stem.with_suffix(".json"), payload)
@@ -71,6 +73,18 @@ def json_ready(value: Any) -> Any:
     return value
 
 
+def redacted_json_ready(value: Any) -> Any:
+    if isinstance(value, str):
+        return redact(value)
+    if isinstance(value, Path):
+        return redact(str(value))
+    if isinstance(value, dict):
+        return {key: redacted_json_ready(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [redacted_json_ready(item) for item in value]
+    return value
+
+
 def summarize_phase(
     *,
     phase_id: str,
@@ -110,9 +124,10 @@ def _truncate(text: str) -> str:
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
     path.write_text(
-        json.dumps(json_ready(payload), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        json.dumps(redacted_json_ready(payload), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
     )
 
 
 def _write_text(path: Path, content: Any) -> None:
-    path.write_text(str(content), encoding="utf-8")
+    path.write_text(redact(str(content)), encoding="utf-8")
