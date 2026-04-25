@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026.04.25.6 — 2026-04-25
+
+Third (and hopefully final) release-pipeline hotfix. `.25.4` and `.25.5`
+both pinned `twine>=6.1` but still failed at upload with the same
+`InvalidDistribution: unrecognized or malformed field 'license-file'`
+error — even though local `twine check --strict` passed on identical
+wheels. Cause appears to be GitHub's `ubuntu-latest` runner shadowing
+the user-installed twine with a system-installed older pkginfo on the
+fallback path.
+
+Switched the publish-pypi step to `pypa/gh-action-pypi-publish@release/v1`,
+the official PyPA action. It manages the upload toolchain internally
+and is the recommended path. No more manual twine version pinning.
+
+Same content as `.25.5` (which had `.25.3` content + license metadata
+hotfix + publish-pypi twine pin). Just the action change.
+
 ## 2026.04.25.5 — 2026-04-25
 
 Second hotfix attempt for the `.25.3`/`.25.4` PyPI publish failure.

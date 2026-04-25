@@ -78,7 +78,7 @@ wheels = [
 
 [[package]]
 name = "autosearch"
-version = "2026.4.25.5"
+version = "2026.4.25.6"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
