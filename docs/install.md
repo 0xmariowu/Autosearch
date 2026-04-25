@@ -121,19 +121,23 @@ AutoSearch writes this automatically during `init`. For manual setup:
 **Claude Code** (`~/.claude/mcp.json`):
 ```json
 {
-  "autosearch": {
-    "command": "autosearch-mcp",
-    "type": "stdio"
+  "mcpServers": {
+    "autosearch": {
+      "command": "autosearch-mcp",
+      "type": "stdio"
+    }
   }
 }
 ```
 
-**Cursor** (Settings → MCP):
+**Cursor** (`~/.cursor/mcp.json`):
 ```json
 {
-  "autosearch": {
-    "command": "autosearch-mcp",
-    "args": []
+  "mcpServers": {
+    "autosearch": {
+      "command": "autosearch-mcp",
+      "type": "stdio"
+    }
   }
 }
 ```
