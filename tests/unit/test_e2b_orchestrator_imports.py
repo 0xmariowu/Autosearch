@@ -17,9 +17,10 @@ LIB_DIR = REPO_ROOT / "scripts" / "e2b" / "lib"
 
 def _load(name: str):
     path = LIB_DIR / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
+    module_name = f"test_e2b_lib_{name}"
+    spec = importlib.util.spec_from_file_location(module_name, path)
     module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
+    sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
 
