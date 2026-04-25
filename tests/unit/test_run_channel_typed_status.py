@@ -11,7 +11,13 @@ from __future__ import annotations
 import pytest
 
 import autosearch.mcp.server as mcp_server
-from autosearch.channels.base import ChannelAuthError, RateLimited
+from autosearch.channels.base import (
+    ChannelAuthError,
+    MethodUnavailable,
+    PermanentError,
+    RateLimited,
+    TransientError,
+)
 from autosearch.core.channel_runtime import reset_channel_runtime
 
 
@@ -78,6 +84,46 @@ async def test_rate_limit_returns_status_rate_limited(_stub_channel) -> None:
     result = await _call_run_channel("github")
     assert result.ok is False
     assert result.status == "rate_limited"
+
+
+@pytest.mark.asyncio
+async def test_transient_error_returns_status_transient_error(_stub_channel) -> None:
+    _stub_channel(_RaisingChannel("github", TransientError("temporary upstream failure")))
+    result = await _call_run_channel("github")
+    assert result.ok is False
+    assert result.status == "transient_error"
+
+
+@pytest.mark.asyncio
+async def test_permanent_error_remains_channel_error_with_discriminating_reason(
+    _stub_channel,
+) -> None:
+    _stub_channel(_RaisingChannel("github", PermanentError("schema drift in payload")))
+    result = await _call_run_channel("github")
+    assert result.ok is False
+    assert result.status == "channel_error"
+    assert result.reason is not None
+    assert "PermanentError" in result.reason
+
+
+@pytest.mark.asyncio
+async def test_method_unavailable_missing_config_returns_not_configured(_stub_channel) -> None:
+    _stub_channel(
+        _RaisingChannel("github", MethodUnavailable("missing config: GITHUB_TOKEN is required"))
+    )
+    result = await _call_run_channel("github")
+    assert result.ok is False
+    assert result.status == "not_configured"
+
+
+@pytest.mark.asyncio
+async def test_method_unavailable_runtime_exhaustion_returns_channel_unavailable(
+    _stub_channel,
+) -> None:
+    _stub_channel(_RaisingChannel("github", MethodUnavailable("exhausted all fallback methods")))
+    result = await _call_run_channel("github")
+    assert result.ok is False
+    assert result.status == "channel_unavailable"
 
 
 @pytest.mark.asyncio

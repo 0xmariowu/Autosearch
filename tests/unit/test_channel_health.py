@@ -64,6 +64,35 @@ def test_cooldown_expires_after_configured_seconds() -> None:
     assert health.is_in_cooldown("stub", "echo") is False
 
 
+def test_auth_and_permanent_failures_enter_long_cooldown() -> None:
+    clock = FakeClock()
+    health = ChannelHealth(now=clock, cooldown_seconds=30)
+
+    health.record("stub", "auth", success=False, latency_ms=1.0, error="ChannelAuthError")
+    health.record("stub", "permanent", success=False, latency_ms=1.0, error="PermanentError")
+
+    clock.advance(31)
+
+    assert health.is_in_cooldown("stub", "auth") is True
+    assert health.is_in_cooldown("stub", "permanent") is True
+
+
+def test_transient_and_rate_limited_failures_use_short_cooldown() -> None:
+    clock = FakeClock()
+    health = ChannelHealth(now=clock, cooldown_seconds=30)
+
+    health.record("stub", "transient", success=False, latency_ms=1.0, error="TransientError")
+    health.record("stub", "rate", success=False, latency_ms=1.0, error="RateLimited")
+
+    assert health.is_in_cooldown("stub", "transient") is True
+    assert health.is_in_cooldown("stub", "rate") is True
+
+    clock.advance(31)
+
+    assert health.is_in_cooldown("stub", "transient") is False
+    assert health.is_in_cooldown("stub", "rate") is False
+
+
 def test_is_in_cooldown_method_specific_vs_any() -> None:
     clock = FakeClock()
     health = ChannelHealth(now=clock)

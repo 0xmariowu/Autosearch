@@ -15,7 +15,8 @@ class FailureCategory(StrEnum):
     """
 
     QUOTA_EXHAUSTED = "quota"  # budget exhausted → cooldown 24h, degrade to free channel
-    AUTH_FAILURE = "auth"  # cookie/session invalid → no cooldown, prompt autosearch login
+    AUTH_FAILURE = "auth"  # cookie/session invalid → long cooldown, prompt user action
+    PERMANENT_FAILURE = "permanent"  # schema drift / permanent upstream failure → long cooldown
     NETWORK_ERROR = "network"  # timeout/connection → cooldown 5min, retry
     PLATFORM_BLOCK = "block"  # platform anti-bot block → cooldown 1h, degrade
 
@@ -23,10 +24,29 @@ class FailureCategory(StrEnum):
 # Per-category cooldown durations (seconds)
 _CATEGORY_COOLDOWN: dict[FailureCategory, int] = {
     FailureCategory.QUOTA_EXHAUSTED: 86400,  # 24h
-    FailureCategory.AUTH_FAILURE: 0,  # no cooldown, needs user action
+    FailureCategory.AUTH_FAILURE: 86400,  # 24h, needs user action
+    FailureCategory.PERMANENT_FAILURE: 86400,  # 24h, waiting alone won't fix schema/auth
     FailureCategory.NETWORK_ERROR: 300,  # 5min
     FailureCategory.PLATFORM_BLOCK: 3600,  # 1h
 }
+
+
+def _failure_category_from_error(error: str | None) -> FailureCategory | None:
+    if error is None:
+        return None
+    normalized = error.lower()
+    if normalized in {"auth_failed", "channelautherror"} or "auth" in normalized:
+        return FailureCategory.AUTH_FAILURE
+    if normalized in {"budget_exhausted", "budgetexhausted", "quota"}:
+        return FailureCategory.QUOTA_EXHAUSTED
+    if (
+        normalized in {"permanent", "permanenterror", "permanent_failure"}
+        or "permanent" in normalized
+    ):
+        return FailureCategory.PERMANENT_FAILURE
+    if normalized in {"transient_error", "transienterror", "rate_limited", "ratelimited"}:
+        return FailureCategory.NETWORK_ERROR
+    return None
 
 
 @dataclass(slots=True)
@@ -82,6 +102,19 @@ class ChannelHealth:
             return
 
         state.fail_count += 1
+        category = _failure_category_from_error(error)
+        if category is not None:
+            state.last_failure_category = category
+            cooldown = (
+                self._cooldown_seconds
+                if category is FailureCategory.NETWORK_ERROR
+                else _CATEGORY_COOLDOWN.get(category, self._cooldown_seconds)
+            )
+            if cooldown > 0:
+                state.cooldown_until = now + cooldown
+                state.consecutive_failures.clear()
+            return
+
         state.consecutive_failures.append(now)
         while (
             state.consecutive_failures

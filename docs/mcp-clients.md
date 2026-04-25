@@ -134,7 +134,7 @@ The host agent drives a tool-supplier flow: discover skills, optionally clarify 
 |---|---|---|
 | `list_skills` | Required | Catalog of channel skills the agent can pick from. |
 | `run_clarify` | Required | Optional one-shot clarification turn before search starts. |
-| `run_channel` | Required | Run one channel for one query; returns `status` (`ok` / `no_results` / `not_configured` / `unknown_channel` / `auth_failed` / `rate_limited` / `budget_exhausted` / `channel_error`), `evidence`, `unmet_requires`, `fix_hint`. The core retrieval call. |
+| `run_channel` | Required | Run one channel for one query; returns `status` (`ok` / `no_results` / `not_configured` / `unknown_channel` / `auth_failed` / `rate_limited` / `budget_exhausted` / `transient_error` / `channel_unavailable` / `channel_error`), `evidence`, `unmet_requires`, `fix_hint`. The core retrieval call. |
 | `list_channels` | Required | Per-channel availability (status, methods, language, requires). |
 | `doctor` | Required | Channel-status snapshot (same data as the CLI, JSON-shaped). |
 | `select_channels_tool` | Required | Helper that ranks candidate channels for a query. |
@@ -208,6 +208,8 @@ The same handshake lands under `tests/e2b/matrix.yaml::F004_S4_mcp_stdio` in CI,
 | `run_channel` returns `status="auth_failed"` | Upstream rejected the request — 401/403, expired cookie, invalid API key, or a flagged account (XHS `code=300011`) | Follow the `fix_hint` (typically `autosearch login <channel>` with a different account, or `autosearch configure <KEY> <new-value>`) |
 | `run_channel` returns `status="rate_limited"` | The declared per-minute / per-hour limit was exceeded for that channel + method | Lower the agent's parallel-channel fan-out, or wait a minute before retrying |
 | `run_channel` returns `status="budget_exhausted"` | Paid quota / wallet is empty (TikHub 402, OpenAI `insufficient_quota`, etc.) | Top up the provider's balance — retrying without refilling will loop on the same error |
+| `run_channel` returns `status="transient_error"` | Retryable transport or upstream failure | Retry the same channel later, or continue with other channels and come back if coverage is weak |
+| `run_channel` returns `status="channel_unavailable"` | The channel is configured, but no method is usable right now | Try another channel; retry later if the unavailable method is expected to recover |
 | `run_channel` returns `status="channel_error"` with a redacted `reason` | Upstream channel hiccup; secret-shaped strings are scrubbed before reaching the response | Retry; if persistent, check `autosearch doctor --json` and the upstream provider's status page |
 
 ## Where to go next
