@@ -145,8 +145,12 @@ class TikhubClient:
         if env_proxy_url:
             resolved_proxy_token = proxy_token or os.getenv("AUTOSEARCH_PROXY_TOKEN")
             if not resolved_proxy_token:
-                raise ValueError(
-                    "AUTOSEARCH_PROXY_TOKEN is required when AUTOSEARCH_PROXY_URL is set."
+                from autosearch.channels.base import ChannelAuthError
+
+                raise ChannelAuthError(
+                    "AUTOSEARCH_PROXY_TOKEN is required when AUTOSEARCH_PROXY_URL is set. "
+                    "Run `autosearch configure AUTOSEARCH_PROXY_TOKEN <your-token>` "
+                    "or unset AUTOSEARCH_PROXY_URL to use the default TikHub endpoint."
                 )
 
             self.base_url = explicit_base_url or env_proxy_url

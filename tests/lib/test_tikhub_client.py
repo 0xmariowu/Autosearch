@@ -3,6 +3,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
+from autosearch.channels.base import ChannelAuthError
 from autosearch.lib.tikhub_client import (
     TikhubBudgetExhausted,
     TikhubClient,
@@ -127,7 +128,10 @@ def test_proxy_url_without_proxy_token_raises(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.delenv("AUTOSEARCH_PROXY_TOKEN", raising=False)
     monkeypatch.delenv("TIKHUB_API_KEY", raising=False)
 
-    with pytest.raises(ValueError, match="AUTOSEARCH_PROXY_TOKEN"):
+    with pytest.raises(
+        ChannelAuthError,
+        match="AUTOSEARCH_PROXY_TOKEN is required when AUTOSEARCH_PROXY_URL is set\\.",
+    ):
         TikhubClient()
 
 
