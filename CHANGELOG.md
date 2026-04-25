@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026.04.25.11 — 2026-04-25
+
+- 
+
 ## 2026.04.25.10 — 2026-04-25
 
 - **`autosearch query "..." --json` is now parseable.** The CLI was leaking structlog `[info]` lines onto stdout, so piping into `jq` failed with "Extra data". Logs now route to stderr (matching the MCP path), and a fresh-install smoke test (`tests/smoke/test_first_use_flow.py`) locks the contract in: markdown brief + JSON envelope + `--help` all pass without network or LLM keys, closing the P1-7 first-use loop from the production-critical-fix-plan-v2.
