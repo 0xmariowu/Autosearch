@@ -14,7 +14,7 @@ experience_digest: experience.md
 
 # Model Tier Routing — Advisory
 
-**Principle (boss's words)**: "Most steps use the runtime's cheapest model; only the critical 1-2 steps use the best model."
+**Routing principle**: most steps use the runtime's cheapest model; only the critical 1–2 steps use the best model.
 
 Autosearch stamps every leaf skill with a `model_tier` suggestion. This skill tells the runtime AI what the three tiers mean, which skills default to which tier, and when to escalate or de-escalate.
 
