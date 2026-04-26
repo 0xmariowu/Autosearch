@@ -4,6 +4,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[2]
 NPM_DIR = ROOT / "npm"
@@ -70,6 +72,7 @@ def test_npm_pack_dry_run_has_no_install_lifecycle_scripts(
     assert "bin/autosearch-ai.js" in packed_files
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX-only fake autosearch shim")
 def test_spawn_enoent_returns_nonzero(tmp_path: Path) -> None:
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
@@ -109,6 +112,7 @@ def test_spawn_enoent_returns_nonzero(tmp_path: Path) -> None:
     assert "path" in result.stderr.lower()
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX-only fake bash installer shim")
 def test_path_after_install_finds_binary(tmp_path: Path) -> None:
     home = tmp_path / "home"
     home.mkdir()
@@ -153,6 +157,7 @@ def test_path_after_install_finds_binary(tmp_path: Path) -> None:
     assert "installed autosearch doctor" in result.stdout
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX-only fake bash installer shim")
 def test_install_passes_no_init(tmp_path: Path) -> None:
     home = tmp_path / "home"
     home.mkdir()
