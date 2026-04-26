@@ -49,6 +49,14 @@ class ChannelAuthError(PermanentError):
     "no matches" (Bug 1 / fix-plan)."""
 
 
+class AccountRestrictedError(ChannelAuthError):
+    """Raised when a search returned no results because the account itself
+    is flagged/restricted upstream (e.g. XHS code=300011), distinct from a
+    generic ChannelAuthError (which means missing/expired credentials). The
+    fallback chain treats both the same -- switch to the next method -- but
+    the host agent surface gets a more actionable message."""
+
+
 class BudgetExhausted(PermanentError):
     """Raised when an upstream rejects the request because the caller's paid
     quota / wallet is empty (TikHub 402, OpenAI insufficient_quota, etc).

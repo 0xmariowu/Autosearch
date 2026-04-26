@@ -50,7 +50,7 @@ XHS applies two-tier account restriction enforcement:
 
 **Trigger**: New/unverified accounts, or accounts that triggered bot detection from excessive API calls.
 
-**Mitigation** (not yet implemented): When `via_signsrv` returns empty results, call `/api/sns/web/v2/user/me` to check account health. If `code=300011` is returned, surface `AccountRestrictedError` and prompt user to run `autosearch login xhs` with a different account.
+**Mitigation** (implemented): When `via_signsrv` returns empty results, the search path probes `/api/sns/web/v2/user/me`. If the probe returns `code=300011`, the channel raises `AccountRestrictedError` (a subclass of `ChannelAuthError`) — the fallback chain switches to `via_tikhub`, and downstream surfaces can distinguish "account flagged" from "missing/expired credentials". The same exception type is also raised on the inline `code=300011` path (when the search response itself returns 300011).
 
 **Workaround**: Use `autosearch login xhs` with a normal, actively-used XHS account. `via_tikhub` is unaffected (uses TikHub's own accounts).
 
