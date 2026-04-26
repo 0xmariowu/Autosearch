@@ -22,6 +22,76 @@ def _load_pre_release_check() -> ModuleType:
 CHECK = _load_pre_release_check()
 
 
+def _mock_pre_release_checks(
+    monkeypatch,
+    *,
+    mandatory_ok: bool = True,
+    advisory_ok: bool = True,
+) -> None:
+    """Patch the MANDATORY_CHECKS / ADVISORY_CHECKS lists with stub callables.
+
+    Patching the module-level lists (rather than the underlying `_check_*`
+    functions) is necessary because the production lists hold direct
+    function references — captured at import time — so swapping a module
+    attr does not change what the loop iterates over.
+    """
+    failing_label = "Version 4-file consistency"
+
+    def make_mandatory_fn(label: str):
+        if not mandatory_ok and label == failing_label:
+            return lambda: (False, "mandatory failed")
+        return lambda: (True, "mandatory passed")
+
+    new_mandatory = [(label, make_mandatory_fn(label)) for label, _ in CHECK.MANDATORY_CHECKS]
+    new_advisory = [
+        (label, lambda *, allow_stale=False: (advisory_ok, "advisory result"))
+        for label, _ in CHECK.ADVISORY_CHECKS
+    ]
+
+    monkeypatch.setattr(CHECK, "MANDATORY_CHECKS", new_mandatory)
+    monkeypatch.setattr(CHECK, "ADVISORY_CHECKS", new_advisory)
+
+
+def test_mandatory_checks_list_contains_expected_labels() -> None:
+    labels = [label for label, _ in CHECK.MANDATORY_CHECKS]
+
+    assert labels == [
+        "Version 4-file consistency",
+        "SKILL.md format",
+        "Channel experience dirs",
+        "MCP tools registered",
+        "Open PR release blockers",
+        "Git working tree clean",
+    ]
+    assert "Gate 12 bench ≥ 50%" not in labels
+
+
+def test_advisory_checks_list_contains_gate12_bench() -> None:
+    labels = [label for label, _ in CHECK.ADVISORY_CHECKS]
+
+    assert labels == ["Gate 12 bench ≥ 50%"]
+
+
+def test_advisory_failure_does_not_make_main_exit_nonzero(monkeypatch, capsys) -> None:
+    _mock_pre_release_checks(monkeypatch, mandatory_ok=True, advisory_ok=False)
+
+    assert CHECK.main([]) == 0
+    output = capsys.readouterr().out
+    assert "[WARN] [advisory] Gate 12 bench ≥ 50%" in output
+    assert "MANDATORY: 6/6 passed" in output
+    assert "ADVISORY: 0/1 passed" in output
+
+
+def test_advisory_main_exits_nonzero_when_mandatory_fails(monkeypatch, capsys) -> None:
+    _mock_pre_release_checks(monkeypatch, mandatory_ok=False, advisory_ok=True)
+
+    assert CHECK.main([]) == 1
+    output = capsys.readouterr().out
+    assert "[FAIL] [mandatory] Version 4-file consistency" in output
+    assert "MANDATORY: 5/6 passed" in output
+    assert "ADVISORY: 1/1 passed" in output
+
+
 def _write_stats(
     tmp_path: Path,
     run_name: str,
@@ -106,18 +176,14 @@ def test_gate12_allow_stale_passes_mismatch_with_warning(tmp_path: Path, monkeyp
 def test_allow_stale_gate12_cli_flag_is_wired(monkeypatch) -> None:
     seen: dict[str, bool] = {}
 
-    monkeypatch.setattr(CHECK, "_check_version_consistency", lambda: (True, "ok"))
-    monkeypatch.setattr(CHECK, "_check_skill_format", lambda: (True, "ok"))
-    monkeypatch.setattr(CHECK, "_check_experience_dirs", lambda: (True, "ok"))
-    monkeypatch.setattr(CHECK, "_check_mcp_tools", lambda: (True, "ok"))
-    monkeypatch.setattr(CHECK, "_check_open_prs", lambda: (True, "ok"))
-    monkeypatch.setattr(CHECK, "_check_git_clean", lambda: (True, "ok"))
+    new_mandatory = [(label, lambda: (True, "ok")) for label, _ in CHECK.MANDATORY_CHECKS]
+    monkeypatch.setattr(CHECK, "MANDATORY_CHECKS", new_mandatory)
 
     def fake_gate12(*, allow_stale: bool = False):
         seen["allow_stale"] = allow_stale
         return True, "ok"
 
-    monkeypatch.setattr(CHECK, "_check_gate12_bench", fake_gate12)
+    monkeypatch.setattr(CHECK, "ADVISORY_CHECKS", [("Gate 12 bench ≥ 50%", fake_gate12)])
 
     assert CHECK.main(["--allow-stale-gate12"]) == 0
     assert seen == {"allow_stale": True}

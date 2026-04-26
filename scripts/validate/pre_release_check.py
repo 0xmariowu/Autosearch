@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """G7-T1: Pre-release checklist — runs all fast checks before v1.0 tag.
 
-Usage: python scripts/validate/pre_release_check.py
-Exit 0 = all checks pass. Exit 1 = one or more fail.
+Usage: python scripts/validate/pre_release_check.py [--allow-stale-gate12]
+
+Exit code semantics (per docs/release-policy.md):
+  - Exit 0 = all MANDATORY checks pass. Advisory failures are reported but
+    do not change the exit code.
+  - Exit 1 = at least one MANDATORY check failed. Release must not proceed.
 """
 
 from __future__ import annotations
@@ -13,9 +17,13 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Callable
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = ROOT / "scripts" / "validate"
+
+CheckFn = Callable[[], tuple[bool, str]]
+AdvisoryCheckFn = Callable[..., tuple[bool, str]]
 
 
 def _run(label: str, cmd: list[str]) -> tuple[bool, str]:
@@ -162,25 +170,38 @@ def _label_names(pr: dict[str, object]) -> set[str]:
 
 
 def _check_open_prs() -> tuple[bool, str]:
-    result = subprocess.run(
-        ["gh", "pr", "list", "--state", "open", "--json", "number,title,labels"],
-        capture_output=True,
-        text=True,
-        cwd=ROOT,
-        env={**os.environ, "GITHUB_TOKEN": ""},
-    )
+    # Locally we strip GITHUB_TOKEN so gh falls back to keychain auth (the
+    # ambient token is sometimes scopeless). In CI we keep GH_TOKEN — it is
+    # the only auth path.
+    env = {**os.environ, "GITHUB_TOKEN": ""} if not os.environ.get("GH_TOKEN") else os.environ
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "list", "--state", "open", "--json", "number,title,labels"],
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+            env=env,
+        )
+    except FileNotFoundError:
+        # `gh` not installed — only acceptable in a dev sandbox without the
+        # CLI. CI workflows that wire this gate must have `gh` available.
+        return True, "gh CLI not installed — skipping PR check (dev env only)"
     if result.returncode != 0:
-        return True, "gh not available — skipping PR check"
+        # gh is present but failed (auth, network, rate limit). Don't fail
+        # open — silent passes here historically let release-blocker PRs
+        # slip through CI.
+        stderr_first = result.stderr.strip().splitlines()[0] if result.stderr else "no stderr"
+        return False, f"gh pr list failed (exit {result.returncode}): {stderr_first}"
     try:
         prs = json.loads(result.stdout)
-        blockers = [p for p in prs if "release-blocker" in _label_names(p)]
-        summary = f"{len(prs)} open PRs ({len(blockers)} release-blockers)"
-        if blockers:
-            titles = [f"#{p['number']}" for p in blockers[:3]]
-            return False, f"{summary}: {', '.join(titles)}"
-        return True, summary
-    except Exception:
-        return True, "could not parse gh output — skipping"
+    except json.JSONDecodeError as exc:
+        return False, f"could not parse gh output: {exc}"
+    blockers = [p for p in prs if "release-blocker" in _label_names(p)]
+    summary = f"{len(prs)} open PRs ({len(blockers)} release-blockers)"
+    if blockers:
+        titles = [f"#{p['number']}" for p in blockers[:3]]
+        return False, f"{summary}: {', '.join(titles)}"
+    return True, summary
 
 
 def _check_git_clean() -> tuple[bool, str]:
@@ -196,6 +217,42 @@ def _check_git_clean() -> tuple[bool, str]:
     return True, "working tree clean"
 
 
+MANDATORY_CHECKS: list[tuple[str, CheckFn]] = [
+    ("Version 4-file consistency", _check_version_consistency),
+    ("SKILL.md format", _check_skill_format),
+    ("Channel experience dirs", _check_experience_dirs),
+    ("MCP tools registered", _check_mcp_tools),
+    ("Open PR release blockers", _check_open_prs),
+    ("Git working tree clean", _check_git_clean),
+]
+
+ADVISORY_CHECKS: list[tuple[str, AdvisoryCheckFn]] = [
+    ("Gate 12 bench ≥ 50%", _check_gate12_bench),
+]
+
+
+def _run_mandatory_checks() -> list[tuple[str, bool, str]]:
+    results: list[tuple[str, bool, str]] = []
+    for label, fn in MANDATORY_CHECKS:
+        try:
+            ok, msg = fn()
+        except Exception as exc:
+            ok, msg = False, f"ERROR: {exc}"
+        results.append((label, ok, msg))
+    return results
+
+
+def _run_advisory_checks(*, allow_stale_gate12: bool) -> list[tuple[str, bool, str]]:
+    results: list[tuple[str, bool, str]] = []
+    for label, fn in ADVISORY_CHECKS:
+        try:
+            ok, msg = fn(allow_stale=allow_stale_gate12)
+        except Exception as exc:
+            ok, msg = False, f"ERROR: {exc}"
+        results.append((label, ok, msg))
+    return results
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run fast pre-release checks.")
     parser.add_argument(
@@ -205,43 +262,36 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    checks = [
-        ("Version 4-file consistency", _check_version_consistency),
-        ("SKILL.md format compliance", _check_skill_format),
-        ("Channel experience dirs", _check_experience_dirs),
-        ("MCP tools registered", _check_mcp_tools),
-        ("Gate 12 bench ≥ 50%", lambda: _check_gate12_bench(allow_stale=args.allow_stale_gate12)),
-        ("Open PR release blockers", _check_open_prs),
-        ("Git working tree clean", _check_git_clean),
-    ]
-
-    results: list[tuple[str, bool, str]] = []
-    for label, fn in checks:
-        try:
-            ok, msg = fn()
-        except Exception as exc:
-            ok, msg = False, f"ERROR: {exc}"
-        results.append((label, ok, msg))
+    mandatory_results = _run_mandatory_checks()
+    advisory_results = _run_advisory_checks(allow_stale_gate12=args.allow_stale_gate12)
 
     print()
     print("=" * 62)
     print("  AutoSearch Pre-Release Checklist")
     print("=" * 62)
-    all_pass = True
-    for label, ok, msg in results:
-        symbol = "✅" if ok else "❌"
-        print(f"  {symbol}  {label}")
-        print(f"       {msg}")
+    mandatory_pass = True
+    for label, ok, msg in mandatory_results:
+        symbol = "PASS" if ok else "FAIL"
+        print(f"  [{symbol}] [mandatory] {label}")
+        print(f"        {msg}")
         if not ok:
-            all_pass = False
+            mandatory_pass = False
+    for label, ok, msg in advisory_results:
+        symbol = "PASS" if ok else "WARN"
+        print(f"  [{symbol}] [advisory] {label}")
+        print(f"        {msg}")
+    mandatory_count = sum(1 for _, ok, _ in mandatory_results if ok)
+    advisory_count = sum(1 for _, ok, _ in advisory_results if ok)
     print("=" * 62)
-    if all_pass:
-        print("  ALL CHECKS PASSED — ready for v1.0 tag")
+    print(f"  MANDATORY: {mandatory_count}/{len(mandatory_results)} passed")
+    print(f"  ADVISORY: {advisory_count}/{len(advisory_results)} passed")
+    if mandatory_pass:
+        print("  MANDATORY CHECKS PASSED — ready for v1.0 tag")
         print("  Next: scripts/bump-version.sh → git tag v1.0.0 → git push --tags")
     else:
-        print("  SOME CHECKS FAILED — fix before tagging")
+        print("  MANDATORY CHECKS FAILED — fix before tagging")
     print()
-    return 0 if all_pass else 1
+    return 0 if mandatory_pass else 1
 
 
 if __name__ == "__main__":
