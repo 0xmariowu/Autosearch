@@ -182,6 +182,21 @@ async def test_inner_timeout_error_is_not_classified_as_delegate_timeout() -> No
 
 
 @pytest.mark.asyncio
+async def test_cancelled_error_propagates() -> None:
+    async def _search(_channel_name: str) -> list[dict]:
+        raise asyncio.CancelledError
+
+    with pytest.raises(asyncio.CancelledError):
+        await run_subtask(
+            "task",
+            ["cancelled"],
+            "query",
+            channel_runtime=_UNUSED_RUNTIME,
+            _search_fn=_search,
+        )
+
+
+@pytest.mark.asyncio
 async def test_delegate_subtask_mcp_response_includes_failed_channel_details(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

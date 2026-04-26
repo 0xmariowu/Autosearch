@@ -6,12 +6,30 @@ import asyncio
 import os
 from dataclasses import dataclass, field
 
+import httpx
+
+from autosearch.channels.base import (
+    MethodUnavailable,
+    PermanentError,
+    RateLimited,
+    TransientError,
+)
 from autosearch.core.channel_status import ChannelFailureStatus, exception_to_channel_status
 from autosearch.core.channel_runtime import ChannelRuntime
 from autosearch.core.models import SubQuery
 
 _DEFAULT_CONCURRENCY_CAP = 5
 _DEFAULT_PER_CHANNEL_TIMEOUT_SECONDS = 30.0
+_EXPECTED_CHANNEL_EXCEPTIONS = (
+    ValueError,
+    RuntimeError,
+    TimeoutError,
+    MethodUnavailable,
+    PermanentError,
+    RateLimited,
+    TransientError,
+    httpx.HTTPError,
+)
 
 
 def _resolve_concurrency_cap() -> int:
@@ -121,7 +139,9 @@ async def run_subtask(
                             resolved_per_channel_timeout,
                         )
                 return name, evidence[:max_per_channel]
-            except Exception as exc:  # noqa: BLE001
+            except asyncio.CancelledError:
+                raise
+            except _EXPECTED_CHANNEL_EXCEPTIONS as exc:
                 return name, exc
 
     outcomes = await asyncio.gather(*(_run_one(ch) for ch in channels))
