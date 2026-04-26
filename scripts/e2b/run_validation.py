@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import os
 import re
-import shutil
 import sys
 import tempfile
 import time
@@ -389,23 +388,18 @@ def execute_phase(
     return phase_summary
 
 
-def clean_output_dir(output_dir: Path, console: Console) -> None:
-    resolved = output_dir.expanduser().resolve()
-    dangerous_paths = {
-        Path("/"),
-        Path.home().resolve(),
-        Path.home().resolve().parent,
-        Path.cwd().resolve(),
-    }
-    if resolved in dangerous_paths:
-        raise ValueError(f"Refusing to wipe dangerous path: {resolved}")
-    if len(resolved.parts) < 3:
-        raise ValueError(f"Output dir must be at least 2 levels deep: {resolved}")
-
-    if output_dir.exists():
-        console.print(f"[yellow]WARN[/] wiping existing output directory {resolved}")
-        shutil.rmtree(resolved)
-    resolved.mkdir(parents=True, exist_ok=True)
+def create_run_output_dir(base_output_dir: Path) -> Path:
+    base_output_dir.mkdir(parents=True, exist_ok=True)
+    for _attempt in range(100):
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        run_output_dir = base_output_dir / f"run-{timestamp}"
+        try:
+            run_output_dir.mkdir()
+        except FileExistsError:
+            time.sleep(0.001)
+            continue
+        return run_output_dir
+    raise ValueError(f"Unable to create a unique run output directory under {base_output_dir}")
 
 
 def select_phases(all_phases: list[PhaseSpec], phase_filter: str | None) -> list[PhaseSpec]:
@@ -456,7 +450,7 @@ def main() -> int:
         args = parse_args()
         matrix_path = Path(args.matrix).expanduser().resolve()
         secrets_path = Path(args.secrets).expanduser()
-        output_dir = Path(args.output).expanduser()
+        base_output_dir = Path(args.output).expanduser()
         tarball = Path(args.tarball).expanduser().resolve() if args.tarball else None
         source_dir = Path(args.source_dir).expanduser().resolve() if args.source_dir else None
 
@@ -471,7 +465,7 @@ def main() -> int:
         if "E2B_API_KEY" in secrets and "E2B_API_KEY" not in os.environ:
             os.environ["E2B_API_KEY"] = secrets["E2B_API_KEY"]
 
-        clean_output_dir(output_dir, stderr_console)
+        output_dir = create_run_output_dir(base_output_dir)
 
         started_at = datetime.now(timezone.utc).isoformat()
         with Progress(
