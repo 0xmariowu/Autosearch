@@ -75,6 +75,12 @@ MODULE = _load_module()
 search = MODULE.search
 
 
+@pytest.fixture(autouse=True)
+def _enable_legacy_html_search(monkeypatch: pytest.MonkeyPatch) -> None:
+    # These fixtures exercise the pre-gateway HTML parser path.
+    monkeypatch.setenv(MODULE.USE_LEGACY_HTML_SEARCH_ENV, "1")
+
+
 class _Logger:
     def __init__(self) -> None:
         self.events: list[tuple[str, dict[str, object]]] = []
