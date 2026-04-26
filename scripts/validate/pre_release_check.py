@@ -44,6 +44,13 @@ def _check_skill_format() -> tuple[bool, str]:
 
 
 def _check_experience_dirs() -> tuple[bool, str]:
+    # `experience/` is `.gitignore`d (runtime artifact, kept out of public git
+    # history per CLAUDE.md §Data rules). In CI / release-pipeline checkouts
+    # it will always be missing because it's never committed, so this check
+    # is auto-skipped there. The check still runs locally as a pre-tag
+    # developer sanity guard.
+    if os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true":
+        return True, "skipped in CI (experience/ is gitignored runtime artifact)"
     channels_root = ROOT / "autosearch" / "skills" / "channels"
     patterns_files = list(channels_root.rglob("patterns.jsonl"))
     skill_dirs = [d for d in channels_root.iterdir() if d.is_dir() and (d / "SKILL.md").exists()]
@@ -220,20 +227,14 @@ def _check_git_clean() -> tuple[bool, str]:
 MANDATORY_CHECKS: list[tuple[str, CheckFn]] = [
     ("Version 4-file consistency", _check_version_consistency),
     ("SKILL.md format", _check_skill_format),
+    ("Channel experience dirs", _check_experience_dirs),
     ("MCP tools registered", _check_mcp_tools),
     ("Open PR release blockers", _check_open_prs),
     ("Git working tree clean", _check_git_clean),
 ]
 
-# Channel experience dirs (`experience/patterns.jsonl`) are runtime artifacts —
-# `experience/` is `.gitignore`d on purpose so accumulated channel learning
-# doesn't enter public git history (CLAUDE.md §Data rules + Public-repo hygiene).
-# In CI / release-pipeline checkouts they will always be missing because
-# they're never committed. The check is still useful as a local developer
-# sanity tier (warns when dirs are missing pre-tag), so it lives in advisory.
 ADVISORY_CHECKS: list[tuple[str, AdvisoryCheckFn]] = [
     ("Gate 12 bench ≥ 50%", _check_gate12_bench),
-    ("Channel experience dirs (runtime, advisory)", _check_experience_dirs),
 ]
 
 
