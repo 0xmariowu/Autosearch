@@ -82,7 +82,8 @@ def test_local_audio_happy_path_skips_yt_dlp(
     tmp_path: Path,
 ) -> None:
     fake_mp3 = tmp_path / "local.mp3"
-    fake_mp3.write_bytes(b"fake mp3")
+    fake_mp3.write_bytes(b"ID3 fake mp3")
+    monkeypatch.setenv("AUTOSEARCH_TRANSCRIBE_ALLOWED_DIRS", str(tmp_path))
 
     def fail_extract(source: str) -> str:
         raise AssertionError(f"yt-dlp should not run for local audio: {source}")
@@ -107,7 +108,8 @@ def test_mlx_whisper_unavailable_returns_structured_error(
     tmp_path: Path,
 ) -> None:
     fake_mp3 = tmp_path / "local.mp3"
-    fake_mp3.write_bytes(b"fake mp3")
+    fake_mp3.write_bytes(b"ID3 fake mp3")
+    monkeypatch.setenv("AUTOSEARCH_TRANSCRIBE_ALLOWED_DIRS", str(tmp_path))
     monkeypatch.setattr(VIDEO_TO_TEXT_LOCAL, "_load_mlx_whisper", lambda: None)
 
     result = VIDEO_TO_TEXT_LOCAL.transcribe(str(fake_mp3))
@@ -123,8 +125,9 @@ def test_custom_model_via_env_var_is_passed(
     tmp_path: Path,
 ) -> None:
     fake_mp3 = tmp_path / "local.mp3"
-    fake_mp3.write_bytes(b"fake mp3")
+    fake_mp3.write_bytes(b"ID3 fake mp3")
     monkeypatch.setenv("AUTOSEARCH_MLX_WHISPER_MODEL", "mlx-community/whisper-tiny")
+    monkeypatch.setenv("AUTOSEARCH_TRANSCRIBE_ALLOWED_DIRS", str(tmp_path))
 
     captured: dict[str, object] = {}
 
@@ -173,7 +176,8 @@ def test_mlx_runtime_error_returns_structured_error(
     tmp_path: Path,
 ) -> None:
     fake_mp3 = tmp_path / "local.mp3"
-    fake_mp3.write_bytes(b"fake mp3")
+    fake_mp3.write_bytes(b"ID3 fake mp3")
+    monkeypatch.setenv("AUTOSEARCH_TRANSCRIBE_ALLOWED_DIRS", str(tmp_path))
 
     def fake_transcribe(audio_path: str, *, path_or_hf_repo: str) -> dict[str, object]:
         raise RuntimeError("metal kernel launch failed")
