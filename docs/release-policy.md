@@ -32,11 +32,12 @@ step.
 | Lint + format (ruff) | `release-gate.sh --quick` | Already enforced on every PR; serves as belt-and-braces here. |
 | CLI surface smoke (`autosearch --help`, `mcp-check`, `doctor --json`) | `release-gate.sh --quick` | Catches packaging breakage that unit tests miss. |
 
-## Advisory checks (release continues; non-zero exit is reported but not fatal)
+## Advisory checks (release continues; failures are reported but not fatal)
 
-These appear in `pre_release_check.py` output as warnings prefixed with
-`⚠️` (or with `[advisory]` in CI). They surface signal but do not gate
-publish.
+These appear in `pre_release_check.py` output prefixed with `[WARN]
+[advisory]` and are summarized in the `ADVISORY: N/M passed` line. They
+surface signal but do not change the script's exit code; the release
+pipeline keeps going.
 
 | Check | Where defined | Why advisory |
 |---|---|---|
@@ -56,9 +57,11 @@ post results (or open an issue on failure) for engineering follow-up.
 ## How to change this policy
 
 1. Edit this file.
-2. If a check moves from mandatory → advisory, update
-   `scripts/validate/pre_release_check.py` to `print_warning` instead of
-   `return False`. If it moves the other way, do the inverse.
+2. If a check moves from mandatory → advisory, move it from
+   `MANDATORY_CHECKS` to `ADVISORY_CHECKS` in
+   `scripts/validate/pre_release_check.py`. Mandatory failures set the exit
+   code to 1; advisory failures only emit a `[WARN] [advisory]` line.
+   Reverse direction: move it back into `MANDATORY_CHECKS`.
 3. If a check moves into / out of `release.yml`, edit the workflow.
 4. Open one PR with all three changes. Title: `policy(release): <what>`.
    Reference this doc in the PR body.

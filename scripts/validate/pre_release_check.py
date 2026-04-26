@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = ROOT / "scripts" / "validate"
 
 CheckFn = Callable[[], tuple[bool, str]]
-AdvisoryCheckFn = Callable[[bool], tuple[bool, str]]
+AdvisoryCheckFn = Callable[..., tuple[bool, str]]
 
 
 def _run(label: str, cmd: list[str]) -> tuple[bool, str]:
@@ -201,16 +201,16 @@ def _check_git_clean() -> tuple[bool, str]:
 
 
 MANDATORY_CHECKS: list[tuple[str, CheckFn]] = [
-    ("Version 4-file consistency", lambda: _check_version_consistency()),
-    ("SKILL.md format", lambda: _check_skill_format()),
-    ("Channel experience dirs", lambda: _check_experience_dirs()),
-    ("MCP tools registered", lambda: _check_mcp_tools()),
-    ("Open PR release blockers", lambda: _check_open_prs()),
-    ("Git working tree clean", lambda: _check_git_clean()),
+    ("Version 4-file consistency", _check_version_consistency),
+    ("SKILL.md format", _check_skill_format),
+    ("Channel experience dirs", _check_experience_dirs),
+    ("MCP tools registered", _check_mcp_tools),
+    ("Open PR release blockers", _check_open_prs),
+    ("Git working tree clean", _check_git_clean),
 ]
 
 ADVISORY_CHECKS: list[tuple[str, AdvisoryCheckFn]] = [
-    ("Gate 12 bench ≥ 50%", lambda allow_stale=False: _check_gate12_bench(allow_stale=allow_stale)),
+    ("Gate 12 bench ≥ 50%", _check_gate12_bench),
 ]
 
 
@@ -229,7 +229,7 @@ def _run_advisory_checks(*, allow_stale_gate12: bool) -> list[tuple[str, bool, s
     results: list[tuple[str, bool, str]] = []
     for label, fn in ADVISORY_CHECKS:
         try:
-            ok, msg = fn(allow_stale_gate12)
+            ok, msg = fn(allow_stale=allow_stale_gate12)
         except Exception as exc:
             ok, msg = False, f"ERROR: {exc}"
         results.append((label, ok, msg))
@@ -260,9 +260,9 @@ def main(argv: list[str] | None = None) -> int:
         if not ok:
             mandatory_pass = False
     for label, ok, msg in advisory_results:
-        symbol = "✅" if ok else "⚠️"
-        print(f"  {symbol}  [advisory] {label}")
-        print(f"       {msg}")
+        symbol = "PASS" if ok else "WARN"
+        print(f"  [{symbol}] [advisory] {label}")
+        print(f"        {msg}")
     mandatory_count = sum(1 for _, ok, _ in mandatory_results if ok)
     advisory_count = sum(1 for _, ok, _ in advisory_results if ok)
     print("=" * 62)
