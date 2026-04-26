@@ -483,7 +483,6 @@ def configure(
     Default flow: prompts for the value with hidden input so the secret never
     appears on the command line, in shell history, or in `ps`.
     """
-    import shlex
     import sys
 
     if from_stdin:
@@ -505,16 +504,14 @@ def configure(
     # Bug 3 (fix-plan): write target must follow AUTOSEARCH_SECRETS_FILE so
     # containers / CI / multi-user installs don't end up writing to A while
     # the runtime reads B.
-    from autosearch.core.secrets_store import secrets_path as _secrets_path  # noqa: PLC0415
+    from autosearch.core.secrets_store import (  # noqa: PLC0415
+        load_secrets,
+        secrets_path as _secrets_path,
+        write_secret,
+    )
 
     secrets_path = _secrets_path()
-    existing: dict[str, str] = {}
-    if secrets_path.exists():
-        for line in secrets_path.read_text(encoding="utf-8").splitlines():
-            stripped = line.strip()
-            if stripped and not stripped.startswith("#") and "=" in stripped:
-                k, _, v = stripped.partition("=")
-                existing[k.strip()] = v
+    existing = load_secrets(secrets_path)
 
     if key in existing and not replace:
         typer.echo(
@@ -523,24 +520,7 @@ def configure(
         )
         raise typer.Exit(code=0)
 
-    secrets_path.parent.mkdir(parents=True, exist_ok=True)
-    if key in existing and replace:
-        # Rewrite the file in place with the new value, preserve all others.
-        existing[key] = shlex.quote(value)
-        secrets_path.write_text(
-            "\n".join(f"{k}={v}" for k, v in existing.items()) + "\n",
-            encoding="utf-8",
-        )
-    else:
-        with secrets_path.open("a", encoding="utf-8") as fh:
-            fh.write(f"\n{key}={shlex.quote(value)}\n")
-
-    # Restrict file permissions so other users on the box can't read the secrets.
-    try:
-        secrets_path.chmod(0o600)
-    except OSError:
-        pass
-
+    write_secret(key, value, path=secrets_path)
     typer.echo(f"Written: {key} -> {secrets_path}")
 
 

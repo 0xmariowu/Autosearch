@@ -51,6 +51,31 @@ def test_configure_writes_to_AUTOSEARCH_SECRETS_FILE(tmp_secrets) -> None:
     assert "test-value" in body
 
 
+def test_configure_replace_uses_write_secret(tmp_secrets, monkeypatch) -> None:
+    tmp_secrets.write_text("AUTOSEARCH_F007_REPLACE_KEY=old-value\n", encoding="utf-8")
+    monkeypatch.setattr(secrets_store, "inject_into_env", lambda *args, **kwargs: set())
+    calls = []
+
+    def fake_write_secret(key: str, value: str, *, path) -> None:
+        calls.append((key, value, path))
+
+    monkeypatch.setattr(secrets_store, "write_secret", fake_write_secret)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "configure",
+            "AUTOSEARCH_F007_REPLACE_KEY",
+            "new-value",
+            "--replace",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert calls == [("AUTOSEARCH_F007_REPLACE_KEY", "new-value", tmp_secrets)]
+
+
 def test_cookie_writer_writes_to_AUTOSEARCH_SECRETS_FILE(tmp_secrets) -> None:
     _write_cookie_to_secrets("XHS_COOKIES", "a=b; c=d", "xhs", n_cookies=2)
     assert tmp_secrets.exists()
