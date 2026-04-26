@@ -109,5 +109,7 @@ def test_cli_query_top_level_exception_redacted(monkeypatch: pytest.MonkeyPatch)
 
     result = CliRunner().invoke(app, ["query", "redaction smoke"])
 
+    combined_output = (result.output or "") + (result.stderr or "")
     assert result.exit_code == 1
-    assert leaked_key not in (result.stderr or "")
+    assert leaked_key not in combined_output
+    assert "REDACTED" in combined_output
