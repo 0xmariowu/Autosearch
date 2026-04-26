@@ -38,6 +38,7 @@ jobs:
         run: pytest -x -q -m "not real_llm and not perf and not slow"
 
   smoke:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     permissions:
       contents: read
