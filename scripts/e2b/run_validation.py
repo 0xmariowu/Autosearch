@@ -399,15 +399,11 @@ def get_reports_root() -> Path:
 
 
 def _path_is_inside(child: Path, parent: Path) -> bool:
-    try:
-        child.relative_to(parent)
-    except ValueError:
-        return False
-    return child != parent
+    return child != parent and child.is_relative_to(parent)
 
 
 def clean_output_dir(output_dir: Path, console: Console) -> None:
-    reports_root = get_reports_root().expanduser().absolute()
+    reports_root = get_reports_root().expanduser().resolve()
     clean_target = output_dir.expanduser().resolve()
     if not _path_is_inside(clean_target, reports_root):
         raise ValueError(
@@ -415,10 +411,10 @@ def clean_output_dir(output_dir: Path, console: Console) -> None:
             f"is not inside {reports_root}"
         )
 
-    if output_dir.exists():
+    if clean_target.exists():
         console.print(f"[yellow]WARN[/] wiping existing output directory {clean_target}")
-        shutil.rmtree(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+        shutil.rmtree(clean_target)
+    clean_target.mkdir(parents=True, exist_ok=True)
 
 
 def create_run_output_dir(
