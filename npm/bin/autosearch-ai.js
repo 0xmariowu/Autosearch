@@ -91,6 +91,29 @@ function printInstallerNotFoundHint(error) {
   );
 }
 
+function isPermissionError(error) {
+  return error?.code === "EACCES" || error?.code === "EPERM";
+}
+
+function printAutosearchPermissionHint(error) {
+  process.stderr.write(
+    `\nautosearch failed to start: permission denied.\n` +
+      `Expected executable: ${expectedAutosearchPath()}\n` +
+      `Check that the autosearch executable has execute permission, ` +
+      `or reinstall AutoSearch with pipx or pip.\n` +
+      (error?.message ? `\nOriginal error: ${error.message}\n` : "\n"),
+  );
+}
+
+function printInstallerPermissionHint(error) {
+  process.stderr.write(
+    `\nUnable to start the AutoSearch installer: permission denied.\n` +
+      `Check permissions for the installer command on PATH ` +
+      `(bash, pipx, py, or python), then re-run: npx autosearch-ai --yes\n` +
+      (error?.message ? `\nOriginal error: ${error.message}\n` : "\n"),
+  );
+}
+
 // Bug 6 (fix-plan v8 follow-up): compare the wrapper's expected Python CLI
 // version against what's actually installed. The npm package version
 // `YYYY.M.DD` derives from pyproject `YYYY.MM.DD.N` (N is the daily counter
@@ -269,7 +292,15 @@ async function main() {
       }
     }
     const result = runInstall();
+    if (isPermissionError(result.error)) {
+      printInstallerPermissionHint(result.error);
+      process.exit(1);
+    }
     if (result.error?.code === "ENOENT") {
+      printInstallerNotFoundHint(result.error);
+      process.exit(1);
+    }
+    if (result.error) {
       printInstallerNotFoundHint(result.error);
       process.exit(1);
     }
@@ -283,7 +314,15 @@ async function main() {
 
   const cmd = args.length > 0 ? args : ["init"];
   const result = spawnSync("autosearch", cmd, { stdio: "inherit" });
+  if (isPermissionError(result.error)) {
+    printAutosearchPermissionHint(result.error);
+    process.exit(1);
+  }
   if (result.error?.code === "ENOENT") {
+    printAutosearchNotFoundHint(result.error);
+    process.exit(1);
+  }
+  if (result.error) {
     printAutosearchNotFoundHint(result.error);
     process.exit(1);
   }
