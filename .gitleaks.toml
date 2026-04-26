@@ -14,6 +14,10 @@ regex = '''/Users/[a-zA-Z0-9_\-\.]+/|/home/[a-z][a-z0-9_\-]+/'''
 tags = ["pii", "personal-path"]
 keywords = ["/Users/", "/home/"]
 
+  [[rules.allowlists]]
+  description = "RFC-style placeholder usernames in test fixtures (example/test/user/fake/fixture/dummy) are not real PII"
+  regexes = ['''/Users/(example|test|user|fake|fixture|dummy)/''', '''/home/(example|test|user|fake|fixture|dummy)/''']
+
 [[rules]]
 id = "tailscale-domain"
 description = "Tailscale network address or internal hostname leaked"
@@ -34,6 +38,11 @@ keywords = [".ts.net", ".local"]
   description = "SKILL.md + ops docs reference .local paths (Linux XDG, not a Tailscale domain)"
   paths = ['''skills/.*/SKILL\.md$''', '''docs/.*\.md$''']
   regexes = ['''\.local/''']
+
+  [[rules.allowlists]]
+  description = "Install scripts + npm wrapper + their tests reference $HOME/.local POSIX user dirs (XDG, not Tailscale .local hostname)"
+  paths = ['''scripts/install\.sh$''', '''npm/bin/.*\.js$''', '''tests/(smoke|unit)/test_(npm_wrapper|install_script|install_sh_flags|npm_wrapper_permissions)\.py$''']
+  regexes = ['''\.local/(bin|share|lib|var|state|cache|tmp)''', '''\$HOME/\.local''', '''process\.env\.HOME[^"]*\.local''']
 
 # ── Public-repo-only rules ───────────────────────────────────────────────────
 

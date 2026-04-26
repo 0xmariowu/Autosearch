@@ -48,6 +48,72 @@ function hasAutosearch() {
   return getInstalledAutosearchVersion() !== null;
 }
 
+function expectedAutosearchPath() {
+  if (isWindows()) {
+    return "%USERPROFILE%\\AppData\\Roaming\\Python\\Python312\\Scripts\\autosearch.exe";
+  }
+  return `${process.env.HOME || "~"}/.local/bin/autosearch`;
+}
+
+function prependHomeLocalBinToPath() {
+  if (!process.env.HOME) return;
+
+  const localBin = `${process.env.HOME}/.local/bin`;
+  const separator = isWindows() ? ";" : ":";
+  const currentPath = process.env.PATH || "";
+  if (currentPath.split(separator).includes(localBin)) return;
+
+  process.env.PATH = currentPath
+    ? `${localBin}${separator}${currentPath}`
+    : localBin;
+}
+
+function printAutosearchNotFoundHint(error) {
+  process.stderr.write(
+    `\nautosearch not found after install.\n` +
+      `Expected executable: ${expectedAutosearchPath()}\n` +
+      `Your PATH may not include the install location yet.\n` +
+      `Re-source your shell profile or install AutoSearch directly:\n` +
+      `  curl -fsSL ${INSTALL_SCRIPT} | bash\n` +
+      `  pipx install autosearch && autosearch init\n` +
+      `  pip install --user autosearch && autosearch init\n` +
+      (error?.message ? `\nOriginal error: ${error.message}\n` : "\n"),
+  );
+}
+
+function printInstallerNotFoundHint(error) {
+  process.stderr.write(
+    `\nUnable to start the AutoSearch installer.\n` +
+      `The underlying installer command was not found. Ensure one of these ` +
+      `commands is available on PATH: curl, bash, pipx, py, python.\n` +
+      `Then re-run: npx autosearch-ai --yes\n` +
+      (error?.message ? `\nOriginal error: ${error.message}\n` : "\n"),
+  );
+}
+
+function isPermissionError(error) {
+  return error?.code === "EACCES" || error?.code === "EPERM";
+}
+
+function printAutosearchPermissionHint(error) {
+  process.stderr.write(
+    `\nautosearch failed to start: permission denied.\n` +
+      `Expected executable: ${expectedAutosearchPath()}\n` +
+      `Check that the autosearch executable has execute permission, ` +
+      `or reinstall AutoSearch with pipx or pip.\n` +
+      (error?.message ? `\nOriginal error: ${error.message}\n` : "\n"),
+  );
+}
+
+function printInstallerPermissionHint(error) {
+  process.stderr.write(
+    `\nUnable to start the AutoSearch installer: permission denied.\n` +
+      `Check permissions for the installer command on PATH ` +
+      `(bash, pipx, py, or python), then re-run: npx autosearch-ai --yes\n` +
+      (error?.message ? `\nOriginal error: ${error.message}\n` : "\n"),
+  );
+}
+
 // Bug 6 (fix-plan v8 follow-up): compare the wrapper's expected Python CLI
 // version against what's actually installed. The npm package version
 // `YYYY.M.DD` derives from pyproject `YYYY.MM.DD.N` (N is the daily counter
@@ -150,7 +216,7 @@ function describeInstallStep() {
     if (hasOnPath("python")) return `python -m pip install --user autosearch`;
     return null;
   }
-  return `curl -fsSL ${INSTALL_SCRIPT} | bash`;
+  return `curl -fsSL ${INSTALL_SCRIPT} | bash -s -- --no-init`;
 }
 
 function runInstall() {
@@ -182,7 +248,7 @@ function runInstall() {
   }
   return spawnSync(
     "bash",
-    ["-c", `curl -fsSL ${INSTALL_SCRIPT} | bash`],
+    ["-c", `curl -fsSL ${INSTALL_SCRIPT} | bash -s -- --no-init`],
     { stdio: "inherit" },
   );
 }
@@ -226,15 +292,40 @@ async function main() {
       }
     }
     const result = runInstall();
+    if (isPermissionError(result.error)) {
+      printInstallerPermissionHint(result.error);
+      process.exit(1);
+    }
+    if (result.error?.code === "ENOENT") {
+      printInstallerNotFoundHint(result.error);
+      process.exit(1);
+    }
+    if (result.error) {
+      printInstallerNotFoundHint(result.error);
+      process.exit(1);
+    }
     if ((result.status ?? 0) !== 0) {
       process.exit(result.status ?? 1);
     }
+    prependHomeLocalBinToPath();
   } else {
     checkVersionAlignment(installedVersion);
   }
 
   const cmd = args.length > 0 ? args : ["init"];
   const result = spawnSync("autosearch", cmd, { stdio: "inherit" });
+  if (isPermissionError(result.error)) {
+    printAutosearchPermissionHint(result.error);
+    process.exit(1);
+  }
+  if (result.error?.code === "ENOENT") {
+    printAutosearchNotFoundHint(result.error);
+    process.exit(1);
+  }
+  if (result.error) {
+    printAutosearchNotFoundHint(result.error);
+    process.exit(1);
+  }
   process.exit(result.status ?? 0);
 }
 
