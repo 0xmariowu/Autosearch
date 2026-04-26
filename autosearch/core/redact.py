@@ -11,7 +11,8 @@ Conservative match list — must NOT alter ordinary user prose.
 from __future__ import annotations
 
 import re
-from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+from pathlib import Path, PureWindowsPath
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 _SECRET_KEY_PATTERN = (
     r"(?:"
@@ -84,6 +85,10 @@ _SIGNED_URL_QUERY_KEYS = {
         "Key-Pair-Id",
     }
 }
+_WINDOWS_DRIVE_PATH_PATTERN = re.compile(r"^[A-Za-z]:[\\/]")
+_EXPLICIT_URL_SCHEME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://")
+_DOMAIN_HOST_PATTERN = re.compile(r"^(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}$")
+_IPV4_HOST_PATTERN = re.compile(r"^(?:\d{1,3}\.){3}\d{1,3}$")
 
 
 def _replacer(match: re.Match) -> str:
@@ -138,6 +143,46 @@ def redact_url(url: str, *, strip_query: bool = True) -> str:
 
     query = "" if strip_query else parts.query
     return urlunsplit((parts.scheme, parts.netloc, parts.path, query, parts.fragment))
+
+
+def redact_path_for_output(p: str | None) -> str:
+    """Return a URL-redacted value or basename-only local path for structured output."""
+    if not p:
+        return ""
+
+    if _is_windows_drive_path(p):
+        return _local_path_name(p)
+
+    if _EXPLICIT_URL_SCHEME_PATTERN.match(p) or _looks_like_schemeless_url(p):
+        return redact_url(p)
+    return _local_path_name(p)
+
+
+def _is_windows_drive_path(value: str) -> bool:
+    return bool(_WINDOWS_DRIVE_PATH_PATTERN.match(value))
+
+
+def _local_path_name(value: str) -> str:
+    if "\\" in value or _is_windows_drive_path(value):
+        return PureWindowsPath(value).name
+    return Path(value).name
+
+
+def _looks_like_schemeless_url(value: str) -> bool:
+    if value.startswith(("/", "\\")) or _is_windows_drive_path(value):
+        return False
+
+    try:
+        parts = urlsplit(f"//{value}")
+    except ValueError:
+        return False
+
+    host = parts.hostname or ""
+    return (
+        host == "localhost"
+        or bool(_DOMAIN_HOST_PATTERN.match(host))
+        or bool(_IPV4_HOST_PATTERN.match(host))
+    )
 
 
 def redact_signed_url(url: str) -> str:
