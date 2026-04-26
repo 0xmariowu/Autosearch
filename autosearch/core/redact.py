@@ -11,7 +11,8 @@ Conservative match list — must NOT alter ordinary user prose.
 from __future__ import annotations
 
 import re
-from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 _SECRET_KEY_PATTERN = (
     r"(?:"
@@ -138,6 +139,21 @@ def redact_url(url: str, *, strip_query: bool = True) -> str:
 
     query = "" if strip_query else parts.query
     return urlunsplit((parts.scheme, parts.netloc, parts.path, query, parts.fragment))
+
+
+def redact_path_for_output(p: str) -> str:
+    """Return a URL-redacted value or basename-only local path for structured output."""
+    if not p:
+        return ""
+
+    try:
+        parts = urlsplit(p)
+    except ValueError:
+        return p if re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", p) else Path(p).name
+
+    if parts.scheme:
+        return redact_url(p)
+    return Path(p).name
 
 
 def redact_signed_url(url: str) -> str:

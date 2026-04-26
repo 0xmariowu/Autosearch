@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 import httpx
 import structlog
 
-from autosearch.core.redact import redact_url
+from autosearch.core.redact import redact_path_for_output, redact_url
 
 LOGGER = structlog.get_logger(__name__).bind(component="tool", skill="video-to-text-openai")
 
@@ -210,8 +210,8 @@ def transcribe(
             "model": OPENAI_MODEL,
             "backend": OPENAI_BACKEND,
         },
-        "audio_path": audio_path,
-        "source": redact_url(url_or_path),
+        "audio_path": redact_path_for_output(audio_path),
+        "source": redact_path_for_output(url_or_path),
     }
 
 
@@ -398,6 +398,10 @@ def _truncate_body(body: str, *, max_chars: int = 500) -> str:
 
 
 def _failure(*, source: str, reason: str, **extra: object) -> VideoToTextOpenAIResult:
-    result: VideoToTextOpenAIResult = {"ok": False, "source": redact_url(source), "reason": reason}
+    result: VideoToTextOpenAIResult = {
+        "ok": False,
+        "source": redact_path_for_output(source),
+        "reason": reason,
+    }
     result.update(extra)
     return result

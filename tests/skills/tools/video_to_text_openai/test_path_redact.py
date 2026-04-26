@@ -66,7 +66,10 @@ def test_local_path_not_in_structured_output(
     failure = VIDEO_TO_TEXT_OPENAI.transcribe(absolute_input)
 
     assert success["ok"] is True
+    assert success["source"] == local_mp3.name
+    assert success["audio_path"] == local_mp3.name
     assert failure["ok"] is False
+    assert failure["source"] == local_mp3.name
     assert failure["reason"] == "missing_api_key"
     assert absolute_input not in str(failure["reason"])
 
