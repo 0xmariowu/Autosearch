@@ -750,40 +750,22 @@ def _write_cookie_to_secrets(
     the same file we just wrote. Bug 4: chmods the file 0o600 after write
     so cookies aren't world-readable on shared boxes.
     """
-    import shlex
-
-    from autosearch.core.secrets_store import secrets_path as _secrets_path
+    from autosearch.core.secrets_store import (
+        load_secrets,
+        secrets_path as _secrets_path,
+        write_secret,
+    )
 
     secrets_path = _secrets_path()
-    secrets_path.parent.mkdir(parents=True, exist_ok=True)
-
-    existing_keys: set[str] = set()
-    if secrets_path.exists():
-        for line in secrets_path.read_text(encoding="utf-8").splitlines():
-            stripped = line.strip()
-            if stripped and not stripped.startswith("#") and "=" in stripped:
-                existing_keys.add(stripped.split("=", 1)[0].strip())
-
+    existing = load_secrets(secrets_path)
     label = f"{n_cookies} cookies" if n_cookies else "cookies"
-    if env_key in existing_keys:
-        lines = secrets_path.read_text(encoding="utf-8").splitlines()
-        new_lines = [
-            f"{env_key}={shlex.quote(cookie_str)}"
-            if line.strip().startswith(f"{env_key}=")
-            else line
-            for line in lines
-        ]
-        secrets_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+    existed = env_key in existing
+
+    write_secret(env_key, cookie_str, path=secrets_path)
+    if existed:
         typer.echo(f"Updated {env_key} ({label}) → {secrets_path}")
     else:
-        with secrets_path.open("a", encoding="utf-8") as fh:
-            fh.write(f"\n{env_key}={shlex.quote(cookie_str)}\n")
         typer.echo(f"Written {env_key} ({label}) → {secrets_path}")
-
-    try:
-        secrets_path.chmod(0o600)
-    except OSError:
-        pass
 
 
 def _stderr_event_writer(event: dict[str, object]) -> None:

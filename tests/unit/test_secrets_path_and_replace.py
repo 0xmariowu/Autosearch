@@ -83,6 +83,20 @@ def test_cookie_writer_writes_to_AUTOSEARCH_SECRETS_FILE(tmp_secrets) -> None:
     assert "XHS_COOKIES" in body
 
 
+def test_cookie_write_uses_write_secret(tmp_secrets, monkeypatch) -> None:
+    tmp_secrets.write_text("XHS_COOKIES=old-cookie\n", encoding="utf-8")
+    calls = []
+
+    def fake_write_secret(key: str, value: str, *, path) -> None:
+        calls.append((key, value, path))
+
+    monkeypatch.setattr(secrets_store, "write_secret", fake_write_secret)
+
+    _write_cookie_to_secrets("XHS_COOKIES", "a=b; c=d", "xhs", n_cookies=2)
+
+    assert calls == [("XHS_COOKIES", "a=b; c=d", tmp_secrets)]
+
+
 def test_cookie_writer_chmods_secrets_file_to_0600(tmp_secrets) -> None:
     _write_cookie_to_secrets("XHS_COOKIES", "a=b", "xhs")
     assert tmp_secrets.exists()
