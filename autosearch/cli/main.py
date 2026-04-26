@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from autosearch import __version__
 from autosearch.cli.mcp_config_writers import MCPConfigWriteError
+from autosearch.core import secrets_store
 from autosearch.core.environment_probe import probe_environment
 from autosearch.core.models import SearchMode
 from autosearch.core.scope_clarifier import ScopeClarifier
@@ -82,9 +83,7 @@ def main(
     # Push ~/.config/ai-secrets.env keys into process env so subcommands and
     # any provider/channel that does `os.getenv("FOO_API_KEY")` actually sees
     # what the user configured via `autosearch configure`.
-    from autosearch.core.secrets_store import inject_into_env
-
-    inject_into_env()
+    secrets_store.inject_into_env()
 
     if ctx.invoked_subcommand is None and not version:
         raise typer.Exit(code=0)
@@ -483,8 +482,6 @@ def configure(
     Default flow: prompts for the value with hidden input so the secret never
     appears on the command line, in shell history, or in `ps`.
     """
-    import sys
-
     if from_stdin:
         value = sys.stdin.read().rstrip("\n")
     elif value is None:
@@ -501,17 +498,8 @@ def configure(
         typer.echo("error: value must not be empty.", err=True)
         raise typer.Exit(code=2)
 
-    # Bug 3 (fix-plan): write target must follow AUTOSEARCH_SECRETS_FILE so
-    # containers / CI / multi-user installs don't end up writing to A while
-    # the runtime reads B.
-    from autosearch.core.secrets_store import (  # noqa: PLC0415
-        load_secrets,
-        secrets_path as _secrets_path,
-        write_secret,
-    )
-
-    secrets_path = _secrets_path()
-    existing = load_secrets(secrets_path)
+    secrets_path = secrets_store.secrets_path()
+    existing = secrets_store.load_secrets(secrets_path)
 
     if key in existing and not replace:
         typer.echo(
@@ -520,7 +508,7 @@ def configure(
         )
         raise typer.Exit(code=0)
 
-    write_secret(key, value, path=secrets_path)
+    secrets_store.write_secret(key, value, path=secrets_path)
     typer.echo(f"Written: {key} -> {secrets_path}")
 
 
@@ -750,18 +738,12 @@ def _write_cookie_to_secrets(
     the same file we just wrote. Bug 4: chmods the file 0o600 after write
     so cookies aren't world-readable on shared boxes.
     """
-    from autosearch.core.secrets_store import (
-        load_secrets,
-        secrets_path as _secrets_path,
-        write_secret,
-    )
-
-    secrets_path = _secrets_path()
-    existing = load_secrets(secrets_path)
+    secrets_path = secrets_store.secrets_path()
+    existing = secrets_store.load_secrets(secrets_path)
     label = f"{n_cookies} cookies" if n_cookies else "cookies"
     existed = env_key in existing
 
-    write_secret(env_key, cookie_str, path=secrets_path)
+    secrets_store.write_secret(env_key, cookie_str, path=secrets_path)
     if existed:
         typer.echo(f"Updated {env_key} ({label}) → {secrets_path}")
     else:
