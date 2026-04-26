@@ -260,10 +260,13 @@ async def transcribe(source: str, timeout: float = _DEFAULT_TIMEOUT) -> BcutResu
         {ok, text, segments, duration_seconds, source}
         or {ok: False, reason, source}
     """
-    redacted_source = redact_url(source)
+    if not isinstance(source, str):
+        return {"ok": False, "source": "", "reason": "source must be a string"}
 
-    if not source or not source.strip():
-        return {"ok": False, "source": redacted_source, "reason": "empty source"}
+    if not source.strip():
+        return {"ok": False, "source": "", "reason": "empty source"}
+
+    redacted_source = redact_url(source)
 
     try:
         with tempfile.TemporaryDirectory() as tmpdir:

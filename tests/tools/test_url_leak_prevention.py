@@ -237,6 +237,14 @@ def test_bcut_structured_output_redacts_source(monkeypatch: pytest.MonkeyPatch) 
     _assert_no_bcut_signature(result["source"])
 
 
+def test_bcut_handles_non_string_source() -> None:
+    module = _load_bcut_tool()
+
+    result = asyncio.run(module.transcribe(None))
+
+    assert result == {"ok": False, "source": "", "reason": "source must be a string"}
+
+
 @pytest.mark.parametrize(
     ("tool_key", "runner"),
     [
