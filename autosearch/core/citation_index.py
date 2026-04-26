@@ -9,6 +9,8 @@ import re
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 import uuid
 
+from autosearch.core.redact import redact_signed_url
+
 
 _TRACKING_QUERY_PARAMS = {
     "fbclid",
@@ -95,7 +97,7 @@ def add_citation(index_id: str, url: str, title: str = "", source: str = "") -> 
     return num
 
 
-def export_citations(index_id: str) -> str:
+def export_citations(index_id: str, *, raw_urls: bool = False) -> str:
     """Export citation index as a Markdown reference list.
 
     Format: [N] title — source (url)
@@ -104,9 +106,11 @@ def export_citations(index_id: str) -> str:
     lines: list[str] = []
     for entry in sorted(idx._entries, key=lambda e: e["num"]):
         num = entry["num"]
-        title = entry["title"] or entry["url"]
-        source = entry["source"]
         url = entry["url"]
+        if not raw_urls:
+            url = redact_signed_url(url)
+        title = entry["title"] or url
+        source = entry["source"]
         if source:
             lines.append(f"[{num}] {title} — {source} ({url})")
         else:
