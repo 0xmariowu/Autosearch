@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -67,3 +68,42 @@ def test_npm_pack_dry_run_has_no_install_lifecycle_scripts(
     packed_files = {entry["path"] for entry in pack_output[0]["files"]}
     assert "package.json" in packed_files
     assert "bin/autosearch-ai.js" in packed_files
+
+
+def test_spawn_enoent_returns_nonzero(tmp_path: Path) -> None:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_autosearch = fake_bin / "autosearch"
+    fake_autosearch.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "--version" ]; then\n'
+        f'  rm -f "{fake_autosearch}"\n'
+        '  echo "2026.4.24.1"\n'
+        "  exit 0\n"
+        "fi\n"
+        'echo "unexpected autosearch invocation" >&2\n'
+        "exit 2\n",
+        encoding="utf-8",
+    )
+    fake_autosearch.chmod(0o755)
+
+    env = os.environ.copy()
+    env["PATH"] = os.pathsep.join([str(fake_bin), "/usr/bin", "/bin"])
+
+    result = subprocess.run(
+        [
+            shutil.which("node") or "node",
+            str(NPM_DIR / "bin" / "autosearch-ai.js"),
+            "doctor",
+        ],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "autosearch not found" in result.stderr.lower()
+    assert "path" in result.stderr.lower()
