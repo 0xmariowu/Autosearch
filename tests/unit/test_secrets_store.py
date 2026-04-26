@@ -101,6 +101,14 @@ def test_write_secret_basic(tmp_path):
     assert load_secrets(f) == {"OPENAI_API_KEY": "sk-basic"}
 
 
+def test_write_secret_creates_parent_dir(tmp_path):
+    f = tmp_path / "nested" / "deep" / "dir" / "ai-secrets.env"
+
+    write_secret("OPENAI_API_KEY", "sk-nested", path=f)
+
+    assert f.read_text(encoding="utf-8") == "OPENAI_API_KEY=sk-nested\n"
+
+
 @pytest.mark.parametrize(
     "bad_key",
     ["", "1OPENAI_API_KEY", "OPENAI-API-KEY", "OPENAI.API.KEY", "OPENAI API KEY"],
