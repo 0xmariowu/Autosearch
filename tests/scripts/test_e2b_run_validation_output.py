@@ -16,6 +16,9 @@ def _install_e2b_stubs(monkeypatch) -> None:
     commands_module = ModuleType("e2b.sandbox.commands")
     command_handle_module = ModuleType("e2b.sandbox.commands.command_handle")
     interpreter_module = ModuleType("e2b_code_interpreter")
+    e2b_module.__path__ = []
+    sandbox_module.__path__ = []
+    commands_module.__path__ = []
 
     class CommandExitException(Exception):
         exit_code = 1
@@ -40,6 +43,17 @@ def _install_e2b_stubs(monkeypatch) -> None:
         command_handle_module,
     )
     monkeypatch.setitem(sys.modules, "e2b_code_interpreter", interpreter_module)
+
+
+def test_e2b_stubs_support_nested_command_handle_import(monkeypatch) -> None:
+    _install_e2b_stubs(monkeypatch)
+
+    command_handle = importlib.import_module("e2b.sandbox.commands.command_handle")
+
+    assert sys.modules["e2b"].__path__ == []
+    assert sys.modules["e2b.sandbox"].__path__ == []
+    assert sys.modules["e2b.sandbox.commands"].__path__ == []
+    assert command_handle.CommandExitException.__name__ == "CommandExitException"
 
 
 def _load_run_validation(monkeypatch):
