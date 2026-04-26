@@ -6,7 +6,9 @@ import asyncio
 import os
 from dataclasses import dataclass, field
 
+from autosearch.core.channel_status import ChannelFailureStatus, exception_to_channel_status
 from autosearch.core.channel_runtime import ChannelRuntime
+from autosearch.core.models import SubQuery
 
 _DEFAULT_CONCURRENCY_CAP = 5
 _DEFAULT_PER_CHANNEL_TIMEOUT_SECONDS = 30.0
@@ -63,8 +65,6 @@ async def run_subtask(
     in-flight calls (default 5; override via
     ``AUTOSEARCH_DELEGATE_CONCURRENCY``) to protect paid APIs from burst.
     """
-    from autosearch.core.models import SubQuery  # noqa: PLC0415
-
     channels = list(dict.fromkeys(channels))
     semaphore = asyncio.Semaphore(_resolve_concurrency_cap())
     resolved_per_channel_timeout = _resolve_per_channel_timeout(per_channel_timeout)
@@ -113,11 +113,6 @@ async def run_subtask(
 
     for name, outcome in outcomes:
         if isinstance(outcome, Exception):
-            from autosearch.core.channel_status import (  # noqa: PLC0415
-                ChannelFailureStatus,
-                exception_to_channel_status,
-            )
-
             if isinstance(outcome, asyncio.TimeoutError):
                 _record_timeout(name)
                 failure = ChannelFailureStatus(
