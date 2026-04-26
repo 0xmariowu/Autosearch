@@ -51,11 +51,12 @@ mkdir -p "${REPORT_DIR}"
 # Matrix upload steps in tests/e2b/matrix.yaml hardcode /tmp/autosearch-src.tar.gz
 # as the source path, so the file on disk has to match that exact name.
 TARBALL="/tmp/autosearch-src.tar.gz"
-tar --exclude='.git' --exclude='node_modules' --exclude='.venv' \
-    --exclude='__pycache__' --exclude='.pytest_cache' \
-    --exclude='*.egg-info' --exclude='reports' --exclude='build' \
-    --exclude='.ruff_cache' --exclude='.orchestrator' \
-    -czf "${TARBALL}" .
+
+# Pack tracked files only (P0-2 fix): scripts.e2b.lib.packing applies
+# git ls-files + denylist so .env / experience/ / evidence/ never enter
+# the sandbox tarball, even if a developer accidentally git-add'd one.
+echo "[nightly-local] packing tracked files only via scripts.e2b.lib.packing"
+"${PY}" -c "from pathlib import Path; from scripts.e2b.lib.packing import pack_directory; pack_directory(Path('${REPO_ROOT}'), Path('${TARBALL}'))"
 
 PARALLEL="${AUTOSEARCH_PARALLEL:-15}"
 
