@@ -35,6 +35,11 @@ keywords = [".ts.net", ".local"]
   paths = ['''skills/.*/SKILL\.md$''', '''docs/.*\.md$''']
   regexes = ['''\.local/''']
 
+  [[rules.allowlists]]
+  description = "Install scripts + npm wrapper + their tests reference $HOME/.local POSIX user dirs (XDG, not Tailscale .local hostname)"
+  paths = ['''scripts/install\.sh$''', '''npm/bin/.*\.js$''', '''tests/(smoke|unit)/test_(npm_wrapper|install_script|install_sh_flags|npm_wrapper_permissions)\.py$''']
+  regexes = ['''\.local/(bin|share|lib|var|state|cache|tmp)''', '''\$HOME/\.local''', '''process\.env\.HOME[^"]*\.local''']
+
 # ── Public-repo-only rules ───────────────────────────────────────────────────
 
 [[rules]]
