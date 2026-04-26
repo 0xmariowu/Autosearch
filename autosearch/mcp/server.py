@@ -22,7 +22,7 @@ from autosearch.core.loop_state import get_gaps as _ls_get_gaps
 from autosearch.core.loop_state import init_loop as _ls_init
 from autosearch.core.loop_state import update_loop as _ls_update
 from autosearch.core.models import ClarifyRequest, SearchMode, SubQuery
-from autosearch.core.redact import redact_signed_url
+from autosearch.core.redact import redact, redact_signed_url
 from autosearch.core.search_scope import SearchScope, depth_to_mode
 from autosearch.llm.client import LLMClient
 
@@ -431,7 +431,7 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
             result = await factory().run(query, mode_hint=mode_hint, scope=scope)
         except Exception as exc:
             return ResearchResponse(
-                content=f"[error] {exc}",
+                content=redact(f"[error] {exc}"),
                 channel_empty_calls={},
                 routing_trace={},
                 delivery_status="error",
