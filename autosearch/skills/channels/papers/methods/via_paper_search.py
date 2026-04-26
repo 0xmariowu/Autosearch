@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 
 import structlog
@@ -41,14 +42,31 @@ async def search(
         return []
     fetched_at = datetime.now(UTC)
     source_items = list(active_sources.items())
-    tasks = [
-        asyncio.wait_for(
-            asyncio.to_thread(_search_source, searcher_cls, query.text, max_results_per_source),
-            timeout=per_source_timeout_seconds,
-        )
-        for _, searcher_cls in source_items
-    ]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    if not source_items:
+        return []
+
+    loop = asyncio.get_running_loop()
+    executor = ThreadPoolExecutor(
+        max_workers=len(source_items),
+        thread_name_prefix="papers-source",
+    )
+    try:
+        tasks = [
+            asyncio.wait_for(
+                loop.run_in_executor(
+                    executor,
+                    _search_source,
+                    searcher_cls,
+                    query.text,
+                    max_results_per_source,
+                ),
+                timeout=per_source_timeout_seconds,
+            )
+            for _, searcher_cls in source_items
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
 
     evidence_by_source: dict[str, list[Evidence]] = {}
     for (source_name, _), result in zip(source_items, results, strict=True):
