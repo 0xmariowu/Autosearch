@@ -52,7 +52,9 @@ def _mock_pre_release_checks(
         "_check_open_prs",
         lambda: mandatory_result("Open PR release blockers"),
     )
-    monkeypatch.setattr(CHECK, "_check_git_clean", lambda: mandatory_result("Git working tree clean"))
+    monkeypatch.setattr(
+        CHECK, "_check_git_clean", lambda: mandatory_result("Git working tree clean")
+    )
     monkeypatch.setattr(
         CHECK,
         "_check_gate12_bench",
