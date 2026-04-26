@@ -245,6 +245,21 @@ def test_bcut_handles_non_string_source() -> None:
     assert result == {"ok": False, "source": "", "reason": "source must be a string"}
 
 
+def test_bcut_unexpected_error_no_traceback_leak(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_bcut_tool()
+    _configure_bcut_unexpected_error(module, monkeypatch)
+
+    with capture_logs() as logs:
+        result = asyncio.run(module.transcribe(BCUT_SIGNED_URL))
+
+    assert result["ok"] is False
+    assert any(log.get("event") == "bcut_unexpected_error" for log in logs)
+    for log in logs:
+        serialized = json.dumps(log, sort_keys=True, default=str)
+        assert "Signature=" not in serialized
+        assert not log.get("exc_info")
+
+
 @pytest.mark.parametrize(
     ("tool_key", "runner"),
     [

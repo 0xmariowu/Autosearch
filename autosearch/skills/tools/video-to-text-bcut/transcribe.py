@@ -315,5 +315,10 @@ async def transcribe(source: str, timeout: float = _DEFAULT_TIMEOUT) -> BcutResu
 
     except Exception as exc:
         reason = redact(str(exc).replace(source, redacted_source))
-        LOGGER.exception("bcut_unexpected_error", source=redacted_source)
+        LOGGER.warning(
+            "bcut_unexpected_error",
+            source=redacted_source,
+            error_type=type(exc).__name__,
+            reason=reason,
+        )
         return {"ok": False, "source": redacted_source, "reason": f"unexpected: {reason}"}
