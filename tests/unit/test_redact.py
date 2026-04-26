@@ -149,7 +149,7 @@ def test_redact_url_malformed_url_returns_as_is() -> None:
 
 
 def test_redact_path_for_output_returns_basename_for_local_path() -> None:
-    assert redact_path_for_output("/Users/example/private/audio.mp3") == "audio.mp3"
+    assert redact_path_for_output("/some/secret/dir/audio.mp3") == "audio.mp3"
 
 
 def test_redact_path_for_output_redacts_url_query() -> None:
