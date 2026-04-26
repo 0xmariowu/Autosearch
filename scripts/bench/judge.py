@@ -265,8 +265,8 @@ def add_report_metadata(
             "sample_size": stats["total"],
             "a_label": stats["a_label"],
             "b_label": stats["b_label"],
-            "a_dir": str(a_dir),
-            "b_dir": str(b_dir),
+            "a_dir": a_dir.as_posix(),
+            "b_dir": b_dir.as_posix(),
         },
     }
 
