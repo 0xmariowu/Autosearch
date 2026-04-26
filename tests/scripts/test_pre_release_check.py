@@ -52,7 +52,7 @@ def _mock_pre_release_checks(
     monkeypatch.setattr(CHECK, "ADVISORY_CHECKS", new_advisory)
 
 
-def test_advisory_mandatory_checks_list_contains_expected_labels() -> None:
+def test_mandatory_checks_list_contains_expected_labels() -> None:
     labels = [label for label, _ in CHECK.MANDATORY_CHECKS]
 
     assert labels == [
@@ -87,7 +87,7 @@ def test_advisory_main_exits_nonzero_when_mandatory_fails(monkeypatch, capsys) -
 
     assert CHECK.main([]) == 1
     output = capsys.readouterr().out
-    assert "❌  [mandatory] Version 4-file consistency" in output
+    assert "[FAIL] [mandatory] Version 4-file consistency" in output
     assert "MANDATORY: 5/6 passed" in output
     assert "ADVISORY: 1/1 passed" in output
 

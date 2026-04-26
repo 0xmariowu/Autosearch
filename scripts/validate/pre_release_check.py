@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """G7-T1: Pre-release checklist — runs all fast checks before v1.0 tag.
 
-Usage: python scripts/validate/pre_release_check.py
-Exit 0 = all checks pass. Exit 1 = one or more fail.
+Usage: python scripts/validate/pre_release_check.py [--allow-stale-gate12]
+
+Exit code semantics (per docs/release-policy.md):
+  - Exit 0 = all MANDATORY checks pass. Advisory failures are reported but
+    do not change the exit code.
+  - Exit 1 = at least one MANDATORY check failed. Release must not proceed.
 """
 
 from __future__ import annotations
@@ -166,25 +170,38 @@ def _label_names(pr: dict[str, object]) -> set[str]:
 
 
 def _check_open_prs() -> tuple[bool, str]:
-    result = subprocess.run(
-        ["gh", "pr", "list", "--state", "open", "--json", "number,title,labels"],
-        capture_output=True,
-        text=True,
-        cwd=ROOT,
-        env={**os.environ, "GITHUB_TOKEN": ""},
-    )
+    # Locally we strip GITHUB_TOKEN so gh falls back to keychain auth (the
+    # ambient token is sometimes scopeless). In CI we keep GH_TOKEN — it is
+    # the only auth path.
+    env = {**os.environ, "GITHUB_TOKEN": ""} if not os.environ.get("GH_TOKEN") else os.environ
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "list", "--state", "open", "--json", "number,title,labels"],
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+            env=env,
+        )
+    except FileNotFoundError:
+        # `gh` not installed — only acceptable in a dev sandbox without the
+        # CLI. CI workflows that wire this gate must have `gh` available.
+        return True, "gh CLI not installed — skipping PR check (dev env only)"
     if result.returncode != 0:
-        return True, "gh not available — skipping PR check"
+        # gh is present but failed (auth, network, rate limit). Don't fail
+        # open — silent passes here historically let release-blocker PRs
+        # slip through CI.
+        stderr_first = result.stderr.strip().splitlines()[0] if result.stderr else "no stderr"
+        return False, f"gh pr list failed (exit {result.returncode}): {stderr_first}"
     try:
         prs = json.loads(result.stdout)
-        blockers = [p for p in prs if "release-blocker" in _label_names(p)]
-        summary = f"{len(prs)} open PRs ({len(blockers)} release-blockers)"
-        if blockers:
-            titles = [f"#{p['number']}" for p in blockers[:3]]
-            return False, f"{summary}: {', '.join(titles)}"
-        return True, summary
-    except Exception:
-        return True, "could not parse gh output — skipping"
+    except json.JSONDecodeError as exc:
+        return False, f"could not parse gh output: {exc}"
+    blockers = [p for p in prs if "release-blocker" in _label_names(p)]
+    summary = f"{len(prs)} open PRs ({len(blockers)} release-blockers)"
+    if blockers:
+        titles = [f"#{p['number']}" for p in blockers[:3]]
+        return False, f"{summary}: {', '.join(titles)}"
+    return True, summary
 
 
 def _check_git_clean() -> tuple[bool, str]:
@@ -254,9 +271,9 @@ def main(argv: list[str] | None = None) -> int:
     print("=" * 62)
     mandatory_pass = True
     for label, ok, msg in mandatory_results:
-        symbol = "✅" if ok else "❌"
-        print(f"  {symbol}  [mandatory] {label}")
-        print(f"       {msg}")
+        symbol = "PASS" if ok else "FAIL"
+        print(f"  [{symbol}] [mandatory] {label}")
+        print(f"        {msg}")
         if not ok:
             mandatory_pass = False
     for label, ok, msg in advisory_results:

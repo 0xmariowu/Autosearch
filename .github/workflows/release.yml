@@ -84,8 +84,12 @@ jobs:
       # pre_release_check.py mandatory tier — gates release. Advisory tier
       # (Gate 12 bench) prints warnings but does not fail this step. See
       # docs/release-policy.md for the full mandatory / advisory / nightly
-      # matrix.
+      # matrix. GH_TOKEN is REQUIRED so `_check_open_prs()` can authenticate
+      # `gh pr list`; without it, the call fails open and a release-blocker
+      # PR could silently slip through this gate.
       - name: Run pre_release_check.py (mandatory checks)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/validate/pre_release_check.py --allow-stale-gate12
 
       - name: Install build backend
