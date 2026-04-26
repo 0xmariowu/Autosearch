@@ -12,6 +12,7 @@ constructs a string from arbitrary upstream content.
 from __future__ import annotations
 
 import asyncio
+import json
 
 import pytest
 from typer.testing import CliRunner
@@ -113,3 +114,22 @@ def test_cli_query_top_level_exception_redacted(monkeypatch: pytest.MonkeyPatch)
     assert result.exit_code == 1
     assert leaked_key not in combined_output
     assert "REDACTED" in combined_output
+
+
+def test_cli_query_json_error_envelope_redacted(monkeypatch: pytest.MonkeyPatch) -> None:
+    from autosearch.cli.main import app
+    from autosearch.cli.query_pipeline import QueryResult
+
+    leaked_key = "sk-FAKEKEY" + "1234567890abcdef"
+
+    async def _failing_run_query(_query: str, **_kwargs: object) -> QueryResult:
+        raise RuntimeError(f"upstream returned token {leaked_key}")
+
+    monkeypatch.setattr("autosearch.cli.query_pipeline.run_query", _failing_run_query)
+
+    result = CliRunner().invoke(app, ["query", "redaction smoke", "--json"])
+
+    assert result.exit_code == 1
+    assert leaked_key not in result.stdout
+    payload = json.loads(result.stdout)
+    assert "[REDACTED]" in payload["error"]
