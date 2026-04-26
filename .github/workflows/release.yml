@@ -78,15 +78,19 @@ jobs:
       - name: Install autosearch (for release-gate CLI surface checks)
         run: pip install -e ".[dev]"
 
-      # Note: pre_release_check.py is intentionally NOT wired into the
-      # release workflow — it bundles checks (channel experience dirs
-      # bootstrap state, Gate 12 bench results) that are useful as a
-      # local pre-tag developer tool but aren't release blockers when
-      # those artifacts haven't been generated. Run it locally via
-      # `python scripts/validate/pre_release_check.py` before tagging.
-
       - name: Run release-gate.sh --quick --pypi (version + uniqueness + lint + CLI surface)
         run: bash scripts/release-gate.sh --quick --pypi
+
+      # pre_release_check.py mandatory tier — gates release. Advisory tier
+      # (Gate 12 bench) prints warnings but does not fail this step. See
+      # docs/release-policy.md for the full mandatory / advisory / nightly
+      # matrix. GH_TOKEN is REQUIRED so `_check_open_prs()` can authenticate
+      # `gh pr list`; without it, the call fails open and a release-blocker
+      # PR could silently slip through this gate.
+      - name: Run pre_release_check.py (mandatory checks)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/validate/pre_release_check.py --allow-stale-gate12
 
       - name: Install build backend
         run: pip install --upgrade "build>=1.2" "twine>=6.1" "setuptools>=80"
