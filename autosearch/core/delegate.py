@@ -103,6 +103,11 @@ async def run_subtask(
 
     outcomes = await asyncio.gather(*(_run_one(ch) for ch in channels))
 
+    def _record_timeout(name: str) -> None:
+        record_timeout = getattr(channel_runtime, "record_timeout", None)
+        if callable(record_timeout):
+            record_timeout(name)
+
     for name, outcome in outcomes:
         if isinstance(outcome, Exception):
             from autosearch.core.channel_status import (  # noqa: PLC0415
@@ -111,6 +116,7 @@ async def run_subtask(
             )
 
             if isinstance(outcome, asyncio.TimeoutError):
+                _record_timeout(name)
                 failure = ChannelFailureStatus(
                     status="transient_error",
                     reason=f"timeout after {resolved_per_channel_timeout}s",

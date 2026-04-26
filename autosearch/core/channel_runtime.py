@@ -15,12 +15,15 @@ production path never calls it.
 
 from __future__ import annotations
 
+import time
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from autosearch.channels.base import Channel, ChannelRegistry
 from autosearch.core.rate_limiter import RateLimiter
 from autosearch.observability.channel_health import ChannelHealth
+
+_DELEGATE_TIMEOUT_METHOD = "__delegate_timeout__"
 
 
 @dataclass
@@ -34,6 +37,21 @@ class ChannelRuntime:
     limiter: RateLimiter
     # Channels exposed for the v2 happy-path tools (filtered by `available()`)
     channels: list[Channel]
+    last_timeout_ts: float | None = None
+    channel_timeout_ts: dict[str, float] = field(default_factory=dict)
+
+    def record_timeout(self, channel_name: str) -> None:
+        """Record a delegate-level timeout in shared channel health."""
+        now = time.monotonic()
+        self.last_timeout_ts = now
+        self.channel_timeout_ts[channel_name] = now
+        self.health.record(
+            channel_name,
+            _DELEGATE_TIMEOUT_METHOD,
+            success=False,
+            latency_ms=0.0,
+            error="TransientError",
+        )
 
 
 _runtime: ChannelRuntime | None = None
