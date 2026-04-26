@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from autosearch.core.redact import redact, redact_signed_url, redact_url
+from autosearch.core.redact import redact, redact_path_for_output, redact_signed_url, redact_url
 
 
 def test_redact_bearer_token_with_plus_slash_equals_redacts_full_token() -> None:
@@ -146,6 +146,34 @@ def test_redact_url_malformed_url_returns_as_is() -> None:
     url = "http://[::1"
 
     assert redact_url(url) == url
+
+
+def test_redact_path_for_output_returns_basename_for_local_path() -> None:
+    assert redact_path_for_output("/Users/example/private/audio.mp3") == "audio.mp3"
+
+
+def test_redact_path_for_output_redacts_url_query() -> None:
+    out = redact_path_for_output("https://example.com/audio.mp3?token=SECRET_VALUE_PLACEHOLDER")
+
+    assert out == "https://example.com/audio.mp3"
+    assert "SECRET_VALUE_PLACEHOLDER" not in out
+
+
+def test_schemeless_url_treated_as_url() -> None:
+    out = redact_path_for_output("example.com/audio.mp3?token=X")
+
+    assert out == "example.com/audio.mp3"
+    assert out != "audio.mp3"
+    assert "token=X" not in out
+
+
+def test_windows_drive_letter_path_treated_as_local() -> None:
+    assert redact_path_for_output(r"C:\Users\example\private\audio.mp3") == "audio.mp3"
+
+
+def test_redact_path_for_output_empty_or_none_returns_empty_string() -> None:
+    assert redact_path_for_output("") == ""
+    assert redact_path_for_output(None) == ""
 
 
 class TestRedactSignedUrl:

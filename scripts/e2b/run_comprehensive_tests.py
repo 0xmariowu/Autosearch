@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import os
 import sys
 import time
@@ -29,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from scripts.e2b.evaluate import compute_summary  # noqa: E402
-from scripts.e2b.report import render  # noqa: E402
+from scripts.e2b.report import render, render_results_json  # noqa: E402
 from scripts.e2b.sandbox_runner import (  # noqa: E402
     ScenarioResult,
     _collect_keys,
@@ -406,6 +405,14 @@ async def run_scenario_in_sandbox(
                     await kill_sandbox(client, sandbox_id)
 
 
+def write_outputs(results: list[ScenarioResult], output_dir: Path) -> dict:
+    """Write comprehensive results without leaking scenario text secrets."""
+    summary = compute_summary(results)
+    render_results_json(results, summary, output_dir)
+    render(results, summary, output_dir)
+    return summary
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 
@@ -476,16 +483,7 @@ async def main(argv: list[str] | None = None) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Compute summary & write outputs
-    summary = compute_summary(list(results))
-    (output_dir / "results.json").write_text(
-        json.dumps(
-            {"summary": summary, "results": [r.to_dict() for r in results]},
-            indent=2,
-            ensure_ascii=False,
-        ),
-        encoding="utf-8",
-    )
-    render(list(results), summary, output_dir)
+    summary = write_outputs(list(results), output_dir)
 
     # Print final summary
     emoji = {"READY": "🟢", "BETA": "🟡", "NOT_READY": "🔴"}.get(summary["readiness"], "⚪")
