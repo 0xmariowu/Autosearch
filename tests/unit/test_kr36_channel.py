@@ -4,6 +4,7 @@ import httpx
 import pytest
 
 from autosearch.channels.base import ChannelRegistry, Environment
+from autosearch.core.channel_status import exception_to_channel_status
 from autosearch.core.models import FetchedPage, SubQuery
 from autosearch.lib.html_scraper import HtmlFetchError
 
@@ -41,6 +42,38 @@ def _fetched_page(url: str, *, markdown: str) -> FetchedPage:
         cleaned_html="<article></article>",
         markdown=markdown,
     )
+
+
+@pytest.mark.asyncio
+async def test_kr36_404_returns_transient_error_with_fix_hint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    search_callable = _compiled_kr36()
+
+    async def fake_fetch_html(
+        url: str,
+        *,
+        http_client: httpx.AsyncClient | None = None,
+        params: dict[str, str] | None = None,
+    ) -> str:
+        _ = http_client
+        _ = params
+        raise HtmlFetchError(url, status_code=404, reason="http_error")
+
+    monkeypatch.setitem(search_callable.__globals__, "fetch_html", fake_fetch_html)
+
+    with pytest.raises(Exception) as raised:
+        await search_callable(
+            SubQuery(text="ai financing", rationale="Need KR36 coverage"),
+        )
+
+    failure = exception_to_channel_status(raised.value)
+    fix_hint = failure.fix_hint or ""
+
+    assert failure.status == "transient_error"
+    assert fix_hint
+    assert "36kr search endpoint" in fix_hint.lower()
+    assert "upstream" in fix_hint.lower()
 
 
 @pytest.mark.asyncio
