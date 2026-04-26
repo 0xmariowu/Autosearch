@@ -164,6 +164,24 @@ async def test_timeout_classified_as_transient_error() -> None:
 
 
 @pytest.mark.asyncio
+async def test_inner_timeout_error_is_not_classified_as_delegate_timeout() -> None:
+    async def _search(_channel_name: str) -> list[dict]:
+        raise TimeoutError("socket timed out")
+
+    result = await run_subtask(
+        "task",
+        ["slow"],
+        "query",
+        channel_runtime=_UNUSED_RUNTIME,
+        per_channel_timeout=None,
+        _search_fn=_search,
+    )
+
+    assert result.failed_channel_details[0]["status"] == "channel_error"
+    assert "timeout after" not in result.failed_channel_details[0]["reason"]
+
+
+@pytest.mark.asyncio
 async def test_delegate_subtask_mcp_response_includes_failed_channel_details(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

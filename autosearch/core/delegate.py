@@ -46,6 +46,20 @@ class SubtaskResult:
     budget_used: dict[str, int] = field(default_factory=dict)
 
 
+class _PerChannelTimeoutError(TimeoutError):
+    def __init__(self, channel_name: str, timeout_seconds: float) -> None:
+        self.timeout_seconds = timeout_seconds
+        super().__init__(
+            f"channel {channel_name} exceeded per-channel timeout of {timeout_seconds}s"
+        )
+
+
+class _SearchRaisedTimeoutError(Exception):
+    def __init__(self, original: asyncio.TimeoutError) -> None:
+        self.original = original
+        super().__init__(str(original))
+
+
 async def run_subtask(
     task_description: str,  # noqa: ARG001 — surfaced to callers for tracing
     channels: list[str],
@@ -82,22 +96,31 @@ async def run_subtask(
 
     result = SubtaskResult()
 
+    async def _search_preserving_inner_timeout(name: str) -> list[dict]:
+        try:
+            return await _search_fn(name)
+        except asyncio.TimeoutError as exc:
+            raise _SearchRaisedTimeoutError(exc) from exc
+
     async def _run_one(name: str) -> tuple[str, list[dict] | Exception]:
         async with semaphore:
             try:
                 if resolved_per_channel_timeout is None:
                     evidence = await _search_fn(name)
                 else:
-                    evidence = await asyncio.wait_for(
-                        _search_fn(name),
-                        timeout=resolved_per_channel_timeout,
-                    )
+                    try:
+                        evidence = await asyncio.wait_for(
+                            _search_preserving_inner_timeout(name),
+                            timeout=resolved_per_channel_timeout,
+                        )
+                    except _SearchRaisedTimeoutError as exc:
+                        return name, exc.original
+                    except asyncio.TimeoutError:
+                        return name, _PerChannelTimeoutError(
+                            name,
+                            resolved_per_channel_timeout,
+                        )
                 return name, evidence[:max_per_channel]
-            except asyncio.TimeoutError:
-                return name, asyncio.TimeoutError(
-                    f"channel {name} exceeded per-channel timeout of "
-                    f"{resolved_per_channel_timeout}s"
-                )
             except Exception as exc:  # noqa: BLE001
                 return name, exc
 
@@ -113,11 +136,11 @@ async def run_subtask(
 
     for name, outcome in outcomes:
         if isinstance(outcome, Exception):
-            if isinstance(outcome, asyncio.TimeoutError):
+            if isinstance(outcome, _PerChannelTimeoutError):
                 _record_timeout(name)
                 failure = ChannelFailureStatus(
                     status="transient_error",
-                    reason=f"timeout after {resolved_per_channel_timeout}s",
+                    reason=f"timeout after {outcome.timeout_seconds}s",
                     fix_hint=(
                         "channel did not respond within deadline; check provider availability "
                         "or increase AUTOSEARCH_PER_CHANNEL_TIMEOUT_SECONDS"
