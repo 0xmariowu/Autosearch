@@ -35,8 +35,8 @@ keywords = [".ts.net", ".local"]
   regexes = ['''\$HOME/\.local/bin/uv''']
 
   [[rules.allowlists]]
-  description = "SKILL.md + ops docs reference .local paths (Linux XDG, not a Tailscale domain)"
-  paths = ['''skills/.*/SKILL\.md$''', '''docs/.*\.md$''']
+  description = "SKILL.md + ops docs + CHANGELOG reference .local paths (Linux XDG, not a Tailscale domain)"
+  paths = ['''skills/.*/SKILL\.md$''', '''docs/.*\.md$''', '''CHANGELOG\.md$''']
   regexes = ['''\.local/''']
 
   [[rules.allowlists]]
@@ -111,8 +111,8 @@ tags = ["hygiene", "runtime-experience"]
 keywords = ["patterns.jsonl"]
 
   [[rules.allowlists]]
-  description = "Skill docs / __init__ legitimately explain the patterns.jsonl mechanism as a system feature"
-  paths = ['''autosearch/skills/.*/SKILL\.md$''', '''autosearch/skills/.*/__init__\.py$''', '''autosearch/skills/router/references/.*\.md$''']
+  description = "Skill docs / __init__ / release tooling / CHANGELOG legitimately explain the patterns.jsonl mechanism as a system feature"
+  paths = ['''autosearch/skills/.*/SKILL\.md$''', '''autosearch/skills/.*/__init__\.py$''', '''autosearch/skills/router/references/.*\.md$''', '''scripts/validate/pre_release_check\.py$''', '''CHANGELOG\.md$''']
 
   [[rules.allowlists]]
   description = "Release notes / migration / bench docs reference patterns.jsonl in product context"
