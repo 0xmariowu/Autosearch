@@ -54,6 +54,37 @@ post results (or open an issue on failure) for engineering follow-up.
 | Cross-platform install (Windows / macOS) | `.github/workflows/cross-platform.yml` | Weekly Monday 03:00 UTC | Slow runners (~15 min) and rarely catches anything new. Weekly is enough for Tier-2 platforms. |
 | Live integration tests (real APIs) | `.github/workflows/nightly.yml` | Daily 02:00 UTC | Hits external APIs (Anthropic, OpenAI, GitHub, etc.). Real spend, real rate limits — cannot be on every PR. |
 
+## Sandbox packaging never ships ignored files
+
+Every tarball that leaves a developer's laptop for an external sandbox
+(e2b, nightly-local, or any future runner) is built by
+`scripts/e2b/lib/packing.py:pack_directory`. That single entry point
+enforces three rules:
+
+1. **Only git-tracked files.** `_list_tracked_files` calls
+   `git ls-files`, so anything in `.gitignore` (`.env`, local
+   `experience/`, `evidence/`, ad-hoc scratch) is invisible to the
+   tarball — even if it sits next to a tracked file.
+2. **Hard denylist on top.** `_DENIED_PATTERNS` blocks `.env*`,
+   `*.key`, `*.pem`, `experience/`, `evidence/`,
+   `tests/integration/sessions/` regardless of git state. If a developer
+   force-adds `.env` (`git add -f .env`), packing still drops it.
+3. **Pre-pack secret scan.** `_run_secret_scan` runs
+   `gitleaks detect --no-git` over the source tree before opening the
+   tarball. Any leak detected raises `RuntimeError` and aborts packing
+   before bytes hit disk. Gitleaks honors the repo-root
+   `.gitleaks.toml`.
+
+Existing callers (`scripts/e2b/run_validation.py`,
+`scripts/nightly-local.sh`) all route through `pack_directory`. Any new
+sandbox-upload path MUST do the same; never call `tarfile.open` or
+`tar -czf` directly on the repo root.
+
+Regression coverage lives in `tests/scripts/test_e2b_packing.py`:
+`test_pack_includes_only_tracked_files`,
+`test_pack_excludes_denylist_even_if_tracked`, and
+`test_pack_aborts_on_secret`.
+
 ## How to change this policy
 
 1. Edit this file.
