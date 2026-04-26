@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 import warnings
+from typing import Any
 
+from mcp.server.fastmcp import FastMCP
 import pytest
 
-from autosearch.mcp.server import create_server
+from autosearch.mcp.server import ResearchResponse, create_server
+
+
+_FAKE_SECRET = "sk-" + "FAKEKEY1234567890abcdef"
 
 
 class _StubPipeline:
@@ -17,20 +22,32 @@ class _StubPipeline:
         raise RuntimeError("stub pipeline — not actually invoked in this test")
 
 
+class _SecretFailingPipeline:
+    async def run(self, *args, **kwargs):
+        raise RuntimeError(f"upstream failed with key {_FAKE_SECRET}")
+
+
+async def _call_research(server: FastMCP, arguments: dict[str, Any]) -> ResearchResponse:
+    result = await server.call_tool("research", arguments)
+    payload = result[1] if isinstance(result, tuple) and len(result) == 2 else result
+    if not isinstance(payload, dict):
+        raise AssertionError(f"expected structured tool payload, got {type(payload).__name__}")
+    return ResearchResponse.model_validate(payload)
+
+
 @pytest.mark.asyncio
 async def test_research_emits_deprecation_warning(monkeypatch: pytest.MonkeyPatch) -> None:
     """When opted in via AUTOSEARCH_LEGACY_RESEARCH=1, calling research() must
     still emit a DeprecationWarning so users know they're on a sunset path."""
     monkeypatch.setenv("AUTOSEARCH_LEGACY_RESEARCH", "1")
-    server = create_server(pipeline_factory=lambda: _StubPipeline())  # type: ignore[arg-type]
-    tm = server._tool_manager  # noqa: SLF001
+    server = create_server(pipeline_factory=_StubPipeline)
 
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         # The stub raises inside; research() catches and returns error response,
         # but the warning is emitted before the pipeline call.
-        await tm.call_tool(
-            "research",
+        await _call_research(
+            server,
             {"query": "anything", "mode": "fast"},
         )
 
@@ -47,7 +64,7 @@ async def test_research_emits_deprecation_warning(monkeypatch: pytest.MonkeyPatc
 @pytest.mark.asyncio
 async def test_server_instructions_mention_tool_supplier_trio() -> None:
     """The MCP server instructions should steer runtimes toward the v2 trio."""
-    server = create_server(pipeline_factory=lambda: _StubPipeline())  # type: ignore[arg-type]
+    server = create_server(pipeline_factory=_StubPipeline)
     instructions = server.instructions or ""
     assert "list_skills" in instructions
     assert "run_clarify" in instructions
@@ -67,7 +84,7 @@ async def test_research_tool_not_registered_by_default(
     """
     monkeypatch.delenv("AUTOSEARCH_LEGACY_RESEARCH", raising=False)
 
-    server = create_server(pipeline_factory=lambda: _StubPipeline())  # type: ignore[arg-type]
+    server = create_server(pipeline_factory=_StubPipeline)
     tools = await server.list_tools()
     tool_names = {tool.name for tool in tools}
     assert "research" not in tool_names, (
@@ -82,24 +99,42 @@ async def test_research_legacy_env_opt_in_restores_pipeline_path(
     """Setting AUTOSEARCH_LEGACY_RESEARCH=1 must restore the legacy pipeline invocation."""
     monkeypatch.setenv("AUTOSEARCH_LEGACY_RESEARCH", "1")
 
-    from autosearch.mcp.server import ResearchResponse
-
     # Stub pipeline that raises — so if legacy path is taken, we reach the except
     # branch and get delivery_status="error" with the stub's error message.
-    server = create_server(pipeline_factory=lambda: _StubPipeline())  # type: ignore[arg-type]
-    tm = server._tool_manager  # noqa: SLF001
+    server = create_server(pipeline_factory=_StubPipeline)
 
     import warnings as _warnings
 
     with _warnings.catch_warnings():
         _warnings.simplefilter("ignore", DeprecationWarning)
-        response = await tm.call_tool(
-            "research",
+        response = await _call_research(
+            server,
             {"query": "anything", "mode": "fast"},
         )
 
-    assert isinstance(response, ResearchResponse)
     # The stub raises, so research() should catch and return an error response —
     # NOT a deprecation response. This proves the legacy code path ran.
     assert response.delivery_status == "error"
     assert "stub pipeline" in response.content.lower()
+
+
+@pytest.mark.asyncio
+async def test_legacy_research_exception_redacted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Legacy research() errors must not expose secret-shaped exception text."""
+    secret = _FAKE_SECRET
+    monkeypatch.setenv("AUTOSEARCH_LEGACY_RESEARCH", "1")
+
+    server = create_server(pipeline_factory=_SecretFailingPipeline)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        response = await _call_research(
+            server,
+            {"query": "anything", "mode": "fast"},
+        )
+
+    assert response.delivery_status == "error"
+    assert secret not in response.content
+    assert "[REDACTED]" in response.content
