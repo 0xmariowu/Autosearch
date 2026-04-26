@@ -12,6 +12,7 @@ from autosearch.cli.mcp_config_writers import MCPConfigWriteError
 from autosearch.core import secrets_store
 from autosearch.core.environment_probe import probe_environment
 from autosearch.core.models import SearchMode
+from autosearch.core.redact import redact
 from autosearch.core.scope_clarifier import ScopeClarifier
 from autosearch.core.search_scope import (
     ChannelScope,
@@ -797,18 +798,19 @@ def _is_tty() -> bool:
 
 
 def _exit_query_failure(message: str, *, exit_code: int, json_output: bool) -> None:
+    safe_message = redact(message)
     if json_output:
         typer.echo(
             json.dumps(
                 {
                     "delivery_status": "error",
-                    "error": message,
+                    "error": safe_message,
                     "exit_code": exit_code,
                 }
             )
         )
     else:
-        typer.echo(message, err=True)
+        typer.echo(safe_message, err=True)
     raise typer.Exit(code=exit_code)
 
 
