@@ -193,7 +193,7 @@ function describeInstallStep() {
     if (hasOnPath("python")) return `python -m pip install --user autosearch`;
     return null;
   }
-  return `curl -fsSL ${INSTALL_SCRIPT} | bash`;
+  return `curl -fsSL ${INSTALL_SCRIPT} | bash -s -- --no-init`;
 }
 
 function runInstall() {
@@ -225,7 +225,7 @@ function runInstall() {
   }
   return spawnSync(
     "bash",
-    ["-c", `curl -fsSL ${INSTALL_SCRIPT} | bash`],
+    ["-c", `curl -fsSL ${INSTALL_SCRIPT} | bash -s -- --no-init`],
     { stdio: "inherit" },
   );
 }

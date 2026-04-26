@@ -118,7 +118,7 @@ def test_path_after_install_finds_binary(tmp_path: Path) -> None:
     fake_bash.write_text(
         "#!/bin/sh\n"
         'mkdir -p "$HOME/.local/bin"\n'
-        'cat > "$HOME/.local/bin/autosearch" <<\'EOF\'\n'
+        "cat > \"$HOME/.local/bin/autosearch\" <<'EOF'\n"
         "#!/bin/sh\n"
         'echo "installed autosearch $*"\n'
         "exit 0\n"
@@ -151,3 +151,48 @@ def test_path_after_install_finds_binary(tmp_path: Path) -> None:
     combined_output = result.stdout + result.stderr
     assert result.returncode == 0, combined_output
     assert "installed autosearch doctor" in result.stdout
+
+
+def test_install_passes_no_init(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    install_argv = tmp_path / "install-argv.txt"
+    fake_bash = fake_bin / "bash"
+    fake_bash.write_text(
+        "#!/bin/sh\n"
+        f'printf "%s\\n" "$@" > "{install_argv}"\n'
+        'mkdir -p "$HOME/.local/bin"\n'
+        "cat > \"$HOME/.local/bin/autosearch\" <<'EOF'\n"
+        "#!/bin/sh\n"
+        "exit 0\n"
+        "EOF\n"
+        'chmod +x "$HOME/.local/bin/autosearch"\n'
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    fake_bash.chmod(0o755)
+
+    env = os.environ.copy()
+    env["HOME"] = str(home)
+    env["PATH"] = os.pathsep.join([str(fake_bin), "/usr/bin", "/bin"])
+
+    result = subprocess.run(
+        [
+            shutil.which("node") or "node",
+            str(NPM_DIR / "bin" / "autosearch-ai.js"),
+            "--yes",
+            "doctor",
+        ],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+    combined_output = result.stdout + result.stderr
+    assert result.returncode == 0, combined_output
+    assert "--no-init" in install_argv.read_text(encoding="utf-8")
