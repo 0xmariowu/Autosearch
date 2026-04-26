@@ -4,7 +4,7 @@
 
 **Open-source Deep Research for AI Agents**
 
-*40 channels, including 10+ Chinese sources.*
+*40 channels, including 10+ Chinese sources.*<br>
 *MCP-native. LLM-decoupled. Plug into the agent host you already use.*
 
 [![CI](https://github.com/0xmariowu/Autosearch/actions/workflows/ci.yml/badge.svg)](https://github.com/0xmariowu/Autosearch/actions/workflows/ci.yml)
@@ -14,7 +14,7 @@
 [![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-orange)](https://github.com/0xmariowu/Autosearch)
 [![MCP native](https://img.shields.io/badge/MCP-native-blue)](https://modelcontextprotocol.io)
 
-[Install](#install) · [Channels](docs/channels.mdx) · [MCP Setup](docs/mcp-clients.md) · [Examples](docs/) · [FAQ](#faq) · [中文](README.zh.md)
+[Install](#install) · [Channels](docs/channels.mdx) · [MCP Setup](docs/mcp-clients.md) · [Examples](docs/) · [Docs](https://docs.autosearch.dev) · [中文](README.zh.md)
 
 </div>
 
@@ -33,6 +33,8 @@ You ask your AI to research something. It answers from training data cutoff —
 - "Compare opinions on Hacker News vs Chinese tech forums" → two platforms, manual aggregation
 
 **AutoSearch fixes this in one line.** Pick the path that matches you:
+
+## Install
 
 **Have Node?** (most common — works on macOS, Linux, Windows)
 
