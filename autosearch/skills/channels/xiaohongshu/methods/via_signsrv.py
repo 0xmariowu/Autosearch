@@ -95,6 +95,34 @@ def _to_evidence(item: Mapping[str, object], *, fetched_at: datetime) -> Evidenc
     )
 
 
+async def _check_account_health(
+    client: httpx.AsyncClient,
+    headers: Mapping[str, str],
+) -> tuple[bool, str | None]:
+    """Probe the XHS me endpoint to detect account restriction.
+
+    Returns (healthy, code).
+    - healthy=True, code=None  -> account OK (or probe failed; failure is non-fatal upstream)
+    - healthy=False, code='300011' -> account flagged
+    - healthy=True, code=None on probe network failure (caller treats as non-fatal)
+    The XHS me endpoint does NOT require search-call signing - only the cookies.
+    """
+    try:
+        resp = await client.get(
+            "https://edith.xiaohongshu.com/api/sns/web/v2/user/me",
+            headers={k: v for k, v in headers.items() if k != "Content-Type"},
+            timeout=8,
+        )
+        payload = resp.json()
+    except Exception:
+        # Probe failures are non-fatal; return healthy and let the caller decide.
+        return (True, None)
+
+    if isinstance(payload, Mapping) and payload.get("code") == 300011:
+        return (False, "300011")
+    return (True, None)
+
+
 async def search(query: SubQuery, client: httpx.AsyncClient | None = None) -> list[Evidence]:
     """Search XHS via Signing Worker + native XHS API.
 
@@ -205,18 +233,8 @@ async def search(query: SubQuery, client: httpx.AsyncClient | None = None) -> li
 
         # Empty results on a seemingly successful response → check if account is restricted
         if not items and xhs_code == 0:
-            me_payload: Mapping[str, object] | None = None
-            try:
-                me_resp = await _client.get(
-                    "https://edith.xiaohongshu.com/api/sns/web/v2/user/me",
-                    headers={k: v for k, v in xhs_headers.items() if k not in ("Content-Type",)},
-                    timeout=8,
-                )
-                me_payload = me_resp.json()
-            except Exception:
-                pass  # health check failure is non-fatal; fall through to empty list
-
-            if isinstance(me_payload, Mapping) and me_payload.get("code") == 300011:
+            healthy, code = await _check_account_health(_client, xhs_headers)
+            if not healthy and code == "300011":
                 from autosearch.channels.base import AccountRestrictedError
 
                 LOGGER.warning(
