@@ -13,9 +13,13 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Callable
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = ROOT / "scripts" / "validate"
+
+CheckFn = Callable[[], tuple[bool, str]]
+AdvisoryCheckFn = Callable[[bool], tuple[bool, str]]
 
 
 def _run(label: str, cmd: list[str]) -> tuple[bool, str]:
@@ -196,6 +200,42 @@ def _check_git_clean() -> tuple[bool, str]:
     return True, "working tree clean"
 
 
+MANDATORY_CHECKS: list[tuple[str, CheckFn]] = [
+    ("Version 4-file consistency", lambda: _check_version_consistency()),
+    ("SKILL.md format", lambda: _check_skill_format()),
+    ("Channel experience dirs", lambda: _check_experience_dirs()),
+    ("MCP tools registered", lambda: _check_mcp_tools()),
+    ("Open PR release blockers", lambda: _check_open_prs()),
+    ("Git working tree clean", lambda: _check_git_clean()),
+]
+
+ADVISORY_CHECKS: list[tuple[str, AdvisoryCheckFn]] = [
+    ("Gate 12 bench ≥ 50%", lambda allow_stale=False: _check_gate12_bench(allow_stale=allow_stale)),
+]
+
+
+def _run_mandatory_checks() -> list[tuple[str, bool, str]]:
+    results: list[tuple[str, bool, str]] = []
+    for label, fn in MANDATORY_CHECKS:
+        try:
+            ok, msg = fn()
+        except Exception as exc:
+            ok, msg = False, f"ERROR: {exc}"
+        results.append((label, ok, msg))
+    return results
+
+
+def _run_advisory_checks(*, allow_stale_gate12: bool) -> list[tuple[str, bool, str]]:
+    results: list[tuple[str, bool, str]] = []
+    for label, fn in ADVISORY_CHECKS:
+        try:
+            ok, msg = fn(allow_stale_gate12)
+        except Exception as exc:
+            ok, msg = False, f"ERROR: {exc}"
+        results.append((label, ok, msg))
+    return results
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run fast pre-release checks.")
     parser.add_argument(
@@ -205,43 +245,36 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    checks = [
-        ("Version 4-file consistency", _check_version_consistency),
-        ("SKILL.md format compliance", _check_skill_format),
-        ("Channel experience dirs", _check_experience_dirs),
-        ("MCP tools registered", _check_mcp_tools),
-        ("Gate 12 bench ≥ 50%", lambda: _check_gate12_bench(allow_stale=args.allow_stale_gate12)),
-        ("Open PR release blockers", _check_open_prs),
-        ("Git working tree clean", _check_git_clean),
-    ]
-
-    results: list[tuple[str, bool, str]] = []
-    for label, fn in checks:
-        try:
-            ok, msg = fn()
-        except Exception as exc:
-            ok, msg = False, f"ERROR: {exc}"
-        results.append((label, ok, msg))
+    mandatory_results = _run_mandatory_checks()
+    advisory_results = _run_advisory_checks(allow_stale_gate12=args.allow_stale_gate12)
 
     print()
     print("=" * 62)
     print("  AutoSearch Pre-Release Checklist")
     print("=" * 62)
-    all_pass = True
-    for label, ok, msg in results:
+    mandatory_pass = True
+    for label, ok, msg in mandatory_results:
         symbol = "✅" if ok else "❌"
-        print(f"  {symbol}  {label}")
+        print(f"  {symbol}  [mandatory] {label}")
         print(f"       {msg}")
         if not ok:
-            all_pass = False
+            mandatory_pass = False
+    for label, ok, msg in advisory_results:
+        symbol = "✅" if ok else "⚠️"
+        print(f"  {symbol}  [advisory] {label}")
+        print(f"       {msg}")
+    mandatory_count = sum(1 for _, ok, _ in mandatory_results if ok)
+    advisory_count = sum(1 for _, ok, _ in advisory_results if ok)
     print("=" * 62)
-    if all_pass:
-        print("  ALL CHECKS PASSED — ready for v1.0 tag")
+    print(f"  MANDATORY: {mandatory_count}/{len(mandatory_results)} passed")
+    print(f"  ADVISORY: {advisory_count}/{len(advisory_results)} passed")
+    if mandatory_pass:
+        print("  MANDATORY CHECKS PASSED — ready for v1.0 tag")
         print("  Next: scripts/bump-version.sh → git tag v1.0.0 → git push --tags")
     else:
-        print("  SOME CHECKS FAILED — fix before tagging")
+        print("  MANDATORY CHECKS FAILED — fix before tagging")
     print()
-    return 0 if all_pass else 1
+    return 0 if mandatory_pass else 1
 
 
 if __name__ == "__main__":
