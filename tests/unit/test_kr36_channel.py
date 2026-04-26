@@ -111,6 +111,59 @@ async def test_kr36_api_reads_nested_template_material_payload(
 
 
 @pytest.mark.asyncio
+async def test_kr36_api_skips_empty_values_when_falling_back_across_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    search_callable = _compiled_kr36()
+    monkeypatch.delenv(LEGACY_HTML_ENV, raising=False)
+    payload = {
+        "code": 0,
+        "data": {
+            "itemList": [
+                {
+                    "itemId": "123456789",
+                    "widgetTitle": " ",
+                    "title": "Fallback API Title",
+                    "content": "",
+                    "description": "Fallback API description.",
+                    "authorName": "",
+                    "author_name": "Fallback Author",
+                }
+            ]
+        },
+    }
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=payload, request=request)
+
+    async def fake_fetch_page(
+        url: str,
+        *,
+        client: httpx.AsyncClient | None = None,
+    ) -> FetchedPage:
+        _ = client
+        raise HtmlFetchError(url, reason="timeout")
+
+    monkeypatch.setitem(search_callable.__globals__, "fetch_page", fake_fetch_page)
+
+    http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    try:
+        results = await search_callable(
+            SubQuery(text="fallback fields", rationale="Need KR36 coverage"),
+            http_client=http_client,
+        )
+    finally:
+        await http_client.aclose()
+
+    assert len(results) == 1
+    evidence = results[0]
+    assert evidence.title == "Fallback API Title"
+    assert evidence.snippet == "Fallback API description."
+    assert evidence.content == "Fallback API description."
+    assert evidence.source_channel == "kr36:fallback-author"
+
+
+@pytest.mark.asyncio
 async def test_kr36_404_returns_transient_error_with_fix_hint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

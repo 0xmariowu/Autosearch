@@ -179,7 +179,9 @@ def _get_item_text(item: Mapping[str, object], *keys: str) -> str:
     for key in keys:
         value = item.get(key)
         if value is not None:
-            return _clean_text(value)
+            text = _clean_text(value)
+            if text:
+                return text
     return ""
 
 
