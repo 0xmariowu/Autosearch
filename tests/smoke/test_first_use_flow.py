@@ -11,6 +11,7 @@ deterministic "no evidence" brief when no real channels are reachable).
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 
 import pytest
@@ -75,6 +76,47 @@ def test_query_json_loop_emits_valid_envelope() -> None:
     assert isinstance(payload["channels_used"], list)
     assert isinstance(payload["evidence"], list)
     assert payload["evidence_count"] == len(payload["evidence"])
+
+
+@pytest.mark.smoke
+def test_first_use_error_path_redacted(tmp_path) -> None:
+    leaked_key = "sk-FAKEKEY" + "1234567890abcdef"
+    (tmp_path / "sitecustomize.py").write_text(
+        """
+import autosearch.cli.query_pipeline as query_pipeline
+from autosearch.cli.query_pipeline import QueryResult
+
+_LEAKED_KEY = "sk-FAKEKEY" + "1234567890abcdef"
+
+
+async def _failing_run_query(_query: str, **_kwargs: object) -> QueryResult:
+    raise RuntimeError(f"upstream returned token {_LEAKED_KEY}")
+
+
+query_pipeline.run_query = _failing_run_query
+""",
+        encoding="utf-8",
+    )
+    env = smoke_env(AUTOSEARCH_LLM_MODE="dummy")
+    env["PYTHONPATH"] = f"{tmp_path}{os.pathsep}{env['PYTHONPATH']}"
+
+    result = subprocess.run(
+        [
+            *console_script_command("autosearch", "autosearch.cli.main"),
+            "query",
+            "smoke redaction query",
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=60,
+    )
+
+    assert result.returncode == 1, (
+        f"query exited {result.returncode}; stderr:\n{result.stderr}\nstdout:\n{result.stdout}"
+    )
+    assert leaked_key not in result.stderr
+    assert "[REDACTED]" in result.stderr
 
 
 @pytest.mark.smoke
