@@ -6,9 +6,30 @@ import asyncio
 import os
 from dataclasses import dataclass, field
 
+import httpx
+
+from autosearch.channels.base import (
+    MethodUnavailable,
+    PermanentError,
+    RateLimited,
+    TransientError,
+)
+from autosearch.core.channel_status import ChannelFailureStatus, exception_to_channel_status
 from autosearch.core.channel_runtime import ChannelRuntime
+from autosearch.core.models import SubQuery
 
 _DEFAULT_CONCURRENCY_CAP = 5
+_DEFAULT_PER_CHANNEL_TIMEOUT_SECONDS = 30.0
+_EXPECTED_CHANNEL_EXCEPTIONS = (
+    ValueError,
+    RuntimeError,
+    TimeoutError,
+    MethodUnavailable,
+    PermanentError,
+    RateLimited,
+    TransientError,
+    httpx.HTTPError,
+)
 
 
 def _resolve_concurrency_cap() -> int:
@@ -17,6 +38,21 @@ def _resolve_concurrency_cap() -> int:
         return max(1, int(raw))
     except ValueError:
         return _DEFAULT_CONCURRENCY_CAP
+
+
+def _resolve_per_channel_timeout(per_channel_timeout: float | None) -> float | None:
+    if per_channel_timeout is not None:
+        return per_channel_timeout if per_channel_timeout > 0 else None
+
+    raw = os.environ.get(
+        "AUTOSEARCH_PER_CHANNEL_TIMEOUT_SECONDS",
+        str(_DEFAULT_PER_CHANNEL_TIMEOUT_SECONDS),
+    )
+    try:
+        timeout = float(raw)
+    except ValueError:
+        timeout = _DEFAULT_PER_CHANNEL_TIMEOUT_SECONDS
+    return timeout if timeout > 0 else None
 
 
 @dataclass
@@ -28,6 +64,20 @@ class SubtaskResult:
     budget_used: dict[str, int] = field(default_factory=dict)
 
 
+class _PerChannelTimeoutError(TimeoutError):
+    def __init__(self, channel_name: str, timeout_seconds: float) -> None:
+        self.timeout_seconds = timeout_seconds
+        super().__init__(
+            f"channel {channel_name} exceeded per-channel timeout of {timeout_seconds}s"
+        )
+
+
+class _SearchRaisedTimeoutError(Exception):
+    def __init__(self, original: asyncio.TimeoutError) -> None:
+        self.original = original
+        super().__init__(str(original))
+
+
 async def run_subtask(
     task_description: str,  # noqa: ARG001 — surfaced to callers for tracing
     channels: list[str],
@@ -35,6 +85,7 @@ async def run_subtask(
     max_per_channel: int = 5,
     *,
     channel_runtime: ChannelRuntime,
+    per_channel_timeout: float | None = None,
     _search_fn=None,  # injectable for tests
 ) -> SubtaskResult:
     """Run query across channels concurrently and return a SubtaskResult.
@@ -46,10 +97,9 @@ async def run_subtask(
     in-flight calls (default 5; override via
     ``AUTOSEARCH_DELEGATE_CONCURRENCY``) to protect paid APIs from burst.
     """
-    from autosearch.core.models import SubQuery  # noqa: PLC0415
-
     channels = list(dict.fromkeys(channels))
     semaphore = asyncio.Semaphore(_resolve_concurrency_cap())
+    resolved_per_channel_timeout = _resolve_per_channel_timeout(per_channel_timeout)
 
     if _search_fn is None:
         all_channels = {c.name: c for c in channel_runtime.channels}
@@ -64,21 +114,61 @@ async def run_subtask(
 
     result = SubtaskResult()
 
+    async def _search_preserving_inner_timeout(name: str) -> list[dict]:
+        try:
+            return await _search_fn(name)
+        except asyncio.TimeoutError as exc:
+            raise _SearchRaisedTimeoutError(exc) from exc
+
     async def _run_one(name: str) -> tuple[str, list[dict] | Exception]:
         async with semaphore:
             try:
-                evidence = await _search_fn(name)
+                if resolved_per_channel_timeout is None:
+                    evidence = await _search_fn(name)
+                else:
+                    try:
+                        evidence = await asyncio.wait_for(
+                            _search_preserving_inner_timeout(name),
+                            timeout=resolved_per_channel_timeout,
+                        )
+                    except _SearchRaisedTimeoutError as exc:
+                        return name, exc.original
+                    except asyncio.TimeoutError:
+                        return name, _PerChannelTimeoutError(
+                            name,
+                            resolved_per_channel_timeout,
+                        )
                 return name, evidence[:max_per_channel]
-            except Exception as exc:  # noqa: BLE001
+            except asyncio.CancelledError:
+                raise
+            except _EXPECTED_CHANNEL_EXCEPTIONS as exc:
                 return name, exc
 
     outcomes = await asyncio.gather(*(_run_one(ch) for ch in channels))
 
+    def _record_timeout(name: str, timeout_seconds: float) -> None:
+        record_timeout = getattr(channel_runtime, "record_timeout", None)
+        if callable(record_timeout):
+            record_timeout(
+                name,
+                latency_ms=timeout_seconds * 1000,
+            )
+
     for name, outcome in outcomes:
         if isinstance(outcome, Exception):
-            from autosearch.core.channel_status import exception_to_channel_status  # noqa: PLC0415
-
-            failure = exception_to_channel_status(outcome)
+            if isinstance(outcome, _PerChannelTimeoutError):
+                _record_timeout(name, outcome.timeout_seconds)
+                failure = ChannelFailureStatus(
+                    status="transient_error",
+                    reason=f"timeout after {outcome.timeout_seconds}s",
+                    fix_hint=(
+                        "channel did not respond within deadline; check provider availability "
+                        "or increase AUTOSEARCH_PER_CHANNEL_TIMEOUT_SECONDS"
+                    ),
+                    unmet_requires=[],
+                )
+            else:
+                failure = exception_to_channel_status(outcome)
             result.failed_channels.append(name)
             result.failed_channel_details.append(
                 {

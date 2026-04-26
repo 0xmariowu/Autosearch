@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import time
 from typing import cast
 
 import pytest
@@ -114,6 +116,84 @@ async def test_failed_channel_details_preserve_typed_statuses(
     assert "fix_hint" in result.failed_channel_details[0]
     if expected_status == "auth_failed":
         assert result.failed_channel_details[0]["fix_hint"]
+
+
+@pytest.mark.asyncio
+async def test_run_subtask_per_channel_timeout() -> None:
+    async def _search(channel_name: str) -> list[dict]:
+        if channel_name == "slow":
+            await asyncio.sleep(10)
+        return [{"url": f"https://{channel_name}.example/1", "title": channel_name}]
+
+    started_at = time.monotonic()
+    result = await run_subtask(
+        "task",
+        ["slow", "fast"],
+        "query",
+        channel_runtime=_UNUSED_RUNTIME,
+        per_channel_timeout=0.5,
+        _search_fn=_search,
+    )
+    elapsed = time.monotonic() - started_at
+
+    assert elapsed < 1.0
+    assert result.evidence_by_channel["fast"]
+    slow_failure = next(
+        detail for detail in result.failed_channel_details if detail["channel"] == "slow"
+    )
+    assert slow_failure["status"] == "transient_error"
+    assert "timeout" in slow_failure["reason"].lower()
+
+
+@pytest.mark.asyncio
+async def test_timeout_classified_as_transient_error() -> None:
+    async def _search(_channel_name: str) -> list[dict]:
+        await asyncio.sleep(10)
+        return []
+
+    result = await run_subtask(
+        "task",
+        ["slow"],
+        "query",
+        channel_runtime=_UNUSED_RUNTIME,
+        per_channel_timeout=0.5,
+        _search_fn=_search,
+    )
+
+    assert result.failed_channel_details[0]["status"] == "transient_error"
+
+
+@pytest.mark.asyncio
+async def test_inner_timeout_error_is_not_classified_as_delegate_timeout() -> None:
+    async def _search(_channel_name: str) -> list[dict]:
+        raise TimeoutError("socket timed out")
+
+    result = await run_subtask(
+        "task",
+        ["slow"],
+        "query",
+        channel_runtime=_UNUSED_RUNTIME,
+        per_channel_timeout=None,
+        _search_fn=_search,
+    )
+
+    assert result.failed_channel_details[0]["status"] == "channel_error"
+    assert "timeout after" not in result.failed_channel_details[0]["reason"]
+
+
+@pytest.mark.asyncio
+async def test_cancelled_error_propagates() -> None:
+    async def _search(_channel_name: str) -> list[dict]:
+        raise asyncio.CancelledError
+
+    with pytest.raises(asyncio.CancelledError):
+        await run_subtask(
+            "task",
+            ["cancelled"],
+            "query",
+            channel_runtime=_UNUSED_RUNTIME,
+            _search_fn=_search,
+        )
 
 
 @pytest.mark.asyncio
