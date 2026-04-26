@@ -260,10 +260,10 @@ async def transcribe(source: str, timeout: float = _DEFAULT_TIMEOUT) -> BcutResu
         {ok, text, segments, duration_seconds, source}
         or {ok: False, reason, source}
     """
-    if not source or not source.strip():
-        return {"ok": False, "source": source, "reason": "empty source"}
-
     redacted_source = redact_url(source)
+
+    if not source or not source.strip():
+        return {"ok": False, "source": redacted_source, "reason": "empty source"}
 
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -278,7 +278,11 @@ async def transcribe(source: str, timeout: float = _DEFAULT_TIMEOUT) -> BcutResu
                     source=redacted_source,
                     reason=reason,
                 )
-                return {"ok": False, "source": source, "reason": f"audio_extraction: {reason}"}
+                return {
+                    "ok": False,
+                    "source": redacted_source,
+                    "reason": f"audio_extraction: {reason}",
+                }
 
             try:
                 utterances = await asyncio.wait_for(
@@ -292,7 +296,7 @@ async def transcribe(source: str, timeout: float = _DEFAULT_TIMEOUT) -> BcutResu
                     source=redacted_source,
                     reason=reason,
                 )
-                return {"ok": False, "source": source, "reason": f"bcut_api: {reason}"}
+                return {"ok": False, "source": redacted_source, "reason": f"bcut_api: {reason}"}
 
             segments = _build_segments(utterances)
             full_text = "".join(s["text"] for s in segments)
@@ -300,7 +304,7 @@ async def transcribe(source: str, timeout: float = _DEFAULT_TIMEOUT) -> BcutResu
 
             return {
                 "ok": True,
-                "source": source,
+                "source": redacted_source,
                 "text": full_text,
                 "segments": segments,
                 "duration_seconds": duration,
@@ -309,4 +313,4 @@ async def transcribe(source: str, timeout: float = _DEFAULT_TIMEOUT) -> BcutResu
     except Exception as exc:
         reason = redact(str(exc).replace(source, redacted_source))
         LOGGER.exception("bcut_unexpected_error", source=redacted_source)
-        return {"ok": False, "source": source, "reason": f"unexpected: {reason}"}
+        return {"ok": False, "source": redacted_source, "reason": f"unexpected: {reason}"}
