@@ -11,7 +11,7 @@ Conservative match list — must NOT alter ordinary user prose.
 from __future__ import annotations
 
 import re
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 
 _SECRET_KEY_PATTERN = (
     r"(?:"
@@ -45,6 +45,45 @@ _COOKIE_ASSIGNMENT_PATTERN = re.compile(
 )
 _COOKIE_HEADER_PATTERN = re.compile(r"(?im)(?P<prefix>\bCookie:\s*)(?P<cookies>[^\r\n]*)")
 _COOKIE_PAIR_PATTERN = re.compile(r"(?P<name>[^=;\s]+)=(?P<value>[^;]*)")
+_SIGNED_URL_QUERY_KEYS = {
+    key.lower()
+    for key in {
+        # Generic
+        "Signature",
+        "signature",
+        "sig",
+        "token",
+        "Expires",
+        # AWS SigV4 (S3 / CloudFront / etc.)
+        "X-Amz-Signature",
+        "X-Amz-Credential",
+        "X-Amz-Algorithm",
+        "X-Amz-SignedHeaders",
+        "X-Amz-Security-Token",
+        "X-Amz-Date",
+        "X-Amz-Expires",
+        # Google Cloud Storage
+        "X-Goog-Signature",
+        "X-Goog-Expires",
+        # Azure Blob SAS
+        "se",
+        "sp",
+        "sv",
+        "srt",
+        "ss",
+        "st",
+        "spr",
+        "skoid",
+        "sktid",
+        "skt",
+        "ske",
+        "sks",
+        "skv",
+        # CloudFront signed URLs
+        "Policy",
+        "Key-Pair-Id",
+    }
+}
 
 
 def _replacer(match: re.Match) -> str:
@@ -98,4 +137,22 @@ def redact_url(url: str, *, strip_query: bool = True) -> str:
         return url
 
     query = "" if strip_query else parts.query
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, query, parts.fragment))
+
+
+def redact_signed_url(url: str) -> str:
+    """Default-redact signed URL params at the citation MCP boundary."""
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return url
+
+    if not parts.scheme:
+        return url
+
+    query_items = parse_qsl(parts.query, keep_blank_values=True)
+    filtered_query = [
+        (name, value) for name, value in query_items if name.lower() not in _SIGNED_URL_QUERY_KEYS
+    ]
+    query = urlencode(filtered_query)
     return urlunsplit((parts.scheme, parts.netloc, parts.path, query, parts.fragment))
