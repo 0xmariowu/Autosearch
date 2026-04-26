@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from pathlib import Path
 
 from autosearch.core.redact import redact
+from scripts.e2b.lib.reporter import redacted_json_ready
 from scripts.e2b.sandbox_runner import ScenarioResult
 
 
@@ -140,6 +142,16 @@ def render(results: list[ScenarioResult], summary: dict, output_dir: Path) -> st
     report = "\n".join(lines)
     (output_dir / "summary.md").write_text(report, encoding="utf-8")
     return report
+
+
+def render_results_json(results: list[ScenarioResult], summary: dict, output_dir: Path) -> str:
+    payload = {
+        "summary": summary,
+        "results": [r.to_dict() for r in results],
+    }
+    content = json.dumps(redacted_json_ready(payload), indent=2, ensure_ascii=False) + "\n"
+    (output_dir / "results.json").write_text(content, encoding="utf-8")
+    return content
 
 
 def _conclusion(summary: dict) -> str:
