@@ -4,6 +4,7 @@ import httpx
 import pytest
 
 from autosearch.channels.base import ChannelRegistry, Environment
+from autosearch.core.channel_status import exception_to_channel_status
 from autosearch.core.models import FetchedPage, SubQuery
 from autosearch.lib.html_scraper import HtmlFetchError
 
@@ -14,6 +15,7 @@ SEARCH_RESULTS_HTML = """
   <span class="article-author">Insight Author</span>
 </section>
 """
+LEGACY_HTML_ENV = "AUTOSEARCH_KR36_USE_LEGACY"
 
 
 class _Logger:
@@ -33,6 +35,10 @@ def _compiled_kr36():
     return registry.metadata("kr36").methods[0].callable
 
 
+def _enable_legacy_html(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(LEGACY_HTML_ENV, "1")
+
+
 def _fetched_page(url: str, *, markdown: str) -> FetchedPage:
     return FetchedPage(
         url=url,
@@ -44,10 +50,158 @@ def _fetched_page(url: str, *, markdown: str) -> FetchedPage:
 
 
 @pytest.mark.asyncio
+async def test_kr36_api_reads_nested_template_material_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    search_callable = _compiled_kr36()
+    monkeypatch.delenv(LEGACY_HTML_ENV, raising=False)
+    captured: dict[str, object] = {}
+    payload = {
+        "code": 0,
+        "data": {
+            "itemList": [
+                {
+                    "id": "wrapper-only-id",
+                    "templateMaterial": {
+                        "route": "detail_article?itemId=583840401948544",
+                        "widgetTitle": "具身智能公司完成新一轮融资",
+                        "widgetContent": "团队聚焦工业场景，融资后将扩大交付。",
+                        "authorName": "36氪编辑部",
+                    },
+                }
+            ]
+        },
+    }
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        captured["method"] = request.method
+        captured["host"] = request.url.host
+        return httpx.Response(200, json=payload, request=request)
+
+    async def fake_fetch_page(
+        url: str,
+        *,
+        client: httpx.AsyncClient | None = None,
+    ) -> FetchedPage:
+        _ = client
+        captured["page_url"] = url
+        raise HtmlFetchError(url, reason="timeout")
+
+    monkeypatch.setitem(search_callable.__globals__, "fetch_page", fake_fetch_page)
+
+    http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    try:
+        results = await search_callable(
+            SubQuery(text="具身智能融资", rationale="Need KR36 coverage"),
+            http_client=http_client,
+        )
+    finally:
+        await http_client.aclose()
+
+    assert captured["method"] == "POST"
+    assert captured["host"] == "gateway.36kr.com"
+    assert len(results) == 1
+    evidence = results[0]
+    assert evidence.title == "具身智能公司完成新一轮融资"
+    assert evidence.url == "https://www.36kr.com/p/583840401948544"
+    assert evidence.snippet == "团队聚焦工业场景，融资后将扩大交付。"
+    assert evidence.content == "团队聚焦工业场景，融资后将扩大交付。"
+    assert evidence.source_channel == "kr36:36氪编辑部"
+    assert captured["page_url"] == "https://www.36kr.com/p/583840401948544"
+
+
+@pytest.mark.asyncio
+async def test_kr36_api_skips_empty_values_when_falling_back_across_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    search_callable = _compiled_kr36()
+    monkeypatch.delenv(LEGACY_HTML_ENV, raising=False)
+    payload = {
+        "code": 0,
+        "data": {
+            "itemList": [
+                {
+                    "itemId": "123456789",
+                    "widgetTitle": " ",
+                    "title": "Fallback API Title",
+                    "content": "",
+                    "description": "Fallback API description.",
+                    "authorName": "",
+                    "author_name": "Fallback Author",
+                }
+            ]
+        },
+    }
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=payload, request=request)
+
+    async def fake_fetch_page(
+        url: str,
+        *,
+        client: httpx.AsyncClient | None = None,
+    ) -> FetchedPage:
+        _ = client
+        raise HtmlFetchError(url, reason="timeout")
+
+    monkeypatch.setitem(search_callable.__globals__, "fetch_page", fake_fetch_page)
+
+    http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    try:
+        results = await search_callable(
+            SubQuery(text="fallback fields", rationale="Need KR36 coverage"),
+            http_client=http_client,
+        )
+    finally:
+        await http_client.aclose()
+
+    assert len(results) == 1
+    evidence = results[0]
+    assert evidence.title == "Fallback API Title"
+    assert evidence.snippet == "Fallback API description."
+    assert evidence.content == "Fallback API description."
+    assert evidence.source_channel == "kr36:fallback-author"
+
+
+@pytest.mark.asyncio
+async def test_kr36_404_returns_transient_error_with_fix_hint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    search_callable = _compiled_kr36()
+    _enable_legacy_html(monkeypatch)
+
+    async def fake_fetch_html(
+        url: str,
+        *,
+        http_client: httpx.AsyncClient | None = None,
+        params: dict[str, str] | None = None,
+    ) -> str:
+        _ = http_client
+        _ = params
+        raise HtmlFetchError(url, status_code=404, reason="http_error")
+
+    monkeypatch.setitem(search_callable.__globals__, "fetch_html", fake_fetch_html)
+
+    with pytest.raises(Exception) as raised:
+        await search_callable(
+            SubQuery(text="ai financing", rationale="Need KR36 coverage"),
+        )
+
+    failure = exception_to_channel_status(raised.value)
+    fix_hint = failure.fix_hint or ""
+
+    assert failure.status == "transient_error"
+    assert fix_hint
+    assert "36kr search endpoint" in fix_hint.lower()
+    assert "upstream" in fix_hint.lower()
+
+
+@pytest.mark.asyncio
 async def test_kr36_evidence_uses_markdown_from_fetched_page(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     search_callable = _compiled_kr36()
+    _enable_legacy_html(monkeypatch)
     http_client = httpx.AsyncClient()
     captured: dict[str, object] = {}
     markdown = "# KR36 Article\n\nLong body content."
@@ -99,6 +253,7 @@ async def test_kr36_falls_back_on_fetch_error(
 ) -> None:
     logger = _Logger()
     search_callable = _compiled_kr36()
+    _enable_legacy_html(monkeypatch)
 
     async def fake_fetch_html(
         url: str,
@@ -142,6 +297,7 @@ async def test_kr36_preserves_title_and_url(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     search_callable = _compiled_kr36()
+    _enable_legacy_html(monkeypatch)
 
     async def fake_fetch_html(
         url: str,

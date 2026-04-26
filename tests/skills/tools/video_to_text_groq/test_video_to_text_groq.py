@@ -75,7 +75,7 @@ def test_url_happy_path_returns_text_srt_metadata(
         "model": "whisper-large-v3",
         "backend": "groq",
     }
-    assert result["audio_path"] == str(fake_mp3)
+    assert result["audio_path"] == fake_mp3.name
     # P0-2: source URL is sanitized via redact_url — query string stripped
     # to avoid leaking signed-URL credentials (access_token, X-Amz-Signature, …).
     assert result["source"] == "https://www.youtube.com/watch"
@@ -103,7 +103,7 @@ def test_local_audio_happy_path_skips_yt_dlp(
 
     assert result["ok"] is True
     assert result["raw_txt"] == "Hello world. Second line."
-    assert result["audio_path"] == str(fake_mp3)
+    assert result["audio_path"] == fake_mp3.name
 
 
 def test_missing_groq_api_key_returns_structured_error(
