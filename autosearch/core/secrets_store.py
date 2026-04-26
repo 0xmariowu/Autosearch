@@ -79,6 +79,7 @@ def write_secret(key: str, value: str, *, path: Path | None = None) -> None:
     target = path or secrets_path()
     target.parent.mkdir(parents=True, exist_ok=True)
     lock_path = target.with_name(f"{target.name}.lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
     temp_path: str | None = None
 
     with lock_path.open("a+b") as lock_fh:
