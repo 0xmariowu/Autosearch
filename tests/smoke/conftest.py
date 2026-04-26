@@ -66,12 +66,22 @@ def console_script_command(script_name: str, module_name: str) -> list[str]:
     return [sys.executable, "-m", module_name]
 
 
-def smoke_env(**overrides: str) -> dict[str, str]:
+def smoke_env(
+    *,
+    home: str | Path | None = None,
+    **overrides: str,
+) -> dict[str, str]:
     env = os.environ.copy()
     cwd = str(Path.cwd())
     pythonpath = env.get("PYTHONPATH")
     env["PYTHONPATH"] = cwd if not pythonpath else f"{cwd}{os.pathsep}{pythonpath}"
+    if home is not None:
+        home_value = str(home)
+        env["HOME"] = home_value
+        env["USERPROFILE"] = home_value
     env.update(overrides)
+    if "HOME" in overrides and "USERPROFILE" not in overrides:
+        env["USERPROFILE"] = overrides["HOME"]
     return env
 
 

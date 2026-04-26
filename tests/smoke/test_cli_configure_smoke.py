@@ -29,8 +29,7 @@ def test_cli_configure_rejects_no_value_no_stdin_in_non_tty() -> None:
 def test_cli_configure_inline_value_works_non_interactively(tmp_path) -> None:
     """v2: inline-value form is the supported automation path for install
     scripts; must work without a TTY."""
-    env = smoke_env()
-    env["HOME"] = str(tmp_path)
+    env = smoke_env(home=tmp_path)
     result = subprocess.run(
         [sys.executable, "-m", "autosearch.cli.main", "configure", "SMOKE_KEY", "smokeval"],
         input="",
