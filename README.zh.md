@@ -3,7 +3,12 @@
 </h1>
 
 <p align="center">
-  面向编程 Agent 的开源深度研究工具。OpenAI 和 Perplexity Deep Research 的替代方案——40 个渠道，含中文信息源。
+  <strong>面向 AI Agent 的开源深度搜索 (Open-source Deep Research)</strong>
+</p>
+
+<p align="center">
+  <em>40 个渠道，含 10+ 中文信息源。</em><br>
+  <em>MCP-native，LLM 解耦。直接接入你已经在用的 Agent 主机。</em>
 </p>
 
 <p align="center">
