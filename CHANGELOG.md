@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026.04.26.2 — 2026-04-26
+
+- **Release-pipeline fix-up on top of `.26.1`.** `pre_release_check.py`'s
+  "Channel experience dirs" mandatory check failed in CI on the `.26.1`
+  tag because `experience/` is `.gitignore`d on purpose (runtime artifact,
+  not committed). The check is still useful as a local pre-tag
+  developer-sanity guard, so this release auto-skips it under
+  `CI=true` / `GITHUB_ACTIONS=true` instead of demoting the check.
+  Mandatory-check list and the existing test contract are unchanged.
+
 ## 2026.04.26.1 — 2026-04-26
 
 - **P0 / P1 security + reliability rollup (10 PRs).** Closes the
