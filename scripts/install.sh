@@ -37,6 +37,8 @@ Flags:
                     installing the latest. Applies to uv / pipx / pip.
   --check-path-persistence
                     Check shell-profile PATH persistence logic, then exit.
+                    May append PATH export to the shell profile if missing;
+                    combine with --dry-run to preview without writing.
   -h, --help        Show this help.
 EOF
 }
