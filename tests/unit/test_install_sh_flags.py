@@ -9,8 +9,11 @@ would break that audit-trail / unattended-install workflow.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
+
+import pytest
 
 
 INSTALL_SH = Path(__file__).resolve().parents[2] / "scripts" / "install.sh"
@@ -69,3 +72,95 @@ def test_unknown_flag_is_rejected() -> None:
     result = _run("--definitely-not-a-flag")
     assert result.returncode != 0, "unknown flag must exit non-zero"
     assert "unknown flag" in result.stderr.lower() or "unknown flag" in result.stdout.lower()
+
+
+def test_install_persists_path_when_not_in_original(tmp_path: Path) -> None:
+    profile = tmp_path / ".zshrc"
+    profile.write_text("# existing profile\n", encoding="utf-8")
+
+    env = os.environ.copy()
+    env["HOME"] = str(tmp_path)
+    env["PATH"] = "/usr/bin:/bin"
+    env["SHELL"] = "/bin/zsh"
+
+    result = subprocess.run(
+        ["bash", str(INSTALL_SH), "--check-path-persistence"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=env,
+    )
+
+    expected_line = 'export PATH="$HOME/.local/bin:$PATH"'
+    combined_output = result.stdout + result.stderr
+    assert result.returncode == 0, combined_output
+    assert expected_line in profile.read_text(encoding="utf-8")
+
+    already_configured_home = tmp_path / "already-configured"
+    already_configured_home.mkdir()
+    already_configured_profile = already_configured_home / ".zshrc"
+    original_profile = "# existing profile\n"
+    already_configured_profile.write_text(original_profile, encoding="utf-8")
+
+    env["HOME"] = str(already_configured_home)
+    env["PATH"] = os.pathsep.join(
+        [str(already_configured_home / ".local" / "bin"), "/usr/bin", "/bin"]
+    )
+
+    result = subprocess.run(
+        ["bash", str(INSTALL_SH), "--check-path-persistence"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=env,
+    )
+
+    combined_output = result.stdout + result.stderr
+    assert result.returncode == 0, combined_output
+    assert already_configured_profile.read_text(encoding="utf-8") == original_profile
+
+
+@pytest.mark.parametrize(
+    ("existing_profiles", "expected_profile"),
+    [
+        ((".bash_profile", ".bashrc", ".profile"), ".bash_profile"),
+        ((".bashrc", ".profile"), ".bashrc"),
+        ((".profile",), ".profile"),
+        ((), ".bashrc"),
+    ],
+)
+def test_bash_path_persistence_prefers_sourced_profile(
+    tmp_path: Path,
+    existing_profiles: tuple[str, ...],
+    expected_profile: str,
+) -> None:
+    for profile_name in existing_profiles:
+        (tmp_path / profile_name).write_text(
+            f"# existing {profile_name}\n",
+            encoding="utf-8",
+        )
+
+    env = os.environ.copy()
+    env["HOME"] = str(tmp_path)
+    env["PATH"] = "/usr/bin:/bin"
+    env["SHELL"] = "/bin/bash"
+
+    result = subprocess.run(
+        ["bash", str(INSTALL_SH), "--check-path-persistence"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=env,
+    )
+
+    expected_line = 'export PATH="$HOME/.local/bin:$PATH"'
+    combined_output = result.stdout + result.stderr
+    assert result.returncode == 0, combined_output
+    assert expected_line in (tmp_path / expected_profile).read_text(encoding="utf-8")
+
+    for profile_name in existing_profiles:
+        if profile_name == expected_profile:
+            continue
+        assert expected_line not in (tmp_path / profile_name).read_text(
+            encoding="utf-8",
+        )
