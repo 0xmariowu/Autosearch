@@ -3,6 +3,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[2]
 NPM_DIR = ROOT / "npm"
@@ -47,6 +49,7 @@ def test_install_script_rejects_path_traversal_version() -> None:
     assert "PEP 440-style version" in combined_output
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX-only fake bash installer shim")
 def test_install_then_run_e2e_smoke(tmp_path: Path) -> None:
     home = tmp_path / "home"
     home.mkdir()
