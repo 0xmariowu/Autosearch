@@ -2,7 +2,63 @@
 
 ## 2026.04.26.1 — 2026-04-26
 
-- 
+- **P0 / P1 security + reliability rollup (10 PRs).** Closes the
+  `reports/autosearch-p0-fix-plan.md` punch-list:
+  - **npm wrapper no longer fakes success on missing binary.** ENOENT /
+    EACCES / EPERM during the post-install spawn now exits non-zero with
+    a fix hint; `scripts/install.sh` persists `~/.local/bin` to a real
+    shell profile (zsh/bash; fish/csh skip with a warning instead of
+    writing bash syntax to `.bashrc`); install passes `--no-init` so
+    bare `npx autosearch-ai` no longer auto-runs init. (#427)
+  - **Cloud transcription stops leaking local paths.** OpenAI / Groq
+    transcribe modules route `source` and `audio_path` through a new
+    `redact_path_for_output()` (basenames for local files, redacted-URL
+    form for URL inputs); failure-path `extra` fields are redacted
+    before merge; Windows drive-letter paths detected correctly. (#428)
+  - **bcut transcribe redacts signed URLs.** All log call sites and
+    structured output's `source` / `reason` now walk
+    `redact_url` / `redact`; `LOGGER.exception` swapped for redacted
+    `LOGGER.warning` so tracebacks no longer echo the signed URL; empty
+    or non-string `source` is guarded before redaction. (#429)
+  - **Per-channel timeout + cooldown in delegate.** `run_subtask`
+    accepts `per_channel_timeout` (env override
+    `AUTOSEARCH_PER_CHANNEL_TIMEOUT_SECONDS`); timeout is mapped to
+    `transient_error`, recorded against executable channel methods so
+    cooldown actually triggers, and tracked with the real elapsed
+    latency. `asyncio.CancelledError` propagates and exception types
+    are narrowed instead of `noqa`-suppressed. (#430)
+  - **Atomic write to `~/.config/ai-secrets.env`.** New
+    `secrets_store.write_secret(...)` does fcntl-locked
+    read-modify-write with `fsync` + `os.replace`, preserving comments,
+    ordering, and unknown lines. `fcntl` import is now optional so the
+    module imports on Windows; newline / control-character keys + values
+    are rejected. CLI `configure --replace` and the cookie-write path
+    both route through the helper. (#431)
+  - **e2b reports redact scenario error text.** `summary.md`,
+    `results.json`, and the comprehensive transcript writer all walk
+    `redact()` before disk. (#432)
+  - **`scripts/e2b/run_validation.py --output` no longer rmtree's
+    arbitrary directories.** Default behaviour creates a
+    `run-<timestamp>` subdir; `--clean-output` is required to delete and
+    only inside the repo's `reports/` root, with both sides `.resolve()`d
+    to defeat symlink escape. E2B test stubs register proper `__path__`
+    so nested submodule imports work. (#433)
+  - **Legacy `research()` MCP path redacts exception text.** Same
+    sanitisation as the new pipeline. (#434)
+  - **CLI top-level error redact.** `_exit_query_failure()` redacts
+    before stderr / `--json` envelope. (#435)
+  - **kr36 channel switched to working JSON gateway endpoint.** Old
+    endpoint returned 404; new code reads article fields from the nested
+    template payload, skips empty fallback values, and gracefully maps
+    upstream failures to `transient_error` with an actionable
+    `fix_hint`. Legacy HTML fallback now driven by an explicit feature
+    flag instead of monkeypatch identity. (#436)
+- **Companion infra fixes shipped alongside the rollup.**
+  `.gitleaks.toml` gained allowlists for placeholder usernames + `.local`
+  POSIX paths used in the new install / wrapper tests; a regression in
+  `papers/via_paper_search.py` per-source timeout (caused by the F006a
+  exception narrowing) was repaired so the existing skip-slow-source
+  test still passes.
 
 ## 2026.04.25.11 — 2026-04-26
 
