@@ -1,4 +1,7 @@
 # Self-written for task F204
+# F015 research fallback note: DNS failed for api.36kr.com and search.36kr.com;
+# www.36kr.com/api/search returned application code 404; the selected candidate is
+# POST https://gateway.36kr.com/api/mis/nav/search/resultbytype with JSON results.
 from __future__ import annotations
 
 import asyncio
