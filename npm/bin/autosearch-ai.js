@@ -55,6 +55,19 @@ function expectedAutosearchPath() {
   return `${process.env.HOME || "~"}/.local/bin/autosearch`;
 }
 
+function prependHomeLocalBinToPath() {
+  if (!process.env.HOME) return;
+
+  const localBin = `${process.env.HOME}/.local/bin`;
+  const separator = isWindows() ? ";" : ":";
+  const currentPath = process.env.PATH || "";
+  if (currentPath.split(separator).includes(localBin)) return;
+
+  process.env.PATH = currentPath
+    ? `${localBin}${separator}${currentPath}`
+    : localBin;
+}
+
 function printAutosearchNotFoundHint(error) {
   process.stderr.write(
     `\nautosearch not found after install.\n` +
@@ -263,6 +276,7 @@ async function main() {
     if ((result.status ?? 0) !== 0) {
       process.exit(result.status ?? 1);
     }
+    prependHomeLocalBinToPath();
   } else {
     checkVersionAlignment(installedVersion);
   }
