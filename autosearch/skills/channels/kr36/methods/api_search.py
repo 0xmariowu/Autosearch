@@ -277,9 +277,8 @@ async def _fetch_search_api_payload(
 
         try:
             payload = response.json()
-        except ValueError as exc:
+        except ValueError:
             _raise_search_endpoint_unavailable("invalid JSON response")
-            raise exc
 
         if not isinstance(payload, Mapping):
             _raise_search_endpoint_unavailable("JSON response was not an object")
