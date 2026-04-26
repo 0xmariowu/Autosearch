@@ -71,7 +71,9 @@ def _patch_successful_run(monkeypatch, run_validation):
             "sandboxes": [],
         }
 
-    monkeypatch.setattr(run_validation, "load_matrix", lambda _path: SimpleNamespace(phases=[phase]))
+    monkeypatch.setattr(
+        run_validation, "load_matrix", lambda _path: SimpleNamespace(phases=[phase])
+    )
     monkeypatch.setattr(run_validation, "load_secrets", lambda _path: {})
     monkeypatch.setattr(run_validation, "execute_phase", fake_execute_phase)
     return output_dirs
@@ -137,10 +139,7 @@ def test_clean_output_flag_required_for_delete(tmp_path, monkeypatch) -> None:
     assert marker.read_text(encoding="utf-8") == "keep me"
 
     marker.write_text("delete me", encoding="utf-8")
-    assert (
-        _run_main(monkeypatch, run_validation, matrix_path, output_dir, "--clean-output")
-        == 0
-    )
+    assert _run_main(monkeypatch, run_validation, matrix_path, output_dir, "--clean-output") == 0
 
     assert not marker.exists()
     assert output_dir.exists()
@@ -161,10 +160,7 @@ def test_output_outside_reports_root_rejected(tmp_path, monkeypatch, capsys) -> 
     output_dirs = _patch_successful_run(monkeypatch, run_validation)
     monkeypatch.setattr(run_validation, "get_reports_root", lambda: reports_root, raising=False)
 
-    assert (
-        _run_main(monkeypatch, run_validation, matrix_path, output_dir, "--clean-output")
-        == 2
-    )
+    assert _run_main(monkeypatch, run_validation, matrix_path, output_dir, "--clean-output") == 2
 
     assert marker.read_text(encoding="utf-8") == "keep me"
     assert output_dirs == []
@@ -185,10 +181,7 @@ def test_symlink_escape_rejected(tmp_path, monkeypatch, capsys) -> None:
     output_dirs = _patch_successful_run(monkeypatch, run_validation)
     monkeypatch.setattr(run_validation, "get_reports_root", lambda: reports_root, raising=False)
 
-    assert (
-        _run_main(monkeypatch, run_validation, matrix_path, output_link, "--clean-output")
-        == 2
-    )
+    assert _run_main(monkeypatch, run_validation, matrix_path, output_link, "--clean-output") == 2
 
     assert marker.read_text(encoding="utf-8") == "keep me"
     assert output_dirs == []
@@ -214,10 +207,7 @@ def test_reports_root_symlink_resolved_consistently(tmp_path, monkeypatch) -> No
         raising=False,
     )
 
-    assert (
-        _run_main(monkeypatch, run_validation, matrix_path, output_dir, "--clean-output")
-        == 0
-    )
+    assert _run_main(monkeypatch, run_validation, matrix_path, output_dir, "--clean-output") == 0
 
     assert not marker.exists()
     assert len(output_dirs) == 1
