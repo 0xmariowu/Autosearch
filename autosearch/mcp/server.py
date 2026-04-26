@@ -894,9 +894,17 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
         Use when you want to search several channels in parallel for the same query.
         Returns {evidence_by_channel, summary, failed_channels, failed_channel_details, budget_used}.
         """
+        from autosearch.core.channel_runtime import get_channel_runtime  # noqa: PLC0415
         from autosearch.core.delegate import run_subtask  # noqa: PLC0415
 
-        result = await run_subtask(task_description, channels, query, max_per_channel)
+        runtime = get_channel_runtime()
+        result = await run_subtask(
+            task_description,
+            channels,
+            query,
+            max_per_channel,
+            channel_runtime=runtime,
+        )
         return {
             "evidence_by_channel": result.evidence_by_channel,
             "summary": result.summary,
