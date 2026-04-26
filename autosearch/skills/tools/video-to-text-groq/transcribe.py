@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 import httpx
 import structlog
 
-from autosearch.core.redact import redact_path_for_output, redact_url
+from autosearch.core.redact import redact, redact_path_for_output
 
 LOGGER = structlog.get_logger(__name__).bind(component="tool", skill="video-to-text-groq")
 
@@ -99,7 +99,7 @@ def transcribe(
     except YtDlpError as exc:
         LOGGER.warning(
             "video_to_text_groq_yt_dlp_failed",
-            source=redact_url(url_or_path),
+            source=redact_path_for_output(url_or_path),
             reason=str(exc),
         )
         return _failure(
@@ -111,7 +111,7 @@ def transcribe(
         stderr_tail = _stderr_tail(exc.stderr)
         LOGGER.warning(
             "video_to_text_groq_yt_dlp_failed",
-            source=redact_url(url_or_path),
+            source=redact_path_for_output(url_or_path),
             reason=stderr_tail,
         )
         return _failure(
@@ -120,12 +120,12 @@ def transcribe(
             stderr_tail=stderr_tail,
         )
     except FFmpegMissingError:
-        LOGGER.warning("video_to_text_groq_ffmpeg_missing", source=redact_url(url_or_path))
+        LOGGER.warning("video_to_text_groq_ffmpeg_missing", source=redact_path_for_output(url_or_path))
         return _failure(source=url_or_path, reason="ffmpeg_missing")
     except FFmpegFailedError as exc:
         LOGGER.warning(
             "video_to_text_groq_ffmpeg_failed",
-            source=redact_url(url_or_path),
+            source=redact_path_for_output(url_or_path),
             reason=str(exc),
         )
         return _failure(
@@ -136,7 +136,7 @@ def transcribe(
     except httpx.HTTPError as exc:
         LOGGER.warning(
             "video_to_text_groq_http_error",
-            source=redact_url(url_or_path),
+            source=redact_path_for_output(url_or_path),
             reason=str(exc),
         )
         return _failure(
@@ -148,7 +148,7 @@ def transcribe(
     except OSError as exc:
         LOGGER.warning(
             "video_to_text_groq_local_file_error",
-            source=redact_url(url_or_path),
+            source=redact_path_for_output(url_or_path),
             reason=str(exc),
         )
         return _failure(
@@ -159,7 +159,7 @@ def transcribe(
     except Exception as exc:  # pragma: no cover - defensive boundary for runtime tools
         LOGGER.warning(
             "video_to_text_groq_unexpected_error",
-            source=redact_url(url_or_path),
+            source=redact_path_for_output(url_or_path),
             reason=str(exc),
         )
         return _failure(
@@ -188,7 +188,7 @@ def transcribe(
     except ValueError as exc:
         LOGGER.warning(
             "video_to_text_groq_invalid_json",
-            source=redact_url(url_or_path),
+            source=redact_path_for_output(url_or_path),
             reason=str(exc),
         )
         return _failure(
@@ -403,5 +403,10 @@ def _failure(*, source: str, reason: str, **extra: object) -> VideoToTextGroqRes
         "source": redact_path_for_output(source),
         "reason": reason,
     }
-    result.update(extra)
+    result.update(
+        {
+            key: redact(value) if isinstance(value, str) else value
+            for key, value in extra.items()
+        }
+    )
     return result
