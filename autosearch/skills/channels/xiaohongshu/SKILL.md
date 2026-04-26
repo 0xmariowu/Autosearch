@@ -54,6 +54,8 @@ XHS applies two-tier account restriction enforcement:
 
 **Workaround**: Use `autosearch login xhs` with a normal, actively-used XHS account. `via_tikhub` is unaffected (uses TikHub's own accounts).
 
+**Proactive check**: `autosearch login xhs --check-health` probes the me endpoint with the currently-imported cookies and reports whether the account is flagged — without having to run a search. Exits 0 (healthy), 1 (flagged or missing cookies), 2 (unsupported platform).
+
 # Quality Bar
 
 - Evidence items have non-empty title and url.

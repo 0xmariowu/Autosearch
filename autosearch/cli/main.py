@@ -573,18 +573,31 @@ def login(
             help="Read the cookie string from stdin (avoids shell-history leak).",
         ),
     ] = False,
+    check_health: Annotated[
+        bool,
+        typer.Option(
+            "--check-health",
+            help=(
+                "Check cookie health (xhs only) by probing the me endpoint. "
+                "Skips cookie import. Exits 0 if healthy, 1 if account flagged."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Import cookies from your local browser — no copy-paste needed.
 
-    Three input modes (preferred → discouraged):
+    Four modes:
       1. Default: read cookies straight from the browser session.
       2. --stdin: pipe the cookie string in (no shell-history leak).
       3. --from-string: cookie on the command line (DEPRECATED — leaks).
+      4. --check-health: probe a previously imported cookie to see whether
+         the account is currently flagged (xhs only — code=300011).
 
     Examples:
         autosearch login xhs
         autosearch login twitter --browser firefox
         printf 'SESSDATA=xxx; bili_jct=yyy' | autosearch login bilibili --stdin
+        autosearch login xhs --check-health
 
     Supported platforms: xhs, twitter, bilibili, weibo, douyin, zhihu, xueqiu
     """
@@ -606,6 +619,16 @@ def login(
             err=True,
         )
         raise typer.Exit(code=1)
+
+    if check_health:
+        if platform != "xhs":
+            typer.echo(
+                "--check-health is currently only supported for xhs.",
+                err=True,
+            )
+            raise typer.Exit(code=2)
+        _run_xhs_health_check()
+        return
 
     domains, env_key = _PLATFORM_SPECS[platform]
 
@@ -677,6 +700,65 @@ def login(
     cookie_str = "; ".join(f"{c['name']}={c['value']}" for c in raw)
     _write_cookie_to_secrets(env_key, cookie_str, platform, n_cookies=len(raw))
     typer.echo(f"Done. {platform} searches will now use your {browser} session.")
+
+
+def _run_xhs_health_check() -> None:
+    """Probe XHS me endpoint with the currently-configured cookies.
+
+    Exits 0 if the account is healthy; exits 1 if flagged (code=300011)
+    or if no cookies are configured.
+    """
+    import asyncio
+    import os
+
+    cookies = (
+        os.environ.get("XHS_COOKIES")
+        or os.environ.get("XIAOHONGSHU_COOKIES")
+        or os.environ.get("XHS_A1_COOKIE", "")
+    )
+    if not cookies:
+        typer.echo(
+            "No XHS_COOKIES found. Run `autosearch login xhs` first to import cookies.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    headers = {
+        "Cookie": cookies,
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Referer": "https://www.xiaohongshu.com/",
+        "Accept": "application/json, text/plain, */*",
+    }
+
+    from autosearch.skills.channels.xiaohongshu.methods.via_signsrv import (
+        _check_account_health,
+    )
+
+    async def _probe() -> tuple[bool, str | None]:
+        async with httpx.AsyncClient(timeout=10) as client:
+            return await _check_account_health(client, headers)
+
+    healthy, code = asyncio.run(_probe())
+
+    if healthy:
+        typer.echo("OK: XHS cookies appear healthy (account not flagged).")
+        return
+
+    if code == "300011":
+        typer.echo(
+            "FLAGGED: XHS account is restricted (code=300011). "
+            "Re-run `autosearch login xhs` with a different account.",
+            err=True,
+        )
+    else:
+        typer.echo(
+            f"UNKNOWN: probe returned restricted with code={code}",
+            err=True,
+        )
+    raise typer.Exit(code=1)
 
 
 def _write_cookie_to_secrets(
