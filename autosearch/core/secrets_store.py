@@ -17,8 +17,10 @@ Values are never printed or logged. Only key presence is exposed via
 
 from __future__ import annotations
 
+import fcntl
 import os
 import shlex
+import tempfile
 from pathlib import Path
 
 _FILE_INJECTED_VALUES: dict[str, str] = {}
@@ -61,6 +63,83 @@ def load_secrets(path: Path | None = None) -> dict[str, str]:
             continue
         result[key] = tokens[0] if tokens else ""
     return result
+
+
+def write_secret(key: str, value: str, *, path: Path | None = None) -> None:
+    """Atomically write or replace one KEY=value entry in the secrets file."""
+    target = path or secrets_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = target.with_name(f"{target.name}.lock")
+    temp_path: str | None = None
+
+    with lock_path.open("a+b") as lock_fh:
+        fcntl.flock(lock_fh.fileno(), fcntl.LOCK_EX)
+        try:
+            try:
+                existing_text = target.read_text(encoding="utf-8")
+            except FileNotFoundError:
+                existing_text = ""
+
+            next_text = _replace_or_append_secret(existing_text, key, value)
+            with tempfile.NamedTemporaryFile(
+                "w",
+                encoding="utf-8",
+                dir=target.parent,
+                prefix=f"{target.name}.tmp.{os.getpid()}.",
+                delete=False,
+            ) as temp_fh:
+                temp_path = temp_fh.name
+                temp_fh.write(next_text)
+                temp_fh.flush()
+                os.fsync(temp_fh.fileno())
+
+            os.replace(temp_path, target)
+            temp_path = None
+            try:
+                target.chmod(0o600)
+            except OSError:
+                pass
+        finally:
+            try:
+                if temp_path is not None:
+                    os.unlink(temp_path)
+            except FileNotFoundError:
+                pass
+            finally:
+                fcntl.flock(lock_fh.fileno(), fcntl.LOCK_UN)
+
+
+def _replace_or_append_secret(text: str, key: str, value: str) -> str:
+    replacement = f"{key}={shlex.quote(value)}"
+    lines = text.splitlines()
+    replaced = False
+    next_lines: list[str] = []
+
+    for line in lines:
+        if _secret_line_key(line) == key:
+            next_lines.append(replacement)
+            replaced = True
+        else:
+            next_lines.append(line)
+
+    if not replaced:
+        next_lines.append(replacement)
+    return "\n".join(next_lines) + "\n"
+
+
+def _secret_line_key(raw: str) -> str | None:
+    line = raw.strip()
+    if not line or line.startswith("#") or "=" not in line:
+        return None
+    key, _, value = line.partition("=")
+    key = key.strip()
+    if not key or not key.replace("_", "").isalnum():
+        return None
+    try:
+        shlex.split(value)
+    except ValueError:
+        return None
+    return key
 
 
 def available_env_keys(path: Path | None = None) -> set[str]:

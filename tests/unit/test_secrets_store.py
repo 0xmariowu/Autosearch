@@ -14,6 +14,7 @@ from autosearch.core.secrets_store import (
     load_secrets,
     resolve_env_value,
     secrets_path,
+    write_secret,
 )
 
 
@@ -65,6 +66,70 @@ def test_load_secrets_parses_kv_with_quotes_and_skips_comments(monkeypatch, tmp_
         "TIKHUB_API_KEY": "quoted secret",
         "WEIBO_COOKIES": "double quoted",
     }
+
+
+def test_write_secret_basic(tmp_path):
+    f = tmp_path / "ai-secrets.env"
+
+    write_secret("OPENAI_API_KEY", "sk-basic", path=f)
+
+    assert f.read_text(encoding="utf-8") == "OPENAI_API_KEY=sk-basic\n"
+    assert load_secrets(f) == {"OPENAI_API_KEY": "sk-basic"}
+
+
+def test_write_secret_preserves_comments_and_unknown_lines(tmp_path):
+    f = tmp_path / "ai-secrets.env"
+    _write(
+        f,
+        "\n".join(
+            [
+                "# keep this comment",
+                "",
+                "MALFORMED_LINE_WITHOUT_EQUALS",
+                "OPENAI_API_KEY=old-value",
+                "TIKHUB_API_KEY=keep-value",
+            ]
+        )
+        + "\n",
+    )
+
+    write_secret("OPENAI_API_KEY", "new value", path=f)
+
+    assert f.read_text(encoding="utf-8") == "\n".join(
+        [
+            "# keep this comment",
+            "",
+            "MALFORMED_LINE_WITHOUT_EQUALS",
+            "OPENAI_API_KEY='new value'",
+            "TIKHUB_API_KEY=keep-value",
+            "",
+        ]
+    )
+    assert load_secrets(f) == {
+        "OPENAI_API_KEY": "new value",
+        "TIKHUB_API_KEY": "keep-value",
+    }
+
+
+def test_write_secret_fsyncs_temp_before_replace(monkeypatch, tmp_path):
+    f = tmp_path / "ai-secrets.env"
+    events: list[str] = []
+    real_replace = secrets_store_mod.os.replace
+
+    def fake_fsync(fd: int) -> None:
+        events.append("fsync")
+
+    def fake_replace(src: str, dst: str | os.PathLike[str]) -> None:
+        events.append("replace")
+        assert "fsync" in events
+        real_replace(src, dst)
+
+    monkeypatch.setattr(secrets_store_mod.os, "fsync", fake_fsync)
+    monkeypatch.setattr(secrets_store_mod.os, "replace", fake_replace)
+
+    write_secret("OPENAI_API_KEY", "sk-fsync", path=f)
+
+    assert events == ["fsync", "replace"]
 
 
 def test_available_env_keys_unions_env_and_file(monkeypatch, tmp_path):
