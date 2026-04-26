@@ -14,12 +14,24 @@ from __future__ import annotations
 
 import os
 import stat
+from multiprocessing import Barrier, Process
+from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
 from autosearch.cli.main import _write_cookie_to_secrets, app
 from autosearch.core import secrets_store
+
+
+def _write_secret_after_barrier(
+    path: str,
+    key: str,
+    value: str,
+    barrier: Barrier,
+) -> None:
+    barrier.wait(timeout=5)
+    secrets_store.write_secret(key, value, path=Path(path))
 
 
 @pytest.fixture
@@ -54,6 +66,34 @@ def test_cookie_writer_chmods_secrets_file_to_0600(tmp_secrets) -> None:
         f"cookie writer must chmod the secrets file 0o600 to keep cookies "
         f"private on shared boxes; got {oct(mode)}"
     )
+
+
+def test_concurrent_replace_no_loss(tmp_secrets) -> None:
+    barrier = Barrier(3)
+    writers = [
+        Process(
+            target=_write_secret_after_barrier,
+            args=(str(tmp_secrets), "AUTOSEARCH_F007_ALPHA", "alpha-secret", barrier),
+        ),
+        Process(
+            target=_write_secret_after_barrier,
+            args=(str(tmp_secrets), "AUTOSEARCH_F007_BETA", "beta-secret", barrier),
+        ),
+    ]
+
+    for writer in writers:
+        writer.start()
+
+    barrier.wait(timeout=5)
+    for writer in writers:
+        writer.join(timeout=10)
+
+    for writer in writers:
+        assert writer.exitcode == 0
+
+    stored = secrets_store.load_secrets(tmp_secrets)
+    assert stored["AUTOSEARCH_F007_ALPHA"] == "alpha-secret"
+    assert stored["AUTOSEARCH_F007_BETA"] == "beta-secret"
 
 
 def test_inject_into_env_default_does_not_overwrite_user_env(tmp_secrets, monkeypatch) -> None:
