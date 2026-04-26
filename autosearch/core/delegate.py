@@ -3,9 +3,20 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from dataclasses import dataclass, field
 
 from autosearch.core.channel_runtime import ChannelRuntime
+
+_DEFAULT_CONCURRENCY_CAP = 5
+
+
+def _resolve_concurrency_cap() -> int:
+    raw = os.environ.get("AUTOSEARCH_DELEGATE_CONCURRENCY", str(_DEFAULT_CONCURRENCY_CAP))
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return _DEFAULT_CONCURRENCY_CAP
 
 
 @dataclass
@@ -26,8 +37,19 @@ async def run_subtask(
     channel_runtime: ChannelRuntime,
     _search_fn=None,  # injectable for tests
 ) -> SubtaskResult:
-    """Run query across channels concurrently and return a SubtaskResult."""
+    """Run query across channels concurrently and return a SubtaskResult.
+
+    All channel calls go through the shared ``channel_runtime`` so the
+    rate limiter, health tracker, and cost tracker accumulate across
+    delegate runs (P0-4). The channel list is order-preserving deduped
+    so the same name passed twice is only run once. A semaphore caps
+    in-flight calls (default 5; override via
+    ``AUTOSEARCH_DELEGATE_CONCURRENCY``) to protect paid APIs from burst.
+    """
     from autosearch.core.models import SubQuery  # noqa: PLC0415
+
+    channels = list(dict.fromkeys(channels))
+    semaphore = asyncio.Semaphore(_resolve_concurrency_cap())
 
     if _search_fn is None:
         all_channels = {c.name: c for c in channel_runtime.channels}
@@ -43,11 +65,12 @@ async def run_subtask(
     result = SubtaskResult()
 
     async def _run_one(name: str) -> tuple[str, list[dict] | Exception]:
-        try:
-            evidence = await _search_fn(name)
-            return name, evidence[:max_per_channel]
-        except Exception as exc:  # noqa: BLE001
-            return name, exc
+        async with semaphore:
+            try:
+                evidence = await _search_fn(name)
+                return name, evidence[:max_per_channel]
+            except Exception as exc:  # noqa: BLE001
+                return name, exc
 
     outcomes = await asyncio.gather(*(_run_one(ch) for ch in channels))
 
