@@ -146,18 +146,18 @@ async def run_subtask(
 
     outcomes = await asyncio.gather(*(_run_one(ch) for ch in channels))
 
-    def _record_timeout(name: str) -> None:
+    def _record_timeout(name: str, timeout_seconds: float) -> None:
         record_timeout = getattr(channel_runtime, "record_timeout", None)
         if callable(record_timeout):
             record_timeout(
                 name,
-                latency_ms=(resolved_per_channel_timeout or 0.0) * 1000,
+                latency_ms=timeout_seconds * 1000,
             )
 
     for name, outcome in outcomes:
         if isinstance(outcome, Exception):
             if isinstance(outcome, _PerChannelTimeoutError):
-                _record_timeout(name)
+                _record_timeout(name, outcome.timeout_seconds)
                 failure = ChannelFailureStatus(
                     status="transient_error",
                     reason=f"timeout after {outcome.timeout_seconds}s",
