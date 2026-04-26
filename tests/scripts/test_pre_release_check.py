@@ -22,6 +22,84 @@ def _load_pre_release_check() -> ModuleType:
 CHECK = _load_pre_release_check()
 
 
+def _mock_pre_release_checks(
+    monkeypatch,
+    *,
+    mandatory_ok: bool = True,
+    advisory_ok: bool = True,
+) -> None:
+    failing_label = "Version 4-file consistency"
+
+    def mandatory_result(label: str):
+        if not mandatory_ok and label == failing_label:
+            return False, "mandatory failed"
+        return True, "mandatory passed"
+
+    monkeypatch.setattr(
+        CHECK,
+        "_check_version_consistency",
+        lambda: mandatory_result("Version 4-file consistency"),
+    )
+    monkeypatch.setattr(CHECK, "_check_skill_format", lambda: mandatory_result("SKILL.md format"))
+    monkeypatch.setattr(
+        CHECK,
+        "_check_experience_dirs",
+        lambda: mandatory_result("Channel experience dirs"),
+    )
+    monkeypatch.setattr(CHECK, "_check_mcp_tools", lambda: mandatory_result("MCP tools registered"))
+    monkeypatch.setattr(
+        CHECK,
+        "_check_open_prs",
+        lambda: mandatory_result("Open PR release blockers"),
+    )
+    monkeypatch.setattr(CHECK, "_check_git_clean", lambda: mandatory_result("Git working tree clean"))
+    monkeypatch.setattr(
+        CHECK,
+        "_check_gate12_bench",
+        lambda *, allow_stale=False: (advisory_ok, "advisory result"),
+    )
+
+
+def test_advisory_mandatory_checks_list_contains_expected_labels() -> None:
+    labels = [label for label, _ in CHECK.MANDATORY_CHECKS]
+
+    assert labels == [
+        "Version 4-file consistency",
+        "SKILL.md format",
+        "Channel experience dirs",
+        "MCP tools registered",
+        "Open PR release blockers",
+        "Git working tree clean",
+    ]
+    assert "Gate 12 bench ≥ 50%" not in labels
+
+
+def test_advisory_checks_list_contains_gate12_bench() -> None:
+    labels = [label for label, _ in CHECK.ADVISORY_CHECKS]
+
+    assert labels == ["Gate 12 bench ≥ 50%"]
+
+
+def test_advisory_failure_does_not_make_main_exit_nonzero(monkeypatch, capsys) -> None:
+    _mock_pre_release_checks(monkeypatch, mandatory_ok=True, advisory_ok=False)
+
+    assert CHECK.main([]) == 0
+    output = capsys.readouterr().out
+    assert "⚠️  [advisory] Gate 12 bench ≥ 50%" in output
+    assert "MANDATORY: 6/6 passed" in output
+    assert "ADVISORY: 0/1 passed" in output
+
+
+def test_advisory_main_exits_nonzero_when_mandatory_fails(monkeypatch, capsys) -> None:
+    _mock_pre_release_checks(monkeypatch, mandatory_ok=False, advisory_ok=True)
+
+    assert CHECK.main([]) == 1
+    output = capsys.readouterr().out
+    assert "❌  [mandatory] Version 4-file consistency" in output
+    assert "MANDATORY: 5/6 passed" in output
+    assert "ADVISORY: 1/1 passed" in output
+
+
 def _write_stats(
     tmp_path: Path,
     run_name: str,
