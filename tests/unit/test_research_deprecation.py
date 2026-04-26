@@ -9,12 +9,20 @@ import pytest
 from autosearch.mcp.server import create_server
 
 
+_FAKE_SECRET = "sk-" + "FAKEKEY1234567890abcdef"
+
+
 class _StubPipeline:
     """Minimal pipeline stub that satisfies factory() signature without running anything real."""
 
     async def run(self, *args, **kwargs):
         # Minimal result that ResearchResponse can serialize without issues.
         raise RuntimeError("stub pipeline — not actually invoked in this test")
+
+
+class _SecretFailingPipeline:
+    async def run(self, *args, **kwargs):
+        raise RuntimeError(f"upstream failed with key {_FAKE_SECRET}")
 
 
 @pytest.mark.asyncio
@@ -103,3 +111,29 @@ async def test_research_legacy_env_opt_in_restores_pipeline_path(
     # NOT a deprecation response. This proves the legacy code path ran.
     assert response.delivery_status == "error"
     assert "stub pipeline" in response.content.lower()
+
+
+@pytest.mark.asyncio
+async def test_legacy_research_exception_redacted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Legacy research() errors must not expose secret-shaped exception text."""
+    secret = _FAKE_SECRET
+    monkeypatch.setenv("AUTOSEARCH_LEGACY_RESEARCH", "1")
+
+    from autosearch.mcp.server import ResearchResponse
+
+    server = create_server(pipeline_factory=lambda: _SecretFailingPipeline())  # type: ignore[arg-type]
+    tm = server._tool_manager  # noqa: SLF001
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        response = await tm.call_tool(
+            "research",
+            {"query": "anything", "mode": "fast"},
+        )
+
+    assert isinstance(response, ResearchResponse)
+    assert response.delivery_status == "error"
+    assert secret not in response.content
+    assert "[REDACTED]" in response.content
