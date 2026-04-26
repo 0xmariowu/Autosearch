@@ -120,7 +120,9 @@ def transcribe(
             stderr_tail=stderr_tail,
         )
     except FFmpegMissingError:
-        LOGGER.warning("video_to_text_groq_ffmpeg_missing", source=redact_path_for_output(url_or_path))
+        LOGGER.warning(
+            "video_to_text_groq_ffmpeg_missing", source=redact_path_for_output(url_or_path)
+        )
         return _failure(source=url_or_path, reason="ffmpeg_missing")
     except FFmpegFailedError as exc:
         LOGGER.warning(
@@ -404,9 +406,6 @@ def _failure(*, source: str, reason: str, **extra: object) -> VideoToTextGroqRes
         "reason": reason,
     }
     result.update(
-        {
-            key: redact(value) if isinstance(value, str) else value
-            for key, value in extra.items()
-        }
+        {key: redact(value) if isinstance(value, str) else value for key, value in extra.items()}
     )
     return result
