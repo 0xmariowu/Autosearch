@@ -173,7 +173,7 @@ def test_windows_drive_letter_path_treated_as_local() -> None:
 
 def test_redact_path_for_output_empty_or_none_returns_empty_string() -> None:
     assert redact_path_for_output("") == ""
-    assert redact_path_for_output(None) == ""  # type: ignore[arg-type]
+    assert redact_path_for_output(None) == ""
 
 
 class TestRedactSignedUrl:

@@ -145,7 +145,7 @@ def redact_url(url: str, *, strip_query: bool = True) -> str:
     return urlunsplit((parts.scheme, parts.netloc, parts.path, query, parts.fragment))
 
 
-def redact_path_for_output(p: str) -> str:
+def redact_path_for_output(p: str | None) -> str:
     """Return a URL-redacted value or basename-only local path for structured output."""
     if not p:
         return ""
