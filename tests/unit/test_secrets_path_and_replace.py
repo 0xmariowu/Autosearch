@@ -135,6 +135,46 @@ def test_concurrent_replace_no_loss(tmp_secrets) -> None:
     assert stored["AUTOSEARCH_F007_BETA"] == "beta-secret"
 
 
+def test_preserves_comments_and_unknown_lines(tmp_secrets, monkeypatch) -> None:
+    tmp_secrets.write_text(
+        "\n".join(
+            [
+                "# keep this comment",
+                "",
+                "MALFORMED_LINE_WITHOUT_EQUALS",
+                "AUTOSEARCH_F007_PRESERVE=old-value",
+                "TIKHUB_API_KEY=keep-value",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(secrets_store, "inject_into_env", lambda *args, **kwargs: set())
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "configure",
+            "AUTOSEARCH_F007_PRESERVE",
+            "new value",
+            "--replace",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert tmp_secrets.read_text(encoding="utf-8") == "\n".join(
+        [
+            "# keep this comment",
+            "",
+            "MALFORMED_LINE_WITHOUT_EQUALS",
+            "AUTOSEARCH_F007_PRESERVE='new value'",
+            "TIKHUB_API_KEY=keep-value",
+            "",
+        ]
+    )
+
+
 def test_inject_into_env_default_does_not_overwrite_user_env(tmp_secrets, monkeypatch) -> None:
     tmp_secrets.write_text("YOUTUBE_API_KEY=file-value\n", encoding="utf-8")
     monkeypatch.setenv("YOUTUBE_API_KEY", "user-explicit-value")
