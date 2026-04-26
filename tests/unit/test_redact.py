@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from autosearch.core.redact import redact, redact_url
+from autosearch.core.redact import redact, redact_signed_url, redact_url
 
 
 def test_redact_bearer_token_with_plus_slash_equals_redacts_full_token() -> None:
@@ -146,3 +146,53 @@ def test_redact_url_malformed_url_returns_as_is() -> None:
     url = "http://[::1"
 
     assert redact_url(url) == url
+
+
+class TestRedactSignedUrl:
+    def test_redact_signed_url_strips_aws_sig(self) -> None:
+        url = (
+            "https://bucket.s3.amazonaws.com/key.txt?"
+            "X-Amz-Signature=abc123def&X-Amz-Expires=3600&"
+            "X-Amz-Date=20260426T000000Z&keepme=ok"
+        )
+
+        out = redact_signed_url(url)
+
+        assert "X-Amz-Signature" not in out
+        assert "X-Amz-Expires" not in out
+        assert "X-Amz-Date" not in out
+        assert "keepme=ok" in out
+        assert "/key.txt" in out
+
+    def test_redact_signed_url_strips_gcs_sig(self) -> None:
+        url = (
+            "https://storage.googleapis.com/b/o.json?"
+            "X-Goog-Signature=xyz789&X-Goog-Expires=3600&keepme=yes"
+        )
+
+        out = redact_signed_url(url)
+
+        assert "X-Goog-Signature" not in out
+        assert "X-Goog-Expires" not in out
+        assert "keepme=yes" in out
+
+    def test_redact_signed_url_strips_azure_sas(self) -> None:
+        url = (
+            "https://acct.blob.core.windows.net/c/o.json?"
+            "sig=verysecret&se=2026-04-27T00:00:00Z&sp=r&keepme=1"
+        )
+
+        out = redact_signed_url(url)
+
+        assert "sig=" not in out
+        assert "keepme=1" in out
+
+    def test_redact_signed_url_strips_generic_token(self) -> None:
+        url = "https://example.com/path?token=abc&signature=def&Expires=123&keepme=ok"
+
+        out = redact_signed_url(url)
+
+        assert "token=" not in out
+        assert "signature=" not in out
+        assert "Expires=" not in out
+        assert "keepme=ok" in out
