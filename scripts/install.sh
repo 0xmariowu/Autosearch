@@ -138,8 +138,16 @@ fix_path() {
 shell_profile() {
   case "$(basename "${SHELL:-}")" in
     zsh)  echo "$HOME/.zshrc" ;;
-    bash) echo "$HOME/.bashrc" ;;
-    *)    echo "$HOME/.profile" ;;
+    bash)
+      for profile in "$HOME/.bash_profile" "$HOME/.bashrc" "$HOME/.profile"; do
+        if [[ -f "$profile" ]]; then
+          echo "$profile"
+          return 0
+        fi
+      done
+      echo "$HOME/.bashrc"
+      ;;
+    *)    echo "$HOME/.bashrc" ;;
   esac
 }
 
