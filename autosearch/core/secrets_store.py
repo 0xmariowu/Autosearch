@@ -17,11 +17,15 @@ Values are never printed or logged. Only key presence is exposed via
 
 from __future__ import annotations
 
-import fcntl
 import os
 import shlex
 import tempfile
 from pathlib import Path
+
+try:
+    import fcntl as _fcntl
+except ImportError:  # pragma: no cover - exercised by import-time compatibility test
+    _fcntl = None
 
 _FILE_INJECTED_VALUES: dict[str, str] = {}
 
@@ -73,7 +77,8 @@ def write_secret(key: str, value: str, *, path: Path | None = None) -> None:
     temp_path: str | None = None
 
     with lock_path.open("a+b") as lock_fh:
-        fcntl.flock(lock_fh.fileno(), fcntl.LOCK_EX)
+        if _fcntl is not None:
+            _fcntl.flock(lock_fh.fileno(), _fcntl.LOCK_EX)
         try:
             try:
                 existing_text = target.read_text(encoding="utf-8")
@@ -106,7 +111,8 @@ def write_secret(key: str, value: str, *, path: Path | None = None) -> None:
             except FileNotFoundError:
                 pass
             finally:
-                fcntl.flock(lock_fh.fileno(), fcntl.LOCK_UN)
+                if _fcntl is not None:
+                    _fcntl.flock(lock_fh.fileno(), _fcntl.LOCK_UN)
 
 
 def _replace_or_append_secret(text: str, key: str, value: str) -> str:

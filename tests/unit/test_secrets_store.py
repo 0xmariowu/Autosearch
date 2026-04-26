@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import builtins
+import importlib.util
 import os
 from pathlib import Path
 
@@ -27,6 +29,28 @@ def _reset_file_injection_tracking():
 
 def _write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
+
+
+def test_module_imports_when_fcntl_is_unavailable(monkeypatch):
+    real_import = builtins.__import__
+
+    def import_without_fcntl(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "fcntl":
+            raise ImportError("fcntl unavailable")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_fcntl)
+    spec = importlib.util.spec_from_file_location(
+        "secrets_store_without_fcntl",
+        secrets_store_mod.__file__,
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+
+    spec.loader.exec_module(module)
+
+    assert module._fcntl is None
 
 
 def test_secrets_path_honors_override(monkeypatch, tmp_path):
