@@ -159,6 +159,18 @@ def test_redact_path_for_output_redacts_url_query() -> None:
     assert "SECRET_VALUE_PLACEHOLDER" not in out
 
 
+def test_schemeless_url_treated_as_url() -> None:
+    out = redact_path_for_output("example.com/audio.mp3?token=X")
+
+    assert out == "example.com/audio.mp3"
+    assert out != "audio.mp3"
+    assert "token=X" not in out
+
+
+def test_windows_drive_letter_path_treated_as_local() -> None:
+    assert redact_path_for_output(r"C:\Users\example\private\audio.mp3") == "audio.mp3"
+
+
 def test_redact_path_for_output_empty_or_none_returns_empty_string() -> None:
     assert redact_path_for_output("") == ""
     assert redact_path_for_output(None) == ""  # type: ignore[arg-type]
