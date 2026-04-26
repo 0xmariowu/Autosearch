@@ -182,7 +182,9 @@ def _prepare_audio(url_or_path: str) -> str:
     if _looks_like_url(url_or_path):
         return _extract_audio(url_or_path)
 
-    source_path = Path(url_or_path).expanduser()
+    from autosearch.core.transcribe_path_guard import validate_local_path
+
+    source_path = validate_local_path(url_or_path)
     if not source_path.exists():
         raise FileNotFoundError(f"Local input file not found: {source_path}")
 

@@ -88,8 +88,9 @@ def test_local_audio_happy_path_skips_yt_dlp(
     tmp_path: Path,
 ) -> None:
     fake_mp3 = tmp_path / "local.mp3"
-    fake_mp3.write_bytes(b"fake mp3")
+    fake_mp3.write_bytes(b"ID3 fake mp3")
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("AUTOSEARCH_TRANSCRIBE_ALLOWED_DIRS", str(tmp_path))
 
     def fail_extract(source: str) -> str:
         raise AssertionError(f"yt-dlp should not run for local audio: {source}")
@@ -127,8 +128,9 @@ def test_missing_openai_api_key_returns_structured_error(
 
 def test_openai_429_returns_rate_limited(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     fake_mp3 = tmp_path / "local.mp3"
-    fake_mp3.write_bytes(b"fake mp3")
+    fake_mp3.write_bytes(b"ID3 fake mp3")
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("AUTOSEARCH_TRANSCRIBE_ALLOWED_DIRS", str(tmp_path))
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(429, text="too many requests", request=request)

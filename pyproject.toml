@@ -64,6 +64,7 @@ markers = [
     "flaky_live: anti-scrape-prone live tests excluded from the default live suite",
     "e2e: end-to-end research flow tests (all mock, no real API needed)",
     "avo: AVO self-evolution cycle tests (slow, run before release)",
+    "mime: tests for media type sniffing and file signature checks",
 ]
 
 [tool.ruff]
