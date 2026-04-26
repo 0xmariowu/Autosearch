@@ -7,6 +7,7 @@ GREEN="\033[32m"
 YELLOW="\033[33m"
 RED="\033[31m"
 RESET="\033[0m"
+ORIGINAL_PATH="$PATH"
 
 info()    { echo -e "${BOLD}$*${RESET}"; }
 success() { echo -e "${GREEN}✓${RESET} $*"; }
@@ -16,6 +17,7 @@ die()     { echo -e "${RED}✗${RESET} $*" >&2; exit 1; }
 # ── Flag parsing ─────────────────────────────────────────────────────────────
 DRY_RUN=false
 NO_INIT=false
+CHECK_PATH_PERSISTENCE=false
 VERSION=""
 
 usage() {
@@ -33,6 +35,10 @@ Flags:
                     config separately.
   --version VER     Pin a specific version (e.g. 2026.04.24.4) instead of
                     installing the latest. Applies to uv / pipx / pip.
+  --check-path-persistence
+                    Check shell-profile PATH persistence logic, then exit.
+                    May append PATH export to the shell profile if missing;
+                    combine with --dry-run to preview without writing.
   -h, --help        Show this help.
 EOF
 }
@@ -41,6 +47,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run)     DRY_RUN=true; shift ;;
     --no-init)     NO_INIT=true; shift ;;
+    --check-path-persistence) CHECK_PATH_PERSISTENCE=true; shift ;;
     --version)     [[ -z "${2:-}" ]] && die "--version requires an argument"; VERSION="$2"; shift 2 ;;
     --version=*)   VERSION="${1#--version=}"; shift ;;
     -h|--help)     usage; exit 0 ;;
@@ -130,24 +137,58 @@ fix_path() {
 }
 
 # ── 4. Persist PATH to shell profile ─────────────────────────────────────────
+shell_profile() {
+  case "$(basename "${SHELL:-}")" in
+    zsh)  echo "$HOME/.zshrc" ;;
+    bash)
+      for profile in "$HOME/.bash_profile" "$HOME/.bashrc" "$HOME/.profile"; do
+        if [[ -f "$profile" ]]; then
+          echo "$profile"
+          return 0
+        fi
+      done
+      echo "$HOME/.bashrc"
+      ;;
+    *)    return 1 ;;
+  esac
+}
+
 persist_path() {
   local line='export PATH="$HOME/.local/bin:$PATH"'
-  for profile in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.profile"; do
-    if [ -f "$profile" ] && ! grep -q '.local/bin' "$profile" 2>/dev/null; then
-      if [[ "$DRY_RUN" == true ]]; then
-        printf "  [dry-run] would append PATH export to %s\n" "$profile"
-      else
-        echo "" >> "$profile"
-        echo "# Added by AutoSearch installer" >> "$profile"
-        echo "$line" >> "$profile"
-        warn "Added ~/.local/bin to PATH in $profile"
-      fi
-      break
-    fi
-  done
+  local profile
+
+  if [[ ":$ORIGINAL_PATH:" == *":$HOME/.local/bin:"* ]]; then
+    return 0
+  fi
+
+  if ! profile="$(shell_profile)"; then
+    warn "Unknown shell ($(basename "${SHELL:-}")) — skipping PATH persistence."
+    warn "Add this line to your shell profile manually: $line"
+    return 0
+  fi
+  if [[ -f "$profile" ]] && grep -Fqx "$line" "$profile" 2>/dev/null; then
+    return 0
+  fi
+
+  if [[ "$DRY_RUN" == true ]]; then
+    printf "  [dry-run] would append PATH export to %s\n" "$profile"
+    return 0
+  fi
+
+  mkdir -p "$(dirname "$profile")"
+  touch "$profile"
+  echo "" >> "$profile"
+  echo "# Added by AutoSearch installer" >> "$profile"
+  echo "$line" >> "$profile"
+  warn "Added ~/.local/bin to PATH in $profile"
 }
 
 # ── Main ─────────────────────────────────────────────────────────────────────
+if [[ "$CHECK_PATH_PERSISTENCE" == true ]]; then
+  persist_path
+  exit 0
+fi
+
 install_autosearch
 fix_path
 
@@ -163,8 +204,9 @@ if [[ "$DRY_RUN" == true ]]; then
   exit 0
 fi
 
+persist_path
+
 if ! command -v autosearch &>/dev/null; then
-  persist_path
   fix_path
 fi
 
