@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.smoke.conftest import smoke_env
+
 
 ROOT = Path(__file__).resolve().parents[2]
 NPM_DIR = ROOT / "npm"
@@ -70,8 +72,7 @@ def test_install_then_run_e2e_smoke(tmp_path: Path) -> None:
     )
     fake_bash.chmod(0o755)
 
-    env = os.environ.copy()
-    env["HOME"] = str(home)
+    env = smoke_env(home=home)
     env["PATH"] = os.pathsep.join([str(fake_bin), "/usr/bin", "/bin"])
 
     result = subprocess.run(
