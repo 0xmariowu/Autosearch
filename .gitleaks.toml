@@ -14,6 +14,10 @@ regex = '''/Users/[a-zA-Z0-9_\-\.]+/|/home/[a-z][a-z0-9_\-]+/'''
 tags = ["pii", "personal-path"]
 keywords = ["/Users/", "/home/"]
 
+  [[rules.allowlists]]
+  description = "RFC-style placeholder usernames in test fixtures (example/test/user/fake/fixture/dummy) are not real PII"
+  regexes = ['''/Users/(example|test|user|fake|fixture|dummy)/''', '''/home/(example|test|user|fake|fixture|dummy)/''']
+
 [[rules]]
 id = "tailscale-domain"
 description = "Tailscale network address or internal hostname leaked"
