@@ -106,7 +106,10 @@ async def run_subtask(
     def _record_timeout(name: str) -> None:
         record_timeout = getattr(channel_runtime, "record_timeout", None)
         if callable(record_timeout):
-            record_timeout(name)
+            record_timeout(
+                name,
+                latency_ms=(resolved_per_channel_timeout or 0.0) * 1000,
+            )
 
     for name, outcome in outcomes:
         if isinstance(outcome, Exception):

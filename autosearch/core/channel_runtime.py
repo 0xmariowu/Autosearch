@@ -23,7 +23,7 @@ from autosearch.channels.base import Channel, ChannelRegistry
 from autosearch.core.rate_limiter import RateLimiter
 from autosearch.observability.channel_health import ChannelHealth
 
-_DELEGATE_TIMEOUT_METHOD = "__delegate_timeout__"
+_FALLBACK_TIMEOUT_METHOD = "search"
 
 
 @dataclass
@@ -40,18 +40,37 @@ class ChannelRuntime:
     last_timeout_ts: float | None = None
     channel_timeout_ts: dict[str, float] = field(default_factory=dict)
 
-    def record_timeout(self, channel_name: str) -> None:
+    def record_timeout(self, channel_name: str, *, latency_ms: float) -> None:
         """Record a delegate-level timeout in shared channel health."""
         now = time.monotonic()
         self.last_timeout_ts = now
         self.channel_timeout_ts[channel_name] = now
-        self.health.record(
-            channel_name,
-            _DELEGATE_TIMEOUT_METHOD,
-            success=False,
-            latency_ms=0.0,
-            error="TransientError",
-        )
+        for method_name in self._timeout_method_names(channel_name):
+            self.health.record(
+                channel_name,
+                method_name,
+                success=False,
+                latency_ms=latency_ms,
+                error="TransientError",
+            )
+
+    def _timeout_method_names(self, channel_name: str) -> list[str]:
+        if self.registry is None:
+            return [_FALLBACK_TIMEOUT_METHOD]
+
+        try:
+            metadata = self.registry.metadata(channel_name)
+        except KeyError:
+            return [_FALLBACK_TIMEOUT_METHOD]
+
+        methods_by_id = {method.id: method for method in metadata.methods}
+        method_ids = metadata.fallback_chain or [method.id for method in metadata.methods]
+        executable_method_ids = [
+            method_id
+            for method_id in method_ids
+            if (method := methods_by_id.get(method_id)) is not None and method.available
+        ]
+        return executable_method_ids or [_FALLBACK_TIMEOUT_METHOD]
 
 
 _runtime: ChannelRuntime | None = None
