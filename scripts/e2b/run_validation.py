@@ -395,7 +395,7 @@ def execute_phase(
 
 
 def get_reports_root() -> Path:
-    return Path.cwd() / "reports"
+    return Path(__file__).resolve().parents[2] / "reports"
 
 
 def _path_is_inside(child: Path, parent: Path) -> bool:
@@ -408,7 +408,7 @@ def _path_is_inside(child: Path, parent: Path) -> bool:
 
 def clean_output_dir(output_dir: Path, console: Console) -> None:
     reports_root = get_reports_root().expanduser().absolute()
-    clean_target = output_dir.expanduser().absolute()
+    clean_target = output_dir.expanduser().resolve()
     if not _path_is_inside(clean_target, reports_root):
         raise ValueError(
             f"Refusing to clean output outside repo reports/: {clean_target} "
