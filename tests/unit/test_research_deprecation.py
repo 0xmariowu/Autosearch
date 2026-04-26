@@ -30,7 +30,7 @@ async def test_research_emits_deprecation_warning(monkeypatch: pytest.MonkeyPatc
     """When opted in via AUTOSEARCH_LEGACY_RESEARCH=1, calling research() must
     still emit a DeprecationWarning so users know they're on a sunset path."""
     monkeypatch.setenv("AUTOSEARCH_LEGACY_RESEARCH", "1")
-    server = create_server(pipeline_factory=_StubPipeline)  # type: ignore[arg-type]
+    server = create_server(pipeline_factory=_StubPipeline)
     tm = server._tool_manager  # noqa: SLF001
 
     with warnings.catch_warnings(record=True) as caught:
@@ -55,7 +55,7 @@ async def test_research_emits_deprecation_warning(monkeypatch: pytest.MonkeyPatc
 @pytest.mark.asyncio
 async def test_server_instructions_mention_tool_supplier_trio() -> None:
     """The MCP server instructions should steer runtimes toward the v2 trio."""
-    server = create_server(pipeline_factory=_StubPipeline)  # type: ignore[arg-type]
+    server = create_server(pipeline_factory=_StubPipeline)
     instructions = server.instructions or ""
     assert "list_skills" in instructions
     assert "run_clarify" in instructions
@@ -75,7 +75,7 @@ async def test_research_tool_not_registered_by_default(
     """
     monkeypatch.delenv("AUTOSEARCH_LEGACY_RESEARCH", raising=False)
 
-    server = create_server(pipeline_factory=_StubPipeline)  # type: ignore[arg-type]
+    server = create_server(pipeline_factory=_StubPipeline)
     tools = await server.list_tools()
     tool_names = {tool.name for tool in tools}
     assert "research" not in tool_names, (
@@ -94,7 +94,7 @@ async def test_research_legacy_env_opt_in_restores_pipeline_path(
 
     # Stub pipeline that raises — so if legacy path is taken, we reach the except
     # branch and get delivery_status="error" with the stub's error message.
-    server = create_server(pipeline_factory=_StubPipeline)  # type: ignore[arg-type]
+    server = create_server(pipeline_factory=_StubPipeline)
     tm = server._tool_manager  # noqa: SLF001
 
     import warnings as _warnings
@@ -123,7 +123,7 @@ async def test_legacy_research_exception_redacted(
 
     from autosearch.mcp.server import ResearchResponse
 
-    server = create_server(pipeline_factory=_SecretFailingPipeline)  # type: ignore[arg-type]
+    server = create_server(pipeline_factory=_SecretFailingPipeline)
     tm = server._tool_manager  # noqa: SLF001
 
     with warnings.catch_warnings():
