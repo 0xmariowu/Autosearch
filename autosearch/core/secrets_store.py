@@ -17,6 +17,7 @@ Values are never printed or logged. Only key presence is exposed via
 
 from __future__ import annotations
 
+import logging
 import os
 import shlex
 import tempfile
@@ -28,6 +29,7 @@ except ImportError:  # pragma: no cover - exercised by import-time compatibility
     _fcntl = None
 
 _FILE_INJECTED_VALUES: dict[str, str] = {}
+_log = logging.getLogger(__name__)
 
 
 def secrets_path() -> Path:
@@ -103,13 +105,15 @@ def write_secret(key: str, value: str, *, path: Path | None = None) -> None:
             try:
                 target.chmod(0o600)
             except OSError:
-                pass
+                # Some filesystems reject chmod; the secret write itself still succeeded.
+                _log.debug("Unable to chmod secrets file to 0600: %s", target, exc_info=True)
         finally:
             try:
                 if temp_path is not None:
                     os.unlink(temp_path)
             except FileNotFoundError:
-                pass
+                # Preserve the original write error if another cleanup path removed the temp file.
+                _log.debug("Temporary secrets file already removed: %s", temp_path, exc_info=True)
             finally:
                 if _fcntl is not None:
                     _fcntl.flock(lock_fh.fileno(), _fcntl.LOCK_UN)
