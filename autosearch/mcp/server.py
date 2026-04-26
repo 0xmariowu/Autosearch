@@ -22,6 +22,7 @@ from autosearch.core.loop_state import get_gaps as _ls_get_gaps
 from autosearch.core.loop_state import init_loop as _ls_init
 from autosearch.core.loop_state import update_loop as _ls_update
 from autosearch.core.models import ClarifyRequest, SearchMode, SubQuery
+from autosearch.core.redact import redact_signed_url
 from autosearch.core.search_scope import SearchScope, depth_to_mode
 from autosearch.llm.client import LLMClient
 
@@ -831,7 +832,7 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
             num = _ci_add(index_id, url, title=title, source=source)
         except KeyError:
             return {"ok": False, "reason": "invalid_index_id", "index_id": index_id}
-        return {"index_id": index_id, "citation_number": num, "url": url}
+        return {"index_id": index_id, "citation_number": num, "url": redact_signed_url(url)}
 
     @server.tool()
     def citation_export(index_id: str) -> dict:
@@ -893,9 +894,17 @@ def create_server(pipeline_factory: Callable[[], Any] | None = None) -> FastMCP:
         Use when you want to search several channels in parallel for the same query.
         Returns {evidence_by_channel, summary, failed_channels, failed_channel_details, budget_used}.
         """
+        from autosearch.core.channel_runtime import get_channel_runtime  # noqa: PLC0415
         from autosearch.core.delegate import run_subtask  # noqa: PLC0415
 
-        result = await run_subtask(task_description, channels, query, max_per_channel)
+        runtime = get_channel_runtime()
+        result = await run_subtask(
+            task_description,
+            channels,
+            query,
+            max_per_channel,
+            channel_runtime=runtime,
+        )
         return {
             "evidence_by_channel": result.evidence_by_channel,
             "summary": result.summary,

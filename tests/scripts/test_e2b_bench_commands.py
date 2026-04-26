@@ -7,6 +7,19 @@ import sys
 import types
 from pathlib import Path
 
+import pytest
+
+# These tests assert that bench-command builders correctly escape shell
+# metacharacters when the resulting string is fed to a POSIX shell — the same
+# environment the e2b Linux sandbox uses in production. On Windows pytest
+# runners (Cross-Platform Tests workflow) the command relies on `$HOME` and
+# `.venv/bin/python` syntax that cmd.exe does not understand, so the tests
+# fail for environment reasons unrelated to the quoting behavior under test.
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="bench commands target POSIX shell (e2b Linux sandbox); cmd.exe cannot run them",
+)
+
 
 def _install_fake_e2b_module(monkeypatch) -> None:
     fake = types.ModuleType("e2b_code_interpreter")
