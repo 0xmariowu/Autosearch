@@ -35,6 +35,14 @@ jobs:
       - name: Install e2b runner deps
         run: pip install -e ".[dev]"
 
+      - name: Install gitleaks (required by packing pre-pack scan)
+        run: |
+          GITLEAKS_VERSION=8.21.2
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /tmp gitleaks
+          sudo mv /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
       - name: Stage secrets file
         env:
           E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
@@ -51,6 +59,8 @@ jobs:
 
       - name: Run matrix-release-gate
         id: matrix
+        env:
+          AUTOSEARCH_PACKING_REQUIRE_SECRET_SCAN: "1"
         run: |
           python scripts/e2b/run_validation.py \
             --project autosearch-release-gate \
