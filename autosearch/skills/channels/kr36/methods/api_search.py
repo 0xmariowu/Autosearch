@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import html
+import os
 import re
 from collections.abc import Mapping
 from datetime import UTC, datetime
@@ -35,7 +36,8 @@ SEARCH_ENDPOINT_FIX_HINT = (
 )
 MAX_RESULTS = 10
 MAX_SNIPPET_LENGTH = 300
-_ORIGINAL_FETCH_HTML = fetch_html
+USE_LEGACY_HTML_SEARCH_ENV = "AUTOSEARCH_KR36_USE_LEGACY"
+TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
 TITLE_LINK_RE = re.compile(
     r'<a\b(?=[^>]*class=(["\'])[^"\']*\barticle-item-title\b[^"\']*\1)'
     r'(?=[^>]*href=(?P<quote>["\'])(?P<href>.*?)(?P=quote))[^>]*>(?P<title>.*?)</a>',
@@ -63,6 +65,10 @@ class Kr36SearchEndpointUnavailable(TransientError):
 
 def _raise_search_endpoint_unavailable(reason: str) -> None:
     raise Kr36SearchEndpointUnavailable(f"{SEARCH_ENDPOINT_FIX_HINT}: {reason}")
+
+
+def _use_legacy_html_search() -> bool:
+    return os.getenv(USE_LEGACY_HTML_SEARCH_ENV, "").strip().lower() in TRUTHY_ENV_VALUES
 
 
 def _truncate_on_word_boundary(text: str, *, max_length: int) -> str:
@@ -364,7 +370,7 @@ async def search(
     http_client: httpx.AsyncClient | None = None,
 ) -> list[Evidence]:
     try:
-        if fetch_html is not _ORIGINAL_FETCH_HTML:
+        if _use_legacy_html_search():
             evidences = await _search_legacy_html(query, http_client=http_client)
         else:
             evidences = await _search_api(query, http_client=http_client)

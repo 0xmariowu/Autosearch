@@ -15,6 +15,7 @@ SEARCH_RESULTS_HTML = """
   <span class="article-author">Insight Author</span>
 </section>
 """
+LEGACY_HTML_ENV = "AUTOSEARCH_KR36_USE_LEGACY"
 
 
 class _Logger:
@@ -34,6 +35,10 @@ def _compiled_kr36():
     return registry.metadata("kr36").methods[0].callable
 
 
+def _enable_legacy_html(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(LEGACY_HTML_ENV, "1")
+
+
 def _fetched_page(url: str, *, markdown: str) -> FetchedPage:
     return FetchedPage(
         url=url,
@@ -49,6 +54,7 @@ async def test_kr36_404_returns_transient_error_with_fix_hint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     search_callable = _compiled_kr36()
+    _enable_legacy_html(monkeypatch)
 
     async def fake_fetch_html(
         url: str,
@@ -81,6 +87,7 @@ async def test_kr36_evidence_uses_markdown_from_fetched_page(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     search_callable = _compiled_kr36()
+    _enable_legacy_html(monkeypatch)
     http_client = httpx.AsyncClient()
     captured: dict[str, object] = {}
     markdown = "# KR36 Article\n\nLong body content."
@@ -132,6 +139,7 @@ async def test_kr36_falls_back_on_fetch_error(
 ) -> None:
     logger = _Logger()
     search_callable = _compiled_kr36()
+    _enable_legacy_html(monkeypatch)
 
     async def fake_fetch_html(
         url: str,
@@ -175,6 +183,7 @@ async def test_kr36_preserves_title_and_url(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     search_callable = _compiled_kr36()
+    _enable_legacy_html(monkeypatch)
 
     async def fake_fetch_html(
         url: str,
