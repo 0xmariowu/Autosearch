@@ -48,19 +48,40 @@ _COOKIE_PAIR_PATTERN = re.compile(r"(?P<name>[^=;\s]+)=(?P<value>[^;]*)")
 _SIGNED_URL_QUERY_KEYS = {
     key.lower()
     for key in {
+        # Generic
         "Signature",
-        "X-Amz-Signature",
-        "X-Goog-Signature",
+        "signature",
         "sig",
         "token",
         "Expires",
-        "X-Amz-Expires",
-        "X-Goog-Expires",
+        # AWS SigV4 (S3 / CloudFront / etc.)
+        "X-Amz-Signature",
+        "X-Amz-Credential",
+        "X-Amz-Algorithm",
+        "X-Amz-SignedHeaders",
+        "X-Amz-Security-Token",
         "X-Amz-Date",
+        "X-Amz-Expires",
+        # Google Cloud Storage
+        "X-Goog-Signature",
+        "X-Goog-Expires",
+        # Azure Blob SAS
         "se",
         "sp",
         "sv",
-        "signature",
+        "srt",
+        "ss",
+        "st",
+        "spr",
+        "skoid",
+        "sktid",
+        "skt",
+        "ske",
+        "sks",
+        "skv",
+        # CloudFront signed URLs
+        "Policy",
+        "Key-Pair-Id",
     }
 }
 
