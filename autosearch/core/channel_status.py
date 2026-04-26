@@ -33,6 +33,13 @@ _MISSING_CONFIG_MARKERS = (
 )
 
 
+def _custom_fix_hint(exc: Exception) -> str | None:
+    fix_hint = getattr(exc, "fix_hint", None)
+    if isinstance(fix_hint, str) and fix_hint.strip():
+        return fix_hint.strip()
+    return None
+
+
 def _method_unavailable_status(exc: MethodUnavailable) -> str:
     message = str(exc).lower()
     if any(marker in message for marker in _MISSING_CONFIG_MARKERS):
@@ -68,6 +75,8 @@ def exception_to_channel_status(exc: Exception) -> ChannelFailureStatus:
     else:
         status = "channel_error"
         fix_hint = None
+
+    fix_hint = _custom_fix_hint(exc) or fix_hint
 
     return ChannelFailureStatus(
         status=status,
