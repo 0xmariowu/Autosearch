@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from pathlib import Path
 
+from autosearch.core.redact import redact
+from scripts.e2b.lib.reporter import redacted_json_ready
 from scripts.e2b.sandbox_runner import ScenarioResult
 
 
@@ -85,7 +88,8 @@ def render(results: list[ScenarioResult], summary: dict, output_dir: Path) -> st
             if r.report_length:
                 lines.append(f"  - 报告长度：{r.report_length} 字符")
             if r.error:
-                lines.append(f"  - ⚠️ 错误：`{r.error[:120]}`")
+                redacted_error = redact(str(r.error))
+                lines.append(f"  - ⚠️ 错误：`{redacted_error[:120]}`")
             # Notable details
             details = r.details
             if "pubmed_ok" in details:
@@ -105,7 +109,8 @@ def render(results: list[ScenarioResult], summary: dict, output_dir: Path) -> st
     if summary["failures"]:
         lines += ["## 失败场景", ""]
         for f in summary["failures"]:
-            lines.append(f"- **{f['id']} {f['name']}** (score={f['score']}): {f['error']}")
+            redacted_error = redact(str(f.get("error", "")))
+            lines.append(f"- **{f['id']} {f['name']}** (score={f['score']}): {redacted_error}")
         lines.append("")
 
     if summary.get("bonus_total", 0) > 0:
@@ -137,6 +142,16 @@ def render(results: list[ScenarioResult], summary: dict, output_dir: Path) -> st
     report = "\n".join(lines)
     (output_dir / "summary.md").write_text(report, encoding="utf-8")
     return report
+
+
+def render_results_json(results: list[ScenarioResult], summary: dict, output_dir: Path) -> str:
+    payload = {
+        "summary": summary,
+        "results": [r.to_dict() for r in results],
+    }
+    content = json.dumps(redacted_json_ready(payload), indent=2, ensure_ascii=False) + "\n"
+    (output_dir / "results.json").write_text(content, encoding="utf-8")
+    return content
 
 
 def _conclusion(summary: dict) -> str:

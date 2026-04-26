@@ -45,10 +45,12 @@ Successful calls return:
         "model": "whisper-1",
         "backend": "openai",
     },
-    "audio_path": "/tmp/autosearch-video-to-text-openai-.../audio.mp3",
-    "source": "https://www.youtube.com/watch?v=example",
+    "audio_path": "audio.mp3",
+    "source": "https://www.youtube.com/watch",
 }
 ```
+
+`source` is a query-stripped URL for URL input and only the basename for local file input. `audio_path` is always the prepared audio basename, never an absolute local or temporary path.
 
 ## Failure Modes
 
