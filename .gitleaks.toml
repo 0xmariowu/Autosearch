@@ -84,6 +84,17 @@ keywords = ["docs/plans", "docs/proposals", "docs/spikes", "docs/channel-hunt", 
   paths = ['''^CHANGELOG\.md$''', '''docs/migration/.*\.md$''', '''docs/testing/TEST_PLAN\.md$''', '''docs/delivery-status\.md$''']
 
 [[rules]]
+id = "autosearch-signsrv-token"
+description = "AutoSearch signsrv access token (as_<hex32>) — KV-backed worker auth, must not appear in public files"
+regex = '''\bas_[a-f0-9]{32}\b'''
+tags = ["secret", "signsrv-token"]
+keywords = ["as_"]
+
+  [[rules.allowlists]]
+  description = "This rule file legitimately documents the token format"
+  paths = ['''^\.gitleaks\.toml$''']
+
+[[rules]]
 id = "runtime-experience-jsonl"
 description = "Runtime experience JSONL files should never be tracked (patterns-jsonl)"
 regex = '''experience/patterns\.jsonl'''
