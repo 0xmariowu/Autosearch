@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from autosearch.channels.base import ChannelAuthError
+from autosearch.channels.base import AccountRestrictedError, ChannelAuthError
 from autosearch.core.models import SubQuery
 from autosearch.skills.channels.xiaohongshu.methods import via_signsrv
 
@@ -40,15 +40,35 @@ class _Client:
 
 
 @pytest.mark.asyncio
-async def test_xhs_signsrv_empty_search_with_me_300011_raises_channel_auth_error(
+async def test_xhs_signsrv_empty_search_with_me_300011_raises_account_restricted_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setitem(via_signsrv.__dict__, "_SIGNSRV_URL", "https://signsrv.example")
     monkeypatch.setitem(via_signsrv.__dict__, "_SERVICE_TOKEN", "as_test")
     monkeypatch.setitem(via_signsrv.__dict__, "_XHS_COOKIES", "a1=test-cookie")
 
-    with pytest.raises(ChannelAuthError, match="300011"):
+    with pytest.raises(AccountRestrictedError, match="300011"):
         await via_signsrv.search(
             SubQuery(text="防晒", rationale="Need XHS coverage"),
             client=_Client(),
         )
+
+
+@pytest.mark.asyncio
+async def test_xhs_signsrv_empty_search_with_me_300011_is_account_restricted_subclass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(via_signsrv.__dict__, "_SIGNSRV_URL", "https://signsrv.example")
+    monkeypatch.setitem(via_signsrv.__dict__, "_SERVICE_TOKEN", "as_test")
+    monkeypatch.setitem(via_signsrv.__dict__, "_XHS_COOKIES", "a1=test-cookie")
+
+    try:
+        await via_signsrv.search(
+            SubQuery(text="防晒", rationale="Need XHS coverage"),
+            client=_Client(),
+        )
+    except Exception as exc:
+        assert isinstance(exc, AccountRestrictedError)
+        assert isinstance(exc, ChannelAuthError)
+    else:
+        pytest.fail("Expected AccountRestrictedError")

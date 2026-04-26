@@ -181,17 +181,17 @@ async def search(query: SubQuery, client: httpx.AsyncClient | None = None) -> li
         payload = xhs_resp.json()
         xhs_code = payload.get("code", 0)
 
-        # code=300011: XHS account flagged. Surface as ChannelAuthError so the
+        # code=300011: XHS account flagged. Surface as AccountRestrictedError so the
         # user sees "your XHS account is restricted, run autosearch login xhs"
         # rather than a confusing empty result.
         if xhs_code == 300011:
-            from autosearch.channels.base import ChannelAuthError
+            from autosearch.channels.base import AccountRestrictedError
 
             LOGGER.warning(
                 "xhs_account_restricted",
                 reason="XHS account flagged (code=300011). Run 'autosearch login xhs' with a normal account.",
             )
-            raise ChannelAuthError(
+            raise AccountRestrictedError(
                 "XHS account flagged (code=300011). "
                 "Run 'autosearch login xhs' with a normal account."
             )
@@ -217,13 +217,13 @@ async def search(query: SubQuery, client: httpx.AsyncClient | None = None) -> li
                 pass  # health check failure is non-fatal; fall through to empty list
 
             if isinstance(me_payload, Mapping) and me_payload.get("code") == 300011:
-                from autosearch.channels.base import ChannelAuthError
+                from autosearch.channels.base import AccountRestrictedError
 
                 LOGGER.warning(
                     "xhs_account_restricted",
                     reason="XHS account flagged — search silently returns empty. Run 'autosearch login xhs' with a different account.",
                 )
-                raise ChannelAuthError(
+                raise AccountRestrictedError(
                     "XHS account flagged (code=300011). "
                     "Run 'autosearch login xhs' with a different account."
                 )
