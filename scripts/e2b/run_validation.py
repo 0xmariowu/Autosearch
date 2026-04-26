@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import shutil
 import sys
 import tempfile
 import time
@@ -45,6 +46,11 @@ def parse_args() -> argparse.Namespace:
         "--source-dir", help="Pack this directory to a temp tarball and use it as --tarball"
     )
     parser.add_argument("--phase", help="Optional CSV filter for phases to run")
+    parser.add_argument(
+        "--clean-output",
+        action="store_true",
+        help="Delete the base output directory before creating this run's report directory",
+    )
     return parser.parse_args()
 
 
@@ -388,8 +394,44 @@ def execute_phase(
     return phase_summary
 
 
-def create_run_output_dir(base_output_dir: Path) -> Path:
-    base_output_dir.mkdir(parents=True, exist_ok=True)
+def get_reports_root() -> Path:
+    return Path.cwd() / "reports"
+
+
+def _path_is_inside(child: Path, parent: Path) -> bool:
+    try:
+        child.relative_to(parent)
+    except ValueError:
+        return False
+    return child != parent
+
+
+def clean_output_dir(output_dir: Path, console: Console) -> None:
+    reports_root = get_reports_root().expanduser().absolute()
+    clean_target = output_dir.expanduser().absolute()
+    if not _path_is_inside(clean_target, reports_root):
+        raise ValueError(
+            f"Refusing to clean output outside repo reports/: {clean_target} "
+            f"is not inside {reports_root}"
+        )
+
+    if output_dir.exists():
+        console.print(f"[yellow]WARN[/] wiping existing output directory {clean_target}")
+        shutil.rmtree(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+
+def create_run_output_dir(
+    base_output_dir: Path,
+    *,
+    clean_output: bool,
+    console: Console,
+) -> Path:
+    if clean_output:
+        clean_output_dir(base_output_dir, console)
+    else:
+        base_output_dir.mkdir(parents=True, exist_ok=True)
+
     for _attempt in range(100):
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
         run_output_dir = base_output_dir / f"run-{timestamp}"
@@ -465,7 +507,11 @@ def main() -> int:
         if "E2B_API_KEY" in secrets and "E2B_API_KEY" not in os.environ:
             os.environ["E2B_API_KEY"] = secrets["E2B_API_KEY"]
 
-        output_dir = create_run_output_dir(base_output_dir)
+        output_dir = create_run_output_dir(
+            base_output_dir,
+            clean_output=args.clean_output,
+            console=stderr_console,
+        )
 
         started_at = datetime.now(timezone.utc).isoformat()
         with Progress(
