@@ -101,6 +101,32 @@ def test_write_secret_basic(tmp_path):
     assert load_secrets(f) == {"OPENAI_API_KEY": "sk-basic"}
 
 
+@pytest.mark.parametrize(
+    "bad_key",
+    ["", "1OPENAI_API_KEY", "OPENAI-API-KEY", "OPENAI.API.KEY", "OPENAI API KEY"],
+)
+def test_write_secret_rejects_invalid_key(tmp_path, bad_key):
+    f = tmp_path / "ai-secrets.env"
+
+    with pytest.raises(ValueError, match=r"secret key must match"):
+        write_secret(bad_key, "sk-basic", path=f)
+
+    assert not f.exists()
+
+
+@pytest.mark.parametrize(
+    "bad_value",
+    ["sk-line-1\nINJECTED_KEY=bad", "sk-line-1\rsk-line-2", "sk-prefix\0sk-suffix"],
+)
+def test_write_secret_rejects_newline_and_nul_values(tmp_path, bad_value):
+    f = tmp_path / "ai-secrets.env"
+
+    with pytest.raises(ValueError, match=r"secret value must not contain"):
+        write_secret("OPENAI_API_KEY", bad_value, path=f)
+
+    assert not f.exists()
+
+
 def test_write_secret_preserves_comments_and_unknown_lines(tmp_path):
     f = tmp_path / "ai-secrets.env"
     _write(

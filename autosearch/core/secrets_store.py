@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shlex
 import tempfile
 from pathlib import Path
@@ -29,6 +30,7 @@ except ImportError:  # pragma: no cover - exercised by import-time compatibility
     _fcntl = None
 
 _FILE_INJECTED_VALUES: dict[str, str] = {}
+_ENV_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _log = logging.getLogger(__name__)
 
 
@@ -73,6 +75,7 @@ def load_secrets(path: Path | None = None) -> dict[str, str]:
 
 def write_secret(key: str, value: str, *, path: Path | None = None) -> None:
     """Atomically write or replace one KEY=value entry in the secrets file."""
+    _validate_secret_entry(key, value)
     target = path or secrets_path()
     target.parent.mkdir(parents=True, exist_ok=True)
     lock_path = target.with_name(f"{target.name}.lock")
@@ -120,7 +123,7 @@ def write_secret(key: str, value: str, *, path: Path | None = None) -> None:
 
 
 def _replace_or_append_secret(text: str, key: str, value: str) -> str:
-    replacement = f"{key}={shlex.quote(value)}"
+    replacement = _format_secret_line(key, value)
     lines = text.splitlines()
     replaced = False
     next_lines: list[str] = []
@@ -135,6 +138,18 @@ def _replace_or_append_secret(text: str, key: str, value: str) -> str:
     if not replaced:
         next_lines.append(replacement)
     return "\n".join(next_lines) + "\n"
+
+
+def _format_secret_line(key: str, value: str) -> str:
+    _validate_secret_entry(key, value)
+    return f"{key}={shlex.quote(value)}"
+
+
+def _validate_secret_entry(key: str, value: str) -> None:
+    if not _ENV_KEY_RE.fullmatch(key):
+        raise ValueError("secret key must match [A-Za-z_][A-Za-z0-9_]*")
+    if any(char in value for char in ("\n", "\r", "\0")):
+        raise ValueError("secret value must not contain newline, carriage return, or NUL")
 
 
 def _secret_line_key(raw: str) -> str | None:
