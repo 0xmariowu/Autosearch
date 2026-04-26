@@ -44,6 +44,13 @@ def _check_skill_format() -> tuple[bool, str]:
 
 
 def _check_experience_dirs() -> tuple[bool, str]:
+    # `experience/` is `.gitignore`d (runtime artifact, kept out of public git
+    # history per CLAUDE.md §Data rules). In CI / release-pipeline checkouts
+    # it will always be missing because it's never committed, so this check
+    # is auto-skipped there. The check still runs locally as a pre-tag
+    # developer sanity guard.
+    if os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true":
+        return True, "skipped in CI (experience/ is gitignored runtime artifact)"
     channels_root = ROOT / "autosearch" / "skills" / "channels"
     patterns_files = list(channels_root.rglob("patterns.jsonl"))
     skill_dirs = [d for d in channels_root.iterdir() if d.is_dir() and (d / "SKILL.md").exists()]
