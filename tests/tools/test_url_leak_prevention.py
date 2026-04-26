@@ -9,8 +9,10 @@ from typing import Any
 
 import httpx
 import pytest
+from structlog.testing import capture_logs
 
 from autosearch.core.models import SubQuery
+from autosearch.core.redact import redact_url
 
 ROOT = Path(__file__).resolve().parents[2]
 SECRET_TOKEN = "P0_SECRET_TOKEN_1234567890"
@@ -146,6 +148,93 @@ def _run_video_local(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Any:
             raise module.ModelDownloadError("offline")
 
     return module.transcribe(SIGNED_URL, mlx_whisper_module=MlxWhisper)
+
+
+BCUT_SIGNED_URL = "https://cdn.example.com/audio.mp3?Signature=ABCD&Expires=999"
+
+
+def _load_bcut_tool() -> ModuleType:
+    return _load_tool("video_bcut", "autosearch/skills/tools/video-to-text-bcut/transcribe.py")
+
+
+def _assert_no_bcut_signature(value: Any) -> None:
+    serialized = json.dumps(value, sort_keys=True, default=str)
+    assert "Signature=" not in serialized
+    assert "ABCD" not in serialized
+
+
+def _configure_bcut_audio_extraction_failed(
+    module: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail_extract(source: str, _output_wav: Path) -> None:
+        raise RuntimeError(f"yt-dlp failed for {source}")
+
+    monkeypatch.setattr(module, "_extract_audio_to_wav", fail_extract)
+
+
+def _configure_bcut_api_failed(module: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+    def extract_audio(_source: str, output_wav: Path) -> None:
+        output_wav.write_bytes(b"fake wav")
+
+    async def fail_transcribe(_audio_path: Path) -> list[dict[str, object]]:
+        raise RuntimeError(f"bcut failed for {BCUT_SIGNED_URL}")
+
+    monkeypatch.setattr(module, "_extract_audio_to_wav", extract_audio)
+    monkeypatch.setattr(module, "_bcut_transcribe", fail_transcribe)
+
+
+def _configure_bcut_unexpected_error(module: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+    def extract_audio(_source: str, output_wav: Path) -> None:
+        output_wav.write_bytes(b"fake wav")
+
+    async def transcribe_audio(_audio_path: Path) -> list[dict[str, object]]:
+        return [{"transcript": "hello", "words": []}]
+
+    def fail_build_segments(_utterances: list[dict[str, object]]) -> list[dict[str, object]]:
+        raise RuntimeError(f"unexpected failure for {BCUT_SIGNED_URL}")
+
+    monkeypatch.setattr(module, "_extract_audio_to_wav", extract_audio)
+    monkeypatch.setattr(module, "_bcut_transcribe", transcribe_audio)
+    monkeypatch.setattr(module, "_build_segments", fail_build_segments)
+
+
+BCUT_FAILURE_CONFIGURERS = (
+    _configure_bcut_audio_extraction_failed,
+    _configure_bcut_api_failed,
+    _configure_bcut_unexpected_error,
+)
+
+
+def test_bcut_log_redacts_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    for configure_failure in BCUT_FAILURE_CONFIGURERS:
+        module = _load_bcut_tool()
+        configure_failure(module, monkeypatch)
+
+        with capture_logs() as logs:
+            asyncio.run(module.transcribe(BCUT_SIGNED_URL))
+
+        _assert_no_bcut_signature(logs)
+
+
+def test_bcut_result_reason_redacts_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    for configure_failure in BCUT_FAILURE_CONFIGURERS:
+        module = _load_bcut_tool()
+        configure_failure(module, monkeypatch)
+
+        result = asyncio.run(module.transcribe(BCUT_SIGNED_URL))
+
+        assert result["ok"] is False
+        _assert_no_bcut_signature(result["reason"])
+
+
+def test_bcut_structured_output_redacts_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_bcut_tool()
+    _configure_bcut_audio_extraction_failed(module, monkeypatch)
+
+    result = asyncio.run(module.transcribe(BCUT_SIGNED_URL))
+
+    assert result["source"] == redact_url(BCUT_SIGNED_URL)
+    _assert_no_bcut_signature(result["source"])
 
 
 @pytest.mark.parametrize(
