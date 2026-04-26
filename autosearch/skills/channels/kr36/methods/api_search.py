@@ -10,6 +10,7 @@ import os
 import re
 from collections.abc import Mapping
 from datetime import UTC, datetime
+from typing import NoReturn
 from urllib.parse import parse_qs
 
 import httpx
@@ -63,7 +64,7 @@ class Kr36SearchEndpointUnavailable(TransientError):
     fix_hint = SEARCH_ENDPOINT_FIX_HINT
 
 
-def _raise_search_endpoint_unavailable(reason: str) -> None:
+def _raise_search_endpoint_unavailable(reason: str) -> NoReturn:
     raise Kr36SearchEndpointUnavailable(f"{SEARCH_ENDPOINT_FIX_HINT}: {reason}")
 
 
