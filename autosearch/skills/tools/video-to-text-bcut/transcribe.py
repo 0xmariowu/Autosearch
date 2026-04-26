@@ -19,6 +19,8 @@ from urllib.parse import urlparse
 import httpx
 import structlog
 
+from autosearch.core.redact import redact, redact_url
+
 LOGGER = structlog.get_logger(__name__).bind(component="tool", skill="video-to-text-bcut")
 
 _BCUT_BASE = "https://member.bilibili.com/x/bcut/rubick-interface"
@@ -258,8 +260,13 @@ async def transcribe(source: str, timeout: float = _DEFAULT_TIMEOUT) -> BcutResu
         {ok, text, segments, duration_seconds, source}
         or {ok: False, reason, source}
     """
-    if not source or not source.strip():
-        return {"ok": False, "source": source, "reason": "empty source"}
+    if not isinstance(source, str):
+        return {"ok": False, "source": "", "reason": "source must be a string"}
+
+    if not source.strip():
+        return {"ok": False, "source": "", "reason": "empty source"}
+
+    redacted_source = redact_url(source)
 
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -268,8 +275,17 @@ async def transcribe(source: str, timeout: float = _DEFAULT_TIMEOUT) -> BcutResu
             try:
                 _extract_audio_to_wav(source, wav_path)
             except Exception as exc:
-                LOGGER.warning("bcut_audio_extraction_failed", source=source, reason=str(exc))
-                return {"ok": False, "source": source, "reason": f"audio_extraction: {exc}"}
+                reason = redact(str(exc).replace(source, redacted_source))
+                LOGGER.warning(
+                    "bcut_audio_extraction_failed",
+                    source=redacted_source,
+                    reason=reason,
+                )
+                return {
+                    "ok": False,
+                    "source": redacted_source,
+                    "reason": f"audio_extraction: {reason}",
+                }
 
             try:
                 utterances = await asyncio.wait_for(
@@ -277,8 +293,13 @@ async def transcribe(source: str, timeout: float = _DEFAULT_TIMEOUT) -> BcutResu
                     timeout=timeout,
                 )
             except Exception as exc:
-                LOGGER.warning("bcut_api_failed", source=source, reason=str(exc))
-                return {"ok": False, "source": source, "reason": f"bcut_api: {exc}"}
+                reason = redact(str(exc).replace(source, redacted_source))
+                LOGGER.warning(
+                    "bcut_api_failed",
+                    source=redacted_source,
+                    reason=reason,
+                )
+                return {"ok": False, "source": redacted_source, "reason": f"bcut_api: {reason}"}
 
             segments = _build_segments(utterances)
             full_text = "".join(s["text"] for s in segments)
@@ -286,12 +307,18 @@ async def transcribe(source: str, timeout: float = _DEFAULT_TIMEOUT) -> BcutResu
 
             return {
                 "ok": True,
-                "source": source,
+                "source": redacted_source,
                 "text": full_text,
                 "segments": segments,
                 "duration_seconds": duration,
             }
 
     except Exception as exc:
-        LOGGER.exception("bcut_unexpected_error", source=source)
-        return {"ok": False, "source": source, "reason": f"unexpected: {exc}"}
+        reason = redact(str(exc).replace(source, redacted_source))
+        LOGGER.warning(
+            "bcut_unexpected_error",
+            source=redacted_source,
+            error_type=type(exc).__name__,
+            reason=reason,
+        )
+        return {"ok": False, "source": redacted_source, "reason": f"unexpected: {reason}"}
