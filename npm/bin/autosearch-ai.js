@@ -48,6 +48,36 @@ function hasAutosearch() {
   return getInstalledAutosearchVersion() !== null;
 }
 
+function expectedAutosearchPath() {
+  if (isWindows()) {
+    return "%USERPROFILE%\\AppData\\Roaming\\Python\\Python312\\Scripts\\autosearch.exe";
+  }
+  return `${process.env.HOME || "~"}/.local/bin/autosearch`;
+}
+
+function printAutosearchNotFoundHint(error) {
+  process.stderr.write(
+    `\nautosearch not found after install.\n` +
+      `Expected executable: ${expectedAutosearchPath()}\n` +
+      `Your PATH may not include the install location yet.\n` +
+      `Re-source your shell profile or install AutoSearch directly:\n` +
+      `  curl -fsSL ${INSTALL_SCRIPT} | bash\n` +
+      `  pipx install autosearch && autosearch init\n` +
+      `  pip install --user autosearch && autosearch init\n` +
+      (error?.message ? `\nOriginal error: ${error.message}\n` : "\n"),
+  );
+}
+
+function printInstallerNotFoundHint(error) {
+  process.stderr.write(
+    `\nUnable to start the AutoSearch installer.\n` +
+      `The underlying installer command was not found. Ensure one of these ` +
+      `commands is available on PATH: curl, bash, pipx, py, python.\n` +
+      `Then re-run: npx autosearch-ai --yes\n` +
+      (error?.message ? `\nOriginal error: ${error.message}\n` : "\n"),
+  );
+}
+
 // Bug 6 (fix-plan v8 follow-up): compare the wrapper's expected Python CLI
 // version against what's actually installed. The npm package version
 // `YYYY.M.DD` derives from pyproject `YYYY.MM.DD.N` (N is the daily counter
@@ -226,6 +256,10 @@ async function main() {
       }
     }
     const result = runInstall();
+    if (result.error?.code === "ENOENT") {
+      printInstallerNotFoundHint(result.error);
+      process.exit(1);
+    }
     if ((result.status ?? 0) !== 0) {
       process.exit(result.status ?? 1);
     }
@@ -235,6 +269,10 @@ async function main() {
 
   const cmd = args.length > 0 ? args : ["init"];
   const result = spawnSync("autosearch", cmd, { stdio: "inherit" });
+  if (result.error?.code === "ENOENT") {
+    printAutosearchNotFoundHint(result.error);
+    process.exit(1);
+  }
   process.exit(result.status ?? 0);
 }
 
