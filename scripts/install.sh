@@ -149,7 +149,7 @@ shell_profile() {
       done
       echo "$HOME/.bashrc"
       ;;
-    *)    echo "$HOME/.bashrc" ;;
+    *)    return 1 ;;
   esac
 }
 
@@ -161,7 +161,11 @@ persist_path() {
     return 0
   fi
 
-  profile="$(shell_profile)"
+  if ! profile="$(shell_profile)"; then
+    warn "Unknown shell ($(basename "${SHELL:-}")) — skipping PATH persistence."
+    warn "Add this line to your shell profile manually: $line"
+    return 0
+  fi
   if [[ -f "$profile" ]] && grep -Fqx "$line" "$profile" 2>/dev/null; then
     return 0
   fi
