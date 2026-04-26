@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import builtins
+import importlib.util
 import os
 from pathlib import Path
 
@@ -14,6 +16,7 @@ from autosearch.core.secrets_store import (
     load_secrets,
     resolve_env_value,
     secrets_path,
+    write_secret,
 )
 
 
@@ -26,6 +29,28 @@ def _reset_file_injection_tracking():
 
 def _write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
+
+
+def test_module_imports_when_fcntl_is_unavailable(monkeypatch):
+    real_import = builtins.__import__
+
+    def import_without_fcntl(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "fcntl":
+            raise ImportError("fcntl unavailable")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_fcntl)
+    spec = importlib.util.spec_from_file_location(
+        "secrets_store_without_fcntl",
+        secrets_store_mod.__file__,
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+
+    spec.loader.exec_module(module)
+
+    assert module._fcntl is None
 
 
 def test_secrets_path_honors_override(monkeypatch, tmp_path):
@@ -65,6 +90,96 @@ def test_load_secrets_parses_kv_with_quotes_and_skips_comments(monkeypatch, tmp_
         "TIKHUB_API_KEY": "quoted secret",
         "WEIBO_COOKIES": "double quoted",
     }
+
+
+def test_write_secret_basic(tmp_path):
+    f = tmp_path / "ai-secrets.env"
+
+    write_secret("OPENAI_API_KEY", "sk-basic", path=f)
+
+    assert f.read_text(encoding="utf-8") == "OPENAI_API_KEY=sk-basic\n"
+    assert load_secrets(f) == {"OPENAI_API_KEY": "sk-basic"}
+
+
+@pytest.mark.parametrize(
+    "bad_key",
+    ["", "1OPENAI_API_KEY", "OPENAI-API-KEY", "OPENAI.API.KEY", "OPENAI API KEY"],
+)
+def test_write_secret_rejects_invalid_key(tmp_path, bad_key):
+    f = tmp_path / "ai-secrets.env"
+
+    with pytest.raises(ValueError, match=r"secret key must match"):
+        write_secret(bad_key, "sk-basic", path=f)
+
+    assert not f.exists()
+
+
+@pytest.mark.parametrize(
+    "bad_value",
+    ["sk-line-1\nINJECTED_KEY=bad", "sk-line-1\rsk-line-2", "sk-prefix\0sk-suffix"],
+)
+def test_write_secret_rejects_newline_and_nul_values(tmp_path, bad_value):
+    f = tmp_path / "ai-secrets.env"
+
+    with pytest.raises(ValueError, match=r"secret value must not contain"):
+        write_secret("OPENAI_API_KEY", bad_value, path=f)
+
+    assert not f.exists()
+
+
+def test_write_secret_preserves_comments_and_unknown_lines(tmp_path):
+    f = tmp_path / "ai-secrets.env"
+    _write(
+        f,
+        "\n".join(
+            [
+                "# keep this comment",
+                "",
+                "MALFORMED_LINE_WITHOUT_EQUALS",
+                "OPENAI_API_KEY=old-value",
+                "TIKHUB_API_KEY=keep-value",
+            ]
+        )
+        + "\n",
+    )
+
+    write_secret("OPENAI_API_KEY", "new value", path=f)
+
+    assert f.read_text(encoding="utf-8") == "\n".join(
+        [
+            "# keep this comment",
+            "",
+            "MALFORMED_LINE_WITHOUT_EQUALS",
+            "OPENAI_API_KEY='new value'",
+            "TIKHUB_API_KEY=keep-value",
+            "",
+        ]
+    )
+    assert load_secrets(f) == {
+        "OPENAI_API_KEY": "new value",
+        "TIKHUB_API_KEY": "keep-value",
+    }
+
+
+def test_write_secret_fsyncs_temp_before_replace(monkeypatch, tmp_path):
+    f = tmp_path / "ai-secrets.env"
+    events: list[str] = []
+    real_replace = secrets_store_mod.os.replace
+
+    def fake_fsync(fd: int) -> None:
+        events.append("fsync")
+
+    def fake_replace(src: str, dst: str | os.PathLike[str]) -> None:
+        events.append("replace")
+        assert "fsync" in events
+        real_replace(src, dst)
+
+    monkeypatch.setattr(secrets_store_mod.os, "fsync", fake_fsync)
+    monkeypatch.setattr(secrets_store_mod.os, "replace", fake_replace)
+
+    write_secret("OPENAI_API_KEY", "sk-fsync", path=f)
+
+    assert events == ["fsync", "replace"]
 
 
 def test_available_env_keys_unions_env_and_file(monkeypatch, tmp_path):
