@@ -50,6 +50,67 @@ def _fetched_page(url: str, *, markdown: str) -> FetchedPage:
 
 
 @pytest.mark.asyncio
+async def test_kr36_api_reads_nested_template_material_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    search_callable = _compiled_kr36()
+    monkeypatch.delenv(LEGACY_HTML_ENV, raising=False)
+    captured: dict[str, object] = {}
+    payload = {
+        "code": 0,
+        "data": {
+            "itemList": [
+                {
+                    "id": "wrapper-only-id",
+                    "templateMaterial": {
+                        "route": "detail_article?itemId=583840401948544",
+                        "widgetTitle": "具身智能公司完成新一轮融资",
+                        "widgetContent": "团队聚焦工业场景，融资后将扩大交付。",
+                        "authorName": "36氪编辑部",
+                    },
+                }
+            ]
+        },
+    }
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        captured["method"] = request.method
+        captured["host"] = request.url.host
+        return httpx.Response(200, json=payload, request=request)
+
+    async def fake_fetch_page(
+        url: str,
+        *,
+        client: httpx.AsyncClient | None = None,
+    ) -> FetchedPage:
+        _ = client
+        captured["page_url"] = url
+        raise HtmlFetchError(url, reason="timeout")
+
+    monkeypatch.setitem(search_callable.__globals__, "fetch_page", fake_fetch_page)
+
+    http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    try:
+        results = await search_callable(
+            SubQuery(text="具身智能融资", rationale="Need KR36 coverage"),
+            http_client=http_client,
+        )
+    finally:
+        await http_client.aclose()
+
+    assert captured["method"] == "POST"
+    assert captured["host"] == "gateway.36kr.com"
+    assert len(results) == 1
+    evidence = results[0]
+    assert evidence.title == "具身智能公司完成新一轮融资"
+    assert evidence.url == "https://www.36kr.com/p/583840401948544"
+    assert evidence.snippet == "团队聚焦工业场景，融资后将扩大交付。"
+    assert evidence.content == "团队聚焦工业场景，融资后将扩大交付。"
+    assert evidence.source_channel == "kr36:36氪编辑部"
+    assert captured["page_url"] == "https://www.36kr.com/p/583840401948544"
+
+
+@pytest.mark.asyncio
 async def test_kr36_404_returns_transient_error_with_fix_hint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

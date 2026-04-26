@@ -8,7 +8,7 @@ import asyncio
 import html
 import os
 import re
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from datetime import UTC, datetime
 from typing import NoReturn
 from urllib.parse import parse_qs
@@ -39,6 +39,13 @@ MAX_RESULTS = 10
 MAX_SNIPPET_LENGTH = 300
 USE_LEGACY_HTML_SEARCH_ENV = "AUTOSEARCH_KR36_USE_LEGACY"
 TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
+API_ARTICLE_PAYLOAD_KEYS = (
+    "templateMaterial",
+    "template_material",
+    "templateData",
+    "template_data",
+    "material",
+)
 TITLE_LINK_RE = re.compile(
     r'<a\b(?=[^>]*class=(["\'])[^"\']*\barticle-item-title\b[^"\']*\1)'
     r'(?=[^>]*href=(?P<quote>["\'])(?P<href>.*?)(?P=quote))[^>]*>(?P<title>.*?)</a>',
@@ -176,21 +183,47 @@ def _get_item_text(item: Mapping[str, object], *keys: str) -> str:
     return ""
 
 
+def _iter_api_article_payloads(item: Mapping[str, object]) -> Iterator[Mapping[str, object]]:
+    for key in API_ARTICLE_PAYLOAD_KEYS:
+        nested = item.get(key)
+        if isinstance(nested, Mapping):
+            yield nested
+            yield from _iter_api_article_payloads(nested)
+    yield item
+
+
+def _resolve_api_payload_url(payloads: tuple[Mapping[str, object], ...]) -> str | None:
+    for payload in payloads:
+        url = _resolve_api_url(payload)
+        if url:
+            return url
+    return None
+
+
+def _get_api_item_text(payloads: tuple[Mapping[str, object], ...], *keys: str) -> str:
+    for payload in payloads:
+        text = _get_item_text(payload, *keys)
+        if text:
+            return text
+    return ""
+
+
 def _to_api_evidence(item: Mapping[str, object], *, fetched_at: datetime) -> Evidence | None:
-    url = _resolve_api_url(item)
-    title = _get_item_text(item, "widgetTitle", "title")
+    payloads = tuple(_iter_api_article_payloads(item))
+    url = _resolve_api_payload_url(payloads)
+    title = _get_api_item_text(payloads, "widgetTitle", "title")
     if not url or not title:
         return None
 
-    description_text = _get_item_text(
-        item,
+    description_text = _get_api_item_text(
+        payloads,
         "content",
         "description",
         "summary",
         "widgetContent",
     )
     snippet = _truncate_on_word_boundary(description_text, max_length=MAX_SNIPPET_LENGTH) or None
-    author_name = _get_item_text(item, "authorName", "author_name")
+    author_name = _get_api_item_text(payloads, "authorName", "author_name")
 
     return Evidence(
         url=url,
