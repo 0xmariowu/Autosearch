@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 
+from autosearch.core.channel_runtime import ChannelRuntime
+
 
 @dataclass
 class SubtaskResult:
@@ -21,14 +23,14 @@ async def run_subtask(
     query: str,
     max_per_channel: int = 5,
     *,
+    channel_runtime: ChannelRuntime,
     _search_fn=None,  # injectable for tests
 ) -> SubtaskResult:
     """Run query across channels concurrently and return a SubtaskResult."""
-    from autosearch.core.channel_bootstrap import _build_channels  # noqa: PLC0415
     from autosearch.core.models import SubQuery  # noqa: PLC0415
 
     if _search_fn is None:
-        all_channels = {c.name: c for c in _build_channels()}
+        all_channels = {c.name: c for c in channel_runtime.channels}
 
         async def _search_fn(channel_name: str) -> list[dict]:
             ch = all_channels.get(channel_name)
