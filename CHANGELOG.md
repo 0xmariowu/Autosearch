@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026.04.26.1 — 2026-04-26
+
+- 
+
 ## 2026.04.25.11 — 2026-04-26
 
 - **No more signed-URL secret leaks from fetch / video tools.** `autosearch.core.redact` gains `redact_url(url, *, strip_query=True)`; six MCP-visible tools (`fetch-jina`, `fetch-crawl4ai`, `fetch-firecrawl`, `video-to-text-openai`, `video-to-text-groq`, `video-to-text-local`) now sanitize URLs at every output boundary (return fields + log calls). Previously a user passing `https://example.com/foo?access_token=SECRET&X-Amz-Signature=...` would see the credential echoed back in the tool result and structured logs. A new integration suite (`tests/tools/test_url_leak_prevention.py`) parametrizes 6 leak scenarios and locks the contract. Closes P0-2 from `docs/exec-plans/active/autosearch-0425-p0-scan-report.md`.
