@@ -104,7 +104,7 @@ async def synthesize(ev_summary, query):
     async with httpx.AsyncClient(timeout=60) as client:
         r = await client.post('https://openrouter.ai/api/v1/chat/completions',
             headers={'Authorization': f'Bearer {OPENROUTER_KEY}'},
-            json={'model': 'anthropic/claude-haiku-4-5', 'max_tokens': 600,
+            json={'model': 'anthropic/claude-haiku-4.5', 'max_tokens': 600,
                   'messages': [
                       {'role':'system','content':'Research assistant. Write concise Markdown report with [1][2] citations.'},
                       {'role':'user','content': f'Query: {query}\\nEvidence:\\n{ev_summary}\\nWrite report.'},
@@ -252,7 +252,7 @@ else:
         async with httpx.AsyncClient(timeout=45) as client:
             r = await client.post('https://openrouter.ai/api/v1/chat/completions',
                 headers={'Authorization': f'Bearer {OPENROUTER_KEY}'},
-                json={'model': 'anthropic/claude-haiku-4-5', 'max_tokens': 500,
+                json={'model': 'anthropic/claude-haiku-4.5', 'max_tokens': 500,
                       'messages': [{'role':'system','content': system_prompt}, {'role':'user','content': f'Research: {QUERY}'}]})
             r.raise_for_status()
             return r.json()['choices'][0]['message']['content']
@@ -261,7 +261,7 @@ else:
         async with httpx.AsyncClient(timeout=30) as client:
             r = await client.post('https://openrouter.ai/api/v1/chat/completions',
                 headers={'Authorization': f'Bearer {OPENROUTER_KEY}'},
-                json={'model': 'anthropic/claude-haiku-4-5', 'max_tokens': 30,
+                json={'model': 'anthropic/claude-haiku-4.5', 'max_tokens': 30,
                       'messages': [{'role':'user','content': prompt}]})
             r.raise_for_status()
             content = r.json()['choices'][0]['message']['content']

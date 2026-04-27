@@ -7,7 +7,7 @@ Each sandbox: create → install autosearch → run scenario → collect result 
 Usage:
   python scripts/e2b/run_comprehensive_tests.py [--categories A,B,C] [--parallel 20]
   python scripts/e2b/run_comprehensive_tests.py --smoke-only   # just A1-A3
-  python scripts/e2b/run_comprehensive_tests.py --no-llm       # skip G2/G3 synthesis
+  python scripts/e2b/run_comprehensive_tests.py --no-llm       # skip G2/G3 and K5 OpenRouter judge
 
 Requires: E2B_API_KEY, OPENROUTER_API_KEY, TIKHUB_API_KEY (from ~/.config/ai-secrets.env)
 """
@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import os
+import subprocess
 import sys
 import time
 from datetime import datetime
@@ -105,6 +106,7 @@ from scripts.e2b.scenarios.k_avo_evolution import (  # noqa: E402
     k2_meta_skill_protection,
     k3_pattern_append_compact,
     k4_git_commit_revert_cycle,
+    k5_evolution_contract_validation,
 )
 from scripts.e2b.scenarios.l_report_quality import (  # noqa: E402
     l1_fast_mode_report,
@@ -190,6 +192,63 @@ from scripts.e2b.scenarios.x_tikhub_pathfinding import (  # noqa: E402
     x7_tiktok_english_tech,
     x8_tikhub_cross_platform,
 )
+
+
+def _git_output(*args: str) -> str:
+    result = _git_result(*args)
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def _git_result(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", "-C", str(ROOT), *args],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _https_remote_url(remote_url: str) -> str:
+    if remote_url.startswith("git@github.com:"):
+        return "https://github.com/" + remote_url.removeprefix("git@github.com:")
+    if remote_url.startswith("ssh://git@github.com/"):
+        return "https://github.com/" + remote_url.removeprefix("ssh://git@github.com/")
+    return remote_url
+
+
+def _warn_if_source_ref_missing_on_origin(source_ref: str) -> None:
+    if not source_ref:
+        return
+    result = _git_result("ls-remote", "--exit-code", "origin", source_ref)
+    if result.returncode != 0:
+        print(
+            f"warning: AUTOSEARCH_E2B_REF={source_ref!r} was not found on origin; "
+            "K5 sandbox fetch may fail if the branch or ref is not pushed",
+            file=sys.stderr,
+        )
+
+
+def _collect_source_ref_env() -> dict[str, str]:
+    """Expose the current checkout to E2B scenarios that must validate this ref."""
+
+    source: dict[str, str] = {}
+    repo_url = os.environ.get("AUTOSEARCH_E2B_REPO_URL", "").strip()
+    if not repo_url:
+        repo_url = _https_remote_url(_git_output("config", "--get", "remote.origin.url"))
+    if repo_url:
+        source["AUTOSEARCH_E2B_REPO_URL"] = repo_url
+
+    source_ref = os.environ.get("AUTOSEARCH_E2B_REF", "").strip()
+    if not source_ref:
+        source_ref = os.environ.get("GITHUB_HEAD_REF", "").strip()
+    if not source_ref:
+        source_ref = _git_output("branch", "--show-current") or _git_output("rev-parse", "HEAD")
+    if source_ref:
+        source["AUTOSEARCH_E2B_REF"] = source_ref
+        _warn_if_source_ref_missing_on_origin(source_ref)
+    return source
+
+
 from scripts.e2b.scenarios.v_cross_platform import (  # noqa: E402
     v1_musl_libc_mock,
     v2_python310_version_check,
@@ -258,6 +317,7 @@ ALL_SCENARIOS = [
     ("K2", "K", k2_meta_skill_protection),
     ("K3", "K", k3_pattern_append_compact),
     ("K4", "K", k4_git_commit_revert_cycle),
+    ("K5", "K", k5_evolution_contract_validation),
     # ── Report Quality ───────────────────────────────────────────────────────
     ("L1", "L", l1_fast_mode_report),
     ("L2", "L", l2_deep_mode_loop_report),
@@ -425,7 +485,11 @@ async def main(argv: list[str] | None = None) -> int:
         "--parallel", type=int, default=10, help="Max parallel sandboxes (default: 10)"
     )
     parser.add_argument("--smoke-only", action="store_true", help="Run only A1-A3")
-    parser.add_argument("--no-llm", action="store_true", help="Skip G2/G3 (require OpenRouter)")
+    parser.add_argument(
+        "--no-llm",
+        action="store_true",
+        help="Skip G2/G3 and K5 (require OpenRouter)",
+    )
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument(
         "--list-scenarios",
@@ -443,11 +507,15 @@ async def main(argv: list[str] | None = None) -> int:
         print("error: E2B_API_KEY not set", file=sys.stderr)
         return 1
 
-    # Collect env keys from local environment
+    # Collect env keys and current source ref from local environment.
     env = _collect_keys()
+    for key, value in _collect_source_ref_env().items():
+        env.setdefault(key, value)
     if not env.get("OPENROUTER_API_KEY"):
         print(
-            "warning: OPENROUTER_API_KEY not set — G2/G3 synthesis will be skipped", file=sys.stderr
+            "warning: OPENROUTER_API_KEY not set — G2/G3 synthesis and K5 real judge will fail "
+            "unless --no-llm is used",
+            file=sys.stderr,
         )
     if not env.get("TIKHUB_API_KEY"):
         print(
@@ -462,7 +530,7 @@ async def main(argv: list[str] | None = None) -> int:
         cats = set(args.categories.upper().split(","))
         scenarios = [s for s in scenarios if s[1] in cats]
     if args.no_llm:
-        scenarios = [s for s in scenarios if s[0] not in ("G2", "G3")]
+        scenarios = [s for s in scenarios if s[0] not in ("G2", "G3", "K5")]
 
     print("\nAutoSearch E2B Comprehensive Tests")
     print(f"  scenarios: {len(scenarios)}")
