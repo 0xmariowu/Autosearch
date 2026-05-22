@@ -1,21 +1,22 @@
-name: E2B Nightly — Release Gate Matrix
+name: E2B Release Gate Matrix
 
-# Runs the e2b matrix-release-gate scenarios in cloud sandboxes once a day.
+# Runs the e2b matrix-release-gate scenarios in cloud sandboxes on demand.
 # This is the AUTHORITATIVE pre-release E2E test for fresh-install + first-use
 # paths that local pytest cannot cover (real OS image, real pipx install,
 # real PyPI dry-run). Per docs/release-policy.md it is NOT in release.yml —
 # E2B sandbox runs cost ~$0.25 each + 5-10 min wall time, too expensive
-# to gate every PR or every release. Daily cadence is sufficient: main
-# averages a few merges per day, and a regression caught at 02:00 UTC the
-# next day is still ahead of any human user impact.
+# to gate every PR or every release.
+#
+# Trigger: manual only (workflow_dispatch). Run this before tagging a release.
+# The previous daily cron was removed: the job had never reached the matrix
+# (missing e2b deps made it fail at import every night and open a noise issue),
+# and a daily gate that nobody triages adds cost without protecting releases.
 #
 # On failure: opens a GitHub issue tagged `release-gate` so engineering
 # triages before the next release tag.
 
 on:
-  schedule:
-    - cron: "0 2 * * *"   # UTC 02:00 daily
-  workflow_dispatch:       # manual trigger
+  workflow_dispatch:       # manual trigger only — run before tagging a release
 
 permissions:
   contents: read
@@ -33,7 +34,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install e2b runner deps
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,e2b]"
 
       - name: Install gitleaks (required by packing pre-pack scan)
         run: |
