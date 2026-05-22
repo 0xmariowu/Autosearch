@@ -1,4 +1,4 @@
-name: E2B Nightly — Release Gate Matrix
+name: E2B Release Gate Matrix
 
 # Runs the e2b matrix-release-gate scenarios in cloud sandboxes on demand.
 # This is the AUTHORITATIVE pre-release E2E test for fresh-install + first-use

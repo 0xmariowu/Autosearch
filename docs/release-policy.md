@@ -50,7 +50,7 @@ post results (or open an issue on failure) for engineering follow-up.
 
 | Check | Workflow | Cadence | Why out of band |
 |---|---|---|---|
-| E2B matrix release gate | `.github/workflows/e2b-nightly.yml` | Daily 02:00 UTC | E2B sandbox runs cost ~$0.25 each and 5-10 min wall time. The matrix exercises real install + first-use across multiple scenarios. Catches install-path regressions that only show up in a clean OS image. Daily cadence is enough — main gets at most a few merges per day. |
+| E2B matrix release gate | `.github/workflows/e2b-nightly.yml` | Manual (`workflow_dispatch`) — run before tagging a release | E2B sandbox runs cost ~$0.25 each and 5-10 min wall time. The matrix exercises real install + first-use across multiple scenarios. Catches install-path regressions that only show up in a clean OS image. The former daily cron was removed: it had never reached the matrix (missing `e2b` deps failed it at import every night, opening a noise issue), and an untriaged daily gate adds cost without protecting releases. |
 | Cross-platform install (Windows / macOS) | `.github/workflows/cross-platform.yml` | Weekly Monday 03:00 UTC | Slow runners (~15 min) and rarely catches anything new. Weekly is enough for Tier-2 platforms. |
 | Live integration tests (real APIs) | `.github/workflows/nightly.yml` | Daily 02:00 UTC | Hits external APIs (Anthropic, OpenAI, GitHub, etc.). Real spend, real rate limits — cannot be on every PR. |
 
