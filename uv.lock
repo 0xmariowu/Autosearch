@@ -113,6 +113,7 @@ dev = [
     { name = "ruff" },
 ]
 e2b = [
+    { name = "e2b" },
     { name = "e2b-code-interpreter" },
     { name = "e2b-desktop" },
 ]
@@ -126,6 +127,7 @@ requires-dist = [
     { name = "aiosqlite" },
     { name = "beautifulsoup4", specifier = ">=4.12" },
     { name = "ddgs" },
+    { name = "e2b", marker = "extra == 'e2b'", specifier = ">=2" },
     { name = "e2b-code-interpreter", marker = "extra == 'e2b'", specifier = ">=2.4" },
     { name = "e2b-desktop", marker = "extra == 'e2b'", specifier = ">=2.2" },
     { name = "fastapi" },

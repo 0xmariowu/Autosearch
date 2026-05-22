@@ -47,8 +47,9 @@ dev = [
   "ruff",
 ]
 # E2B sandbox runner deps (scripts/e2b/*). Not needed for the package itself —
-# only the nightly release-gate and manual sandbox validation import these.
+# only the manual release-gate and sandbox validation import these.
 e2b = [
+  "e2b>=2",                    # core SDK — sandbox.py imports e2b.sandbox.* directly
   "e2b-code-interpreter>=2.4",
   "e2b-desktop>=2.2",
 ]
