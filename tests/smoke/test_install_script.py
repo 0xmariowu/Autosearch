@@ -23,6 +23,7 @@ def run_install_script(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX-only install.sh shell script")
 def test_install_script_dry_run_accepts_valid_version() -> None:
     result = run_install_script("--dry-run", "--version", "2026.04.25.1")
     combined_output = result.stdout + result.stderr
@@ -31,6 +32,7 @@ def test_install_script_dry_run_accepts_valid_version() -> None:
     assert "autosearch==2026.04.25.1" in combined_output
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX-only install.sh shell script")
 def test_install_script_rejects_injected_version_without_execution() -> None:
     result = run_install_script(
         "--dry-run",
@@ -43,6 +45,7 @@ def test_install_script_rejects_injected_version_without_execution() -> None:
     assert "PWNED" not in combined_output
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX-only install.sh shell script")
 def test_install_script_rejects_path_traversal_version() -> None:
     result = run_install_script("--dry-run", "--version", "../../etc/passwd")
     combined_output = result.stdout + result.stderr
