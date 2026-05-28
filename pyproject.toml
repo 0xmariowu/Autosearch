@@ -44,6 +44,7 @@ embeddings = [
 dev = [
   "pytest",
   "pytest-asyncio",
+  "pytest-timeout",
   "ruff",
 ]
 # E2B sandbox runner deps (scripts/e2b/*). Not needed for the package itself —
