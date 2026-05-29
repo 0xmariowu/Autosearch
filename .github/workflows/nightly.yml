@@ -1,9 +1,12 @@
 name: Nightly — Live Integration Tests
 
 on:
-  schedule:
-    - cron: "0 2 * * *"   # UTC 02:00 daily
-  workflow_dispatch:       # manual trigger
+  # Daily schedule removed: live tests hit ~14 real public endpoints from a
+  # shared CI IP, so transient upstream rate-limits/blocks (429/403/5xx)
+  # produced a false-alarm failure email nearly every night with no actionable
+  # signal. Run on demand from the Actions tab instead, where a human can read
+  # the result. The job still fails loudly on any real regression.
+  workflow_dispatch:       # manual trigger only
 
 permissions:
   contents: read
