@@ -4,8 +4,10 @@ name: Cross-Platform Tests
 # E2B sandboxes are Linux-only; this workflow provides real Windows/macOS coverage.
 
 on:
-  schedule:
-    - cron: "0 3 * * 1"   # UTC 03:00 every Monday
+  # Weekly schedule removed: these jobs hit external endpoints and Windows
+  # runners that produce false-alarm failure emails with no actionable signal.
+  # Coverage is preserved via the push trigger below (runs on every main change
+  # that touches package code) plus manual dispatch from the Actions tab.
   workflow_dispatch:       # manual trigger
   push:
     branches: [main]
